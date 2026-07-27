@@ -65,9 +65,9 @@ For translation contribution, you can help on our [Translate Page](https://trans
 
 <a href="https://www.star-history.com/?repos=KursalChat%2FKursal&type=date&legend=bottom-right">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&theme=dark&legend=bottom-right&sealed_token=hpQhCnQyGyO33hz5LvhvyRXKlKGAiBBWBnOvOWYBaFoQjGubGdZAJ_XqWG7f1OSaxSohdTVmyqmCXnd2iYwEHGqdeqmCWJyxYdHXWRjB4mFSSgP2KOBTT_XFrGGix4pOKUcRTXRwBxsGNby7tcBARSP-fNdTm1HtlLevgsrs-dOOrHyjpl7otAlpE4BZ" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&legend=bottom-right&sealed_token=hpQhCnQyGyO33hz5LvhvyRXKlKGAiBBWBnOvOWYBaFoQjGubGdZAJ_XqWG7f1OSaxSohdTVmyqmCXnd2iYwEHGqdeqmCWJyxYdHXWRjB4mFSSgP2KOBTT_XFrGGix4pOKUcRTXRwBxsGNby7tcBARSP-fNdTm1HtlLevgsrs-dOOrHyjpl7otAlpE4BZ" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&legend=bottom-right&sealed_token=hpQhCnQyGyO33hz5LvhvyRXKlKGAiBBWBnOvOWYBaFoQjGubGdZAJ_XqWG7f1OSaxSohdTVmyqmCXnd2iYwEHGqdeqmCWJyxYdHXWRjB4mFSSgP2KOBTT_XFrGGix4pOKUcRTXRwBxsGNby7tcBARSP-fNdTm1HtlLevgsrs-dOOrHyjpl7otAlpE4BZ" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&theme=dark&legend=bottom-right&sealed_token=kmvdBD6j0zNtPyFuaKv8DHOfBL9yKe-8O0Va4NHg0GaXEUvTRshXzm4mouidzk0tRxx0CgX_UW8hCquDd9jF-ogt2TlDiGEDA9RmNwye654gKL4rT5bJUw" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&legend=bottom-right&sealed_token=kmvdBD6j0zNtPyFuaKv8DHOfBL9yKe-8O0Va4NHg0GaXEUvTRshXzm4mouidzk0tRxx0CgX_UW8hCquDd9jF-ogt2TlDiGEDA9RmNwye654gKL4rT5bJUw" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=KursalChat/Kursal&type=date&legend=bottom-right&sealed_token=kmvdBD6j0zNtPyFuaKv8DHOfBL9yKe-8O0Va4NHg0GaXEUvTRshXzm4mouidzk0tRxx0CgX_UW8hCquDd9jF-ogt2TlDiGEDA9RmNwye654gKL4rT5bJUw" />
  </picture>
 </a>
 
