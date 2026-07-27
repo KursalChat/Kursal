@@ -6,7 +6,8 @@ const TRANSLATION_ROOT = "./locales";
 const ROOT = "./kursal-tauri/src";
 
 const STRICT = process.argv.includes("--strict");
-let mismatchCount = 0;
+let errorCount = 0;
+let untranslatedCount = 0;
 
 function hasPattern(pattern: string): boolean {
   function walkDir(dir: string): boolean {
@@ -68,6 +69,7 @@ const STRINGS_EN = getKeys(TRANSLATION_EN);
 for (const string of STRINGS_EN) {
   if (!string.startsWith("common.") && !hasPattern(string)) {
     console.warn(`⚠️  Unused EN string "${string}"`);
+    errorCount++;
   }
 }
 
@@ -83,14 +85,13 @@ for (const locale of LOCALES.map((l) => l.id).filter((id) => id != "en")) {
 
   for (const val of STRINGS_LANG.filter((str) => !STRINGS_EN.includes(str))) {
     console.warn(`⚠️  String in ${locale.toUpperCase()} but not in EN: ${val}`);
-    mismatchCount++;
+    errorCount++;
   }
 
-  let untranslated_english = 0;
-  for (const val of STRINGS_EN.filter((str) => !STRINGS_LANG.includes(str))) {
-    untranslated_english++;
-    mismatchCount++;
-  }
+  const untranslated_english = STRINGS_EN.filter(
+    (str) => !STRINGS_LANG.includes(str),
+  ).length;
+  untranslatedCount += untranslated_english;
   console.warn(
     `⚠️  ${untranslated_english} strings in EN but not in ${locale.toUpperCase()}`,
   );
@@ -98,7 +99,11 @@ for (const locale of LOCALES.map((l) => l.id).filter((id) => id != "en")) {
   console.timeEnd(CHECK_2);
 }
 
-if (STRICT && mismatchCount > 0) {
-  console.error(`\n❌ ${mismatchCount} translation mismatch(es) found.`);
+if (untranslatedCount > 0) {
+  console.warn(`\n⚠️  ${untranslatedCount} untranslated string(s) across locales.`);
+}
+
+if (STRICT && errorCount > 0) {
+  console.error(`\n❌ ${errorCount} unused or orphaned translation key(s) found.`);
   process.exit(1);
 }
