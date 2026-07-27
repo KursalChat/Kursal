@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Nearby peer discovery (libp2p mDNS + local dev server) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kursal uses your local network to discover nearby peers for direct, encrypted peer-to-peer messaging.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_p2p._udp</string>
+		<string>_p2p._tcp</string>
+	</array>
+
+	<!-- Camera access for QR-code / barcode-based contact exchange -->
+	<key>NSCameraUsageDescription</key>
+	<string>Kursal uses the camera to scan QR codes when adding a new contact and during video calls with your contacts.</string>
+
+	<!-- File transfers -->
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Kursal reads files you pick so you can send them, and writes files you receive.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Kursal saves received files to your Downloads folder.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Kursal saves received files to your Desktop when you choose it.</string>
+
+	<!-- Voice calls -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Kursal uses the microphone only during voice calls with your contacts.</string>
+
+	<!-- High-contrast dark UI on notch systems -->
+	<key>NSRequiresAquaSystemAppearance</key>
+	<false/>
+
+	<!-- Export compliance: Kursal uses end-to-end encryption. Set to true; you
+	     provide an export compliance code in App Store Connect. For non-MAS
+	     distribution this key is advisory. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<true/>
+
+	<!-- Nearby peer discovery over Bluetooth (Nearby tab) -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Kursal uses Bluetooth to discover nearby devices.</string>
+
+	<!-- Biometric app lock (Face ID / Touch ID) -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate with biometric to unlock the app.</string>
+</dict>
+</plist>

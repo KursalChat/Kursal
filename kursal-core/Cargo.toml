@@ -1,0 +1,128 @@
+[package]
+name = "kursal-core"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["calls", "ble"]
+calls = [
+    "dep:audiopus",
+    "dep:cpal",
+    "dep:ringbuf",
+    "dep:webrtc-audio-processing",
+    "dep:objc2-avf-audio",
+]
+ble = ["dep:btleplug", "dep:ble-peripheral-rust"]
+
+[dependencies]
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["fs"] }
+tokio-util = { workspace = true }
+tokio-stream = { workspace = true }
+async-trait = { workspace = true }
+hex = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+log4rs = { workspace = true }
+rayon = { workspace = true }
+emojis = { workspace = true }
+sysinfo = { workspace = true }
+prometheus-client = { workspace = true }
+subtle = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+
+# Crypto
+argon2 = { workspace = true }
+aes-gcm = { workspace = true }
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+blake2 = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true, features = ["v7"] }
+libsignal-protocol = { workspace = true }
+pqcrypto-dilithium = { workspace = true }
+pqcrypto-traits = { workspace = true }
+chacha20poly1305 = { workspace = true }
+
+# Network
+libp2p = { workspace = true }
+libp2p-stream = { workspace = true }
+btleplug = { workspace = true, optional = true }
+
+# Storage
+redb = { workspace = true }
+keyring-core = { workspace = true }
+
+# API
+axum = { workspace = true, features = ["ws"] }
+tower-http = { workspace = true, features = ["cors"] }
+utoipa = { workspace = true }
+utoipa-scalar = { workspace = true, features = ["axum"] }
+tokio-tungstenite = { workspace = true }
+
+# Audio
+audiopus = { workspace = true, optional = true }
+cpal = { workspace = true, optional = true }
+ringbuf = { workspace = true, optional = true }
+
+[dev-dependencies]
+dirs = { workspace = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+ble-peripheral-rust = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = { workspace = true }
+ndk-context = "0.1"
+jni = "0.19"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { workspace = true, features = [
+    "keychain",
+    "protected",
+] }
+
+# Echo cancellation / noise suppression (software AEC3 + NS). Its bundled
+# C++/meson build does NOT cross-compile, so we only enable it where the
+# build is native
+[target.'cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
+webrtc-audio-processing = { workspace = true, features = ["bundled"], optional = true }
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+libp2p = { workspace = true, features = ["mdns"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+apple-native-keyring-store = { workspace = true, features = ["protected"] }
+# Configure the audio session for VoIP: hardware echo-cancel/noise-suppression
+# and (with UIBackgroundModes=audio) keeping an active call alive in background.
+objc2-avf-audio = { workspace = true, optional = true, features = [
+    "AVAudioSession",
+    "AVAudioSessionTypes",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-keyutils-keyring-store = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+dbus-secret-service-keyring-store = { workspace = true, features = [
+    "crypto-rust",
+    "vendored",
+] }

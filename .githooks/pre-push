@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+strict_flag=
+branch=
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  branch="$remote_ref"
+  [ "$remote_ref" = "refs/heads/main" ] && strict_flag="--strict"
+done
+
+if [ "$branch" = "refs/heads/dev" ]; then
+  echo "▶ pre-push (dev): skipping checks"
+  exit 0
+fi
+
+if [ -n "$strict_flag" ]; then
+  echo "▶ pre-push (main): just check - strict translations…"
+else
+  echo "▶ pre-push: just check - translations warn-only (strict on main)…"
+fi
+
+just check "$strict_flag"
+echo "✓ pre-push checks passed"

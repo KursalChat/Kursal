@@ -1,0 +1,6 @@
+{
+  "search.exclude": {
+    "externals/**": true
+  },
+  "svelte.enable-ts-plugin": true
+}

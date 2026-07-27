@@ -1,0 +1,19 @@
+[Unit]
+Description=Kursal relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kursal-relay
+WorkingDirectory=/var/lib/kursal-relay
+StateDirectory=kursal-relay
+DynamicUser=yes
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,145 @@
+<script lang="ts">
+  import { Image, Camera, Paperclip } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
+  import { trapFocus } from '$lib/utils/focusTrap';
+
+  interface Props {
+    onClose: () => void;
+    onPickMedia: () => void;
+    onPickFile: () => void;
+    onCameraCapture: (file: File) => void;
+  }
+
+  let { onClose, onPickMedia, onPickFile, onCameraCapture }: Props = $props();
+
+  let cameraInput = $state<HTMLInputElement | null>(null);
+
+  function onCameraChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) onCameraCapture(file);
+    onClose();
+  }
+
+  function choose(fn: () => void) {
+    fn();
+    onClose();
+  }
+</script>
+
+<div
+  class="sheet-backdrop"
+  onclick={onClose}
+  onkeydown={(e) => {
+    if (e.key === 'Escape') onClose();
+  }}
+  role="button"
+  tabindex="-1"
+  aria-label={t('chat.attach.backdropAriaLabel')}
+></div>
+<div
+  class="attach-sheet"
+  role="dialog"
+  aria-modal="true"
+  aria-label={t('chat.attach.dialogAriaLabel')}
+  tabindex="-1"
+  use:trapFocus
+  onkeydown={(e) => {
+    if (e.key === 'Escape') onClose();
+  }}
+>
+  <div class="sheet-handle"></div>
+  <div class="sheet-actions">
+    <button class="sheet-row" onclick={() => choose(onPickMedia)}>
+      <Image size={20} /><span>{t('chat.attach.photos')}</span>
+    </button>
+    <button class="sheet-row" onclick={() => cameraInput?.click()}>
+      <Camera size={20} /><span>{t('chat.attach.camera')}</span>
+    </button>
+    <button class="sheet-row" onclick={() => choose(onPickFile)}>
+      <Paperclip size={20} /><span>{t('chat.attach.files')}</span>
+    </button>
+  </div>
+  <input
+    bind:this={cameraInput}
+    class="camera-input"
+    type="file"
+    accept="image/*,video/*"
+    capture="environment"
+    onchange={onCameraChange}
+  />
+</div>
+
+<style>
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 300;
+    animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .attach-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    padding: 8px 10px max(16px, var(--safe-bottom));
+    z-index: 310;
+    animation: sheetUp 0.22s cubic-bezier(0.3, 0, 0.2, 1);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+  }
+  @keyframes sheetUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 4px;
+    margin: 6px auto 12px;
+  }
+  .sheet-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sheet-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    text-align: left;
+    transition: background var(--transition);
+  }
+  .sheet-row:hover,
+  .sheet-row:active {
+    background: var(--bg-hover);
+  }
+  .camera-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>

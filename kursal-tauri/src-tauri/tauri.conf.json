@@ -1,0 +1,109 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kursal",
+  "identifier": "chat.kursal",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../build",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Kursal",
+        "width": 1080,
+        "height": 780,
+        "center": true,
+        "minWidth": 500,
+        "minHeight": 300,
+        "userAgent": "KursalChat (kursal.chat)",
+        "zoomHotkeysEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      },
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: http://asset.localhost https://asset.localhost; media-src 'self' asset: http://asset.localhost https://asset.localhost; font-src 'self'; connect-src 'self' ipc://localhost https://ipc.localhost asset: http://asset.localhost https://asset.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "KursalChat",
+    "copyright": "© 2026 KursalChat",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "public.app-category.social-networking",
+    "macOS": {
+      "entitlements": "entitlements.mac.plist",
+      "minimumSystemVersion": "14.0",
+      "dmg": {
+        "appPosition": {
+          "x": 210,
+          "y": 330
+        },
+        "applicationFolderPosition": {
+          "x": 610,
+          "y": 330
+        },
+        "windowSize": {
+          "height": 528,
+          "width": 820
+        },
+        "background": "../../assets/mac-dmg-background.jpg"
+      }
+    },
+    "android": {
+      "minSdkVersion": 26
+    },
+    "shortDescription": "Peer-to-peer, end-to-end encrypted messaging that puts you in control.",
+    "longDescription": "Peer-to-peer, end-to-end encrypted messaging that puts you in control. No servers. No tracking. Just your private conversations.",
+    "createUpdaterArtifacts": true,
+    "fileAssociations": [
+      {
+        "ext": ["kursal"],
+        "description": "Kursal data file",
+        "exportedType": {
+          "conformsTo": ["public.data"],
+          "identifier": "kursal"
+        },
+        "mimeType": "application/octet-stream",
+        "name": "Kursal",
+        "rank": "Owner",
+        "role": "Editor"
+      }
+    ],
+    "iOS": {
+      "minimumSystemVersion": "15.6",
+      "developmentTeam": "P6PV2R9443"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0MzA0M0E0NEY3ODNENQpSV1RWZy9kRU9nUkRCRTRhb3ErY0NqandDRFNTZ2p1azVFQjNpaUZBZkZ6RGpUY0MwRDZIdE1sSwo=",
+      "endpoints": ["https://app.kursal.chat/latest.json"]
+    },
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["kursal"],
+          "appLink": false
+        }
+      ],
+      "desktop": {
+        "schemes": ["kursal"]
+      }
+    }
+  }
+}

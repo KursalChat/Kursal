@@ -1,0 +1,28 @@
+target
+dist
+build
+.svelte-kit
+node_modules
+bin/deps
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+/keys/*
+!/keys/make.sh
+
+# kursal-cli
+kursal-cli/relay.toml
+kursal-cli/relay_identity.key
+
+# kursal-tauri
+kursal-tauri/src-tauri/gen/schemas
+kursal-tauri/src-tauri/gen/android/keystore.properties
+
+# temporary
+CLAUDE.md

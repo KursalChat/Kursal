@@ -1,0 +1,28 @@
+import { defineConfig } from "vitest/config";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { fileURLToPath } from "node:url";
+
+const resolvePath = (p: string) => fileURLToPath(new URL(p, import.meta.url));
+
+export default defineConfig({
+  plugins: [svelte()],
+  server: {
+    fs: {
+      allow: [resolvePath("..")],
+    },
+  },
+  resolve: {
+    conditions: ["browser"],
+    alias: [
+      {
+        find: "$app/environment",
+        replacement: resolvePath("./src/test/stubs/app-environment.ts"),
+      },
+      { find: "$lib", replacement: resolvePath("./src/lib") },
+    ],
+  },
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.ts"],
+  },
+});

@@ -1,0 +1,29 @@
+[package]
+name = "kursal-cli"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "kursal-relay"
+path = "src/main.rs"
+
+[dependencies]
+kursal-core = { path = "../kursal-core", default-features = false }
+
+clap = { workspace = true, features = ["derive"] }
+toml = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["signal"]}
+log = { workspace = true }
+libp2p = { workspace = true }
+anyhow = { workspace = true }
+
+axum = { workspace = true }
+ratatui = { workspace = true }

@@ -1,0 +1,11 @@
+.git
+target
+dist
+node_modules
+kursal-tauri/node_modules
+kursal-tauri/build
+kursal-tauri/.svelte-kit
+kursal-tauri/src-tauri/gen
+docs
+*.md
+!CHANGELOG.md

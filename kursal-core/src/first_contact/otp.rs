@@ -1,0 +1,334 @@
+use crate::MapKursalResult;
+use crate::{
+    KursalError, Result,
+    contacts::Contact,
+    crypto::{
+        PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
+        stream::{stream_decrypt, stream_encrypt},
+    },
+    first_contact::{ContactResponse, WireMessage, make_username},
+    identity::UserId,
+    messaging::{enums::MessageId, offline::new_offline_state},
+    network::{
+        NetworkManager,
+        dht::DHTRecord,
+        kademlia::KAD_MAX_AGE,
+        swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
+    },
+    storage::{SharedDatabase, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs},
+};
+use argon2::{Argon2, ParamsBuilder};
+use libp2p::PeerId;
+use libsignal_protocol::{DeviceId, KeyPair, ProtocolAddress};
+use rand::{Rng, TryRngCore, distr::Uniform, rngs::OsRng};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::{str::FromStr, time::Duration};
+use tokio::sync::mpsc;
+use zeroize::Zeroizing;
+
+const SALT: &[u8; 16] = b"kursal-otp-salt1";
+const WORDS: &str = include_str!("otp_wordlist.txt");
+
+pub fn generate_otp() -> Result<String> {
+    let wordlist: Vec<&str> = WORDS.lines().filter(|s| !s.is_empty()).collect();
+
+    let dist = Uniform::new(0, wordlist.len()).ok_kursal(KursalError::Crypto)?;
+    let mut os_rng = OsRng;
+    let mut rng = os_rng.unwrap_mut();
+
+    // 8 random words
+    let result: Result<Vec<String>> = (0..8)
+        .map(|_| {
+            wordlist
+                .get(rng.sample(dist))
+                .ok_or(KursalError::Crypto(
+                    "Could not generate a random word".to_string(),
+                ))
+                .map(|w| w.to_string())
+        })
+        .collect();
+
+    Ok(result?.join(" "))
+}
+
+pub fn hash_otp(otp: &str) -> Result<[u8; 32]> {
+    let argon2 = Argon2::new(
+        argon2::Algorithm::Argon2id,
+        argon2::Version::V0x13,
+        ParamsBuilder::new()
+            .m_cost(256 * 1024)
+            .t_cost(2)
+            .p_cost(1)
+            .output_len(32)
+            .build()
+            .ok_kursal(KursalError::Crypto)?,
+    );
+
+    let mut output = [0u8; 32];
+    argon2
+        .hash_password_into(otp.as_bytes(), SALT, &mut output)
+        .ok_kursal(KursalError::Crypto)?;
+
+    Ok(output)
+}
+
+pub fn otp_to_keys(otp: &str) -> Result<([u8; 32], [u8; 32])> {
+    let hash = hash_otp(otp)?;
+    let dht_key = Sha256::digest(hash).into();
+
+    Ok((hash, dht_key))
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct OtpPayload {
+    pub payload_id: MessageId,
+    pub pre_key_bundle: Vec<u8>,
+    pub peer_id: String,
+    pub dilithium_pub_key: Vec<u8>,
+    pub relay_addresses: Vec<String>,
+}
+
+impl OtpPayload {
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self).map_err(Into::into)
+    }
+
+    pub fn deserialize(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(Into::into)
+    }
+}
+
+pub async fn build_otp_payload(
+    db: SharedDatabase,
+    network: &NetworkManager,
+    enc_key: &[u8; 32],
+    payload_id: MessageId,
+) -> Result<Vec<u8>> {
+    let bundle_data = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
+    let prekey_id: u32 = bundle_data
+        .pre_key_id
+        .ok_or_else(|| KursalError::Crypto("OTP bundle missing one-time prekey".to_string()))?
+        .into();
+    db.0.lock()
+        .await
+        .raw_write(TABLE_SETTINGS, "otp_prekey_id", &prekey_id.to_be_bytes())?;
+    let bundle = bundle_data.serialize()?;
+    let peer_id = network.primary.peer_id.to_base58();
+    let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+
+    let payload = OtpPayload {
+        payload_id,
+        pre_key_bundle: bundle,
+        peer_id,
+        dilithium_pub_key,
+        relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
+    };
+
+    stream_encrypt(enc_key, &payload.serialize()?)
+}
+
+pub async fn publish_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) -> Result<()> {
+    let timestamp = get_timestamp_secs()?;
+    let payload_id = MessageId::new();
+
+    let (enc_key, dht_key) = otp_to_keys(otp)?;
+    let enc_key = Zeroizing::new(enc_key);
+    let payload = build_otp_payload(db.clone(), network, &enc_key, payload_id).await?;
+
+    let dht_record = DHTRecord::new(dht_key.to_vec(), payload, timestamp, false).await?;
+
+    network
+        .primary
+        .cmd_tx
+        .send(SwarmCommand::PublishDht {
+            key: dht_key.to_vec(),
+            value: dht_record.serialize()?,
+            expires: Some(KAD_MAX_AGE),
+        })
+        .await
+        .ok_kursal(KursalError::Network)?;
+
+    {
+        let db_lock = db.0.lock().await;
+        db_lock.raw_write(TABLE_SETTINGS, "otp_published_at", &timestamp.to_be_bytes())?;
+        db_lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)?;
+    }
+
+    Ok(())
+}
+
+pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) -> Result<Contact> {
+    let local_peer_id = network.primary.peer_id.to_base58();
+    let timestamp = get_timestamp_secs()?;
+    let (enc_key, dht_key) = otp_to_keys(otp)?;
+    let enc_key = Zeroizing::new(enc_key);
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut attempt = 0u32;
+
+    let (payload, bundle) = loop {
+        attempt += 1;
+        let (reply_tx, mut reply_rx) = mpsc::channel(16);
+
+        network
+            .primary
+            .cmd_tx
+            .send(SwarmCommand::FetchDht {
+                key: dht_key.to_vec(),
+                reply_tx,
+            })
+            .await
+            .ok_kursal(KursalError::Network)?;
+
+        log::info!(
+            "[otp] fetch attempt {attempt} dht_key={}",
+            hex::encode(&dht_key[..8])
+        );
+
+        let found = tokio::time::timeout_at(deadline, async {
+            while let Some(bytes) = reply_rx.recv().await {
+                let dht_record = match DHTRecord::is_valid(&dht_key, &bytes) {
+                    Ok(record) => record,
+                    Err(err) => {
+                        log::debug!("[otp] Ignoring invalid DHT record: {err}");
+                        continue;
+                    }
+                };
+
+                let decrypted = match stream_decrypt(&enc_key, &dht_record.value) {
+                    Ok(decrypted) => decrypted,
+                    Err(err) => {
+                        log::debug!("[otp] DHT record decrypted failed: {err}");
+                        continue;
+                    }
+                };
+
+                let record = match OtpPayload::deserialize(&decrypted) {
+                    Ok(record) => record,
+                    Err(err) => {
+                        log::debug!("[otp] OTP payload deserialize failed: {err}");
+                        continue;
+                    }
+                };
+
+                if record.peer_id == local_peer_id {
+                    log::debug!("[otp] Cannot add yourself as a contact");
+                    continue;
+                }
+
+                if let Ok(bundle) = PreKeyBundleData::deserialize(&record.pre_key_bundle) {
+                    return Some((record, bundle));
+                }
+            }
+            None
+        })
+        .await;
+
+        match found {
+            Ok(Some(result)) => break result,
+            _ => {
+                if tokio::time::Instant::now() >= deadline {
+                    return Err(KursalError::Network("Record not found".to_string()));
+                }
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    };
+
+    let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
+    let user_id: [u8; 32] = Sha256::digest(&identity_pub_key).into();
+
+    let remote_address = ProtocolAddress::new(hex::encode(user_id), DeviceId::new(1u8).unwrap());
+    let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
+    let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
+    let mailbox_opk_pub = bundle
+        .pre_key_public
+        .ok_or_else(|| KursalError::Crypto("OTP bundle missing one-time prekey".to_string()))?;
+    session_initiate(db.clone(), bundle, &remote_address).await?;
+    let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
+
+    let mut rng = OsRng.unwrap_err();
+    let mailbox_ephemeral = KeyPair::generate(&mut rng);
+    let classical_secret = Zeroizing::new(
+        mailbox_ephemeral
+            .private_key
+            .calculate_agreement(&mailbox_opk_pub)
+            .ok_kursal(KursalError::Crypto)?,
+    );
+    let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
+
+    let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
+    let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+
+    let contact = Contact {
+        user_id: UserId(user_id),
+        peer_id: payload.peer_id.clone(),
+        display_name: make_username(&payload.peer_id),
+        avatar_bytes: None,
+        identity_pub_key: identity_pub_key.clone(),
+        dilithium_pub_key: payload.dilithium_pub_key.clone(),
+        known_addresses: payload.relay_addresses,
+        verified: false,
+        profile_shared: false,
+        blocked: false,
+        created_at: timestamp,
+        offline: new_offline_state(&db, &identity_pub_key, &classical_secret, &pq_secret).await?,
+    };
+
+    // now build bundle back
+    let response = ContactResponse {
+        payload_id: payload.payload_id,
+        pre_key_bundle: my_bundle.serialize()?,
+        peer_id: network.primary.peer_id.to_base58(),
+        dilithium_pub_key,
+        relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
+        mailbox_kem_ct,
+        mailbox_kem_prekey_id,
+        mailbox_ephemeral_pub,
+    };
+
+    let wire = WireMessage::ContactResponse(response);
+    let response_bytes = bincode::serialize(&wire)?;
+
+    let publisher_peer = PeerId::from_str(&payload.peer_id).ok_kursal(KursalError::Network)?;
+    let publisher_addrs = str_to_multiaddr(&contact.known_addresses)?;
+
+    if !is_peer_connected(&network.primary.cmd_tx, publisher_peer).await {
+        log::info!(
+            "[otp] dialing publisher {publisher_peer} via {} addr(s)",
+            publisher_addrs.len()
+        );
+        for addr in &publisher_addrs {
+            let _ = network
+                .primary
+                .cmd_tx
+                .send(SwarmCommand::Dial(addr.clone()))
+                .await;
+        }
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        while tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            if is_peer_connected(&network.primary.cmd_tx, publisher_peer).await {
+                break;
+            }
+        }
+    }
+
+    let connected = is_peer_connected(&network.primary.cmd_tx, publisher_peer).await;
+    log::info!("[otp] sending ContactResponse to {publisher_peer} connected={connected}");
+
+    network
+        .primary
+        .cmd_tx
+        .send(SwarmCommand::SendMessage {
+            peer_id: publisher_peer,
+            data: response_bytes,
+            addresses: publisher_addrs,
+        })
+        .await
+        .ok_kursal(KursalError::Network)?;
+
+    contact.save(&*db.0.lock().await)?;
+    Ok(contact)
+}

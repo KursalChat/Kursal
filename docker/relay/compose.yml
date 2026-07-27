@@ -1,0 +1,13 @@
+# First start writes ./relay.toml next to this compose file, edit announce_addr, then restart.
+# See docs/RELAY.md for details.
+
+services:
+  relay:
+    image: ghcr.io/kursalchat/relay:latest
+    container_name: kursal-relay
+    restart: unless-stopped
+    ports:
+      - "4891:4891/tcp"
+      - "4891:4891/udp"
+    volumes:
+      - ./:/data
