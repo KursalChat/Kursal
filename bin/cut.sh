@@ -16,7 +16,7 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
 else
   echo "==> branching $BRANCH from dev"
   git checkout dev
-  git pull --ff-only
+  git pull --ff-only origin dev
   git checkout -b "$BRANCH"
 fi
 
