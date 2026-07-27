@@ -15,8 +15,8 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
   # branch deletion: nothing to check
   [ "$local_sha" = "$ZERO" ] && continue
 
-  # new branch on the remote: no base to diff against, so check everything
-  if [ "$remote_sha" = "$ZERO" ]; then
+  # no usable base to diff against, so check everything
+  if [ "$remote_sha" = "$ZERO" ] || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
     run_all=1
   else
     changed="$changed$(git diff --name-only "$remote_sha" "$local_sha")
