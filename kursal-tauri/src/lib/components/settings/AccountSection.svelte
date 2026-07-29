@@ -1,7 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { log } from '$lib/utils/log';
-  import { Upload, Download, FolderOpen, Trash2, Save, Bell, BellRing, Copy } from 'lucide-svelte';
+  import {
+    Upload,
+    Download,
+    FolderOpen,
+    Trash2,
+    Save,
+    Bell,
+    BellRing,
+    Copy,
+    Check,
+  } from 'lucide-svelte';
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
   import { writeFile, readFile } from '@tauri-apps/plugin-fs';
   import { broadcastProfile } from '$lib/api/identity';
@@ -11,6 +21,7 @@
   import { prefsState, type NotificationPreview, type DndSchedule } from '$lib/state/prefs.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
@@ -37,6 +48,9 @@
   let importing = $state(false);
 
   let exportOpen = $state(false);
+  const profileSaved = flash();
+  const backupSaved = flash();
+  const copiedUserId = flash();
   let exportPwd = $state('');
   let exportPwd2 = $state('');
 
@@ -102,7 +116,7 @@
     try {
       await broadcastProfile(nameToSave, avatarBytes);
       profileState.update(nameToSave, avatarBase64, avatarBytes);
-      notifications.push(t('settings.account.successProfileSaved'), 'success');
+      profileSaved.trigger();
     } catch (e) {
       log.error(e);
       notifications.push(t('settings.account.errorBroadcastFailed'), 'error');
@@ -147,7 +161,9 @@
       });
       if (!path) return;
       await writeFile(path, new Uint8Array(bytes));
-      notifications.push(t('settings.account.successBackupSaved'), 'success');
+      // resetExport() collapses this panel, so the flash lands on the export
+      // button that takes its place in the row.
+      backupSaved.trigger();
       resetExport();
     } catch (e) {
       notifyError(e, 'settings.account.errorExport');
@@ -237,7 +253,7 @@
     if (!profileState.userId) return;
     try {
       await writeText(profileState.userId);
-      notifications.push(t('settings.account.successUserIdCopied'), 'success');
+      copiedUserId.trigger();
     } catch (e) {
       notifyError(e, 'settings.account.errorCopyFailed');
     }
@@ -303,6 +319,7 @@
     <Button
       onclick={saveProfile}
       loading={savingProfile}
+      success={profileSaved.active}
       disabled={!profileDirty || !!profileError}
     >
       <Save size={13} />
@@ -317,10 +334,17 @@
         <div class="user-id-actions">
           <button
             class="icon-btn"
+            class:confirmed={copiedUserId.active}
             onclick={copyUserId}
-            aria-label={t('settings.account.copyUserIdAriaLabel')}
+            aria-label={copiedUserId.active
+              ? t('common.copied')
+              : t('settings.account.copyUserIdAriaLabel')}
           >
-            <Copy size={13} />
+            {#if copiedUserId.active}
+              <Check size={13} />
+            {:else}
+              <Copy size={13} />
+            {/if}
           </button>
         </div>
       </div>
@@ -340,7 +364,11 @@
     {#if exportOpen}
       <Button variant="secondary" onclick={resetExport}>{t('settings.account.cancel')}</Button>
     {:else}
-      <Button variant="secondary" onclick={() => (exportOpen = true)}>
+      <Button
+        variant="secondary"
+        onclick={() => (exportOpen = true)}
+        success={backupSaved.active}
+      >
         <Download size={13} />
         {t('settings.account.exportButton')}
       </Button>
@@ -472,6 +500,10 @@
 </SettingCard>
 
 <style>
+  .icon-btn.confirmed {
+    color: var(--success);
+  }
+
   .user-id-block {
     padding: 14px;
     border-bottom: 1px solid var(--border-light);

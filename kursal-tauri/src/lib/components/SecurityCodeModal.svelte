@@ -5,9 +5,12 @@
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { errorText } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import { trapFocus } from '$lib/utils/focusTrap';
   import Button from './Button.svelte';
   import { t } from '$lib/i18n';
+
+  const copied = flash();
 
   let {
     contactId,
@@ -56,7 +59,7 @@
     if (code) {
       try {
         await navigator.clipboard.writeText(code);
-        notifications.push(t('securityCode.copied'), 'success');
+        copied.trigger();
       } catch (e) {
         log.error('Failed to copy code:', e);
       }
@@ -115,7 +118,12 @@
         {/each}
       </ol>
 
-      <Button variant="secondary" onclick={copyCode}>
+      <Button
+        variant="secondary"
+        onclick={copyCode}
+        success={copied.active}
+        successLabel={t('common.copied')}
+      >
         {t('securityCode.copyButton')}
       </Button>
 

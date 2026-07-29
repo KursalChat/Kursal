@@ -1,7 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { log } from '$lib/utils/log';
-  import { RefreshCw, ShieldOff, Trash2, Copy, TriangleAlert, Fingerprint } from 'lucide-svelte';
+  import {
+    RefreshCw,
+    ShieldOff,
+    Trash2,
+    Copy,
+    Check,
+    TriangleAlert,
+    Fingerprint,
+  } from 'lucide-svelte';
   import { checkStatus } from '@tauri-apps/plugin-biometric';
   import { isMobile } from '$lib/api/window';
   import { prefsState } from '$lib/state/prefs.svelte';
@@ -20,6 +28,7 @@
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
   import Avatar from '$lib/components/Avatar.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -32,6 +41,7 @@
   import { t } from '$lib/i18n';
 
   let rotating = $state(false);
+  const copiedPeerId = flash();
   const rotationInterval = $derived(settingsState.peerRotation);
   const typing = $derived(settingsState.typingIndicators);
 
@@ -78,12 +88,6 @@
       }
     }
     prefsState.setAppLockBiometric(value);
-    notifications.push(
-      value
-        ? t('settings.privacy.successAppLockEnabled')
-        : t('settings.privacy.successAppLockDisabled'),
-      'success'
-    );
   }
 
   async function reloadBlocked() {
@@ -110,7 +114,6 @@
     try {
       await rotatePeerId();
       await profileState.refreshPeerId();
-      notifications.push(t('settings.privacy.successPeerIdRotated'), 'success');
     } catch (e) {
       notifications.push(t('settings.privacy.errorPeerIdRotate'), 'error');
     } finally {
@@ -131,7 +134,7 @@
     if (!profileState.peerId) return;
     try {
       await writeText(profileState.peerId);
-      notifications.push(t('settings.privacy.successPeerIdCopied'), 'success');
+      copiedPeerId.trigger();
     } catch (e) {
       notifyError(e, 'settings.privacy.errorCopyFailed');
     }
@@ -157,7 +160,6 @@
     try {
       await setContactBlocked(id, false);
       blocked = blocked.filter((c) => c.userId !== id);
-      notifications.push(t('settings.privacy.successContactUnblocked'), 'success');
     } catch (e) {
       notifyError(e);
     }
@@ -186,7 +188,6 @@
       } else {
         messagesState.clearForContact(clearTarget);
       }
-      notifications.push(t('settings.privacy.successHistoryCleared'), 'success');
     } catch (e) {
       notifyError(e);
     } finally {
@@ -252,10 +253,17 @@
         <div class="peer-id-actions">
           <button
             class="icon-btn"
+            class:confirmed={copiedPeerId.active}
             onclick={copyPeerId}
-            aria-label={t('settings.privacy.copyPeerIdAriaLabel')}
+            aria-label={copiedPeerId.active
+              ? t('common.copied')
+              : t('settings.privacy.copyPeerIdAriaLabel')}
           >
-            <Copy size={13} />
+            {#if copiedPeerId.active}
+              <Check size={13} />
+            {:else}
+              <Copy size={13} />
+            {/if}
           </button>
           <Button variant="secondary" loading={rotating} onclick={handleRotate}>
             <RefreshCw size={13} />
@@ -437,6 +445,10 @@
   .icon-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  .icon-btn.confirmed,
+  .icon-btn.confirmed:hover {
+    color: var(--success);
   }
 
   .empty {

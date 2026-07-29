@@ -10,9 +10,12 @@
     type BenchmarkResult,
   } from '$lib/api/benchmark';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { flash } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
-  import { Copy, CircleCheck } from 'lucide-svelte';
+  import { Copy, CircleCheck, Check } from 'lucide-svelte';
   import { t } from '$lib/i18n';
+
+  const copied = flash();
 
   let {
     id,
@@ -89,7 +92,7 @@
     try {
       if (navigator.clipboard) {
         await navigator.clipboard.writeText(text);
-        notifications.push(t('settings.advanced.benchmarkCopySuccess'), 'success');
+        copied.trigger();
       } else {
         notifications.push(t('settings.advanced.benchmarkCopyUnavailable'), 'error');
       }
@@ -161,11 +164,18 @@
         </div>
         <button
           class="copy-btn"
+          class:confirmed={copied.active}
           onclick={copyResults}
-          aria-label={t('settings.advanced.benchmarkCopyResults')}
+          aria-label={copied.active
+            ? t('common.copied')
+            : t('settings.advanced.benchmarkCopyResults')}
           title={t('settings.advanced.benchmarkCopyResults')}
         >
-          <Copy size={13} />
+          {#if copied.active}
+            <Check size={13} />
+          {:else}
+            <Copy size={13} />
+          {/if}
         </button>
       </div>
 
@@ -362,6 +372,11 @@
   .copy-btn:hover {
     color: var(--text-primary);
     background: var(--bg-hover);
+  }
+
+  .copy-btn.confirmed,
+  .copy-btn.confirmed:hover {
+    color: var(--success);
   }
 
   .results-grid {

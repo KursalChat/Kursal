@@ -642,7 +642,6 @@
     unlistenPromises.push(
       listen<FileReceivedPayload>('file_received', async (event) => {
         const { contactId, transferId, savePath } = event.payload;
-        const filename = savePath.split(/[\\/]/).pop() || 'file';
 
         // The bubble's <img> was mounted against the still-empty preallocated
         // file, so the completed bytes only show after a forced refetch.
@@ -652,13 +651,6 @@
         // savePath is where the bytes actually landed, which beats the path
         // resolved at accept time (a retry can have changed it).
         messagesState.setAutodownloadPath(transferId, contactId, savePath);
-
-        const contact = contactsState.getById(contactId);
-        const contactName = contact?.displayName ?? t('notifications.unknownSender');
-        notifications.push(
-          t('layout.fileReceivedToast', { filename, name: contactName }),
-          'success'
-        );
       })
     );
 
@@ -667,9 +659,8 @@
       listen<FileTransferFailedPayload>('file_transfer_failed', (event) => {
         const { transferId, reason } = event.payload;
         messagesState.clearTransferProgress(transferId);
-        if (reason === 'cancelled') {
-          notifications.push(t('fileTransfer.transferCancelled'), 'info');
-        } else {
+        // A cancel is user-initiated and the bubble reverts on its own.
+        if (reason !== 'cancelled') {
           notifications.push(t('fileTransfer.transferFailed'), 'error');
         }
         log.error('File transfer failed', event.payload);

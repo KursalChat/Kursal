@@ -20,8 +20,8 @@
   import { settingsState } from '$lib/state/settings.svelte';
   import { settingsDirty } from '$lib/state/settingsDirty.svelte';
   import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -39,6 +39,8 @@
 
   let acceptCfg = $state<AutoAcceptConfig>({ ...settingsState.autoAccept });
   let acceptSaving = $state(false);
+  const acceptSaved = flash();
+  const downloadSaved = flash();
 
   let downloadCfg = $state<AutoDownloadConfig>({
     ...settingsState.autoDownload,
@@ -124,7 +126,6 @@
       const next = new Set(selection);
       next.delete(id);
       selection = next;
-      notifications.push(t('settings.storage.successShareRevoked'), 'success');
     } catch (e) {
       notifyError(e);
     }
@@ -146,7 +147,6 @@
       await revokeSharedFilesBulk(ids);
       shared = shared.filter((f) => !selection.has(f.id));
       selection = new Set();
-      notifications.push(t('settings.storage.successSharesRevoked'), 'success');
     } catch (e) {
       notifyError(e);
     }
@@ -156,7 +156,7 @@
     acceptSaving = true;
     try {
       await settingsState.setAutoAccept({ ...acceptCfg });
-      notifications.push(t('settings.storage.successAutoAcceptSaved'), 'success');
+      acceptSaved.trigger();
     } catch (e) {
       notifyError(e);
     } finally {
@@ -168,7 +168,7 @@
     downloadSaving = true;
     try {
       await settingsState.setAutoDownload({ ...downloadCfg });
-      notifications.push(t('settings.storage.successStorageLimitSaved'), 'success');
+      downloadSaved.trigger();
     } catch (e) {
       notifyError(e);
     } finally {
@@ -453,7 +453,12 @@
     </div>
   </SettingRow>
   {#snippet footer()}
-    <Button onclick={saveAccept} loading={acceptSaving} disabled={!acceptDirty}>
+    <Button
+      onclick={saveAccept}
+      loading={acceptSaving}
+      success={acceptSaved.active}
+      disabled={!acceptDirty}
+    >
       <Save size={13} />
       {t('settings.storage.saveButton')}
     </Button>
@@ -491,7 +496,12 @@
     </div>
   </SettingRow>
   {#snippet footer()}
-    <Button onclick={saveDownload} loading={downloadSaving} disabled={!downloadDirty}>
+    <Button
+      onclick={saveDownload}
+      loading={downloadSaving}
+      success={downloadSaved.active}
+      disabled={!downloadDirty}
+    >
       <Save size={13} />
       {t('settings.storage.saveButton')}
     </Button>

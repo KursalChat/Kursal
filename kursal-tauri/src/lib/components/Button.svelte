@@ -1,31 +1,45 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { Check } from 'lucide-svelte';
   import Spinner from './Spinner.svelte';
+  import { t } from '$lib/i18n';
 
   let {
     variant = 'primary',
     loading = false,
+    success = false,
+    successLabel,
     disabled = false,
     onclick,
     children,
   }: {
     variant?: 'primary' | 'secondary' | 'danger';
     loading?: boolean;
+    success?: boolean;
+    successLabel?: string;
     disabled?: boolean;
     onclick?: () => void;
     children: Snippet;
   } = $props();
+
+  // The spinner wins: a save that resolves instantly shouldn't flicker both.
+  const showSuccess = $derived(success && !loading);
 </script>
 
 <button
   class="button {variant}"
   class:loading
+  class:success={showSuccess}
   disabled={disabled || loading}
   {onclick}
   aria-busy={loading}
 >
   {#if loading}
     <span class="spinner-overlay"><Spinner size={14} color="currentColor" /></span>
+  {/if}
+  {#if showSuccess}
+    <span class="success-overlay"><Check size={15} /></span>
+    <span class="sr-only" aria-live="polite">{successLabel ?? t('common.saved')}</span>
   {/if}
   <span class="label">{@render children()}</span>
 </button>
@@ -56,16 +70,38 @@
     gap: 6px;
   }
 
-  .button.loading .label {
+  .button.loading .label,
+  .button.success .label {
     opacity: 0;
   }
 
-  .spinner-overlay {
+  .spinner-overlay,
+  .success-overlay {
     position: absolute;
     inset: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .success-overlay {
+    animation: success-pop var(--transition) ease-out;
+  }
+
+  @keyframes success-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   .button.primary {

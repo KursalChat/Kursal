@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Save, Plus, Trash2, RefreshCw, Copy, Share2 } from 'lucide-svelte';
+  import { Save, Plus, Trash2, RefreshCw, Copy, Share2, Check } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import ShareModal from '$lib/components/ShareModal.svelte';
   import {
@@ -14,6 +14,7 @@
   import { settingsDirty } from '$lib/state/settingsDirty.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError, parseError } from '$lib/utils/errors';
+  import { flash, flashSet } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import AddressChip from '$lib/components/AddressChip.svelte';
   import SettingCard from './SettingCard.svelte';
@@ -25,6 +26,10 @@
   const DEFAULT_PORT = '4891';
   let relay = $state<RelayConfig>({ ...settingsState.relay });
   let relaySaving = $state(false);
+  const relaySaved = flash();
+  const dialed = flash();
+  const copiedAddr = flashSet();
+  const copiedExport = flash();
   let port = $state<string>(
     settingsState.listeningPort === null ? DEFAULT_PORT : String(settingsState.listeningPort)
   );
@@ -71,7 +76,7 @@
       };
       await settingsState.setRelay(clean);
       relay = { ...clean };
-      notifications.push(t('settings.network.successRelaySaved'), 'success');
+      relaySaved.trigger();
     } catch (e) {
       notifyError(e);
     } finally {
@@ -132,7 +137,6 @@
     try {
       await settingsState.addNode(addr);
       newNode = '';
-      notifications.push(t('settings.network.successNodeAdded'), 'success');
     } catch (e) {
       notifications.push(nodeErrorMessage(e, t('settings.network.errorNodeFailed')), 'error');
     } finally {
@@ -143,7 +147,6 @@
   async function removeNode(addr: string) {
     try {
       await settingsState.removeNode(addr);
-      notifications.push(t('settings.network.successNodeRemoved'), 'success');
     } catch (e) {
       notifications.push(nodeErrorMessage(e, t('settings.network.errorNodeFailed')), 'error');
     }
@@ -156,7 +159,7 @@
     try {
       await dialAddress(addr);
       dialAddr = '';
-      notifications.push(t('settings.network.successDialed'), 'success');
+      dialed.trigger();
     } catch (e) {
       notifications.push(nodeErrorMessage(e, t('settings.network.errorDialFailed')), 'error');
     } finally {
@@ -204,7 +207,7 @@
   async function copyAddr(addr: string) {
     try {
       await writeText(addr);
-      notifications.push(t('settings.network.copied'), 'success');
+      copiedAddr.trigger(addr);
     } catch (e) {
       notifyError(e);
     }
@@ -215,7 +218,7 @@
     if (text.length === 0) return;
     try {
       await writeText(text);
-      notifications.push(t('settings.network.exportCopied'), 'success');
+      copiedExport.trigger();
     } catch (e) {
       notifyError(e);
     }
@@ -233,7 +236,13 @@
     importing = false;
     importText = '';
     showImport = false;
-    notifications.push(t('settings.network.importDone', { count: String(added) }), 'success');
+    // The node list shows a clean import on its own; only a shortfall needs saying.
+    if (added < lines.length) {
+      notifications.push(
+        t('settings.network.importPartial', { count: String(added), total: String(lines.length) }),
+        'warning'
+      );
+    }
   }
 
   const upCount = (list: string[]) => list.filter((a) => nodeState(a) === 'up').length;
@@ -339,8 +348,13 @@
               })}
             </span>
           {/if}
-          <button class="node-link" disabled={nodes.custom.length === 0} onclick={exportNodes}>
-            {t('settings.network.exportButton')}
+          <button
+            class="node-link"
+            class:confirmed={copiedExport.active}
+            disabled={nodes.custom.length === 0}
+            onclick={exportNodes}
+          >
+            {copiedExport.active ? t('common.copied') : t('settings.network.exportButton')}
           </button>
           <button class="node-link" onclick={() => (showImport = !showImport)}>
             {t('settings.network.importButton')}
@@ -455,10 +469,17 @@
             <AddressChip {addr} />
             <button
               class="node-remove"
-              aria-label={t('settings.network.copyAriaLabel')}
+              class:confirmed={copiedAddr.has(addr)}
+              aria-label={copiedAddr.has(addr)
+                ? t('common.copied')
+                : t('settings.network.copyAriaLabel')}
               onclick={() => copyAddr(addr)}
             >
-              <Copy size={14} />
+              {#if copiedAddr.has(addr)}
+                <Check size={14} />
+              {:else}
+                <Copy size={14} />
+              {/if}
             </button>
           </div>
         {/each}
@@ -481,6 +502,8 @@
           variant="secondary"
           onclick={connectOnce}
           loading={dialing}
+          success={dialed.active}
+          successLabel={t('settings.network.successDialed')}
           disabled={dialAddr.trim().length === 0}
         >
           {t('settings.network.connectOnceButton')}
@@ -534,7 +557,12 @@
     </SettingRow>
   {/if}
   {#snippet footer()}
-    <Button onclick={saveRelay} loading={relaySaving} disabled={!relayDirty}>
+    <Button
+      onclick={saveRelay}
+      loading={relaySaving}
+      success={relaySaved.active}
+      disabled={!relayDirty}
+    >
       <Save size={13} />
       {t('settings.network.saveRelayButton')}
     </Button>
@@ -591,6 +619,9 @@
     padding: 4px;
     border-radius: var(--radius-sm, 6px);
     transition: color var(--transition);
+  }
+  .node-remove.confirmed {
+    color: var(--success);
   }
   .node-remove:hover {
     color: var(--accent);
@@ -670,6 +701,9 @@
   }
   .node-link:hover {
     opacity: 0.8;
+  }
+  .node-link.confirmed {
+    color: var(--success);
   }
   .node-link:disabled {
     opacity: 0.4;

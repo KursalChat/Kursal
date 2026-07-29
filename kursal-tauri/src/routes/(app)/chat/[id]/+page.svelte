@@ -46,9 +46,9 @@
     prepareOfferFromBytes,
     exportToDevice,
   } from '$lib/utils/file-transfer-paths';
-  import { listen } from '@tauri-apps/api/event';
-  import type { MessageResponse, MessageQueuedOfflinePayload } from '$lib/types';
+  import type { MessageResponse } from '$lib/types';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { flashSet } from '$lib/utils/flash.svelte';
   import * as haptics from '$lib/utils/haptics';
   import { Paperclip } from 'lucide-svelte';
   import Spinner from '$lib/components/Spinner.svelte';
@@ -137,6 +137,9 @@
   let forwardContent = $state<string | null>(null);
   let selectTextMsgId = $state<string | null>(null);
   let fileOfferActionState = $state<Record<string, 'idle' | 'accepting' | 'accepted'>>({});
+  // Copy and save-to-device run from the action sheet, which closes on click -
+  // the bubble itself flashes the confirmation instead.
+  const messageFlash = flashSet();
   const completedFileTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let isCoarsePointer = $state(false);
   let listEl = $state<HTMLElement | null>(null);
@@ -698,7 +701,7 @@
     actionSheetMsgId = null;
     try {
       await navigator.clipboard.writeText(msg.content);
-      notifications.push(t('chat.conversation.successCopied'), 'success');
+      messageFlash.trigger(msg.id);
     } catch {
       notifications.push(t('chat.conversation.errorCopy'), 'error');
     }
@@ -1308,7 +1311,6 @@
             autodownloadPath: file.backendPath,
           },
         });
-        void notifyIfQueuedOffline(cid, messageId, file.filename);
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
       winstonTips.show('fileOffer');
@@ -1329,42 +1331,6 @@
     pendingFiles = pendingFiles.filter((f) => f.backendPath !== backendPath);
   }
 
-  // Toast when a just-sent file offer takes the offline path. The backend
-  // emits message_queued_offline moments after send_file_offer returns when
-  // the peer is unreachable; listen for it instead of sleeping, with a state
-  // check on both sides of the subscription to cover events that raced ahead.
-  async function notifyIfQueuedOffline(cid: string, messageId: string, filename: string) {
-    const isQueued = () => {
-      const m = messagesState.forContact(cid).find((x) => x.id === messageId);
-      return !!m && (m.status === 'queued' || m.status === 'queued_in_dht');
-    };
-    const toast = () =>
-      notifications.push(t('chat.conversation.fileQueuedOffline', { filename }), 'warning');
-    if (isQueued()) {
-      toast();
-      return;
-    }
-    let done = false;
-    const un = await listen<MessageQueuedOfflinePayload>('message_queued_offline', (e) => {
-      if (done || e.payload.messageId !== messageId) return;
-      done = true;
-      un();
-      toast();
-    });
-    if (!done && isQueued()) {
-      done = true;
-      un();
-      toast();
-      return;
-    }
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        un();
-      }
-    }, 2000);
-  }
-
   async function handleAcceptIncomingFile(msg: MessageResponse) {
     if (!contactId || !msg.fileDetails) return;
     if (fileOfferActionState[msg.id] === 'accepting' || fileOfferActionState[msg.id] === 'accepted')
@@ -1379,7 +1345,6 @@
       await acceptFileOffer(msg.contactId, msg.id, savePath);
       messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';
-      notifications.push(t('chat.conversation.successFileAccepted'), 'success');
     } catch (e) {
       fileOfferActionState[msg.id] = 'idle';
       notifications.push(
@@ -1397,7 +1362,7 @@
     if (!path || !msg.fileDetails) return;
     try {
       const saved = await exportToDevice(path, msg.fileDetails.filename);
-      if (saved) notifications.push(t('chat.conversation.successFileExported'), 'success');
+      if (saved) messageFlash.trigger(msg.id);
     } catch (e) {
       notifyError(e, 'chat.conversation.errorExportFile');
     }
@@ -1695,6 +1660,7 @@
           searchTerm={searchOpen ? searchQuery : ''}
           swipeDx={swipeOffsetFor(msg.id)}
           fileOfferState={fileOfferActionState[msg.id]}
+          flashed={messageFlash.has(msg.id)}
           transferPercent={transferPercentFor(msg.id)}
           transferInProgress={!!messagesState.transferProgressFor(msg.id) &&
             !isTransferDoneFor(msg.id)}

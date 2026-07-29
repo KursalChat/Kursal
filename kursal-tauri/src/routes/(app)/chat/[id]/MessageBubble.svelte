@@ -21,6 +21,7 @@
     MoreHorizontal,
     Clock,
   } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { exists } from '@tauri-apps/plugin-fs';
   import { isMobile } from '$lib/api/window';
@@ -74,6 +75,7 @@
     searchTerm?: string;
     swipeDx: number;
     fileOfferState: 'idle' | 'accepting' | 'accepted' | undefined;
+    flashed: boolean;
     transferPercent: number;
     transferInProgress: boolean;
     transferDone: boolean;
@@ -120,6 +122,7 @@
     searchTerm = '',
     swipeDx,
     fileOfferState,
+    flashed,
     transferPercent,
     transferInProgress,
     transferDone,
@@ -759,6 +762,16 @@
         </button>
       </div>
     {/if}
+    {#if flashed}
+      <span
+        class="action-confirm"
+        class:sent={msg.direction === 'sent'}
+        role="status"
+        transition:fade={{ duration: 120 }}
+      >
+        <Check size={13} />
+      </span>
+    {/if}
   </div>
 </div>
 
@@ -778,6 +791,31 @@
   }
   :global(.msg-row.flash) {
     background: var(--accent-dim);
+  }
+
+  /* Confirms an action sheet command (copy, save to device) that closed its own
+     menu. Anchored to .msg-row on the side away from the bubble tail so it never
+     covers text and never reflows the list. */
+  .action-confirm {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    color: var(--success);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  }
+  .action-confirm.sent {
+    right: auto;
+    left: 8px;
   }
 
   .swipe-reply-indicator {

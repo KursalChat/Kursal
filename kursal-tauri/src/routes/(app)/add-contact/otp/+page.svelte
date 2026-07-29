@@ -7,6 +7,7 @@
   import { goto } from '$app/navigation';
   import { notifications } from '$lib/state/notifications.svelte';
   import { errorText, parseError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import Segmented from '$lib/components/settings/Segmented.svelte';
   import QRCode from 'qrcode';
@@ -26,6 +27,8 @@
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
   let justExpired = $state(false);
   let receiveSection = $state<HTMLElement | null>(null);
+  const copiedCode = flash();
+  const copiedLink = flash();
   const storageKey = 'kursal_add_contact_otp';
   const OTP_LINK_PREFIX = 'kursal://otp/';
 
@@ -163,7 +166,7 @@
     if (otp) {
       try {
         await navigator.clipboard.writeText(otp);
-        notifications.push(t('addContact.otp.codeCopied'), 'success');
+        copiedCode.trigger();
       } catch (e) {
         log.error('Failed to copy:', e);
       }
@@ -174,7 +177,7 @@
     if (otp) {
       try {
         await navigator.clipboard.writeText(buildOtpLink(otp));
-        notifications.push(t('addContact.otp.linkCopied'), 'success');
+        copiedLink.trigger();
       } catch (e) {
         log.error('Failed to copy link:', e);
       }
@@ -319,11 +322,21 @@
       {/if}
 
       <div class="action-row">
-        <Button variant="secondary" onclick={copyCode}>
+        <Button
+          variant="secondary"
+          onclick={copyCode}
+          success={copiedCode.active}
+          successLabel={t('common.copied')}
+        >
           <Copy size={14} />
           {t('addContact.otp.copyButton')}
         </Button>
-        <Button variant="secondary" onclick={copyLink}>
+        <Button
+          variant="secondary"
+          onclick={copyLink}
+          success={copiedLink.active}
+          successLabel={t('common.copied')}
+        >
           <Link2 size={14} />
           {t('addContact.otp.copyLinkButton')}
         </Button>

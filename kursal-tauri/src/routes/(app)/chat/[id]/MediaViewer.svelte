@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { X, FolderOpen, Share, ChevronLeft, ChevronRight, Film } from 'lucide-svelte';
+  import { X, FolderOpen, Share, ChevronLeft, ChevronRight, Film, Check } from 'lucide-svelte';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { t } from '$lib/i18n';
   import { notifyError } from '$lib/utils/errors';
-  import { notifications } from '$lib/state/notifications.svelte';
+  import { flash } from '$lib/utils/flash.svelte';
   import { exportToDevice } from '$lib/utils/file-transfer-paths';
   import { isMobile } from '$lib/api/window';
 
@@ -156,10 +156,12 @@
     }
   }
 
+  const exported = flash();
+
   async function saveToDevice() {
     try {
       const saved = await exportToDevice(path, filename);
-      if (saved) notifications.push(t('chat.conversation.successFileExported'), 'success');
+      if (saved) exported.trigger();
     } catch (e) {
       notifyError(e, 'chat.conversation.errorExportFile');
     }
@@ -186,11 +188,18 @@
       {#if isMobile}
         <button
           class="iconbtn"
+          class:confirmed={exported.active}
           onclick={saveToDevice}
           title={t('chat.bubble.saveToDevice')}
-          aria-label={t('chat.bubble.saveToDevice')}
+          aria-label={exported.active
+            ? t('common.savedToDevice')
+            : t('chat.bubble.saveToDevice')}
         >
-          <Share size={16} />
+          {#if exported.active}
+            <Check size={16} />
+          {:else}
+            <Share size={16} />
+          {/if}
         </button>
       {:else}
         <button
@@ -344,6 +353,9 @@
   }
   .iconbtn:hover {
     background: rgba(255, 255, 255, 0.22);
+  }
+  .iconbtn.confirmed {
+    background: var(--success);
   }
 
   .nav-arrow {

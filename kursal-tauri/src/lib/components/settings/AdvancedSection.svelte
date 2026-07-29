@@ -32,6 +32,7 @@
   import { settingsState } from '$lib/state/settings.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import Benchmark from '$lib/components/Benchmark.svelte';
   import { listBenchmarks, type BenchmarkMeta } from '$lib/api/benchmark';
@@ -65,6 +66,7 @@
 
   let api = $state<LocalApiConfig>({ ...settingsState.localApi });
   let apiSaving = $state(false);
+  const copiedToken = flash();
   let apiInitialized = $state(settingsState.loaded);
   let newToken = $state<string | null>(null);
   let tokenVisible = $state(false);
@@ -176,12 +178,6 @@
       if (enabled) await enable();
       else await disable();
       autostart = enabled;
-      notifications.push(
-        enabled
-          ? t('settings.advanced.successAutoStartEnabled')
-          : t('settings.advanced.successAutoStartDisabled'),
-        'success'
-      );
     } catch (e) {
       notifyError(e, 'settings.advanced.errorAutoStart');
     } finally {
@@ -203,7 +199,6 @@
     updateChannel = value;
     try {
       await setUpdateChannel(value);
-      notifications.push(t('settings.advanced.channelSaved'), 'success');
     } catch (e) {
       updateChannel = prev;
       notifyError(e);
@@ -249,7 +244,7 @@
     if (!newToken) return;
     try {
       await writeText(newToken);
-      notifications.push(t('settings.advanced.successTokenCopied'), 'success');
+      copiedToken.trigger();
     } catch (e) {
       notifyError(e, 'settings.advanced.errorCopyFailed');
     }
@@ -420,7 +415,12 @@
           {tokenVisible ? newToken : '•'.repeat(newToken.length)}
         </code>
         <div class="token-actions">
-          <Button variant="secondary" onclick={copyToken}>
+          <Button
+            variant="secondary"
+            onclick={copyToken}
+            success={copiedToken.active}
+            successLabel={t('common.copied')}
+          >
             <Copy size={13} />
             {t('settings.advanced.copyTokenButton')}
           </Button>
