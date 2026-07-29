@@ -80,6 +80,7 @@ pub struct APIAppState {
     network: Arc<Mutex<NetworkManager>>,
     pending_nearby: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
     event_tx: broadcast::Sender<CoreEventEmitter>,
+    app_data_dir: std::path::PathBuf,
 }
 
 impl StateWrapper for APIAppState {
@@ -152,6 +153,7 @@ pub async fn run_server(
     network: Arc<Mutex<NetworkManager>>,
     pending_nearby: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
     event_tx: broadcast::Sender<CoreEventEmitter>,
+    app_data_dir: std::path::PathBuf,
 ) -> crate::Result<()> {
     let host = if api_config.host_on_network {
         "0.0.0.0"
@@ -175,6 +177,7 @@ pub async fn run_server(
         network,
         pending_nearby,
         event_tx,
+        app_data_dir,
     };
 
     let protected = Router::new()

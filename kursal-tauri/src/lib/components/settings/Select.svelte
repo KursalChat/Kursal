@@ -144,7 +144,7 @@
   });
 </script>
 
-<div class="select-wrap" style="min-width: {minWidth}">
+<div class="select-wrap" style="--select-min-width: {minWidth}">
   <button
     bind:this={triggerEl}
     type="button"
@@ -192,6 +192,8 @@
   .select-wrap {
     position: relative;
     display: inline-block;
+    min-width: min(var(--select-min-width, 160px), 100%);
+    max-width: 100%;
   }
   .trigger {
     display: inline-flex;
@@ -221,9 +223,13 @@
     cursor: not-allowed;
   }
   .label {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .trigger :global(svg) {
+    flex-shrink: 0;
   }
   .label[data-placeholder='true'] {
     color: var(--text-muted);

@@ -10,6 +10,7 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
+  import { sessionState } from '$lib/state/session.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import WinstonContactsTour from '$lib/components/WinstonContactsTour.svelte';
   import AutostartPrompt from '$lib/components/AutostartPrompt.svelte';
@@ -39,8 +40,21 @@
     })();
   });
 
+  async function restoreLastChat() {
+    const lastId = await sessionState.init();
+    if (!lastId || page.url.pathname !== '/') return;
+    await contactsState.loaded;
+    if (page.url.pathname !== '/') return;
+    if (!contactsState.getById(lastId)) {
+      sessionState.clearLastContact();
+      return;
+    }
+    void goto('/chat/' + lastId, { replaceState: true });
+  }
+
   onMount(() => {
     void callState.init();
+    void restoreLastChat();
     let unlisten: (() => void) | null = null;
     let unlistenDrop: (() => void) | null = null;
     let disposed = false;
@@ -61,8 +75,6 @@
         log.error('Failed to set up listeners:', e);
       }
 
-      // File drops aimed at a sidebar contact row route to that chat; drops
-      // anywhere else are handled by the open chat's own listener.
       try {
         const { getCurrentWebview } = await import('@tauri-apps/api/webview');
         const fn = await getCurrentWebview().onDragDropEvent((event) => {

@@ -63,4 +63,17 @@
     align-items: center;
     gap: 8px;
   }
+
+  @media (max-width: 560px) {
+    .row {
+      flex-wrap: wrap;
+      row-gap: 10px;
+    }
+    .label-col {
+      min-width: min(190px, 100%);
+    }
+    .control-col {
+      max-width: 100%;
+    }
+  }
 </style>

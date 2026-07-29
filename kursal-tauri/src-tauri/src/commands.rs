@@ -4,6 +4,7 @@ use crate::error::Result;
 use kursal_core::KursalError;
 use kursal_core::MapKursalResult;
 use kursal_core::api::cmd_wrapper::StateWrapper;
+use kursal_core::api::file_transfers::remove_outgoing_offer;
 use kursal_core::api::state::AppState;
 use kursal_core::api::{CoreCommand, cmd_wrapper};
 use kursal_core::apiserver::LocalApiConfig;
@@ -11,8 +12,12 @@ use kursal_core::dto::{
     ContactResponse, MessageResponse, NearbyPeerResponse, NetworkStatusDto, NodesResponse,
     OtpResponse,
 };
+use kursal_core::messaging::enums::MessageId;
 use kursal_core::network::NetworkManager;
 use kursal_core::storage::backup::{generate_backup, load_backup};
+use kursal_core::storage::filetransfer::{
+    outgoing_contact_dir, outgoing_pending_dir, sanitize_filename,
+};
 use kursal_core::storage::{
     AutoAcceptConfig, AutoDownloadConfig, Database, RelayConfig, SharedFileEntry, StorageUsage,
     api_server_config, delete_message_history_all, delete_message_history_for, files_list_shared,
@@ -103,12 +108,16 @@ core_cmd!(get_contacts() -> Vec<ContactResponse>);
 #[tauri::command]
 pub async fn remove_contact(state: tauri::State<'_, AppState>, contact_id: String) -> Result<()> {
     let file_dir = cache_dir()?.join("files").join(&contact_id);
+    let staged_dir = outgoing_contact_dir(app_data_dir()?, &contact_id);
 
     cmd_wrapper::remove_contact(AppStateWrapper(state), contact_id).await?;
-    match remove_dir_all(&file_dir).await {
-        Ok(_) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(KursalError::Io(e).into()),
+
+    for dir in [file_dir, staged_dir] {
+        match remove_dir_all(&dir).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(KursalError::Io(e).into()),
+        }
     }
 
     Ok(())
@@ -232,7 +241,32 @@ core_cmd!(get_pinned_messages(contact_id: String) -> Vec<MessageResponse>);
 core_cmd!(edit_message(contact_id: String, message_id: String, new_content: String) -> bool);
 core_cmd!(add_reaction(contact_id: String, message_id: String, emoji: String) -> bool);
 core_cmd!(remove_reaction(contact_id: String, message_id: String, emoji: String) -> bool);
-core_cmd!(send_file_offer(contact_id: String, file_path: String) -> (String, u64));
+#[tauri::command]
+pub async fn send_file_offer(
+    state: tauri::State<'_, AppState>,
+    contact_id: String,
+    file_path: String,
+) -> Result<(String, u64)> {
+    let app_data_dir = app_data_dir()?.to_path_buf();
+
+    cmd_wrapper::send_file_offer(AppStateWrapper(state), contact_id, file_path, app_data_dir)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn create_outgoing_pending_path(filename: String) -> Result<String> {
+    let dir = outgoing_pending_dir(app_data_dir()?).join(hex::encode(MessageId::new().0));
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(KursalError::Io)?;
+
+    Ok(dir
+        .join(sanitize_filename(&filename))
+        .to_string_lossy()
+        .into_owned())
+}
+
 core_cmd!(accept_file_offer(contact_id: String, offer_id: String, save_path: String) -> ());
 core_cmd!(cancel_file_transfer(contact_id: String, offer_id: String) -> ());
 core_cmd!(flush_offline(contact_id: String) -> ());
@@ -281,7 +315,32 @@ setting_cmd!(get get_auto_accept_config -> AutoAcceptConfig, kursal_core::storag
 setting_cmd!(set set_auto_accept_config(config: AutoAcceptConfig), kursal_core::storage::set_auto_accept_config);
 
 setting_cmd!(try list_shared_files -> Vec<SharedFileEntry>, files_list_shared);
-setting_cmd!(set revoke_shared_file(id: String), files_revoke_shared);
+
+fn revoke_shared_entry(db: &Database, id: String) -> Result<()> {
+    let mut parts = id.split(':');
+    let staged = match (parts.next(), parts.next(), parts.next()) {
+        (Some("send"), Some(contact_hex), Some(offer_hex)) => {
+            Some((contact_hex.to_string(), offer_hex.to_string()))
+        }
+        _ => None,
+    };
+
+    files_revoke_shared(db, id)?;
+
+    if let Some((contact_hex, offer_hex)) = staged
+        && let Ok(root) = app_data_dir()
+    {
+        remove_outgoing_offer(root, &contact_hex, &offer_hex);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn revoke_shared_file(state: tauri::State<'_, AppState>, id: String) -> Result<()> {
+    let db = state.db().await;
+    revoke_shared_entry(&*db, id)
+}
 
 #[tauri::command]
 pub async fn revoke_shared_files_bulk(
@@ -291,7 +350,7 @@ pub async fn revoke_shared_files_bulk(
     let db = state.db().await;
 
     for id in ids {
-        files_revoke_shared(&db, id)?;
+        revoke_shared_entry(&*db, id)?;
     }
 
     Ok(())

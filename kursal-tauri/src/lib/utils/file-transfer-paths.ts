@@ -1,7 +1,6 @@
-import { appCacheDir, join } from '@tauri-apps/api/path';
-import { copyFile, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
+import { copyFile, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { looksLikeStrippableImage, stripImageMetadata } from './image-metadata';
+import { createOutgoingPendingPath } from '$lib/api/messages';
 
 function isUriPath(path: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(path);
@@ -41,21 +40,13 @@ export function filenameFromPath(value: string): string {
 }
 
 /**
- * Stages outgoing bytes in the app cache under a fresh directory, keeping the
- * file's own name as the basename.
- *
- * The core derives the filename it offers to the peer from the basename of the
- * path handed to `send_file_offer`, so anything mixed into that basename here
- * (a timestamp, a random suffix) is what the recipient ends up seeing. The
- * uniqueness therefore lives in the directory name, never in the filename.
+ * Hands bytes the webview holds to a core-owned staging slot and returns its
+ * path. The core derives the filename it offers to the peer from the basename,
+ * so the name survives untouched - uniqueness lives in the directory the core
+ * picks, never in the filename.
  */
-async function stageBytesInCache(bytes: Uint8Array, filename: string): Promise<string> {
-  const random = Math.floor(Math.random() * 1_000_000_000)
-    .toString()
-    .padStart(9, '0');
-  const dir = await join(await appCacheDir(), 'outgoing', `${Date.now()}-${random}`);
-  await mkdir(dir, { recursive: true });
-  const path = await join(dir, sanitizeFilename(filename));
+async function stagePendingBytes(bytes: Uint8Array, filename: string): Promise<string> {
+  const path = await createOutgoingPendingPath(filename);
   await writeFile(path, bytes);
   return path;
 }
@@ -97,37 +88,24 @@ export async function pickFilesForSend(): Promise<PreparedFile[]> {
 }
 
 /**
- * Images are re-written into the app cache without their metadata so EXIF/GPS
- * never leaves the device. Anything that isn't a strippable image, already
- * carries no metadata, or can't be read is offered from its original path.
+ * Desktop picker selections and OS drag-and-drop payloads. The file is offered
+ * straight from where it already lives - nothing is read or copied here, so a
+ * multi-gigabyte drop costs nothing. `send_file_offer` strips image metadata
+ * itself, streaming, and only then makes a copy.
  */
-async function offerWithoutMetadata(localPath: string, filename: string): Promise<PreparedFile> {
-  if (!looksLikeStrippableImage(filename)) return { backendPath: localPath, filename };
-  try {
-    const bytes = await readFile(localPath);
-    const cleaned = stripImageMetadata(bytes);
-    if (cleaned.length === bytes.length) return { backendPath: localPath, filename };
-    return { backendPath: await stageBytesInCache(cleaned, filename), filename };
-  } catch {
-    return { backendPath: localPath, filename };
-  }
-}
-
-/** Desktop picker selections and OS drag-and-drop payloads. */
 export async function prepareOfferSourcePath(rawSelection: string): Promise<PreparedFile> {
   const filename = filenameFromPath(rawSelection);
-  const localPath = rawSelection.startsWith('file://')
+  const backendPath = rawSelection.startsWith('file://')
     ? pathFromFileUri(rawSelection)
     : rawSelection;
-  return await offerWithoutMetadata(localPath, filename);
+  return { backendPath, filename };
 }
 
-/** Webview File objects: mobile pickers, the camera input, pasted images. */
+/** Webview File objects: mobile pickers and the camera input. */
 export async function prepareOfferFromFile(file: File, fallbackName: string): Promise<PreparedFile> {
   const filename = sanitizeFilename(file.name || fallbackName);
-  const raw = new Uint8Array(await file.arrayBuffer());
-  const bytes = looksLikeStrippableImage(filename) ? stripImageMetadata(raw) : raw;
-  return { backendPath: await stageBytesInCache(bytes, filename), filename };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return { backendPath: await stagePendingBytes(bytes, filename), filename };
 }
 
 /** Pasted image bytes, which arrive without any name of their own. */
@@ -135,10 +113,7 @@ export async function prepareOfferFromBytes(
   bytes: Uint8Array,
   filename: string
 ): Promise<PreparedFile> {
-  return {
-    backendPath: await stageBytesInCache(stripImageMetadata(bytes), filename),
-    filename,
-  };
+  return { backendPath: await stagePendingBytes(bytes, filename), filename };
 }
 
 /**

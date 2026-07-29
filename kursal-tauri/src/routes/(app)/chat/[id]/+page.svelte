@@ -18,6 +18,7 @@
   import { uiState } from '$lib/state/ui.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
+  import { sessionState } from '$lib/state/session.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
@@ -956,9 +957,6 @@
   $effect(() => {
     const id = contactId;
     if (!id) return;
-    // Read draft non-reactively so this effect only fires on contact
-    // switch - not when handleSend clears the draft (which would race
-    // and re-load stale text into the composer).
     inputText = untrack(() => draftsState.get(id));
     replyingToMessageId = null;
     editingMessageId = null;
@@ -966,6 +964,20 @@
       if (editingMessageId) return;
       draftsState.set(id, inputText);
     };
+  });
+
+  $effect(() => {
+    const id = contactId;
+    const text = inputText;
+    if (!id) return;
+    // While editing, inputText holds the edit buffer, not a draft.
+    if (untrack(() => editingMessageId)) return;
+    draftsState.set(id, text);
+  });
+
+  // Recorded on open, not on close: see the note in session.svelte.ts.
+  $effect(() => {
+    if (contactId) sessionState.setLastContact(contactId);
   });
 
   let searchSeq = 0;
@@ -1453,17 +1465,9 @@
     swipeOffset = null;
   }
 
-  // Runs of >= STACK_MIN consecutive plain image messages collapse into one
-  // collage. Tapping a tile opens the media viewer; the +N tile opens it at the
-  // first hidden image so the whole run is browsable as a gallery.
   const STACK_MIN = 4;
 
   function isStackableImage(m: MessageResponse): boolean {
-    // Stacks group image messages regardless of transfer state - in-flight ones
-    // (sending, downloading, or not-yet-downloaded) render as progress/
-    // placeholder tiles inside the stack rather than sprawling as individual
-    // bubbles that later snap into the collage. Failed sends stay standalone so
-    // their retry affordance is reachable.
     if (!m.fileDetails) return false;
     if (mediaKindFromFilename(m.fileDetails.filename) !== 'image') return false;
     if (m.replyTo || m.pinned) return false;
@@ -1694,6 +1698,7 @@
           onToggleReact={(emoji) => toggleReaction(msg, emoji)}
           onStartReply={() => startReply(msg)}
           onCopy={() => copyMessageText(msg)}
+          onSelectText={() => openSelectText(msg)}
           onStartEdit={() => startEdit(msg)}
           onTogglePin={() => togglePin(msg)}
           onForward={() => (forwardContent = msg.content)}

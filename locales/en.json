@@ -511,6 +511,7 @@
       "actionReact": "React",
       "actionReply": "Reply",
       "actionCopy": "Copy",
+      "actionSelectText": "Select text",
       "actionEdit": "Edit",
       "actionPin": "Pin",
       "actionUnpin": "Unpin",

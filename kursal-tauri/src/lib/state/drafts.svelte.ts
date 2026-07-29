@@ -57,7 +57,7 @@ function createDraftsState() {
     persist();
   }
 
-  return { init, get, set, clear };
+  return { init, flush, get, set, clear };
 }
 
 export const draftsState = createDraftsState();

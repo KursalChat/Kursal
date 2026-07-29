@@ -70,7 +70,6 @@
   import { offlineSyncState } from '$lib/state/offlineSync.svelte';
   import { initAndroidInsets } from '$lib/utils/android-insets';
 
-  // Runs before mount so the safe-area vars are correct on first paint.
   initAndroidInsets();
 
   let { children } = $props();
@@ -114,18 +113,12 @@
     document.title = backgroundUnread > 0 ? `(${backgroundUnread}) ${baseTitle}` : baseTitle;
   }
 
-  // Mirror "is something in flight" down to the backend, which needs it on the
-  // synchronous close path where it cannot ask the webview first.
   $effect(() => {
     const callActive = callState.status !== 'idle';
     const transferActive = messagesState.hasActiveTransfers;
     void setBusyState(callActive, transferActive).catch(() => {});
   });
 
-  // First close ever: the window would vanish into the tray with no explanation,
-  // so the backend blocks it once and lets Winston say what is happening. The
-  // answer becomes the setting; the seen flag is mirrored to the backend, which
-  // decides on the close path and cannot read localStorage.
   const CLOSE_EXPLAINER_KEY = 'kursal_close_explainer_seen';
   let closeExplainerOpen = $state(false);
 
@@ -134,14 +127,10 @@
     return localStorage.getItem(CLOSE_EXPLAINER_KEY) === 'done';
   }
 
-  // Awaited by both handlers: they destroy the webview right after, which would
-  // otherwise race the flag on its way to the backend.
   async function markCloseExplainerSeen() {
     try {
       localStorage.setItem(CLOSE_EXPLAINER_KEY, 'done');
-    } catch {
-      /* private mode: worst case the explainer runs once more */
-    }
+    } catch {}
     await setCloseExplainerPending(false).catch(() => {});
   }
 
@@ -162,15 +151,10 @@
     await closeForceQuit();
   }
 
-  // Dismissing without choosing just cancels the close: the window stays and the
-  // explainer stays pending for the next attempt.
   function cancelCloseExplainer() {
     closeExplainerOpen = false;
   }
 
-  // A call holds the camera, which cannot survive the window going away, so the
-  // only choices are to stay or to hang up. Transfers are backend-only and can
-  // finish with the window gone, so they also get the "keep going" option.
   async function handleCloseRequest(payload: CloseRequestedPayload) {
     if (payload.callActive) {
       const ok = await confirmDialog({
@@ -201,8 +185,6 @@
       return;
     }
 
-    // A busy prompt above takes priority and leaves the explainer pending, so it
-    // still runs on the next close.
     if (payload.firstClose) closeExplainerOpen = true;
   }
 
@@ -215,15 +197,11 @@
     void pinnedConvosState.init();
     void archivedConvosState.init();
     void getPermission();
-    // Re-pushed on every mount, including the one after a close-to-tray, so the
-    // backend never asks twice.
+
     if (!isMobile) void setCloseExplainerPending(!closeExplainerSeen()).catch(() => {});
     const unlistenPromises: Array<Promise<() => void>> = [];
     baseTitle = document.title || 'Kursal';
 
-    // Backend-originated dialogs (crash report, updates, file open) render
-    // through the in-app ConfirmDialog. Run startup checks only once the
-    // listener is subscribed so the first emit is not missed.
     const backendDialogReady = listen<BackendDialogPayload>('backend_dialog', (event) => {
       void handleBackendDialog(event.payload);
     });
@@ -231,17 +209,17 @@
     void backendDialogReady.then(() => runStartupDialogs());
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && backgroundUnread > 0) {
+      if (document.hidden) {
+        void draftsState.flush().catch(() => {});
+        return;
+      }
+      if (backgroundUnread > 0) {
         backgroundUnread = 0;
         refreshTitle();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // The backend owns the close decision - it blocks the close itself and asks
-    // here only when a call or transfer is live. A previous version guarded this
-    // from the webview, but the Rust CloseRequested handler quit the process
-    // regardless, so the confirmation never had a chance to run.
     let closeConfirmOpen = false;
     unlistenPromises.push(
       listen<CloseRequestedPayload>('close_requested', async (event) => {
@@ -255,10 +233,6 @@
       })
     );
 
-    // Mobile keyboard handling: shrink the document to visualViewport.height
-    // so content reflows above the keyboard. Listening only to visualViewport
-    // events (not focusin/focusout) avoids a jitter where focus fires before
-    // the keyboard actually opens, causing two layout passes.
     const syncViewport = () => {
       const vv = window.visualViewport;
       if (vv) {
@@ -267,10 +241,6 @@
       window.scrollTo(0, 0);
     };
 
-    // Resize signals (keyboard open/close, rotation, window resize) can fire
-    // while the engine is still reflowing, so one snapshot may latch stale
-    // dimensions. Instead of trusting it, re-sync each frame until the
-    // reported size holds still; the deadline is a safety cap only.
     let settleRaf = 0;
     const syncUntilStable = () => {
       cancelAnimationFrame(settleRaf);
@@ -422,26 +392,21 @@
       })
     );
 
-    // Listen to offline_queue_drained - the backend handed the whole queued
-    // batch to the swarm, so "waiting to sync" markers can finally clear. Lives
-    // here rather than in the chat route so conversations you haven't opened
-    // clear too.
+    // Listen to offline_queue_drained
     unlistenPromises.push(
       listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
         messagesState.flushPendingSync(event.payload.contactId);
       })
     );
 
-    // Listen to offline_sync - the core's 5-minute mailbox poll started or
-    // finished, so the UI can say whether it's checking and when it last did.
+    // Listen to offline_sync
     unlistenPromises.push(
       listen<OfflineSyncPayload>('offline_sync', (event) => {
         offlineSyncState.setActive(event.payload.active);
       })
     );
 
-    // Listen to offline_gap_skipped - backend gave up waiting on a suppressed
-    // offline mailbox counter; surface a non-alarming notice in that chat.
+    // Listen to offline_gap_skipped
     unlistenPromises.push(
       listen<OfflineGapSkippedPayload>('offline_gap_skipped', (event) => {
         messagesState.addGapNotice(event.payload.contactId, event.payload.counter);
@@ -470,9 +435,6 @@
       })
     );
 
-    // Backend took the offline path (peer unreachable / no receipt in 60s);
-    // it keeps retrying via the DHT. This event can beat the send_text reply
-    // that swaps the optimistic UUID - updateStatusIfSending buffers for that.
     unlistenPromises.push(
       listen<MessageQueuedOfflinePayload>('message_queued_offline', (event) => {
         messagesState.updateStatusIfSending(

@@ -143,7 +143,7 @@
     align-items: center;
     gap: 12px;
     padding: 4px 10px 4px 6px;
-    border-radius: 999px;
+    border-radius: var(--radius-md);
     transition: background var(--transition);
     min-width: 0;
     max-width: min(320px, 60vw);

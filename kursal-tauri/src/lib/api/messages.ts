@@ -1,9 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { MessageResponse } from '$lib/types';
 
-// The Rust backend stores and returns timestamps in seconds. Convert both the
-// sent (`timestamp`) and received (`receivedTimestamp`) times to JS
-// milliseconds at the API boundary so the rest of the frontend can rely on ms.
 function hydrateTimestamps(m: MessageResponse): MessageResponse {
   m.timestamp = m.timestamp * 1000;
   m.receivedTimestamp = m.receivedTimestamp * 1000;
@@ -19,10 +16,6 @@ export const sendText = (
 export const deleteLocalMessage = (contactId: string, messageId: string): Promise<void> =>
   invoke('delete_local_message', { contactId, messageId });
 
-// The four "change" commands below resolve to true when the backend put the
-// change on the offline queue instead of delivering it directly. The UI uses
-// that to decide whether to show the "waiting to sync" marker - guessing from
-// connection status gets it wrong and leaves the marker stuck forever.
 export const deleteMessage = (contactId: string, messageId: string): Promise<boolean> =>
   invoke('delete_message_for_everyone', { contactId, messageId });
 
@@ -55,14 +48,15 @@ export const getPinnedMessages = async (contactId: string): Promise<MessageRespo
 export const sendFileOffer = (contactId: string, filePath: string): Promise<[string, number]> =>
   invoke('send_file_offer', { contactId, filePath });
 
+export const createOutgoingPendingPath = (filename: string): Promise<string> =>
+  invoke('create_outgoing_pending_path', { filename });
+
 export const acceptFileOffer = (
   contactId: string,
   offerId: string,
   savePath: string
 ): Promise<void> => invoke('accept_file_offer', { contactId, offerId, savePath });
 
-// Destination a download lands in. The core owns this path (it is the same one
-// auto-download uses) so the filename sanitising stays in one place.
 export const resolveDownloadPath = (
   contactId: string,
   offerId: string,
@@ -92,9 +86,6 @@ export const getMessages = async (
   before: string | null = null
 ): Promise<MessageResponse[]> => {
   const msgs = await invoke<MessageResponse[]>('get_messages', { contactId, limit, before });
-  // The Rust backend stores and returns timestamps in seconds.
-  // We convert them to JS milliseconds at the API boundary so the entire frontend
-  // can reliably expect 'timestamp' to be in milliseconds (e.g. for new Date()).
   return msgs.map(hydrateTimestamps);
 };
 

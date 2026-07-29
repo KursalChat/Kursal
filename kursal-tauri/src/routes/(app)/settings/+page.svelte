@@ -313,16 +313,18 @@
           autocapitalize="off"
         />
       </div>
-      {#each categories as cat (cat.id)}
-        <button
-          class="nav-item"
-          data-active={!searching && activeCategory === cat.id}
-          onclick={() => switchCategory(cat.id)}
-        >
-          <cat.icon size={15} />
-          <span>{cat.label}</span>
-        </button>
-      {/each}
+      <div class="nav-items">
+        {#each categories as cat (cat.id)}
+          <button
+            class="nav-item"
+            data-active={!searching && activeCategory === cat.id}
+            onclick={() => switchCategory(cat.id)}
+          >
+            <cat.icon size={15} />
+            <span>{cat.label}</span>
+          </button>
+        {/each}
+      </div>
     </nav>
 
     <section class="settings-body" bind:this={bodyEl}>
@@ -422,6 +424,14 @@
     flex-direction: column;
     gap: 2px;
     overflow-y: auto;
+  }
+
+  .nav-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex-shrink: 0;
   }
 
   .settings-search {
@@ -557,7 +567,6 @@
     color: var(--text-muted);
   }
 
-  /* Highlight a setting after jumping to it from search. */
   :global(.settings-body .card-wrap),
   :global(.settings-body .row) {
     scroll-margin-top: 16px;
@@ -588,20 +597,27 @@
     }
     .sidenav {
       width: 100%;
-      flex-direction: row;
-      overflow-x: auto;
       padding: 10px 12px;
       border-right: none;
       border-bottom: 1px solid var(--border);
+      gap: 8px;
+      overflow-y: visible;
+    }
+    .nav-items {
+      flex-direction: row;
+      overflow-x: auto;
       gap: 4px;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
-    .sidenav::-webkit-scrollbar {
+    .nav-items::-webkit-scrollbar {
       display: none;
     }
     .nav-item {
       flex-shrink: 0;
+    }
+    .settings-search {
+      margin-bottom: 0;
     }
     .settings-body {
       padding: 24px 16px 84px;

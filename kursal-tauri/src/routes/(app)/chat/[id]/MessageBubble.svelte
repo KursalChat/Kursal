@@ -18,8 +18,9 @@
     FolderOpen,
     Share,
     X,
-    MoreHorizontal,
     Clock,
+    TextCursorInput,
+    Ellipsis,
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -94,6 +95,7 @@
     onToggleReact: (emoji: string) => void;
     onStartReply: () => void;
     onCopy: () => void;
+    onSelectText: () => void;
     onStartEdit: () => void;
     onTogglePin: () => void;
     onForward: () => void;
@@ -141,6 +143,7 @@
     onToggleReact,
     onStartReply,
     onCopy,
+    onSelectText,
     onStartEdit,
     onTogglePin,
     onForward,
@@ -174,9 +177,6 @@
         if (!cancelled) pathMissing = !ok;
       })
       .catch(() => {
-        // A throw means the check itself failed (path outside the fs plugin
-        // scope, for one), not that the file is gone - keep showing it and let
-        // the media element's own error handling take over.
         if (!cancelled) pathMissing = false;
       });
     return () => {
@@ -194,7 +194,7 @@
   const actionsAvailable = $derived(isMessageActionable(msg.status));
 
   const MENU_W = 180;
-  const MENU_H = 240;
+  const MENU_H = 290;
 
   // Anchors by `right` so it lines up with the menu's top-right transform-origin.
   // Drops below `bottom`, or flips above `top` when there isn't room underneath.
@@ -233,6 +233,15 @@
   function runAction(fn: () => void) {
     fn();
     menuOpen = false;
+  }
+
+  // The menu mirrors the toolbar's quick actions, so "React" has to hand the
+  // picker an anchor - the "..." button, since the menu itself is closing.
+  function openPickerFromMenu(e: MouseEvent) {
+    e.stopPropagation();
+    const rect = moreBtn?.getBoundingClientRect() ?? null;
+    menuOpen = false;
+    onToggleEmojiPicker(rect);
   }
 
   function portal(node: HTMLElement) {
@@ -676,7 +685,7 @@
               onmousedown={(e) => e.stopPropagation()}
               onclick={toggleMenu}
             >
-              <MoreHorizontal size={15} />
+              <Ellipsis size={15} />
             </button>
             {#if menuOpen}
               <div
@@ -688,10 +697,24 @@
                 bind:this={menuEl}
                 role="menu"
               >
+                <button class="menu-item" role="menuitem" onclick={openPickerFromMenu}>
+                  <Smile size={14} />
+                  <span>{t('chat.bubble.actionReact')}</span>
+                </button>
+                <button class="menu-item" role="menuitem" onclick={() => runAction(onStartReply)}>
+                  <Reply size={14} />
+                  <span>{t('chat.bubble.actionReply')}</span>
+                </button>
                 <button class="menu-item" role="menuitem" onclick={() => runAction(onCopy)}>
                   <Copy size={14} />
                   <span>{t('chat.bubble.actionCopy')}</span>
                 </button>
+                {#if !msg.fileDetails && msg.content}
+                  <button class="menu-item" role="menuitem" onclick={() => runAction(onSelectText)}>
+                    <TextCursorInput size={14} />
+                    <span>{t('chat.bubble.actionSelectText')}</span>
+                  </button>
+                {/if}
                 <button class="menu-item" role="menuitem" onclick={() => runAction(onTogglePin)}>
                   <Pin size={14} />
                   <span
@@ -930,8 +953,6 @@
     }
   }
 
-  /* "Waiting to sync" badge for offline edits/reactions/deletes. Sits on the
-     opposite corner from the pin flag so the two never collide. */
   .sync-flag {
     position: absolute;
     top: -7px;
@@ -1006,11 +1027,6 @@
         0 0 0 10px color-mix(in srgb, var(--danger) 0%, transparent);
     }
   }
-  /* Opaque base; the translucent color-mix() version is layered on in the
-     @supports block below. A color-mix() value holding a var() cannot be
-     rejected at parse time, so it wins the cascade and then computes to
-     `transparent` on engines that lack it (Chrome < 111) -- which would leave
-     white text on the chat background. @supports is checked at parse time. */
   .bubble.queued {
     background: var(--accent);
     color: #fff;
@@ -1255,8 +1271,6 @@
   .reaction-chip.overflow {
     cursor: default;
   }
-  /* Starts near full size: scaling from 0 reserved the chip's full layout box
-     up front, so the row jumped a beat before the chip caught up. */
   @keyframes reaction-pop {
     from {
       transform: scale(0.7);
@@ -1447,21 +1461,18 @@
     gap: 3px;
     max-width: 100%;
     min-width: 0;
+    position: relative;
   }
   .bubble-anchor.sent {
     align-self: flex-end;
     align-items: flex-end;
   }
 
-  /* Hover toolbar anchored to the whole row (.msg-row is the positioned
-     ancestor - .bubble-anchor is intentionally not positioned), pinned to the
-     row's far-right edge and raised so it's centered on the row's top edge.
-     Same fixed spot for sent + received, bubble + flat - never over the text. */
   .msg-actions {
     position: absolute;
     top: 0;
     left: auto;
-    right: 8px;
+    right: 4px;
     transform: translateY(-50%);
     z-index: 100;
     display: flex;
