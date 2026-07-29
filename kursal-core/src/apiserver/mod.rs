@@ -145,6 +145,7 @@ impl Modify for BearerAuth {
 )]
 pub struct ApiDoc;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_server(
     auth_token: String,
     api_config: LocalApiConfig,

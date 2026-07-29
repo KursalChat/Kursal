@@ -191,9 +191,7 @@
           class:confirmed={exported.active}
           onclick={saveToDevice}
           title={t('chat.bubble.saveToDevice')}
-          aria-label={exported.active
-            ? t('common.savedToDevice')
-            : t('chat.bubble.saveToDevice')}
+          aria-label={exported.active ? t('common.savedToDevice') : t('chat.bubble.saveToDevice')}
         >
           {#if exported.active}
             <Check size={16} />

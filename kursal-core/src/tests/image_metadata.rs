@@ -1,4 +1,6 @@
-use crate::storage::image_metadata::{ImageFormat, detect_image_format, plan_strip, write_stripped};
+use crate::storage::image_metadata::{
+    ImageFormat, detect_image_format, plan_strip, write_stripped,
+};
 use crate::tests::TestEnv;
 use std::path::PathBuf;
 
@@ -36,7 +38,7 @@ fn unchanged(env: &TestEnv, name: &str, bytes: &[u8]) {
 }
 
 fn jpeg_segment(marker: u8, payload: &[u8]) -> Vec<u8> {
-    let len = (payload.len() + 2) as u16;
+    let len = u16::try_from(payload.len() + 2).unwrap();
     let mut out = vec![0xff, marker];
     out.extend_from_slice(&len.to_be_bytes());
     out.extend_from_slice(payload);
@@ -44,7 +46,7 @@ fn jpeg_segment(marker: u8, payload: &[u8]) -> Vec<u8> {
 }
 
 fn png_chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
-    let mut out = (data.len() as u32).to_be_bytes().to_vec();
+    let mut out = u32::try_from(data.len()).unwrap().to_be_bytes().to_vec();
     out.extend_from_slice(kind);
     out.extend_from_slice(data);
     out.extend_from_slice(&[0, 0, 0, 0]);
@@ -53,7 +55,7 @@ fn png_chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
 
 fn webp_chunk(fourcc: &[u8; 4], data: &[u8]) -> Vec<u8> {
     let mut out = fourcc.to_vec();
-    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
     out.extend_from_slice(data);
     if data.len() % 2 == 1 {
         out.push(0);
@@ -63,7 +65,7 @@ fn webp_chunk(fourcc: &[u8; 4], data: &[u8]) -> Vec<u8> {
 
 fn riff(body: &[u8]) -> Vec<u8> {
     let mut out = b"RIFF".to_vec();
-    out.extend_from_slice(&((body.len() + 4) as u32).to_le_bytes());
+    out.extend_from_slice(&u32::try_from(body.len() + 4).unwrap().to_le_bytes());
     out.extend_from_slice(b"WEBP");
     out.extend_from_slice(body);
     out
@@ -197,7 +199,11 @@ fn webp_without_metadata_is_left_alone() {
 #[test]
 fn unknown_format_is_left_alone() {
     let env = TestEnv::new();
-    unchanged(&env, "thing.bin", b"just some bytes here, not an image at all");
+    unchanged(
+        &env,
+        "thing.bin",
+        b"just some bytes here, not an image at all",
+    );
 }
 
 #[test]

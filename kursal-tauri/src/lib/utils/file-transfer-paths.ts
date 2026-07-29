@@ -102,7 +102,10 @@ export async function prepareOfferSourcePath(rawSelection: string): Promise<Prep
 }
 
 /** Webview File objects: mobile pickers and the camera input. */
-export async function prepareOfferFromFile(file: File, fallbackName: string): Promise<PreparedFile> {
+export async function prepareOfferFromFile(
+  file: File,
+  fallbackName: string
+): Promise<PreparedFile> {
   const filename = sanitizeFilename(file.name || fallbackName);
   const bytes = new Uint8Array(await file.arrayBuffer());
   return { backendPath: await stagePendingBytes(bytes, filename), filename };

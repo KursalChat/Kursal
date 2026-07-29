@@ -16,9 +16,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({ copyFile, readFile, writeFile }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock('$lib/api/messages', () => ({ createOutgoingPendingPath }));
 
-const { filenameFromPath, prepareOfferFromBytes, prepareOfferSourcePath } = await import(
-  './file-transfer-paths'
-);
+const { filenameFromPath, prepareOfferFromBytes, prepareOfferSourcePath } =
+  await import('./file-transfer-paths');
 
 describe('filenameFromPath', () => {
   it("returns 'file' for empty input", () => {

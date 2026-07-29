@@ -228,7 +228,9 @@ fn plan_webp(src: &mut Source) -> Result<StripPlan> {
         }
 
         if &fourcc == b"VP8X" && chunk_end - i > 8 && chunk_end - i <= WEBP_VP8X_MAX {
-            let mut chunk = vec![0u8; (chunk_end - i) as usize];
+            let chunk_len = usize::try_from(chunk_end - i)
+                .map_err(|_| KursalError::Storage("WebP chunk too large".to_string()))?;
+            let mut chunk = vec![0u8; chunk_len];
             src.read_at(i, &mut chunk)?;
             let cleared = chunk[8] & !(WEBP_VP8X_EXIF_FLAG | WEBP_VP8X_XMP_FLAG);
             if cleared != chunk[8] {
@@ -292,7 +294,9 @@ pub fn write_stripped(src: &Path, dst: &Path, plan: &StripPlan) -> Result<()> {
                 while left > 0 {
                     let want = usize::try_from(left.min(buf.len() as u64))
                         .map_err(|_| KursalError::Storage("Copy overflow".to_string()))?;
-                    input.read_exact(&mut buf[..want]).map_err(KursalError::Io)?;
+                    input
+                        .read_exact(&mut buf[..want])
+                        .map_err(KursalError::Io)?;
                     out.write_all(&buf[..want]).map_err(KursalError::Io)?;
                     left -= want as u64;
                 }

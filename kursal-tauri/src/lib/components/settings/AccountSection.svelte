@@ -364,11 +364,7 @@
     {#if exportOpen}
       <Button variant="secondary" onclick={resetExport}>{t('settings.account.cancel')}</Button>
     {:else}
-      <Button
-        variant="secondary"
-        onclick={() => (exportOpen = true)}
-        success={backupSaved.active}
-      >
+      <Button variant="secondary" onclick={() => (exportOpen = true)} success={backupSaved.active}>
         <Download size={13} />
         {t('settings.account.exportButton')}
       </Button>

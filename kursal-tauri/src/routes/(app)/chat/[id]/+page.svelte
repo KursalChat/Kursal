@@ -1382,11 +1382,7 @@
       return;
     fileOfferActionState[msg.id] = 'accepting';
     try {
-      const savePath = await resolveDownloadPath(
-        msg.contactId,
-        msg.id,
-        msg.fileDetails.filename
-      );
+      const savePath = await resolveDownloadPath(msg.contactId, msg.id, msg.fileDetails.filename);
       await acceptFileOffer(msg.contactId, msg.id, savePath);
       messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';

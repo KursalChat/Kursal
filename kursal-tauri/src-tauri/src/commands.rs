@@ -339,7 +339,7 @@ fn revoke_shared_entry(db: &Database, id: String) -> Result<()> {
 #[tauri::command]
 pub async fn revoke_shared_file(state: tauri::State<'_, AppState>, id: String) -> Result<()> {
     let db = state.db().await;
-    revoke_shared_entry(&*db, id)
+    revoke_shared_entry(&db, id)
 }
 
 #[tauri::command]
@@ -350,7 +350,7 @@ pub async fn revoke_shared_files_bulk(
     let db = state.db().await;
 
     for id in ids {
-        revoke_shared_entry(&*db, id)?;
+        revoke_shared_entry(&db, id)?;
     }
 
     Ok(())

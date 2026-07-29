@@ -14,15 +14,13 @@ use crate::{
     network::swarm::{FILE_CHUNK_SIZE, SwarmCommand, str_to_multiaddr},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
-        filetransfer::{
-            hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename,
-        },
+        filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
         get_timestamp_secs, image_metadata,
     },
 };
-use std::path::{Path, PathBuf};
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},

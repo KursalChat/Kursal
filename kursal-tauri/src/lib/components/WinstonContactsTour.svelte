@@ -23,7 +23,7 @@
   let rect = $state<{ x: number; y: number; w: number; h: number } | null>(null);
   let skipReady = $state(false);
   let narrow = $state(false);
-  
+
   const needsMenu = $derived(narrow && !uiState.mobileSidebarOpen);
 
   $effect(() => {
@@ -55,7 +55,8 @@
 
   function targetEl(): HTMLElement | null {
     if (step === 'click-add') {
-      if (needsMenu) return document.querySelector('[data-tour="mobile-menu"]') as HTMLElement | null;
+      if (needsMenu)
+        return document.querySelector('[data-tour="mobile-menu"]') as HTMLElement | null;
       return (document.querySelector('[data-tour="add-contact-empty"]') ??
         document.querySelector('[data-tour="add-contact-btn"]')) as HTMLElement | null;
     }
