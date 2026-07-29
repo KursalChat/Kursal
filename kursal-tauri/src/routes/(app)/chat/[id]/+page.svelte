@@ -640,7 +640,8 @@
     const list = messagesState.forContact(contactId);
     for (let i = list.length - 1; i >= 0; i--) {
       const m = list[i];
-      if (m.direction === 'sent' && !m.fileDetails && m.content) {
+
+      if (m.direction === 'sent' && !m.fileDetails && m.content && isMessageActionable(m.status)) {
         startEdit(m);
         return;
       }
@@ -1023,7 +1024,9 @@
     const ro = new ResizeObserver(() => {
       composerHeight = el.offsetHeight;
     });
-    ro.observe(el);
+    // border-box: the keyboard inset lands on this element's padding, which a
+    // content-box observation would not report.
+    ro.observe(el, { box: 'border-box' });
     composerHeight = el.offsetHeight;
     return () => ro.disconnect();
   });
@@ -1961,7 +1964,7 @@
     bottom: 0;
     max-width: var(--chat-max);
     margin-inline: auto;
-    padding: 0 8px max(8px, var(--safe-bottom));
+    padding: 0 8px max(8px, var(--safe-bottom), var(--kb-overlap, 0px));
     display: flex;
     flex-direction: column;
     align-items: stretch;

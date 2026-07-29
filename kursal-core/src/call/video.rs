@@ -131,8 +131,7 @@ pub fn start_tx(
             let Some(chunk) = chunk_rx.recv().await else {
                 break;
             };
-            if dropped.swap(false, Ordering::Relaxed)
-                || chunk_rx.len() >= CONGESTION_BACKLOG_CHUNKS
+            if dropped.swap(false, Ordering::Relaxed) || chunk_rx.len() >= CONGESTION_BACKLOG_CHUNKS
             {
                 while chunk_rx.try_recv().is_ok() {}
                 let now = Instant::now();

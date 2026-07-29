@@ -209,7 +209,7 @@ mod jitter {
     fn caps_buffered_frames_to_bound_delay() {
         let mut jb = JitterBuffer::new(2);
         for seq in 0..40u64 {
-            jb.push(seq, vec![seq as u8]);
+            jb.push(seq, vec![seq.to_le_bytes()[0]]);
         }
         assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![15]));
         assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![16]));
@@ -224,7 +224,7 @@ mod jitter {
         jb.push(0, vec![0]);
         assert_eq!(jb.target(), 3);
         for seq in 2..300u64 {
-            jb.push(seq, vec![seq as u8]);
+            jb.push(seq, vec![seq.to_le_bytes()[0]]);
             assert!(matches!(jb.pop(), JitterOut::Frame(_)));
         }
         assert_eq!(jb.target(), 2);

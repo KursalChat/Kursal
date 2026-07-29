@@ -30,12 +30,14 @@ class MainActivity : TauriActivity() {
       val bars = windowInsets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
       )
+      val ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
       val density = view.resources.displayMetrics.density
       insets.update(
         bars.left / density,
         bars.top / density,
         bars.right / density,
         bars.bottom / density,
+        ime.bottom / density,
       )
       webView.evaluateJavascript(
         "window.__kursalOnInsets && window.__kursalOnInsets(${insets.read()})",
@@ -51,16 +53,18 @@ class MainActivity : TauriActivity() {
     @Volatile private var top = 0f
     @Volatile private var right = 0f
     @Volatile private var bottom = 0f
+    @Volatile private var ime = 0f
 
-    fun update(l: Float, t: Float, r: Float, b: Float) {
+    fun update(l: Float, t: Float, r: Float, b: Float, imeBottom: Float) {
       left = l
       top = t
       right = r
       bottom = b
+      ime = imeBottom
     }
 
     @JavascriptInterface
-    fun read(): String = "$top,$right,$bottom,$left"
+    fun read(): String = "$top,$right,$bottom,$left,$ime"
   }
 
   // Android only allows one permission request in flight: issuing separate

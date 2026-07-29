@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { X } from 'lucide-svelte';
+  import { X, Code, Type } from 'lucide-svelte';
   import { t } from '$lib/i18n';
+  import { renderMarkdown } from './chat-utils';
 
   interface Props {
     text: string;
@@ -10,8 +11,9 @@
 
   let { text, onClose }: Props = $props();
   let textEl: HTMLDivElement | null = $state(null);
+  let showRaw = $state(false);
 
-  onMount(() => {
+  function selectAll() {
     void tick().then(() => {
       if (!textEl) return;
       const range = document.createRange();
@@ -20,6 +22,15 @@
       sel?.removeAllRanges();
       sel?.addRange(range);
     });
+  }
+
+  function toggleRaw() {
+    showRaw = !showRaw;
+    selectAll();
+  }
+
+  onMount(() => {
+    selectAll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -46,14 +57,42 @@
 >
   <div class="select-head">
     <span class="select-title">{t('chat.selectText.title')}</span>
-    <button class="select-close" onclick={onClose} aria-label={t('chat.selectText.close')}>
-      <X size={18} />
-    </button>
+    <div class="select-actions">
+      <button
+        class="select-mode"
+        onclick={toggleRaw}
+        title={showRaw ? t('chat.selectText.viewFormatted') : t('chat.selectText.viewMarkdown')}
+        aria-label={showRaw
+          ? t('chat.selectText.viewFormatted')
+          : t('chat.selectText.viewMarkdown')}
+      >
+        {#if showRaw}
+          <Type size={15} /><span>{t('chat.selectText.viewFormatted')}</span>
+        {:else}
+          <Code size={15} /><span>{t('chat.selectText.viewMarkdown')}</span>
+        {/if}
+      </button>
+      <button class="select-close" onclick={onClose} aria-label={t('chat.selectText.close')}>
+        <X size={18} />
+      </button>
+    </div>
   </div>
   <div class="select-hint">{t('chat.selectText.hint')}</div>
-  <div class="select-body" bind:this={textEl} role="textbox" aria-readonly="true" tabindex="-1">
-    {text}
+  <div
+    class="select-body"
+    class:raw={showRaw}
+    bind:this={textEl}
+    role="textbox"
+    aria-readonly="true"
+    tabindex="-1"
+  >
+    {#if showRaw}
+      {text}
+    {:else}
+      {@html renderMarkdown(text)}
+    {/if}
   </div>
+  <button class="select-all-btn" onclick={selectAll}>{t('chat.selectText.selectAll')}</button>
 </div>
 
 <style>
@@ -113,6 +152,26 @@
     font-weight: 600;
     color: var(--text-primary);
   }
+  .select-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .select-mode {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius-md);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+  }
+  .select-mode:active {
+    transform: scale(0.96);
+  }
   .select-close {
     width: 32px;
     height: 32px;
@@ -124,6 +183,21 @@
   }
   .select-close:active {
     background: var(--bg-hover);
+  }
+
+  .select-all-btn {
+    margin-top: 10px;
+    align-self: flex-end;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+  }
+  .select-all-btn:active {
+    transform: scale(0.97);
   }
 
   .select-hint {
@@ -143,11 +217,41 @@
     color: var(--text-primary);
     font-size: 15px;
     line-height: 1.5;
-    white-space: pre-wrap;
     word-break: break-word;
     user-select: text;
     -webkit-user-select: text;
     -webkit-touch-callout: default;
     outline: none;
+  }
+
+  .select-body.raw {
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+  }
+  .select-body :global(p) {
+    margin: 0;
+  }
+  .select-body :global(p + p) {
+    margin-top: 0.5em;
+  }
+  .select-body :global(pre) {
+    margin: 0.5em 0;
+    padding: 0.6em 0.7em;
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.28);
+    overflow-x: auto;
+  }
+  .select-body :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+  }
+  .select-body :global(ul),
+  .select-body :global(ol) {
+    margin: 0.4em 0;
+    padding-left: 1.3em;
+  }
+  .select-body :global(.spoiler) {
+    filter: none;
   }
 </style>

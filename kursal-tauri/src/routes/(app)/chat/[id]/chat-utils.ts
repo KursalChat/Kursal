@@ -270,10 +270,6 @@ export function flatStatusLabel(status: string): string {
   return '';
 }
 
-// A message that has not reached the peer yet carries no id they can resolve,
-// so replying to / reacting to / acting on it would reference nothing. Shared
-// by the hover menu, the long-press action sheet and swipe-to-reply so all
-// three entry points agree.
 export function isMessageActionable(status: string): boolean {
   return status !== 'sending' && status !== 'failed' && status !== 'queued';
 }

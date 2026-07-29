@@ -92,12 +92,28 @@ pub async fn send_message_tracked(
     );
 
     let connected = ensure_connected_brief(cmd_tx, peer_id, &contact.known_addresses).await;
+
+    let target_undelivered = content.target_message_id().is_some_and(|target| {
+        contact
+            .offline
+            .send_queue
+            .iter()
+            .any(|q| q.message_id == Some(target))
+            || contact
+                .offline
+                .pending_bundles
+                .iter()
+                .any(|b| b.message_ids.contains(&target))
+    });
+
+    let deliver_direct = connected && !target_undelivered;
+
     log::info!(
-        "[send] route kind={kind} msg_id={msg_id_dbg} connected={connected} known_addrs={}",
+        "[send] route kind={kind} msg_id={msg_id_dbg} connected={connected} direct={deliver_direct} target_undelivered={target_undelivered} known_addrs={}",
         contact.known_addresses.len()
     );
 
-    if connected {
+    if deliver_direct {
         let wire = WireMessage::Encrypted(ciphertext.clone());
         cmd_tx
             .send(SwarmCommand::SendMessage {
@@ -129,7 +145,7 @@ pub async fn send_message_tracked(
         log::info!("[send] notified queued-offline kind={kind} msg_id={msg_id_dbg}");
     }
 
-    let queued_offline = !connected;
+    let queued_offline = !deliver_direct;
 
     if let KursalMessage::MessageDelete(msg) = content {
         let _ = crate::messaging::pin_index_set(

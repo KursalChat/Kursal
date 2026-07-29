@@ -835,7 +835,7 @@
                     <span>{t('chat.bubble.actionForward')}</span>
                   </button>
                 {/if}
-                {#if msg.direction === 'sent' && !msg.fileDetails && msg.status !== 'queued_in_dht'}
+                {#if msg.direction === 'sent' && !msg.fileDetails}
                   <button class="menu-item" role="menuitem" {...activate(onStartEdit)}>
                     <Pencil size={14} />
                     <span>{t('chat.bubble.actionEdit')}</span>

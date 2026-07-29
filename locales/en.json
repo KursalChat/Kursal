@@ -578,6 +578,9 @@
       "title": "Select text",
       "dialogAriaLabel": "Select text from message",
       "hint": "Long-press to select",
+      "selectAll": "Select all",
+      "viewMarkdown": "Markdown",
+      "viewFormatted": "Formatted",
       "close": "Close"
     },
     "stack": {

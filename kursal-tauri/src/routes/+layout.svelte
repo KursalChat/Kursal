@@ -69,7 +69,7 @@
   import { networkState } from '$lib/state/network.svelte';
   import { offlineSyncState } from '$lib/state/offlineSync.svelte';
   import { appFocusState } from '$lib/state/appFocus.svelte';
-  import { initAndroidInsets } from '$lib/utils/android-insets';
+  import { initAndroidInsets, getImeInset, onInsetsChange } from '$lib/utils/android-insets';
 
   initAndroidInsets();
 
@@ -261,8 +261,12 @@
 
     const syncViewport = () => {
       const vv = window.visualViewport;
+      const root = document.documentElement.style;
       if (vv) {
-        document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
+        root.setProperty('--app-height', `${vv.height}px`);
+        root.setProperty('--vv-top', `${vv.offsetTop}px`);
+        const covered = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+        root.setProperty('--kb-overlap', `${Math.max(0, getImeInset() - covered)}px`);
       }
       window.scrollTo(0, 0);
     };
@@ -290,6 +294,7 @@
       step();
     };
     syncUntilStable();
+    onInsetsChange(syncUntilStable);
     window.visualViewport?.addEventListener('resize', syncUntilStable);
     window.visualViewport?.addEventListener('scroll', syncViewport);
     window.addEventListener('resize', syncUntilStable);
