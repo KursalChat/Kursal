@@ -235,7 +235,8 @@ pub(super) async fn handle_swarm_event(
 
             peer_conns.insert(connection_id, (peer_id, kind));
             log::info!(
-                "[conn] established peer={peer_id} kind={kind:?} conn={connection_id:?} relayed={is_relayed_check}"
+                "[conn] established peer={peer_id} kind={kind:?} conn={connection_id:?} relayed={is_relayed_check} addr={}",
+                endpoint.get_remote_address()
             );
 
             if kind == ConnectionKind::Direct {

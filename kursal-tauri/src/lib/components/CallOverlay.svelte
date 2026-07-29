@@ -63,9 +63,19 @@
   let remoteCanvas = $state<HTMLCanvasElement | null>(null);
   let selfVideoEl = $state<HTMLVideoElement | null>(null);
 
+  const DEFAULT_AR = 16 / 9;
+  let remoteAr = $state(DEFAULT_AR);
+  let localAr = $state(DEFAULT_AR);
+
+  function clampAr(w: number, h: number): number {
+    if (!w || !h) return DEFAULT_AR;
+    return Math.min(16 / 9, Math.max(9 / 16, w / h));
+  }
+
   $effect(() => {
     if (!open || !callState.remoteVideo || !remoteCanvas) {
       callState.setRemoteFrameSink(null);
+      remoteAr = DEFAULT_AR;
       return;
     }
     const canvas = remoteCanvas;
@@ -74,6 +84,7 @@
       if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
         canvas.width = frame.displayWidth;
         canvas.height = frame.displayHeight;
+        remoteAr = clampAr(frame.displayWidth, frame.displayHeight);
       }
       ctx?.drawImage(frame, 0, 0);
       frame.close();
@@ -81,14 +92,12 @@
     return () => callState.setRemoteFrameSink(null);
   });
 
-  // Depend on localVideo (reactive) so the effect re-runs the moment the
-  // camera turns on - localStream itself is a plain getter and wouldn't
-  // trigger reactivity on its own.
   $effect(() => {
     if (selfVideoEl && callState.localVideo && callState.localStream) {
       selfVideoEl.srcObject = callState.localStream;
       void selfVideoEl.play().catch(() => {});
     }
+    if (!callState.localVideo) localAr = DEFAULT_AR;
   });
 
   const cameraLabel = $derived(
@@ -135,7 +144,7 @@
 
       {#if videoMode}
         <div class="tiles">
-          <div class="tile">
+          <div class="tile" style="--tile-ar:{remoteAr}">
             {#if callState.remoteVideo}
               <canvas class="tile-media" bind:this={remoteCanvas}></canvas>
             {:else}
@@ -145,10 +154,17 @@
             {/if}
             <span class="tile-name">{contact.displayName}</span>
           </div>
-          <div class="tile">
+          <div class="tile" style="--tile-ar:{localAr}">
             {#if callState.localVideo}
               <!-- svelte-ignore a11y_media_has_caption -->
-              <video class="tile-media mirrored" bind:this={selfVideoEl} muted playsinline></video>
+              <video
+                class="tile-media mirrored"
+                bind:this={selfVideoEl}
+                muted
+                playsinline
+                onloadedmetadata={() =>
+                  (localAr = clampAr(selfVideoEl?.videoWidth ?? 0, selfVideoEl?.videoHeight ?? 0))}
+              ></video>
             {:else}
               <div class="tile-avatar">
                 <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={96} />
@@ -469,13 +485,16 @@
   .tiles {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    align-items: start;
     gap: 12px;
     width: 100%;
     margin-top: 12px;
   }
   .tile {
     position: relative;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: var(--tile-ar, 16 / 9);
+    max-width: calc(60vh * var(--tile-ar, 1.7778));
+    margin-inline: auto;
     border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--surface-soft);

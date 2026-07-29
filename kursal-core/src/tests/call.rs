@@ -167,6 +167,68 @@ mod jitter {
         assert!(matches!(jb.pop(), JitterOut::Conceal));
         assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![3]));
     }
+
+    #[test]
+    fn frame_arriving_during_hold_still_plays() {
+        let mut jb = JitterBuffer::new(2);
+        jb.push(1, vec![1]);
+        jb.push(2, vec![2]);
+        jb.push(4, vec![4]);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![1]));
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![2]));
+        assert!(matches!(jb.pop(), JitterOut::Conceal));
+        jb.push(3, vec![3]);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![3]));
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![4]));
+    }
+
+    #[test]
+    fn skipped_gap_widens_target() {
+        let mut jb = JitterBuffer::new(2);
+        jb.push(1, vec![1]);
+        jb.push(3, vec![3]);
+        assert_eq!(jb.target(), 2);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![1]));
+        assert!(matches!(jb.pop(), JitterOut::Conceal));
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![3]));
+        assert_eq!(jb.target(), 3);
+    }
+
+    #[test]
+    fn frame_too_late_to_play_widens_target() {
+        let mut jb = JitterBuffer::new(2);
+        jb.push(5, vec![5]);
+        jb.push(6, vec![6]);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![5]));
+        jb.push(4, vec![4]);
+        assert_eq!(jb.target(), 3);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![6]));
+    }
+
+    #[test]
+    fn caps_buffered_frames_to_bound_delay() {
+        let mut jb = JitterBuffer::new(2);
+        for seq in 0..40u64 {
+            jb.push(seq, vec![seq as u8]);
+        }
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![15]));
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![16]));
+    }
+
+    #[test]
+    fn clean_run_shrinks_target_back() {
+        let mut jb = JitterBuffer::new(2);
+        jb.push(0, vec![0]);
+        jb.push(1, vec![1]);
+        assert!(matches!(jb.pop(), JitterOut::Frame(f) if f == vec![0]));
+        jb.push(0, vec![0]);
+        assert_eq!(jb.target(), 3);
+        for seq in 2..300u64 {
+            jb.push(seq, vec![seq as u8]);
+            assert!(matches!(jb.pop(), JitterOut::Frame(_)));
+        }
+        assert_eq!(jb.target(), 2);
+    }
 }
 
 mod engine {
@@ -404,9 +466,10 @@ mod video_wire {
     }
 
     #[test]
-    fn max_frame_fits_keyframes() {
+    fn max_frame_fits_keyframes_without_hogging_the_link() {
         const {
-            assert!(MAX_VIDEO_FRAME_BYTES >= 256 * 1024);
+            assert!(MAX_VIDEO_FRAME_BYTES >= 96 * 1024);
+            assert!(MAX_VIDEO_FRAME_BYTES <= 192 * 1024);
         }
     }
 

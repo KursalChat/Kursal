@@ -32,8 +32,9 @@ import type {
   VideoStatePayload,
 } from '$lib/types';
 
-// Peer drop grace: relay hops flap briefly, so wait before tearing a call down.
 const PEER_DROP_GRACE_MS = 5000;
+const KEYFRAME_LOSS_WINDOW_MS = 5000;
+const KEYFRAME_LOSS_COUNT = 3;
 
 function createCallState() {
   let status = $state<CallStatus>('idle');
@@ -63,6 +64,8 @@ function createCallState() {
   const receiver = videoAvailable ? new VideoReceiver() : null;
   let rxChannelOpen = false;
   let lastKeyframeReq = 0;
+  let peerKeyframeReqs: number[] = [];
+  let sendingVp8 = false;
   let remoteFrameSink: ((f: VideoFrame) => void) | null = null;
   // One-shot diagnostics to localise a black remote tile (core -> UI -> decode -> draw).
   let dbgChunk = false;
@@ -102,6 +105,13 @@ function createCallState() {
       if (!localVideo) return;
       localVideo = false;
       void apiStopVideo('error').catch(() => {});
+    };
+    sender.onResolutionChange = () => {
+      if (!localVideo) return;
+      void startSending(sendingVp8).catch(() => {
+        stopLocalVideo();
+        void apiStopVideo('error').catch(() => {});
+      });
     };
   }
 
@@ -149,6 +159,7 @@ function createCallState() {
         /* default stands */
       }
       const config = await sender.start(quality, forceVp8);
+      sendingVp8 = forceVp8;
       await apiStartVideo(config.codec, config.width, config.height);
       localVideo = true;
     } finally {
@@ -241,6 +252,8 @@ function createCallState() {
     stopLocalVideo();
     stopRemoteVideo();
     cameraDenied = false;
+    peerKeyframeReqs = [];
+    lastKeyframeReq = 0;
     clearDropTimer();
   }
 
@@ -327,7 +340,16 @@ function createCallState() {
       applyPeerVoiceState(e.payload)
     );
     await listen('video_congestion', () => sender?.onCongestion());
-    await listen('video_keyframe_requested', () => sender?.requestKeyframe());
+    await listen('video_keyframe_requested', () => {
+      sender?.requestKeyframe();
+      const now = Date.now();
+      peerKeyframeReqs = peerKeyframeReqs.filter((at) => now - at < KEYFRAME_LOSS_WINDOW_MS);
+      peerKeyframeReqs.push(now);
+      if (peerKeyframeReqs.length >= KEYFRAME_LOSS_COUNT) {
+        peerKeyframeReqs = [];
+        sender?.onCongestion();
+      }
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && localVideo) void toggleCamera();
     });
