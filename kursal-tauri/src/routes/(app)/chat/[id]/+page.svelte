@@ -1731,7 +1731,6 @@
           onToggleReact={(emoji) => toggleReaction(msg, emoji)}
           onStartReply={() => startReply(msg)}
           onCopy={() => copyMessageText(msg)}
-          onSelectText={() => openSelectText(msg)}
           onStartEdit={() => startEdit(msg)}
           onTogglePin={() => togglePin(msg)}
           onForward={() => (forwardContent = msg.content)}

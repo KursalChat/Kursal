@@ -19,7 +19,6 @@
     Share,
     X,
     Clock,
-    TextCursorInput,
     Ellipsis,
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
@@ -95,7 +94,6 @@
     onToggleReact: (emoji: string) => void;
     onStartReply: () => void;
     onCopy: () => void;
-    onSelectText: () => void;
     onStartEdit: () => void;
     onTogglePin: () => void;
     onForward: () => void;
@@ -143,7 +141,6 @@
     onToggleReact,
     onStartReply,
     onCopy,
-    onSelectText,
     onStartEdit,
     onTogglePin,
     onForward,
@@ -189,6 +186,7 @@
   let menuStyle = $state('');
   let menuEl = $state<HTMLElement | null>(null);
   let moreBtn = $state<HTMLElement | null>(null);
+  let rowEl = $state<HTMLElement | null>(null);
 
   // In-flight and undelivered messages have nothing actionable yet.
   const actionsAvailable = $derived(isMessageActionable(msg.status));
@@ -226,8 +224,22 @@
     }
     if (!actionsAvailable) return;
     e.preventDefault();
+    clearRowSelection();
     positionMenu(e.clientX, e.clientY);
     menuOpen = true;
+  }
+
+  // Fallback for engines that select before the press default is dropped.
+  function clearRowSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    if (sel.anchorNode && rowEl?.contains(sel.anchorNode)) sel.removeAllRanges();
+  }
+
+  // WebKit selects the word under the cursor on right press; the contextmenu
+  // event fires too late to undo it, so the press default is dropped instead.
+  function suppressRightPress(e: MouseEvent) {
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) e.preventDefault();
   }
 
   function runAction(fn: () => void) {
@@ -235,12 +247,26 @@
     menuOpen = false;
   }
 
+  // Menu items act on press
+  function activate(fn: () => void) {
+    return {
+      onpointerdown: (e: PointerEvent) => {
+        if (e.pointerType !== 'mouse' || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        runAction(fn);
+      },
+      onclick: (e: MouseEvent) => {
+        e.stopPropagation();
+        runAction(fn);
+      },
+    };
+  }
+
   // The menu mirrors the toolbar's quick actions, so "React" has to hand the
   // picker an anchor - the "..." button, since the menu itself is closing.
-  function openPickerFromMenu(e: MouseEvent) {
-    e.stopPropagation();
+  function openPickerFromMenu() {
     const rect = moreBtn?.getBoundingClientRect() ?? null;
-    menuOpen = false;
     onToggleEmojiPicker(rect);
   }
 
@@ -323,8 +349,10 @@
   );
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="msg-row"
+  bind:this={rowEl}
   class:first={isFirst}
   class:last={isLast}
   class:hovered
@@ -343,6 +371,7 @@
   ontouchmove={onTouchMove}
   ontouchend={onTouchEnd}
   ontouchcancel={onTouchCancel}
+  onmousedown={suppressRightPress}
   oncontextmenu={handleContextMenu}
 >
   {#if swipeDx !== 0}
@@ -697,48 +726,38 @@
                 bind:this={menuEl}
                 role="menu"
               >
-                <button class="menu-item" role="menuitem" onclick={openPickerFromMenu}>
+                <button class="menu-item" role="menuitem" {...activate(openPickerFromMenu)}>
                   <Smile size={14} />
                   <span>{t('chat.bubble.actionReact')}</span>
                 </button>
-                <button class="menu-item" role="menuitem" onclick={() => runAction(onStartReply)}>
+                <button class="menu-item" role="menuitem" {...activate(onStartReply)}>
                   <Reply size={14} />
                   <span>{t('chat.bubble.actionReply')}</span>
                 </button>
-                <button class="menu-item" role="menuitem" onclick={() => runAction(onCopy)}>
+                <button class="menu-item" role="menuitem" {...activate(onCopy)}>
                   <Copy size={14} />
                   <span>{t('chat.bubble.actionCopy')}</span>
                 </button>
-                {#if !msg.fileDetails && msg.content}
-                  <button class="menu-item" role="menuitem" onclick={() => runAction(onSelectText)}>
-                    <TextCursorInput size={14} />
-                    <span>{t('chat.bubble.actionSelectText')}</span>
-                  </button>
-                {/if}
-                <button class="menu-item" role="menuitem" onclick={() => runAction(onTogglePin)}>
+                <button class="menu-item" role="menuitem" {...activate(onTogglePin)}>
                   <Pin size={14} />
                   <span
                     >{msg.pinned ? t('chat.bubble.actionUnpin') : t('chat.bubble.actionPin')}</span
                   >
                 </button>
                 {#if !msg.fileDetails}
-                  <button class="menu-item" role="menuitem" onclick={() => runAction(onForward)}>
+                  <button class="menu-item" role="menuitem" {...activate(onForward)}>
                     <Forward size={14} />
                     <span>{t('chat.bubble.actionForward')}</span>
                   </button>
                 {/if}
                 {#if msg.direction === 'sent' && !msg.fileDetails && msg.status !== 'queued_in_dht'}
-                  <button class="menu-item" role="menuitem" onclick={() => runAction(onStartEdit)}>
+                  <button class="menu-item" role="menuitem" {...activate(onStartEdit)}>
                     <Pencil size={14} />
                     <span>{t('chat.bubble.actionEdit')}</span>
                   </button>
                 {/if}
                 {#if msg.direction === 'sent'}
-                  <button
-                    class="menu-item danger"
-                    role="menuitem"
-                    onclick={() => runAction(onDelete)}
-                  >
+                  <button class="menu-item danger" role="menuitem" {...activate(onDelete)}>
                     <Trash2 size={14} />
                     <span>{t('chat.bubble.actionDelete')}</span>
                   </button>
