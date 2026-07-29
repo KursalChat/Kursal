@@ -68,6 +68,7 @@
   } from '$lib/types';
   import { networkState } from '$lib/state/network.svelte';
   import { offlineSyncState } from '$lib/state/offlineSync.svelte';
+  import { appFocusState } from '$lib/state/appFocus.svelte';
   import { initAndroidInsets } from '$lib/utils/android-insets';
 
   initAndroidInsets();
@@ -123,10 +124,13 @@
   // OS banner only when the window is unfocused; focused app gets an in-app
   // toast instead, and nothing at all while the sender's chat is open.
   function notifyIncoming(contactId: string, senderName: string, body: string) {
-    if (contactsState.isMuted(contactId)) return;
-    if (!appFocusState.focused) {
+    const background = !appFocusState.focused;
+    if (background) {
       backgroundUnread += 1;
       refreshTitle();
+    }
+    if (contactsState.isMuted(contactId)) return;
+    if (background) {
       void notifyMessage({ senderName, body });
       return;
     }
@@ -235,15 +239,10 @@
     unlistenPromises.push(backendDialogReady);
     void backendDialogReady.then(() => runStartupDialogs());
 
+    const stopFocusTracking = appFocusState.init();
+
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        void draftsState.flush().catch(() => {});
-        return;
-      }
-      if (backgroundUnread > 0) {
-        backgroundUnread = 0;
-        refreshTitle();
-      }
+      if (document.hidden) void draftsState.flush().catch(() => {});
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -651,6 +650,7 @@
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopFocusTracking();
       cancelAnimationFrame(settleRaf);
       window.visualViewport?.removeEventListener('resize', syncUntilStable);
       window.visualViewport?.removeEventListener('scroll', syncViewport);
