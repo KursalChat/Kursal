@@ -62,13 +62,16 @@ clean:
 build-opus:
     ./bin/build-opus.sh
 
+build-abseil:
+    ./bin/build-abseil.sh
+
 build-frontend:
     cd kursal-tauri && bun install --frozen-lockfile && bun run build
 
 build-win: build-opus build-frontend
     ./bin/build-win.sh
 
-build-mac: build-opus build-frontend
+build-mac: build-opus build-abseil build-frontend
     ./bin/build-mac.sh
 
 build-linux: build-frontend
@@ -94,7 +97,8 @@ publish: preflight publish-github publish-relay publish-beta-manifest publish-ap
 publish-beta: preflight publish-github publish-relay publish-beta-manifest
 
 publish-github:
-    gh release create v{{ version }} --verify-tag {{ prerelease }} --title "v{{ version }}" --notes "$(git cliff --latest --strip all)" ./build/*
+	gh release create v{{ version }} --verify-tag {{ prerelease }} --title "v{{ version }}" --notes "$(git cliff --latest --strip all)"
+	for f in ./build/*; do echo "Uploading: $f"; gh release upload v{{ version }} "$f"; done
 
 publish-relay:
     ./bin/build-relay.sh --push
