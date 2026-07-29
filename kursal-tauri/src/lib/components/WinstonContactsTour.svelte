@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { fade } from 'svelte/transition';
   import { t } from '$lib/i18n';
+  import { uiState } from '$lib/state/ui.svelte';
   import WinstonCard from './WinstonCard.svelte';
 
   type Step =
@@ -21,6 +22,17 @@
   let step = $state<Step>('intro');
   let rect = $state<{ x: number; y: number; w: number; h: number } | null>(null);
   let skipReady = $state(false);
+  let narrow = $state(false);
+  
+  const needsMenu = $derived(narrow && !uiState.mobileSidebarOpen);
+
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    narrow = mq.matches;
+    const onChange = (e: MediaQueryListEvent) => (narrow = e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
 
   onMount(() => {
     if (localStorage.getItem(KEY) === 'done') return;
@@ -43,6 +55,7 @@
 
   function targetEl(): HTMLElement | null {
     if (step === 'click-add') {
+      if (needsMenu) return document.querySelector('[data-tour="mobile-menu"]') as HTMLElement | null;
       return (document.querySelector('[data-tour="add-contact-empty"]') ??
         document.querySelector('[data-tour="add-contact-btn"]')) as HTMLElement | null;
     }
@@ -60,15 +73,28 @@
       return;
     }
     const r = el.getBoundingClientRect();
-    rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+    // A collapsed or off-viewport target must not produce a spotlight: the dim
+    // quadrants would then cover the whole UI with no cutout to click through.
+    const offscreen =
+      r.width < 1 ||
+      r.height < 1 ||
+      r.right <= 0 ||
+      r.bottom <= 0 ||
+      r.left >= window.innerWidth ||
+      r.top >= window.innerHeight;
+    rect = offscreen ? null : { x: r.left, y: r.top, w: r.width, h: r.height };
   }
 
-  // Recompute on step change, route change, or resize.
+  // Recompute on step change, route change, drawer toggle, or resize.
   $effect(() => {
     if (!active) return;
     void step;
     void page.url.pathname;
+    void needsMenu;
     void tick().then(() => requestAnimationFrame(recompute));
+    // The mobile drawer slides in over ~260ms; re-measure once it settles.
+    const settle = setTimeout(recompute, 320);
+    return () => clearTimeout(settle);
   });
 
   $effect(() => {
@@ -170,6 +196,9 @@
   const showSpotlight = $derived(
     step === 'click-add' || step === 'click-ltc' || step === 'click-nearby'
   );
+  const openMenuFirst = $derived(step === 'click-add' && needsMenu);
+  const body = $derived(openMenuFirst ? t('tour.steps.clickAdd.bodyOpenMenu') : data.body);
+  const cardKey = $derived(openMenuFirst ? step + ':menu' : step);
 </script>
 
 {#if active}
@@ -222,12 +251,12 @@
 
     <div class="card-pos">
       <WinstonCard img={data.img} alt={t('tour.winstonAlt')} size={110}>
-        {#key step}
+        {#key cardKey}
           <div in:fade={{ duration: 220 }}>
             {#if data.title}
               <div class="title">{data.title}</div>
             {/if}
-            <div class="body">{@html formatBody(data.body)}</div>
+            <div class="body">{@html formatBody(body)}</div>
 
             <div class="actions">
               {#if step === 'intro' && skipReady}

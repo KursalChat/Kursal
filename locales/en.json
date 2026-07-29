@@ -1143,7 +1143,8 @@
         "cta": "Show me"
       },
       "clickAdd": {
-        "body": "First, hit the **Add Contact** button. There are three ways to add a friend, and I'll walk you through each one."
+        "body": "First, hit the **Add Contact** button. There are three ways to add a friend, and I'll walk you through each one.",
+        "bodyOpenMenu": "Open the **menu** up there. Your contacts and the Add Contact button live in there."
       },
       "otpDetail": {
         "title": "One-Time Code",

@@ -194,6 +194,7 @@
       class="mobile-menu"
       onclick={() => (uiState.mobileSidebarOpen = true)}
       aria-label={t('layout.openMenu')}
+      data-tour="mobile-menu"
     >
       <Menu size={22} />
     </button>
