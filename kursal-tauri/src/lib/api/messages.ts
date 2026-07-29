@@ -61,6 +61,14 @@ export const acceptFileOffer = (
   savePath: string
 ): Promise<void> => invoke('accept_file_offer', { contactId, offerId, savePath });
 
+// Destination a download lands in. The core owns this path (it is the same one
+// auto-download uses) so the filename sanitising stays in one place.
+export const resolveDownloadPath = (
+  contactId: string,
+  offerId: string,
+  filename: string
+): Promise<string> => invoke('resolve_download_path', { contactId, offerId, filename });
+
 export const cancelFileTransfer = (contactId: string, offerId: string): Promise<void> =>
   invoke('cancel_file_transfer', { contactId, offerId });
 

@@ -253,6 +253,28 @@ pub async fn get_storage_usage(state: tauri::State<'_, AppState>) -> Result<Stor
     .map_err(Into::into)
 }
 
+#[tauri::command]
+pub async fn resolve_download_path(
+    contact_id: String,
+    offer_id: String,
+    filename: String,
+) -> Result<String> {
+    let path = kursal_core::storage::filetransfer::download_path(
+        cache_dir()?.to_path_buf(),
+        &contact_id,
+        &offer_id,
+        &filename,
+    );
+
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(KursalError::Io)?;
+    }
+
+    Ok(path.to_string_lossy().into_owned())
+}
+
 setting_cmd!(get get_auto_download_config -> AutoDownloadConfig, kursal_core::storage::get_auto_download_config);
 setting_cmd!(set set_auto_download_config(config: AutoDownloadConfig), kursal_core::storage::set_auto_download_config);
 setting_cmd!(get get_auto_accept_config -> AutoAcceptConfig, kursal_core::storage::get_auto_accept_config);

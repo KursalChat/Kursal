@@ -124,7 +124,6 @@
 
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
-    "errorPlaceFile": "Received file but couldn't save it to the chosen location",
     "transferFailed": "File transfer failed integrity check and was discarded",
     "transferCancelled": "File transfer cancelled"
   },
@@ -452,6 +451,8 @@
       "errorCopy": "Could not copy",
       "messageNotFound": "Couldn't find that message",
       "successFileAccepted": "File transfer accepted",
+      "successFileExported": "Saved to device",
+      "errorExportFile": "Couldn't save the file to that location.",
       "errorAcceptFile": "Failed to accept file.",
       "errorDownloadAll": "Couldn't download {count} image(s).",
       "errorOpenFile": "Failed to open file.",
@@ -504,6 +505,7 @@
       "fileSizeSent": "Sent",
       "fileSizeReceived": "Received",
       "showInFolder": "Show in folder",
+      "saveToDevice": "Save to device",
       "download": "Download",
       "downloadAriaLabel": "Download file",
       "cancel": "Cancel transfer",

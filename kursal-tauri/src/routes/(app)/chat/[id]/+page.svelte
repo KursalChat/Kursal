@@ -10,8 +10,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
-  import { stat, writeFile } from '@tauri-apps/plugin-fs';
-  import { appCacheDir, join } from '@tauri-apps/api/path';
+  import { stat } from '@tauri-apps/plugin-fs';
   import { t } from '$lib/i18n';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
@@ -36,18 +35,17 @@
     searchMessages,
     sendTypingIndicator,
     flushOffline,
+    resolveDownloadPath,
   } from '$lib/api/messages';
   import { shareProfile } from '$lib/api/identity';
   import { isMobile } from '$lib/api/window';
   import {
     pickFilesForSend,
-    pickFileForReceive,
     prepareOfferSourcePath,
-    prepareBatchReceive,
-    registerDeferredReceiveTarget,
-    type SendPickerMode,
+    prepareOfferFromFile,
+    prepareOfferFromBytes,
+    exportToDevice,
   } from '$lib/utils/file-transfer-paths';
-  import { stripImageMetadata } from '$lib/utils/image-metadata';
   import { listen } from '@tauri-apps/api/event';
   import type { MessageResponse, MessageQueuedOfflinePayload } from '$lib/types';
   import { notifications } from '$lib/state/notifications.svelte';
@@ -1236,16 +1234,9 @@
     pendingFiles = [...pendingFiles, ...staged.filter((f) => !known.has(f.backendPath))];
   }
 
-  async function stageFileForSend(backendPath: string, filename: string) {
-    await stageFilesForSend([{ backendPath, filename }]);
-  }
-
   async function handlePasteImage({ bytes, ext }: { bytes: Uint8Array; ext: string }) {
     try {
-      const dir = await appCacheDir();
-      const path = await join(dir, `kursal-paste-${Date.now()}.${ext}`);
-      await writeFile(path, stripImageMetadata(bytes));
-      await stageFileForSend(path, `pasted-image.${ext}`);
+      await stageFilesForSend([await prepareOfferFromBytes(bytes, `pasted-image.${ext}`)]);
     } catch (e) {
       notifyError(e, 'chat.conversation.errorPasteImage');
     }
@@ -1261,9 +1252,9 @@
     }
   }
 
-  async function handleSendFile(pickerMode: SendPickerMode = 'document') {
+  async function handleSendFile() {
     try {
-      const prepared = await pickFilesForSend(pickerMode);
+      const prepared = await pickFilesForSend();
       if (!prepared.length) return;
       await stageFilesForSend(prepared);
     } catch (e) {
@@ -1271,14 +1262,14 @@
     }
   }
 
-  async function handleCameraCapture(file: File) {
+  async function handlePickedFiles(files: File[]) {
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const ext = file.name.split('.').pop() || (file.type.split('/')[1] ?? 'jpg');
-      const dir = await appCacheDir();
-      const path = await join(dir, `kursal-capture-${Date.now()}.${ext}`);
-      await writeFile(path, stripImageMetadata(bytes));
-      await stageFileForSend(path, file.name || `capture.${ext}`);
+      const prepared = await Promise.all(
+        files.map((f, i) =>
+          prepareOfferFromFile(f, `capture-${i + 1}.${f.type.split('/')[1] ?? 'bin'}`)
+        )
+      );
+      await stageFilesForSend(prepared);
     } catch (e) {
       notifyError(e, 'chat.conversation.errorOpenFile');
     }
@@ -1380,21 +1371,13 @@
       return;
     fileOfferActionState[msg.id] = 'accepting';
     try {
-      const resolved = await pickFileForReceive(msg.fileDetails.filename);
-      if (!resolved) {
-        fileOfferActionState[msg.id] = 'idle';
-        return;
-      }
-      await acceptFileOffer(msg.contactId, msg.id, resolved.backendPath);
-      if (resolved.deferredTargetUri) {
-        registerDeferredReceiveTarget(
-          resolved.backendPath,
-          resolved.deferredTargetUri,
-          msg.fileDetails.filename
-        );
-      } else {
-        messagesState.setAutodownloadPath(msg.id, msg.contactId, resolved.backendPath);
-      }
+      const savePath = await resolveDownloadPath(
+        msg.contactId,
+        msg.id,
+        msg.fileDetails.filename
+      );
+      await acceptFileOffer(msg.contactId, msg.id, savePath);
+      messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';
       notifications.push(t('chat.conversation.successFileAccepted'), 'success');
     } catch (e) {
@@ -1404,6 +1387,19 @@
         'error'
       );
       log.error('Accept file offer failed', e);
+    }
+  }
+
+  // Downloads never prompt, so this is how a file leaves the app - the only
+  // route out on mobile, where app storage isn't browsable.
+  async function handleSaveToDevice(msg: MessageResponse) {
+    const path = msg.fileDetails?.autodownloadPath;
+    if (!path || !msg.fileDetails) return;
+    try {
+      const saved = await exportToDevice(path, msg.fileDetails.filename);
+      if (saved) notifications.push(t('chat.conversation.successFileExported'), 'success');
+    } catch (e) {
+      notifyError(e, 'chat.conversation.errorExportFile');
     }
   }
 
@@ -1530,9 +1526,8 @@
     return runs;
   }
 
-  // Accepts every not-yet-downloaded image in a stack into one folder the user
-  // picks once (mobile writes to the app cache, no prompt). Colliding filenames
-  // are suffixed by prepareBatchReceive so nothing on disk is overwritten.
+  // Accepts every not-yet-downloaded image in a stack. Like a single download
+  // this prompts for nothing - each file lands in the app's download folder.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
     const items = msgs
@@ -1541,38 +1536,13 @@
     if (items.length === 0) return;
 
     for (const { msg } of items) fileOfferActionState[msg.id] = 'accepting';
-    let targets: Awaited<ReturnType<typeof prepareBatchReceive>>;
-    try {
-      targets = await prepareBatchReceive(items.map((i) => i.filename));
-    } catch (e) {
-      for (const { msg } of items) fileOfferActionState[msg.id] = 'idle';
-      notifications.push(
-        t('chat.conversation.errorAcceptFile', { error: parseError(e).message }),
-        'error'
-      );
-      log.error('Download all: folder selection failed', e);
-      return;
-    }
-    if (!targets) {
-      for (const { msg } of items) fileOfferActionState[msg.id] = 'idle';
-      return;
-    }
 
     let failed = 0;
-    for (let i = 0; i < items.length; i++) {
-      const { msg } = items[i];
-      const target = targets[i];
+    for (const { msg, filename } of items) {
       try {
-        await acceptFileOffer(msg.contactId, msg.id, target.backendPath);
-        if (target.deferredTargetUri) {
-          registerDeferredReceiveTarget(
-            target.backendPath,
-            target.deferredTargetUri,
-            msg.fileDetails!.filename
-          );
-        } else {
-          messagesState.setAutodownloadPath(msg.id, msg.contactId, target.backendPath);
-        }
+        const savePath = await resolveDownloadPath(msg.contactId, msg.id, filename);
+        await acceptFileOffer(msg.contactId, msg.id, savePath);
+        messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
         fileOfferActionState[msg.id] = 'accepted';
       } catch (e) {
         failed += 1;
@@ -1754,6 +1724,7 @@
           onReplyRefClick={handleReplyRefClick}
           onAcceptFile={() => handleAcceptIncomingFile(msg)}
           onCancelFile={() => handleCancelFile(msg)}
+          onSaveToDevice={() => handleSaveToDevice(msg)}
           onToggleReact={(emoji) => toggleReaction(msg, emoji)}
           onStartReply={() => startReply(msg)}
           onCopy={() => copyMessageText(msg)}
@@ -1832,12 +1803,7 @@
   </div>
 
   {#if showAttachSheet}
-    <AttachSheet
-      onClose={() => (showAttachSheet = false)}
-      onPickMedia={() => handleSendFile('media')}
-      onPickFile={() => handleSendFile('document')}
-      onCameraCapture={handleCameraCapture}
-    />
+    <AttachSheet onClose={() => (showAttachSheet = false)} onPickFiles={handlePickedFiles} />
   {/if}
 
   {#if actionSheetMsg}

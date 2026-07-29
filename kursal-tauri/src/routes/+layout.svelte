@@ -22,7 +22,6 @@
   import { getNetworkStatus } from '$lib/api/settings';
   import { frontendReady } from '$lib/api/identity';
   import { OS, isMobile } from '$lib/api/window';
-  import { finalizeDeferredReceiveTarget } from '$lib/utils/file-transfer-paths';
   import { acceptFileOffer } from '$lib/api/messages';
   import { notifyError } from '$lib/utils/errors';
   import {
@@ -643,26 +642,16 @@
     unlistenPromises.push(
       listen<FileReceivedPayload>('file_received', async (event) => {
         const { contactId, transferId, savePath } = event.payload;
-        let filename = savePath.split(/[\\/]/).pop() || 'file';
+        const filename = savePath.split(/[\\/]/).pop() || 'file';
 
         // The bubble's <img> was mounted against the still-empty preallocated
         // file, so the completed bytes only show after a forced refetch.
         messagesState.markMediaReady(contactId, transferId);
         messagesState.clearTransferProgress(transferId);
 
-        try {
-          const finalized = await finalizeDeferredReceiveTarget(savePath);
-          filename = finalized.filename;
-          // `moved` means the bytes went on to a content:// target and savePath
-          // is gone; otherwise savePath is where the file actually landed, which
-          // beats the guess made at accept time (a retry can have changed it).
-          if (!finalized.moved) {
-            messagesState.setAutodownloadPath(transferId, contactId, savePath);
-          }
-        } catch (err) {
-          notifications.push(t('fileTransfer.errorPlaceFile'), 'error');
-          log.error('Deferred receive finalization failed', err);
-        }
+        // savePath is where the bytes actually landed, which beats the path
+        // resolved at accept time (a retry can have changed it).
+        messagesState.setAutodownloadPath(transferId, contactId, savePath);
 
         const contact = contactsState.getById(contactId);
         const contactName = contact?.displayName ?? t('notifications.unknownSender');

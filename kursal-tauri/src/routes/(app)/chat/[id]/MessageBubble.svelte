@@ -16,12 +16,14 @@
     CloudDownload,
     CircleAlert,
     FolderOpen,
+    Share,
     X,
     MoreHorizontal,
     Clock,
   } from 'lucide-svelte';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { exists } from '@tauri-apps/plugin-fs';
+  import { isMobile } from '$lib/api/window';
   import { t } from '$lib/i18n';
   import Spinner from '$lib/components/Spinner.svelte';
   import { notifyError } from '$lib/utils/errors';
@@ -86,6 +88,7 @@
     onReplyRefClick: (replyToId: string) => void;
     onAcceptFile: () => void;
     onCancelFile: () => void;
+    onSaveToDevice: () => void;
     onToggleReact: (emoji: string) => void;
     onStartReply: () => void;
     onCopy: () => void;
@@ -131,6 +134,7 @@
     onReplyRefClick,
     onAcceptFile,
     onCancelFile,
+    onSaveToDevice,
     onToggleReact,
     onStartReply,
     onCopy,
@@ -454,14 +458,27 @@
               </div>
               {#if msg.direction === 'received'}
                 {#if autoPath}
-                  <button
-                    class="file-dl-btn ghost"
-                    title={t('chat.bubble.showInFolder')}
-                    aria-label={t('chat.bubble.showInFolder')}
-                    onclick={() => revealLocalFile(autoPath)}
-                  >
-                    <FolderOpen size={16} />
-                  </button>
+                  <!-- Downloads land in app storage: desktop can jump to them
+                       in the file manager, mobile can only copy them out. -->
+                  {#if isMobile}
+                    <button
+                      class="file-dl-btn ghost"
+                      title={t('chat.bubble.saveToDevice')}
+                      aria-label={t('chat.bubble.saveToDevice')}
+                      onclick={onSaveToDevice}
+                    >
+                      <Share size={16} />
+                    </button>
+                  {:else}
+                    <button
+                      class="file-dl-btn ghost"
+                      title={t('chat.bubble.showInFolder')}
+                      aria-label={t('chat.bubble.showInFolder')}
+                      onclick={() => revealLocalFile(autoPath)}
+                    >
+                      <FolderOpen size={16} />
+                    </button>
+                  {/if}
                 {:else if fileOfferState === 'accepted' && transferDone}
                   <span class="file-done" title={t('chat.bubble.complete')}>
                     <Check size={18} />

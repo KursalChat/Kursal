@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { X, FolderOpen, ChevronLeft, ChevronRight, Film } from 'lucide-svelte';
+  import { X, FolderOpen, Share, ChevronLeft, ChevronRight, Film } from 'lucide-svelte';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { t } from '$lib/i18n';
   import { notifyError } from '$lib/utils/errors';
+  import { notifications } from '$lib/state/notifications.svelte';
+  import { exportToDevice } from '$lib/utils/file-transfer-paths';
   import { isMobile } from '$lib/api/window';
 
   interface MediaItem {
@@ -154,6 +156,15 @@
     }
   }
 
+  async function saveToDevice() {
+    try {
+      const saved = await exportToDevice(path, filename);
+      if (saved) notifications.push(t('chat.conversation.successFileExported'), 'success');
+    } catch (e) {
+      notifyError(e, 'chat.conversation.errorExportFile');
+    }
+  }
+
   onMount(() => {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
@@ -172,7 +183,16 @@
   <div class="topbar" onclick={(e) => e.stopPropagation()} role="presentation">
     <span class="title" title={filename}>{filename}</span>
     <div class="actions">
-      {#if !isMobile}
+      {#if isMobile}
+        <button
+          class="iconbtn"
+          onclick={saveToDevice}
+          title={t('chat.bubble.saveToDevice')}
+          aria-label={t('chat.bubble.saveToDevice')}
+        >
+          <Share size={16} />
+        </button>
+      {:else}
         <button
           class="iconbtn"
           onclick={reveal}

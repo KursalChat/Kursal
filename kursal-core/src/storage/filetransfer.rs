@@ -60,6 +60,22 @@ pub fn sanitize_filename(name: &str) -> String {
     safe.chars().take(MAX_LEN).collect()
 }
 
+pub fn download_path(
+    cache_dir: PathBuf,
+    contact_hex: &str,
+    offer_hex: &str,
+    filename: &str,
+) -> PathBuf {
+    cache_dir
+        .join("files")
+        .join(sanitize_filename(contact_hex))
+        .join(format!(
+            "{}-{}",
+            sanitize_filename(offer_hex),
+            sanitize_filename(filename)
+        ))
+}
+
 pub fn get_auto_download_storage(cache_dir: PathBuf) -> Result<u64> {
     get_folder_size(cache_dir.join("files"), 2)
 }
