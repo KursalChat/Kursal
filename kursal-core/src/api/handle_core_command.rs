@@ -681,6 +681,8 @@ pub async fn handle_core_command(
                     .await
                     .ok_kursal(KursalError::Storage)??;
 
+                let stored_path = send_path.clone();
+
                 let entry = FileTransferEntry {
                     path: send_path,
                     my_random,
@@ -709,7 +711,7 @@ pub async fn handle_core_command(
                     .await?
                     .expect("Text message always has an id");
 
-                Ok((msg_id, size_bytes))
+                Ok((msg_id, size_bytes, stored_path))
             }
             .await;
 

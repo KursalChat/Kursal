@@ -246,7 +246,7 @@ pub async fn send_file_offer(
     state: tauri::State<'_, AppState>,
     contact_id: String,
     file_path: String,
-) -> Result<(String, u64)> {
+) -> Result<(String, u64, String)> {
     let app_data_dir = app_data_dir()?.to_path_buf();
 
     cmd_wrapper::send_file_offer(AppStateWrapper(state), contact_id, file_path, app_data_dir)

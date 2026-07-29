@@ -22,6 +22,7 @@
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
+  import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
     sendText,
     sendFileOffer,
@@ -1158,13 +1159,7 @@
     const text = inputText.trim();
     if (!text) return;
     if (text.length > MAX_MESSAGE_LENGTH) {
-      notifications.push(
-        t('chat.conversation.errorMessageTooLong', {
-          length: text.length,
-          max: MAX_MESSAGE_LENGTH,
-        }),
-        'error'
-      );
+      if (await offerTextAsFile(text)) inputText = '';
       return;
     }
 
@@ -1257,6 +1252,28 @@
     }
   }
 
+  // Text past the limit can't be sent as a message: ask, then stage it as a
+  // .txt attachment. Returns whether the file was staged.
+  async function offerTextAsFile(text: string): Promise<boolean> {
+    const ok = await confirmDialog({
+      title: t('chat.conversation.tooLongTitle'),
+      message: t('chat.conversation.tooLongMessage', {
+        length: text.length,
+        max: MAX_MESSAGE_LENGTH,
+      }),
+      confirmLabel: t('chat.conversation.tooLongConfirm'),
+    });
+    if (!ok) return false;
+    try {
+      const bytes = new TextEncoder().encode(text);
+      await stageFilesForSend([await prepareOfferFromBytes(bytes, 'message.txt')]);
+      return true;
+    } catch (e) {
+      notifyError(e, 'chat.conversation.errorPasteText');
+      return false;
+    }
+  }
+
   let showAttachSheet = $state(false);
 
   function openAttach() {
@@ -1339,7 +1356,9 @@
     sendingFile = true;
     try {
       for (const file of files) {
-        const [messageId, fileSize] = await sendFileOffer(cid, file.backendPath);
+        // The core moves staged bytes out of the pending dir, so the preview
+        // has to point at the copy it kept, not the path we handed it.
+        const [messageId, fileSize, storedPath] = await sendFileOffer(cid, file.backendPath);
         messagesState.appendOptimistic({
           id: messageId,
           contactId: cid,
@@ -1352,9 +1371,10 @@
           fileDetails: {
             filename: file.filename,
             sizeBytes: fileSize,
-            autodownloadPath: file.backendPath,
+            autodownloadPath: storedPath || file.backendPath,
           },
         });
+        if (storedPath) messagesState.setAutodownloadPath(messageId, cid, storedPath);
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
       if (text) sendCaption(cid, text);
@@ -1796,6 +1816,7 @@
         onEditLast={editLastMessage}
         onOpenProfile={openProfileModal}
         onPasteImage={handlePasteImage}
+        onPasteLongText={(text) => void offerTextAsFile(text)}
         bind:composerEl
       />
     </div>

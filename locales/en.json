@@ -454,7 +454,11 @@
       "errorPrepareFile": "Failed to prepare file.",
       "errorSendFile": "Failed to send file.",
       "errorPasteImage": "Failed to paste image.",
+      "errorPasteText": "Failed to attach the text as a file.",
       "errorMessageTooLong": "Message too long ({length}/{max})",
+      "tooLongTitle": "Message too long",
+      "tooLongMessage": "That's {length} characters, and the limit is {max}. Send it as a text file instead?",
+      "tooLongConfirm": "Send as file",
       "you": "You"
     },
     "composer": {
@@ -496,6 +500,8 @@
       "receivedAtLabel": "Received {time}",
       "replyFallback": "Original message",
       "emptyPreview": "(empty)",
+      "showMore": "Show more",
+      "showLess": "Show less",
       "fileSizeSent": "Sent",
       "fileSizeReceived": "Received",
       "showInFolder": "Show in folder",

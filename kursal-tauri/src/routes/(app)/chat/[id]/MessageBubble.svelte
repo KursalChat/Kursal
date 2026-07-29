@@ -20,10 +20,12 @@
     X,
     Clock,
     Ellipsis,
+    ChevronDown,
+    ChevronUp,
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
-  import { exists } from '@tauri-apps/plugin-fs';
+  import { exists, readTextFile } from '@tauri-apps/plugin-fs';
   import { isMobile } from '$lib/api/window';
   import { t } from '$lib/i18n';
   import Spinner from '$lib/components/Spinner.svelte';
@@ -36,6 +38,7 @@
     receivedHoverLabel,
     getMessagePreview,
     mediaKindFromFilename,
+    isTextFilename,
     renderMarkdown,
     highlightTerm,
     midTruncate,
@@ -151,6 +154,12 @@
     onOpenMedia,
   }: Props = $props();
 
+  // Long messages render clamped so a wall of text can't blow up the list.
+  // Tracked by id so a recycled component never inherits another expansion.
+  const FOLD_THRESHOLD = 1000;
+  let expandedId = $state<string | null>(null);
+  const expanded = $derived(expandedId === msg.id);
+
   let mediaLoaded = $state(false);
   let pathMissing = $state(false);
   let lastMediaVersion = $state<typeof mediaVersion | undefined>(undefined);
@@ -175,6 +184,44 @@
       })
       .catch(() => {
         if (!cancelled) pathMissing = false;
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Text attachments show their contents inline, clamped like a long message.
+  const TEXT_PREVIEW_MAX_BYTES = 256 * 1024;
+  const TEXT_PREVIEW_LINES = 10;
+  let textPreview = $state<string | null>(null);
+  let textExpandedId = $state<string | null>(null);
+  const textExpanded = $derived(textExpandedId === msg.id);
+  const textPreviewLong = $derived(
+    !!textPreview && textPreview.split('\n').length > TEXT_PREVIEW_LINES
+  );
+
+  $effect(() => {
+    const fd = msg.fileDetails;
+    const path = fd?.autodownloadPath ?? null;
+    void mediaVersion;
+    const eligible =
+      !!fd &&
+      !!path &&
+      !pathMissing &&
+      !transferInProgress &&
+      isTextFilename(fd.filename) &&
+      fd.sizeBytes <= TEXT_PREVIEW_MAX_BYTES;
+    if (!eligible || !path) {
+      textPreview = null;
+      return;
+    }
+    let cancelled = false;
+    readTextFile(path)
+      .then((txt) => {
+        if (!cancelled) textPreview = txt;
+      })
+      .catch(() => {
+        if (!cancelled) textPreview = null;
       });
     return () => {
       cancelled = true;
@@ -478,11 +525,30 @@
               ></video>
             {:else if autoPath && mediaSrc && mediaKind === 'audio'}
               <audio class="media-audio" src={mediaSrc} controls preload="metadata"></audio>
+            {:else if textPreview !== null}
+              <div class="text-preview" class:folded={textPreviewLong && !textExpanded}>
+                <pre>{textPreview}</pre>
+              </div>
+              {#if textPreviewLong}
+                <button
+                  class="fold-toggle"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    textExpandedId = textExpanded ? null : msg.id;
+                  }}
+                >
+                  {#if textExpanded}
+                    <ChevronUp size={12} />{t('chat.bubble.showLess')}
+                  {:else}
+                    <ChevronDown size={12} />{t('chat.bubble.showMore')}
+                  {/if}
+                </button>
+              {/if}
             {/if}
 
             <div
               class="file-bubble"
-              class:embedded={!!autoPath && mediaKind !== 'other'}
+              class:embedded={!!autoPath && (mediaKind !== 'other' || textPreview !== null)}
               style="--file-color: {fileTypeColor(msg.fileDetails.filename)};"
             >
               <div class="file-icon"><FileText size={22} /></div>
@@ -586,9 +652,28 @@
               {/if}
             </div>
           {:else}
-            {@html searchTerm
-              ? highlightTerm(renderMarkdown(msg.content, msg.edited), searchTerm)
-              : renderMarkdown(msg.content, msg.edited)}
+            <!-- never fold during search: a match could sit below the cut -->
+            {@const foldable = msg.content.length > FOLD_THRESHOLD && !searchTerm}
+            <div class="msg-body" class:folded={foldable && !expanded}>
+              {@html searchTerm
+                ? highlightTerm(renderMarkdown(msg.content, msg.edited), searchTerm)
+                : renderMarkdown(msg.content, msg.edited)}
+            </div>
+            {#if foldable}
+              <button
+                class="fold-toggle"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  expandedId = expanded ? null : msg.id;
+                }}
+              >
+                {#if expanded}
+                  <ChevronUp size={12} />{t('chat.bubble.showLess')}
+                {:else}
+                  <ChevronDown size={12} />{t('chat.bubble.showMore')}
+                {/if}
+              </button>
+            {/if}
           {/if}
         </div>
 
@@ -1091,6 +1176,63 @@
   .bubble.has-file {
     padding: 8px;
   }
+  /* 10 lines at the bubble's own line-height, faded out at the cut. */
+  .msg-body.folded {
+    max-height: calc(1.55em * 10);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  }
+  /* Expanded still caps out: past 25 lines the block scrolls on its own
+     rather than turning the bubble into a page. */
+  .text-preview {
+    max-width: min(440px, 72vw);
+    max-height: calc(1.45em * 25);
+    margin-bottom: 4px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.28);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .text-preview.folded {
+    max-height: calc(1.45em * 10);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  }
+  /* Outranks the `.msg-content :global(pre)` markdown rule below. */
+  .msg-content .text-preview pre {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .fold-toggle {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 3px;
+    padding: 0;
+    width: fit-content;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: none;
+  }
+  .bubble.sent .fold-toggle {
+    color: inherit;
+    opacity: 0.75;
+  }
+  .fold-toggle:hover {
+    text-decoration: underline;
+  }
+
   .msg-content :global(p) {
     margin: 0;
   }

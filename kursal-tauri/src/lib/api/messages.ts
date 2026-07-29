@@ -45,8 +45,11 @@ export const getPinnedMessages = async (contactId: string): Promise<MessageRespo
   return msgs.map(hydrateTimestamps);
 };
 
-export const sendFileOffer = (contactId: string, filePath: string): Promise<[string, number]> =>
-  invoke('send_file_offer', { contactId, filePath });
+/** Returns [messageId, sizeBytes, storedPath] - the path the core kept the copy at. */
+export const sendFileOffer = (
+  contactId: string,
+  filePath: string
+): Promise<[string, number, string]> => invoke('send_file_offer', { contactId, filePath });
 
 export const createOutgoingPendingPath = (filename: string): Promise<string> =>
   invoke('create_outgoing_pending_path', { filename });

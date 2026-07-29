@@ -90,6 +90,25 @@ export function mediaKindFromFilename(filename: string): MediaKind {
   return 'other';
 }
 
+const TEXT_EXT = new Set([
+  'txt',
+  'md',
+  'markdown',
+  'log',
+  'json',
+  'yaml',
+  'yml',
+  'toml',
+  'diff',
+  'patch',
+]);
+
+export function isTextFilename(filename: string): boolean {
+  const dot = filename.lastIndexOf('.');
+  if (dot < 0) return false;
+  return TEXT_EXT.has(filename.slice(dot + 1).toLowerCase());
+}
+
 export function midTruncate(name: string, maxLen = 30): string {
   if (name.length <= maxLen) return name;
   const dot = name.lastIndexOf('.');
