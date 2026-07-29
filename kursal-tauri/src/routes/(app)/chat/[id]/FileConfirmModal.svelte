@@ -14,28 +14,47 @@
   interface Props {
     files: PendingFile[];
     sending: boolean;
-    onConfirm: () => void;
+    maxLength: number;
+    onConfirm: (caption: string) => void;
     onCancel: () => void;
     onRemove: (backendPath: string) => void;
   }
 
-  let { files, sending, onConfirm, onCancel, onRemove }: Props = $props();
+  let { files, sending, maxLength, onConfirm, onCancel, onRemove }: Props = $props();
 
   const totalBytes = $derived(files.reduce((sum, f) => sum + f.sizeBytes, 0));
 
   let dialogEl = $state<HTMLElement | null>(null);
+  let captionEl = $state<HTMLTextAreaElement | null>(null);
+  let caption = $state('');
+
+  const CAPTION_MAX_H = 96;
+
+  // scrollHeight excludes borders while border-box height includes them, so the
+  // border width has to be added back or the field scrolls one line too early.
+  function autogrow() {
+    if (!captionEl) return;
+    captionEl.style.height = 'auto';
+    const borders = captionEl.offsetHeight - captionEl.clientHeight;
+    const full = captionEl.scrollHeight + borders;
+    captionEl.style.height = `${Math.min(full, CAPTION_MAX_H)}px`;
+    captionEl.style.overflowY = full > CAPTION_MAX_H ? 'auto' : 'hidden';
+  }
 
   onMount(() => {
     // Pull focus off the composer so Enter reaches the modal, not the textarea.
-    dialogEl?.focus();
+    (captionEl ?? dialogEl)?.focus();
+    autogrow();
     // Capture phase so the shortcut fires even though the dialog stops keydown
     // from bubbling. A focused button keeps its native Enter/Space activation.
     function onKey(e: KeyboardEvent) {
       if (sending) return;
       if (e.key === 'Enter') {
         if (document.activeElement instanceof HTMLButtonElement) return;
+        // Shift+Enter writes a newline in the caption instead of sending.
+        if (e.shiftKey && document.activeElement === captionEl) return;
         e.preventDefault();
-        onConfirm();
+        onConfirm(caption);
       } else if (e.key === 'Escape') {
         onCancel();
       }
@@ -96,11 +115,21 @@
         {t('chat.fileConfirm.totalSize', { size: formatFileSize(totalBytes) })}
       </span>
     {/if}
+    <textarea
+      class="fc-caption"
+      bind:this={captionEl}
+      bind:value={caption}
+      oninput={autogrow}
+      rows="1"
+      maxlength={maxLength}
+      disabled={sending}
+      placeholder={t('chat.fileConfirm.captionPlaceholder')}
+      aria-label={t('chat.fileConfirm.captionAriaLabel')}></textarea>
     <div class="file-confirm-actions">
       <button class="fc-btn ghost" onclick={onCancel} disabled={sending}>
         {t('chat.fileConfirm.cancel')}
       </button>
-      <button class="fc-btn primary" onclick={onConfirm} disabled={sending}>
+      <button class="fc-btn primary" onclick={() => onConfirm(caption)} disabled={sending}>
         {#if sending}
           <Spinner size={14} color="#fff" />
         {:else if files.length === 1}
@@ -242,6 +271,32 @@
   .f-total {
     font-size: 12px;
     color: var(--text-muted);
+  }
+  .fc-caption {
+    width: 100%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.4;
+    padding: 9px 12px;
+    resize: none;
+    max-height: 96px;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    transition: border-color var(--transition);
+  }
+  .fc-caption::placeholder {
+    color: var(--text-muted);
+  }
+  .fc-caption:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .fc-caption:disabled {
+    opacity: 0.5;
   }
   .file-confirm-actions {
     display: flex;

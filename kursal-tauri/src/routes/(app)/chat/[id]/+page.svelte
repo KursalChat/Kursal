@@ -1300,10 +1300,42 @@
     }
   }
 
-  async function confirmSendFile() {
+  // Caption rides along with a file offer but is sent as its own text message.
+  function sendCaption(cid: string, text: string) {
+    const pendingId = crypto.randomUUID().replace(/-/g, '');
+    messagesState.appendOptimistic({
+      id: pendingId,
+      contactId: cid,
+      direction: 'sent',
+      content: text,
+      status: 'sending',
+      timestamp: Date.now(),
+      receivedTimestamp: Date.now(),
+      replyTo: null,
+    });
+    void sendText(cid, text, null)
+      .then((realId) => messagesState.replaceId(pendingId, cid, realId))
+      .catch((e) => {
+        messagesState.updateStatusIfSending(pendingId, cid, 'queued');
+        log.error('Caption send failed, queued for offline:', e);
+      });
+  }
+
+  async function confirmSendFile(caption = '') {
     if (!pendingFiles.length || !contactId || sendingFile) return;
     const files = pendingFiles;
     const cid = contactId;
+    const text = caption.trim();
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      notifications.push(
+        t('chat.conversation.errorMessageTooLong', {
+          length: text.length,
+          max: MAX_MESSAGE_LENGTH,
+        }),
+        'error'
+      );
+      return;
+    }
     sendingFile = true;
     try {
       for (const file of files) {
@@ -1325,6 +1357,7 @@
         });
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
+      if (text) sendCaption(cid, text);
       winstonTips.show('fileOffer');
     } catch (e) {
       notifyError(e, 'chat.conversation.errorSendFile');
@@ -1875,6 +1908,7 @@
     <FileConfirmModal
       files={pendingFiles}
       sending={sendingFile}
+      maxLength={MAX_MESSAGE_LENGTH}
       onConfirm={confirmSendFile}
       onCancel={cancelSendFile}
       onRemove={removePendingFile}

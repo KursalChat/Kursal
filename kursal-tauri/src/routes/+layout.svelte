@@ -114,6 +114,33 @@
   }
 
   $effect(() => {
+    if (appFocusState.focused && backgroundUnread > 0) {
+      backgroundUnread = 0;
+      refreshTitle();
+    }
+  });
+
+  // OS banner only when the window is unfocused; focused app gets an in-app
+  // toast instead, and nothing at all while the sender's chat is open.
+  function notifyIncoming(contactId: string, senderName: string, body: string) {
+    if (contactsState.isMuted(contactId)) return;
+    if (!appFocusState.focused) {
+      backgroundUnread += 1;
+      refreshTitle();
+      void notifyMessage({ senderName, body });
+      return;
+    }
+    if ($page.url.pathname === `/chat/${contactId}`) return;
+    if (prefsState.notificationPreview === 'none' || isInDndWindow()) return;
+    notifications.push(t('notifications.newMessageFrom', { sender: senderName }), 'info', {
+      action: {
+        label: t('notifications.openChat'),
+        onClick: () => goto(`/chat/${contactId}`),
+      },
+    });
+  }
+
+  $effect(() => {
     const callActive = callState.status !== 'idle';
     const transferActive = messagesState.hasActiveTransfers;
     void setBusyState(callActive, transferActive).catch(() => {});
@@ -330,29 +357,10 @@
         const isCallRecord = !!payload.callDetails;
         if (isCallRecord) return;
         messagesState.setFirstUnread(payload.contactId, payload.id);
-        if (document.hidden) {
-          backgroundUnread += 1;
-          refreshTitle();
-        }
         if (!payload.viaOffline) contactsState.touchLastSeen(payload.contactId);
-        const onThisChat = !document.hidden && $page.url.pathname === `/chat/${payload.contactId}`;
-        if (!onThisChat && !contactsState.isMuted(payload.contactId)) {
-          const name =
-            contactsState.getById(payload.contactId)?.displayName ??
-            t('notifications.unknownSender');
-          if (document.hidden) {
-            void notifyMessage({ senderName: name, body: payload.content });
-          } else if (prefsState.notificationPreview !== 'none' && !isInDndWindow()) {
-            // Window visible but another chat is open: an OS banner can't
-            // deep-link on desktop, an in-app toast can.
-            notifications.push(t('notifications.newMessageFrom', { sender: name }), 'info', {
-              action: {
-                label: t('notifications.openChat'),
-                onClick: () => goto(`/chat/${payload.contactId}`),
-              },
-            });
-          }
-        }
+        const name =
+          contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
+        notifyIncoming(payload.contactId, name, payload.content);
       })
     );
 
@@ -573,13 +581,11 @@
 
         const senderName =
           contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
-        const onThisChat = !document.hidden && $page.url.pathname === `/chat/${payload.contactId}`;
-        if (!onThisChat) {
-          void notifyMessage({
-            senderName,
-            body: t('notifications.sentFile', { filename: payload.filename }),
-          });
-        }
+        notifyIncoming(
+          payload.contactId,
+          senderName,
+          t('notifications.sentFile', { filename: payload.filename })
+        );
 
         if (payload.autodownload) {
           try {

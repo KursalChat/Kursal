@@ -589,7 +589,9 @@
       "send": "Send",
       "sendMulti": "Send all ({count})",
       "removeAriaLabel": "Remove {name}",
-      "totalSize": "Total: {size}"
+      "totalSize": "Total: {size}",
+      "captionPlaceholder": "Add a message…",
+      "captionAriaLabel": "Message to send with the file"
     },
     "search": {
       "placeholder": "Search messages…",
