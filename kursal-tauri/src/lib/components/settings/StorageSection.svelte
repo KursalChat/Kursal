@@ -1,9 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { log } from '$lib/utils/log';
-  import { Save, Trash2, RefreshCw, FolderOpen, Funnel, FolderSearch } from 'lucide-svelte';
+  import {
+    Save,
+    Trash2,
+    RefreshCw,
+    FolderOpen,
+    Funnel,
+    FolderSearch,
+    ScrollText,
+  } from 'lucide-svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
+  import { isMobile } from '$lib/api/window';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
     listSharedFiles,
@@ -29,6 +38,7 @@
   import Select from './Select.svelte';
   import Checkbox from './Checkbox.svelte';
   import TextInput from './TextInput.svelte';
+  import LogViewerModal from './LogViewerModal.svelte';
   import { t, dateLocale } from '$lib/i18n';
 
   let shared = $state<SharedFileEntry[]>([]);
@@ -176,6 +186,10 @@
     }
   }
 
+  let logViewerOpen = $state(false);
+
+  // Mobile app storage is sandboxed: no file manager can open these paths, so
+  // the in-app viewer is the only way to read logs there.
   async function openLogs() {
     try {
       await invoke('open_log_folder');
@@ -402,14 +416,16 @@
               <td class="nowrap">{fmtDate(f.sharedAt)}</td>
               <td class="nowrap">{fmtDate(f.lastAccessedAt)}</td>
               <td class="row-actions">
-                <button
-                  class="icon-btn-sm"
-                  onclick={() => handleReveal(f.filepath)}
-                  aria-label={t('settings.storage.showInFolderAriaLabel')}
-                  title={t('settings.storage.showInFolderTitle')}
-                >
-                  <FolderSearch size={13} />
-                </button>
+                {#if !isMobile}
+                  <button
+                    class="icon-btn-sm"
+                    onclick={() => handleReveal(f.filepath)}
+                    aria-label={t('settings.storage.showInFolderAriaLabel')}
+                    title={t('settings.storage.showInFolderTitle')}
+                  >
+                    <FolderSearch size={13} />
+                  </button>
+                {/if}
                 <button class="revoke-btn" onclick={() => handleRevoke(f.id)}
                   >{t('settings.storage.revokeButton')}</button
                 >
@@ -594,16 +610,26 @@
     >
       <RefreshCw size={13} />
     </button>
-    <Button variant="secondary" onclick={openFiles}>
-      <FolderOpen size={13} />
-      {t('settings.storage.openFilesFolder')}
-    </Button>
-    <Button variant="secondary" onclick={openLogs}>
-      <FolderOpen size={13} />
-      {t('settings.storage.openLogFolder')}
+    {#if !isMobile}
+      <Button variant="secondary" onclick={openFiles}>
+        <FolderOpen size={13} />
+        {t('settings.storage.openFilesFolder')}
+      </Button>
+      <Button variant="secondary" onclick={openLogs}>
+        <FolderOpen size={13} />
+        {t('settings.storage.openLogFolder')}
+      </Button>
+    {/if}
+    <Button variant="secondary" onclick={() => (logViewerOpen = true)}>
+      <ScrollText size={13} />
+      {t('settings.storage.viewLogs')}
     </Button>
   {/snippet}
 </SettingCard>
+
+{#if logViewerOpen}
+  <LogViewerModal onClose={() => (logViewerOpen = false)} />
+{/if}
 
 <style>
   .files-head {

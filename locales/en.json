@@ -981,6 +981,16 @@
       "noSharedFilesLegend": "No shared files.",
       "openFilesFolder": "Open files folder",
       "openLogFolder": "Open log folder",
+      "viewLogs": "View logs",
+      "logViewer": {
+        "title": "Logs",
+        "fileLabel": "Log file",
+        "noFiles": "No log files yet.",
+        "empty": "This log file is empty.",
+        "truncated": "Showing the end of the file only.",
+        "refresh": "Refresh",
+        "errorLoad": "Couldn't read the log files."
+      },
       "never": "Never",
       "revokeConfirmTitle": "Revoke {count} share(s)?",
       "revokeConfirmMessage": "Recipients will immediately lose the ability to download these files.",
