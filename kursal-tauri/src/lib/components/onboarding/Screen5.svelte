@@ -8,6 +8,7 @@
   import { broadcastProfile } from '$lib/api/identity';
   import { profileState } from '$lib/state/profile.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { isMobile } from '$lib/api/window';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
@@ -75,25 +76,23 @@
   });
 
   function keepInputVisible() {
+    if (!isMobile) return;
     nameInput?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
-
-  function snapInputIntoView() {
-    nameInput?.scrollIntoView({ block: 'center', behavior: 'auto' });
   }
 
   $effect(() => {
     const vv = window.visualViewport;
-    if (!vv) return;
-    const onViewportChange = () => {
-      if (document.activeElement === nameInput) snapInputIntoView();
+    if (!isMobile || !vv) return;
+    let lastHeight = vv.height;
+    const onResize = () => {
+      const shrank = vv.height < lastHeight;
+      lastHeight = vv.height;
+      if (shrank && document.activeElement === nameInput) {
+        nameInput?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
     };
-    vv.addEventListener('resize', onViewportChange);
-    vv.addEventListener('scroll', onViewportChange);
-    return () => {
-      vv.removeEventListener('resize', onViewportChange);
-      vv.removeEventListener('scroll', onViewportChange);
-    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
   });
 
   function chars(text: string, step = 28) {
