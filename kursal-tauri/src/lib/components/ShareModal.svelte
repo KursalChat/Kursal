@@ -6,14 +6,15 @@
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { log } from '$lib/utils/log';
   import { trapFocus } from '$lib/utils/focusTrap';
-  import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flash } from '$lib/utils/flash.svelte';
   import Button from './Button.svelte';
   import { t } from '$lib/i18n';
 
   let { link, title, onClose }: { link: string; title: string; onClose: () => void } = $props();
 
   let qrDataUrl = $state<string | null>(null);
+  const copied = flash();
 
   onMount(async () => {
     try {
@@ -32,7 +33,7 @@
   async function copyLink() {
     try {
       await writeText(link);
-      notifications.push(t('share.copied'), 'success');
+      copied.trigger();
     } catch (e) {
       notifyError(e);
     }
@@ -73,7 +74,12 @@
 
     <code class="link-text">{link}</code>
 
-    <Button variant="secondary" onclick={copyLink}>
+    <Button
+      variant="secondary"
+      onclick={copyLink}
+      success={copied.active}
+      successLabel={t('common.copied')}
+    >
       <Copy size={14} />
       {t('share.copyLink')}
     </Button>

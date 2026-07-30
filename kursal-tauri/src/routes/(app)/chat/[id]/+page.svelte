@@ -10,8 +10,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
-  import { stat, writeFile } from '@tauri-apps/plugin-fs';
-  import { appCacheDir, join } from '@tauri-apps/api/path';
+  import { stat } from '@tauri-apps/plugin-fs';
   import { t } from '$lib/i18n';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
@@ -19,9 +18,11 @@
   import { uiState } from '$lib/state/ui.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
+  import { sessionState } from '$lib/state/session.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
+  import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
     sendText,
     sendFileOffer,
@@ -36,21 +37,20 @@
     searchMessages,
     sendTypingIndicator,
     flushOffline,
+    resolveDownloadPath,
   } from '$lib/api/messages';
   import { shareProfile } from '$lib/api/identity';
   import { isMobile } from '$lib/api/window';
   import {
     pickFilesForSend,
-    pickFileForReceive,
     prepareOfferSourcePath,
-    prepareBatchReceive,
-    registerDeferredReceiveTarget,
-    type SendPickerMode,
+    prepareOfferFromFile,
+    prepareOfferFromBytes,
+    exportToDevice,
   } from '$lib/utils/file-transfer-paths';
-  import { stripImageMetadata } from '$lib/utils/image-metadata';
-  import { listen } from '@tauri-apps/api/event';
-  import type { MessageResponse, MessageQueuedOfflinePayload } from '$lib/types';
+  import type { MessageResponse } from '$lib/types';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { flashSet } from '$lib/utils/flash.svelte';
   import * as haptics from '$lib/utils/haptics';
   import { Paperclip } from 'lucide-svelte';
   import Spinner from '$lib/components/Spinner.svelte';
@@ -139,6 +139,9 @@
   let forwardContent = $state<string | null>(null);
   let selectTextMsgId = $state<string | null>(null);
   let fileOfferActionState = $state<Record<string, 'idle' | 'accepting' | 'accepted'>>({});
+  // Copy and save-to-device run from the action sheet, which closes on click -
+  // the bubble itself flashes the confirmation instead.
+  const messageFlash = flashSet();
   const completedFileTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let isCoarsePointer = $state(false);
   let listEl = $state<HTMLElement | null>(null);
@@ -637,7 +640,8 @@
     const list = messagesState.forContact(contactId);
     for (let i = list.length - 1; i >= 0; i--) {
       const m = list[i];
-      if (m.direction === 'sent' && !m.fileDetails && m.content) {
+
+      if (m.direction === 'sent' && !m.fileDetails && m.content && isMessageActionable(m.status)) {
         startEdit(m);
         return;
       }
@@ -700,7 +704,7 @@
     actionSheetMsgId = null;
     try {
       await navigator.clipboard.writeText(msg.content);
-      notifications.push(t('chat.conversation.successCopied'), 'success');
+      messageFlash.trigger(msg.id);
     } catch {
       notifications.push(t('chat.conversation.errorCopy'), 'error');
     }
@@ -955,9 +959,6 @@
   $effect(() => {
     const id = contactId;
     if (!id) return;
-    // Read draft non-reactively so this effect only fires on contact
-    // switch - not when handleSend clears the draft (which would race
-    // and re-load stale text into the composer).
     inputText = untrack(() => draftsState.get(id));
     replyingToMessageId = null;
     editingMessageId = null;
@@ -965,6 +966,20 @@
       if (editingMessageId) return;
       draftsState.set(id, inputText);
     };
+  });
+
+  $effect(() => {
+    const id = contactId;
+    const text = inputText;
+    if (!id) return;
+    // While editing, inputText holds the edit buffer, not a draft.
+    if (untrack(() => editingMessageId)) return;
+    draftsState.set(id, text);
+  });
+
+  // Recorded on open, not on close: see the note in session.svelte.ts.
+  $effect(() => {
+    if (contactId) sessionState.setLastContact(contactId);
   });
 
   let searchSeq = 0;
@@ -1009,7 +1024,9 @@
     const ro = new ResizeObserver(() => {
       composerHeight = el.offsetHeight;
     });
-    ro.observe(el);
+    // border-box: the keyboard inset lands on this element's padding, which a
+    // content-box observation would not report.
+    ro.observe(el, { box: 'border-box' });
     composerHeight = el.offsetHeight;
     return () => ro.disconnect();
   });
@@ -1145,13 +1162,7 @@
     const text = inputText.trim();
     if (!text) return;
     if (text.length > MAX_MESSAGE_LENGTH) {
-      notifications.push(
-        t('chat.conversation.errorMessageTooLong', {
-          length: text.length,
-          max: MAX_MESSAGE_LENGTH,
-        }),
-        'error'
-      );
+      if (await offerTextAsFile(text)) inputText = '';
       return;
     }
 
@@ -1236,18 +1247,33 @@
     pendingFiles = [...pendingFiles, ...staged.filter((f) => !known.has(f.backendPath))];
   }
 
-  async function stageFileForSend(backendPath: string, filename: string) {
-    await stageFilesForSend([{ backendPath, filename }]);
-  }
-
   async function handlePasteImage({ bytes, ext }: { bytes: Uint8Array; ext: string }) {
     try {
-      const dir = await appCacheDir();
-      const path = await join(dir, `kursal-paste-${Date.now()}.${ext}`);
-      await writeFile(path, stripImageMetadata(bytes));
-      await stageFileForSend(path, `pasted-image.${ext}`);
+      await stageFilesForSend([await prepareOfferFromBytes(bytes, `pasted-image.${ext}`)]);
     } catch (e) {
       notifyError(e, 'chat.conversation.errorPasteImage');
+    }
+  }
+
+  // Text past the limit can't be sent as a message: ask, then stage it as a
+  // .txt attachment. Returns whether the file was staged.
+  async function offerTextAsFile(text: string): Promise<boolean> {
+    const ok = await confirmDialog({
+      title: t('chat.conversation.tooLongTitle'),
+      message: t('chat.conversation.tooLongMessage', {
+        length: text.length,
+        max: MAX_MESSAGE_LENGTH,
+      }),
+      confirmLabel: t('chat.conversation.tooLongConfirm'),
+    });
+    if (!ok) return false;
+    try {
+      const bytes = new TextEncoder().encode(text);
+      await stageFilesForSend([await prepareOfferFromBytes(bytes, 'message.txt')]);
+      return true;
+    } catch (e) {
+      notifyError(e, 'chat.conversation.errorPasteText');
+      return false;
     }
   }
 
@@ -1261,9 +1287,9 @@
     }
   }
 
-  async function handleSendFile(pickerMode: SendPickerMode = 'document') {
+  async function handleSendFile() {
     try {
-      const prepared = await pickFilesForSend(pickerMode);
+      const prepared = await pickFilesForSend();
       if (!prepared.length) return;
       await stageFilesForSend(prepared);
     } catch (e) {
@@ -1271,14 +1297,14 @@
     }
   }
 
-  async function handleCameraCapture(file: File) {
+  async function handlePickedFiles(files: File[]) {
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const ext = file.name.split('.').pop() || (file.type.split('/')[1] ?? 'jpg');
-      const dir = await appCacheDir();
-      const path = await join(dir, `kursal-capture-${Date.now()}.${ext}`);
-      await writeFile(path, stripImageMetadata(bytes));
-      await stageFileForSend(path, file.name || `capture.${ext}`);
+      const prepared = await Promise.all(
+        files.map((f, i) =>
+          prepareOfferFromFile(f, `capture-${i + 1}.${f.type.split('/')[1] ?? 'bin'}`)
+        )
+      );
+      await stageFilesForSend(prepared);
     } catch (e) {
       notifyError(e, 'chat.conversation.errorOpenFile');
     }
@@ -1294,14 +1320,48 @@
     }
   }
 
-  async function confirmSendFile() {
+  // Caption rides along with a file offer but is sent as its own text message.
+  function sendCaption(cid: string, text: string) {
+    const pendingId = crypto.randomUUID().replace(/-/g, '');
+    messagesState.appendOptimistic({
+      id: pendingId,
+      contactId: cid,
+      direction: 'sent',
+      content: text,
+      status: 'sending',
+      timestamp: Date.now(),
+      receivedTimestamp: Date.now(),
+      replyTo: null,
+    });
+    void sendText(cid, text, null)
+      .then((realId) => messagesState.replaceId(pendingId, cid, realId))
+      .catch((e) => {
+        messagesState.updateStatusIfSending(pendingId, cid, 'queued');
+        log.error('Caption send failed, queued for offline:', e);
+      });
+  }
+
+  async function confirmSendFile(caption = '') {
     if (!pendingFiles.length || !contactId || sendingFile) return;
     const files = pendingFiles;
     const cid = contactId;
+    const text = caption.trim();
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      notifications.push(
+        t('chat.conversation.errorMessageTooLong', {
+          length: text.length,
+          max: MAX_MESSAGE_LENGTH,
+        }),
+        'error'
+      );
+      return;
+    }
     sendingFile = true;
     try {
       for (const file of files) {
-        const [messageId, fileSize] = await sendFileOffer(cid, file.backendPath);
+        // The core moves staged bytes out of the pending dir, so the preview
+        // has to point at the copy it kept, not the path we handed it.
+        const [messageId, fileSize, storedPath] = await sendFileOffer(cid, file.backendPath);
         messagesState.appendOptimistic({
           id: messageId,
           contactId: cid,
@@ -1314,12 +1374,13 @@
           fileDetails: {
             filename: file.filename,
             sizeBytes: fileSize,
-            autodownloadPath: file.backendPath,
+            autodownloadPath: storedPath || file.backendPath,
           },
         });
-        void notifyIfQueuedOffline(cid, messageId, file.filename);
+        if (storedPath) messagesState.setAutodownloadPath(messageId, cid, storedPath);
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
+      if (text) sendCaption(cid, text);
       winstonTips.show('fileOffer');
     } catch (e) {
       notifyError(e, 'chat.conversation.errorSendFile');
@@ -1338,65 +1399,16 @@
     pendingFiles = pendingFiles.filter((f) => f.backendPath !== backendPath);
   }
 
-  // Toast when a just-sent file offer takes the offline path. The backend
-  // emits message_queued_offline moments after send_file_offer returns when
-  // the peer is unreachable; listen for it instead of sleeping, with a state
-  // check on both sides of the subscription to cover events that raced ahead.
-  async function notifyIfQueuedOffline(cid: string, messageId: string, filename: string) {
-    const isQueued = () => {
-      const m = messagesState.forContact(cid).find((x) => x.id === messageId);
-      return !!m && (m.status === 'queued' || m.status === 'queued_in_dht');
-    };
-    const toast = () =>
-      notifications.push(t('chat.conversation.fileQueuedOffline', { filename }), 'warning');
-    if (isQueued()) {
-      toast();
-      return;
-    }
-    let done = false;
-    const un = await listen<MessageQueuedOfflinePayload>('message_queued_offline', (e) => {
-      if (done || e.payload.messageId !== messageId) return;
-      done = true;
-      un();
-      toast();
-    });
-    if (!done && isQueued()) {
-      done = true;
-      un();
-      toast();
-      return;
-    }
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        un();
-      }
-    }, 2000);
-  }
-
   async function handleAcceptIncomingFile(msg: MessageResponse) {
     if (!contactId || !msg.fileDetails) return;
     if (fileOfferActionState[msg.id] === 'accepting' || fileOfferActionState[msg.id] === 'accepted')
       return;
     fileOfferActionState[msg.id] = 'accepting';
     try {
-      const resolved = await pickFileForReceive(msg.fileDetails.filename);
-      if (!resolved) {
-        fileOfferActionState[msg.id] = 'idle';
-        return;
-      }
-      await acceptFileOffer(msg.contactId, msg.id, resolved.backendPath);
-      if (resolved.deferredTargetUri) {
-        registerDeferredReceiveTarget(
-          resolved.backendPath,
-          resolved.deferredTargetUri,
-          msg.fileDetails.filename
-        );
-      } else {
-        messagesState.setAutodownloadPath(msg.id, msg.contactId, resolved.backendPath);
-      }
+      const savePath = await resolveDownloadPath(msg.contactId, msg.id, msg.fileDetails.filename);
+      await acceptFileOffer(msg.contactId, msg.id, savePath);
+      messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';
-      notifications.push(t('chat.conversation.successFileAccepted'), 'success');
     } catch (e) {
       fileOfferActionState[msg.id] = 'idle';
       notifications.push(
@@ -1404,6 +1416,19 @@
         'error'
       );
       log.error('Accept file offer failed', e);
+    }
+  }
+
+  // Downloads never prompt, so this is how a file leaves the app - the only
+  // route out on mobile, where app storage isn't browsable.
+  async function handleSaveToDevice(msg: MessageResponse) {
+    const path = msg.fileDetails?.autodownloadPath;
+    if (!path || !msg.fileDetails) return;
+    try {
+      const saved = await exportToDevice(path, msg.fileDetails.filename);
+      if (saved) messageFlash.trigger(msg.id);
+    } catch (e) {
+      notifyError(e, 'chat.conversation.errorExportFile');
     }
   }
 
@@ -1492,17 +1517,9 @@
     swipeOffset = null;
   }
 
-  // Runs of >= STACK_MIN consecutive plain image messages collapse into one
-  // collage. Tapping a tile opens the media viewer; the +N tile opens it at the
-  // first hidden image so the whole run is browsable as a gallery.
   const STACK_MIN = 4;
 
   function isStackableImage(m: MessageResponse): boolean {
-    // Stacks group image messages regardless of transfer state - in-flight ones
-    // (sending, downloading, or not-yet-downloaded) render as progress/
-    // placeholder tiles inside the stack rather than sprawling as individual
-    // bubbles that later snap into the collage. Failed sends stay standalone so
-    // their retry affordance is reachable.
     if (!m.fileDetails) return false;
     if (mediaKindFromFilename(m.fileDetails.filename) !== 'image') return false;
     if (m.replyTo || m.pinned) return false;
@@ -1530,9 +1547,8 @@
     return runs;
   }
 
-  // Accepts every not-yet-downloaded image in a stack into one folder the user
-  // picks once (mobile writes to the app cache, no prompt). Colliding filenames
-  // are suffixed by prepareBatchReceive so nothing on disk is overwritten.
+  // Accepts every not-yet-downloaded image in a stack. Like a single download
+  // this prompts for nothing - each file lands in the app's download folder.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
     const items = msgs
@@ -1541,38 +1557,13 @@
     if (items.length === 0) return;
 
     for (const { msg } of items) fileOfferActionState[msg.id] = 'accepting';
-    let targets: Awaited<ReturnType<typeof prepareBatchReceive>>;
-    try {
-      targets = await prepareBatchReceive(items.map((i) => i.filename));
-    } catch (e) {
-      for (const { msg } of items) fileOfferActionState[msg.id] = 'idle';
-      notifications.push(
-        t('chat.conversation.errorAcceptFile', { error: parseError(e).message }),
-        'error'
-      );
-      log.error('Download all: folder selection failed', e);
-      return;
-    }
-    if (!targets) {
-      for (const { msg } of items) fileOfferActionState[msg.id] = 'idle';
-      return;
-    }
 
     let failed = 0;
-    for (let i = 0; i < items.length; i++) {
-      const { msg } = items[i];
-      const target = targets[i];
+    for (const { msg, filename } of items) {
       try {
-        await acceptFileOffer(msg.contactId, msg.id, target.backendPath);
-        if (target.deferredTargetUri) {
-          registerDeferredReceiveTarget(
-            target.backendPath,
-            target.deferredTargetUri,
-            msg.fileDetails!.filename
-          );
-        } else {
-          messagesState.setAutodownloadPath(msg.id, msg.contactId, target.backendPath);
-        }
+        const savePath = await resolveDownloadPath(msg.contactId, msg.id, filename);
+        await acceptFileOffer(msg.contactId, msg.id, savePath);
+        messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
         fileOfferActionState[msg.id] = 'accepted';
       } catch (e) {
         failed += 1;
@@ -1725,6 +1716,7 @@
           searchTerm={searchOpen ? searchQuery : ''}
           swipeDx={swipeOffsetFor(msg.id)}
           fileOfferState={fileOfferActionState[msg.id]}
+          flashed={messageFlash.has(msg.id)}
           transferPercent={transferPercentFor(msg.id)}
           transferInProgress={!!messagesState.transferProgressFor(msg.id) &&
             !isTransferDoneFor(msg.id)}
@@ -1754,6 +1746,7 @@
           onReplyRefClick={handleReplyRefClick}
           onAcceptFile={() => handleAcceptIncomingFile(msg)}
           onCancelFile={() => handleCancelFile(msg)}
+          onSaveToDevice={() => handleSaveToDevice(msg)}
           onToggleReact={(emoji) => toggleReaction(msg, emoji)}
           onStartReply={() => startReply(msg)}
           onCopy={() => copyMessageText(msg)}
@@ -1826,18 +1819,14 @@
         onEditLast={editLastMessage}
         onOpenProfile={openProfileModal}
         onPasteImage={handlePasteImage}
+        onPasteLongText={(text) => void offerTextAsFile(text)}
         bind:composerEl
       />
     </div>
   </div>
 
   {#if showAttachSheet}
-    <AttachSheet
-      onClose={() => (showAttachSheet = false)}
-      onPickMedia={() => handleSendFile('media')}
-      onPickFile={() => handleSendFile('document')}
-      onCameraCapture={handleCameraCapture}
-    />
+    <AttachSheet onClose={() => (showAttachSheet = false)} onPickFiles={handlePickedFiles} />
   {/if}
 
   {#if actionSheetMsg}
@@ -1938,6 +1927,7 @@
     <FileConfirmModal
       files={pendingFiles}
       sending={sendingFile}
+      maxLength={MAX_MESSAGE_LENGTH}
       onConfirm={confirmSendFile}
       onCancel={cancelSendFile}
       onRemove={removePendingFile}
@@ -1974,7 +1964,7 @@
     bottom: 0;
     max-width: var(--chat-max);
     margin-inline: auto;
-    padding: 0 8px max(8px, var(--safe-bottom));
+    padding: 0 8px max(8px, var(--safe-bottom), var(--kb-overlap, 0px));
     display: flex;
     flex-direction: column;
     align-items: stretch;

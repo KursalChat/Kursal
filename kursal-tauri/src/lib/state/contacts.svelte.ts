@@ -7,15 +7,17 @@ import { shouldStampLastSeen } from '$lib/utils/presence';
 function createContactsState() {
   let contacts = $state<ContactResponse[]>([]);
   let loading = $state(false);
-  // Map contactId → connection status
   let connectionStatus = $state<Record<string, ConnectionChangedPayload['status']>>({});
   let muted = $state<Record<string, boolean>>({});
   let lastSeen = $state<Record<string, number>>({});
   let aliases = $state<Record<string, string>>({});
   let terminated = $state<Record<string, boolean>>({});
 
-  // displayName carries the local alias so every render site shows it;
-  // the peer-chosen name stays available as profileName.
+  let markLoaded!: () => void;
+  const loaded = new Promise<void>((resolve) => {
+    markLoaded = resolve;
+  });
+
   function applyAlias(c: ContactResponse): ContactResponse {
     if (c.profileName === undefined) c.profileName = c.displayName;
     c.displayName = aliases[c.userId] ?? c.profileName;
@@ -57,6 +59,7 @@ function createContactsState() {
     } catch (e) {
       log.error('Failed to load contact meta:', e);
     }
+    markLoaded();
   }
 
   async function setAlias(contactId: string, alias: string | null) {
@@ -155,6 +158,7 @@ function createContactsState() {
     get connectionStatus() {
       return connectionStatus;
     },
+    loaded,
     load,
     upsert,
     remove,

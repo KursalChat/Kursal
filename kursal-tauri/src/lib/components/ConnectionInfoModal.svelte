@@ -1,11 +1,12 @@
 <script lang="ts">
   import { scale } from 'svelte/transition';
-  import { Copy, RotateCw, Radio } from 'lucide-svelte';
+  import { Copy, RotateCw, Radio, Check } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { trapFocus } from '$lib/utils/focusTrap';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { flashSet } from '$lib/utils/flash.svelte';
   import { dialAddress } from '$lib/api/settings';
   import Button from './Button.svelte';
   import AddressChip from './AddressChip.svelte';
@@ -15,6 +16,7 @@
   let { contact, onClose }: { contact: ContactResponse; onClose: () => void } = $props();
 
   let reconnecting = $state(false);
+  const copied = flashSet();
 
   const status = $derived(contactsState.connectionStatus[contact.userId] ?? 'disconnected');
   const statusLabel = $derived.by(() => {
@@ -28,7 +30,7 @@
   async function copyAddr(addr: string) {
     try {
       await writeText(addr);
-      notifications.push(t('connectionInfo.copied'), 'success');
+      copied.trigger(addr);
     } catch (e) {
       notifyError(e);
     }
@@ -90,10 +92,17 @@
               <AddressChip {addr} />
               <button
                 class="addr-copy"
-                aria-label={t('connectionInfo.copyAriaLabel')}
+                class:confirmed={copied.has(addr)}
+                aria-label={copied.has(addr)
+                  ? t('common.copied')
+                  : t('connectionInfo.copyAriaLabel')}
                 onclick={() => copyAddr(addr)}
               >
-                <Copy size={13} />
+                {#if copied.has(addr)}
+                  <Check size={13} />
+                {:else}
+                  <Copy size={13} />
+                {/if}
               </button>
             </li>
           {/each}
@@ -215,6 +224,9 @@
     padding: 4px;
     border-radius: var(--radius-sm, 6px);
     transition: color var(--transition);
+  }
+  .addr-copy.confirmed {
+    color: var(--success);
   }
   .addr-copy:hover {
     color: var(--accent);

@@ -174,6 +174,9 @@ pub(crate) async fn api_contact_blocked_list(
     post,
     path = "/contact/{contact_id}/profile",
     tag = "Contacts",
+    params(
+        ("contact_id" = String, Path, description = "Contact ID")
+    ),
     request_body = APISelfProfile,
     responses(
         (status = 200, description = "Shared profile")

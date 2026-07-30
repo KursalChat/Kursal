@@ -21,7 +21,8 @@ use crate::{
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
         filetransfer::{
-            get_auto_download_storage, get_auto_download_storage_for, sanitize_filename,
+            download_path, get_auto_download_storage, get_auto_download_storage_for,
+            sanitize_filename,
         },
         get_auto_accept_config, get_auto_download_config, get_contact_terminated,
         get_timestamp_secs, set_contact_terminated,
@@ -262,11 +263,16 @@ pub async fn handle_incoming(
                 match size {
                     Ok(size) => {
                         if size.saturating_add(size_bytes) <= auto_config.limit_bytes {
-                            let root = cache_dir.join("files").join(contact_hex);
-                            create_dir_all(&root).await.map_err(KursalError::Io)?;
+                            let path = download_path(
+                                cache_dir.to_path_buf(),
+                                &contact_hex,
+                                &hex::encode(offer_id.0),
+                                &filename,
+                            );
 
-                            let path =
-                                root.join(format!("{}-{}", hex::encode(offer_id.0), filename));
+                            if let Some(parent) = path.parent() {
+                                create_dir_all(parent).await.map_err(KursalError::Io)?;
+                            }
 
                             autodownload = Some(path.to_string_lossy().into_owned());
                         }

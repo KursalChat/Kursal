@@ -1,7 +1,7 @@
 use crate::{KursalError, Result};
 use blake2::{Blake2s256, Digest};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const HASH_READ_BUF: usize = 64 * 1024;
 
@@ -58,6 +58,40 @@ pub fn sanitize_filename(name: &str) -> String {
     let safe = if trimmed.is_empty() { "file" } else { trimmed };
 
     safe.chars().take(MAX_LEN).collect()
+}
+
+pub fn download_path(
+    cache_dir: PathBuf,
+    contact_hex: &str,
+    offer_hex: &str,
+    filename: &str,
+) -> PathBuf {
+    cache_dir
+        .join("files")
+        .join(sanitize_filename(contact_hex))
+        .join(format!(
+            "{}-{}",
+            sanitize_filename(offer_hex),
+            sanitize_filename(filename)
+        ))
+}
+
+pub const OUTGOING_PENDING: &str = "pending";
+
+pub fn outgoing_root(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("outgoing")
+}
+
+pub fn outgoing_pending_dir(app_data_dir: &Path) -> PathBuf {
+    outgoing_root(app_data_dir).join(OUTGOING_PENDING)
+}
+
+pub fn outgoing_contact_dir(app_data_dir: &Path, contact_hex: &str) -> PathBuf {
+    outgoing_root(app_data_dir).join(sanitize_filename(contact_hex))
+}
+
+pub fn outgoing_offer_dir(app_data_dir: &Path, contact_hex: &str, offer_hex: &str) -> PathBuf {
+    outgoing_contact_dir(app_data_dir, contact_hex).join(sanitize_filename(offer_hex))
 }
 
 pub fn get_auto_download_storage(cache_dir: PathBuf) -> Result<u64> {

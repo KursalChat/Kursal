@@ -35,6 +35,7 @@ pub mod dialog_bridge;
 pub mod dirs;
 pub mod error;
 pub mod file;
+pub mod outgoing_sweep;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod window_menu;
 
@@ -273,6 +274,12 @@ pub fn run() {
             let app_tx_clone = app_event_tx.clone();
             let pending_nearby_clone = pending_nearby.clone();
 
+            let sweep_db = db.clone();
+            let sweep_app_data = dirs::app_data_dir()?.to_path_buf();
+            tauri::async_runtime::spawn(async move {
+                outgoing_sweep::sweep(sweep_db, &sweep_app_data).await;
+            });
+
             tauri::async_runtime::spawn(NetworkManager::spawn_address_announcer(
                 db.clone(),
                 core_cmd_tx.clone(),
@@ -426,6 +433,7 @@ pub fn run() {
             let db_clone = db.clone();
             let network_clone = network_arc.clone();
             let pending_nearby_clone = pending_nearby.clone();
+            let api_app_data_dir = dirs::app_data_dir()?.to_path_buf();
             tauri::async_runtime::spawn(async move {
                 log::info!("Starting API server...");
 
@@ -443,6 +451,7 @@ pub fn run() {
                         network_clone,
                         pending_nearby_clone,
                         api_server_tx,
+                        api_app_data_dir,
                     )
                     .await
                     {
@@ -514,6 +523,7 @@ pub fn run() {
             commands::remove_reaction,
             commands::accept_file_offer,
             commands::send_file_offer,
+            commands::create_outgoing_pending_path,
             commands::cancel_file_transfer,
             commands::flush_offline,
             //
@@ -537,6 +547,7 @@ pub fn run() {
             commands::get_read_receipts_enabled,
             commands::set_read_receipts_enabled,
             commands::get_storage_usage,
+            commands::resolve_download_path,
             commands::get_auto_download_config,
             commands::set_auto_download_config,
             commands::get_auto_accept_config,

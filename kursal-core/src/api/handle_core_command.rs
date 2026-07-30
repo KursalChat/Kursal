@@ -5,7 +5,7 @@ use crate::{
         AppEvent, CoreCommand,
         file_transfers::{
             FileIncomingEntry, FileReceiveEntry, FileTransferEntry, MAX_FILE_TRANSFER_BYTES,
-            apply_cancel, remove_contact_transfers,
+            apply_cancel, remove_contact_transfers, stage_outgoing,
         },
         send_message, send_message_tracked,
     },
@@ -32,7 +32,10 @@ use crate::{
     },
 };
 use rand::{TryRngCore, rngs::OsRng};
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::sync::{Mutex, mpsc};
 
 pub async fn handle_core_command(
@@ -619,6 +622,7 @@ pub async fn handle_core_command(
         CoreCommand::SendFileOffer {
             contact_id,
             file_path,
+            app_data_dir,
             reply,
         } => {
             let result = async {
@@ -643,9 +647,27 @@ pub async fn handle_core_command(
                     .ok_or(KursalError::Storage("File name not found".to_string()))?
                     .to_string_lossy()
                     .to_string();
-                let size_bytes = metadata.len();
 
                 let offer_id = MessageId::new();
+                let offer_hex = hex::encode(offer_id.0);
+
+                let staged = stage_outgoing(
+                    app_data_dir,
+                    contact_id.clone(),
+                    offer_hex.clone(),
+                    PathBuf::from(&file_path),
+                    filename.clone(),
+                )
+                .await?;
+
+                let send_path = match staged {
+                    Some(path) => path.to_string_lossy().to_string(),
+                    None => file_path,
+                };
+
+                let size_bytes = std::fs::metadata(&send_path)
+                    .map_err(KursalError::Io)?
+                    .len();
 
                 let mut my_random = [0u8; 32];
                 OsRng
@@ -654,13 +676,15 @@ pub async fn handle_core_command(
 
                 let now = get_timestamp_secs()?;
 
-                let hash_path = file_path.clone();
+                let hash_path = send_path.clone();
                 let hash = tokio::task::spawn_blocking(move || hash_file(&hash_path))
                     .await
                     .ok_kursal(KursalError::Storage)??;
 
+                let stored_path = send_path.clone();
+
                 let entry = FileTransferEntry {
-                    path: file_path,
+                    path: send_path,
                     my_random,
                     shared_at: now,
                     last_accessed_at: None,
@@ -687,7 +711,7 @@ pub async fn handle_core_command(
                     .await?
                     .expect("Text message always has an id");
 
-                Ok((msg_id, size_bytes))
+                Ok((msg_id, size_bytes, stored_path))
             }
             .await;
 

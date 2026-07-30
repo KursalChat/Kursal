@@ -12,10 +12,15 @@ use crate::{
     identity::UserId,
     messaging::enums::{FileAccept, KursalMessage, MessageId},
     network::swarm::{FILE_CHUNK_SIZE, SwarmCommand, str_to_multiaddr},
-    storage::{SharedDatabase, TABLE_FILE_TRANSFERS, filetransfer::hash_file, get_timestamp_secs},
+    storage::{
+        SharedDatabase, TABLE_FILE_TRANSFERS,
+        filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
+        get_timestamp_secs, image_metadata,
+    },
 };
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
@@ -26,6 +31,70 @@ pub const MAX_FILE_TRANSFER_BYTES: u64 = 100 * 1024 * 1024 * 1024;
 pub const STALE_TRANSFER_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
 const SEND_PROGRESS_THROTTLE: u64 = 16;
 const FILE_PROGRESS_THROTTLE: u64 = 16;
+
+fn move_into_place(source: &Path, dest: &Path) -> Result<()> {
+    if std::fs::rename(source, dest).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(source, dest).map_err(KursalError::Io)?;
+    let _ = std::fs::remove_file(source);
+    Ok(())
+}
+
+fn discard_pending(source: &Path, pending_dir: &Path) {
+    if !source.starts_with(pending_dir) {
+        return;
+    }
+    match source.parent() {
+        Some(parent) if parent != pending_dir => {
+            let _ = std::fs::remove_dir_all(parent);
+        }
+        _ => {
+            let _ = std::fs::remove_file(source);
+        }
+    }
+}
+
+pub async fn stage_outgoing(
+    app_data_dir: PathBuf,
+    contact_hex: String,
+    offer_hex: String,
+    source: PathBuf,
+    filename: String,
+) -> Result<Option<PathBuf>> {
+    tokio::task::spawn_blocking(move || -> Result<Option<PathBuf>> {
+        let pending_dir = outgoing_pending_dir(&app_data_dir);
+        let from_pending = source.starts_with(&pending_dir);
+
+        let plan = image_metadata::plan_strip(&source)?;
+        if !plan.changed() && !from_pending {
+            return Ok(None);
+        }
+
+        let dir = outgoing_offer_dir(&app_data_dir, &contact_hex, &offer_hex);
+        std::fs::create_dir_all(&dir).map_err(KursalError::Io)?;
+        let dest = dir.join(sanitize_filename(&filename));
+
+        if plan.changed() {
+            image_metadata::write_stripped(&source, &dest, &plan)?;
+            if from_pending {
+                discard_pending(&source, &pending_dir);
+            }
+        } else {
+            move_into_place(&source, &dest)?;
+            discard_pending(&source, &pending_dir);
+        }
+
+        Ok(Some(dest))
+    })
+    .await
+    .ok_kursal(KursalError::Storage)?
+}
+
+pub fn remove_outgoing_offer(app_data_dir: &Path, contact_hex: &str, offer_hex: &str) {
+    let dir = outgoing_offer_dir(app_data_dir, contact_hex, offer_hex);
+    let _ = std::fs::remove_dir_all(dir);
+}
 
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {
     let now = get_timestamp_secs()?;

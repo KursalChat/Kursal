@@ -271,6 +271,45 @@ impl PullResampler {
     }
 }
 
+fn build_input(
+    device: &cpal::Device,
+    channels: u16,
+    rate: u32,
+    codec_rate: u32,
+    cap_prod: &SharedProd,
+    muted: &Arc<AtomicBool>,
+) -> Result<cpal::Stream> {
+    let channels = channels.max(1);
+    let in_channels = usize::from(channels);
+    let config = StreamConfig {
+        channels,
+        sample_rate: rate,
+        buffer_size: BufferSize::Default,
+    };
+    let cap = cap_prod.clone();
+    let mute_flag = muted.clone();
+    let mut resampler = PushResampler::new(rate, codec_rate);
+    device
+        .build_input_stream(
+            config,
+            move |data: &[f32], _| {
+                let m = mute_flag.load(Ordering::Relaxed);
+                if let Ok(mut prod) = cap.lock() {
+                    for frame in data.chunks_exact(in_channels) {
+                        let mono = frame.iter().sum::<f32>() / in_channels as f32;
+                        resampler.push(mono, |v| {
+                            let s = if m { 0 } else { to_i16_sample(v) };
+                            let _ = prod.try_push(s);
+                        });
+                    }
+                }
+            },
+            |err| log::error!("[call] input stream error: {err}"),
+            None,
+        )
+        .map_err(|e| KursalError::Network(format!("build input stream: {e}")))
+}
+
 fn build_streams(
     codec_rate: u32,
     cap_prod: &SharedProd,
@@ -310,43 +349,24 @@ fn build_streams(
         .map_err(|e| KursalError::Network(format!("output config: {e}")))?;
 
     let in_rate = in_default.sample_rate();
-    let in_channels = usize::from(in_default.channels().max(1));
     let out_rate = out_default.sample_rate();
     let out_channels = usize::from(out_default.channels().max(1));
 
-    let in_config = StreamConfig {
-        channels: in_default.channels().max(1),
-        sample_rate: in_rate,
-        buffer_size: BufferSize::Default,
-    };
     let out_config = StreamConfig {
         channels: out_default.channels().max(1),
         sample_rate: out_rate,
         buffer_size: BufferSize::Default,
     };
 
-    let cap = cap_prod.clone();
-    let mute_flag = muted.clone();
-    let mut in_resampler = PushResampler::new(in_rate, codec_rate);
-    let input_stream = input
-        .build_input_stream(
-            in_config,
-            move |data: &[f32], _| {
-                let m = mute_flag.load(Ordering::Relaxed);
-                if let Ok(mut prod) = cap.lock() {
-                    for frame in data.chunks_exact(in_channels) {
-                        let mono = frame.iter().sum::<f32>() / in_channels as f32;
-                        in_resampler.push(mono, |v| {
-                            let s = if m { 0 } else { to_i16_sample(v) };
-                            let _ = prod.try_push(s);
-                        });
-                    }
-                }
-            },
-            |err| log::error!("[call] input stream error: {err}"),
-            None,
-        )
-        .map_err(|e| KursalError::Network(format!("build input stream: {e}")))?;
+    let in_ch = in_default.channels().max(1);
+    let input_stream = match build_input(&input, 1, in_rate, codec_rate, cap_prod, muted) {
+        Ok(s) => s,
+        Err(e) if in_ch != 1 => {
+            log::warn!("[call] mono capture failed ({e}); trying {in_ch}ch");
+            build_input(&input, in_ch, in_rate, codec_rate, cap_prod, muted)?
+        }
+        Err(e) => return Err(e),
+    };
 
     let play = play_cons.clone();
     let deaf_flag = deafened.clone();

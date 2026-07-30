@@ -39,9 +39,10 @@ pub(crate) async fn api_files_send(
     Path(contact_id): Path<String>,
     Json(APIFile { path }): Json<APIFile>,
 ) -> Result<Json<APIFileDetails>> {
-    cmd_wrapper::send_file_offer(state, contact_id, path)
+    let app_data_dir = state.app_data_dir.clone();
+    cmd_wrapper::send_file_offer(state, contact_id, path, app_data_dir)
         .await
-        .map(|(name, size)| Json(APIFileDetails { name, size }))
+        .map(|(name, size, _stored_path)| Json(APIFileDetails { name, size }))
         .map_err(Into::into)
 }
 

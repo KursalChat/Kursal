@@ -17,6 +17,7 @@ pub mod backup;
 mod db;
 pub mod file;
 pub mod filetransfer;
+pub mod image_metadata;
 mod settings;
 mod signal_stores;
 

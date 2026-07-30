@@ -16,12 +16,17 @@
     CloudDownload,
     CircleAlert,
     FolderOpen,
+    Share,
     X,
-    MoreHorizontal,
     Clock,
+    Ellipsis,
+    ChevronDown,
+    ChevronUp,
   } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
-  import { exists } from '@tauri-apps/plugin-fs';
+  import { exists, readTextFile } from '@tauri-apps/plugin-fs';
+  import { isMobile } from '$lib/api/window';
   import { t } from '$lib/i18n';
   import Spinner from '$lib/components/Spinner.svelte';
   import { notifyError } from '$lib/utils/errors';
@@ -33,6 +38,7 @@
     receivedHoverLabel,
     getMessagePreview,
     mediaKindFromFilename,
+    isTextFilename,
     renderMarkdown,
     highlightTerm,
     midTruncate,
@@ -72,6 +78,7 @@
     searchTerm?: string;
     swipeDx: number;
     fileOfferState: 'idle' | 'accepting' | 'accepted' | undefined;
+    flashed: boolean;
     transferPercent: number;
     transferInProgress: boolean;
     transferDone: boolean;
@@ -86,6 +93,7 @@
     onReplyRefClick: (replyToId: string) => void;
     onAcceptFile: () => void;
     onCancelFile: () => void;
+    onSaveToDevice: () => void;
     onToggleReact: (emoji: string) => void;
     onStartReply: () => void;
     onCopy: () => void;
@@ -117,6 +125,7 @@
     searchTerm = '',
     swipeDx,
     fileOfferState,
+    flashed,
     transferPercent,
     transferInProgress,
     transferDone,
@@ -131,6 +140,7 @@
     onReplyRefClick,
     onAcceptFile,
     onCancelFile,
+    onSaveToDevice,
     onToggleReact,
     onStartReply,
     onCopy,
@@ -143,6 +153,12 @@
     onToggleEmojiPicker,
     onOpenMedia,
   }: Props = $props();
+
+  // Long messages render clamped so a wall of text can't blow up the list.
+  // Tracked by id so a recycled component never inherits another expansion.
+  const FOLD_THRESHOLD = 1000;
+  let expandedId = $state<string | null>(null);
+  const expanded = $derived(expandedId === msg.id);
 
   let mediaLoaded = $state(false);
   let pathMissing = $state(false);
@@ -167,10 +183,45 @@
         if (!cancelled) pathMissing = !ok;
       })
       .catch(() => {
-        // A throw means the check itself failed (path outside the fs plugin
-        // scope, for one), not that the file is gone - keep showing it and let
-        // the media element's own error handling take over.
         if (!cancelled) pathMissing = false;
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Text attachments show their contents inline, clamped like a long message.
+  const TEXT_PREVIEW_MAX_BYTES = 256 * 1024;
+  const TEXT_PREVIEW_LINES = 10;
+  let textPreview = $state<string | null>(null);
+  let textExpandedId = $state<string | null>(null);
+  const textExpanded = $derived(textExpandedId === msg.id);
+  const textPreviewLong = $derived(
+    !!textPreview && textPreview.split('\n').length > TEXT_PREVIEW_LINES
+  );
+
+  $effect(() => {
+    const fd = msg.fileDetails;
+    const path = fd?.autodownloadPath ?? null;
+    void mediaVersion;
+    const eligible =
+      !!fd &&
+      !!path &&
+      !pathMissing &&
+      !transferInProgress &&
+      isTextFilename(fd.filename) &&
+      fd.sizeBytes <= TEXT_PREVIEW_MAX_BYTES;
+    if (!eligible || !path) {
+      textPreview = null;
+      return;
+    }
+    let cancelled = false;
+    readTextFile(path)
+      .then((txt) => {
+        if (!cancelled) textPreview = txt;
+      })
+      .catch(() => {
+        if (!cancelled) textPreview = null;
       });
     return () => {
       cancelled = true;
@@ -182,12 +233,13 @@
   let menuStyle = $state('');
   let menuEl = $state<HTMLElement | null>(null);
   let moreBtn = $state<HTMLElement | null>(null);
+  let rowEl = $state<HTMLElement | null>(null);
 
   // In-flight and undelivered messages have nothing actionable yet.
   const actionsAvailable = $derived(isMessageActionable(msg.status));
 
   const MENU_W = 180;
-  const MENU_H = 240;
+  const MENU_H = 290;
 
   // Anchors by `right` so it lines up with the menu's top-right transform-origin.
   // Drops below `bottom`, or flips above `top` when there isn't room underneath.
@@ -219,13 +271,50 @@
     }
     if (!actionsAvailable) return;
     e.preventDefault();
+    clearRowSelection();
     positionMenu(e.clientX, e.clientY);
     menuOpen = true;
+  }
+
+  // Fallback for engines that select before the press default is dropped.
+  function clearRowSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    if (sel.anchorNode && rowEl?.contains(sel.anchorNode)) sel.removeAllRanges();
+  }
+
+  // WebKit selects the word under the cursor on right press; the contextmenu
+  // event fires too late to undo it, so the press default is dropped instead.
+  function suppressRightPress(e: MouseEvent) {
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) e.preventDefault();
   }
 
   function runAction(fn: () => void) {
     fn();
     menuOpen = false;
+  }
+
+  // Menu items act on press
+  function activate(fn: () => void) {
+    return {
+      onpointerdown: (e: PointerEvent) => {
+        if (e.pointerType !== 'mouse' || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        runAction(fn);
+      },
+      onclick: (e: MouseEvent) => {
+        e.stopPropagation();
+        runAction(fn);
+      },
+    };
+  }
+
+  // The menu mirrors the toolbar's quick actions, so "React" has to hand the
+  // picker an anchor - the "..." button, since the menu itself is closing.
+  function openPickerFromMenu() {
+    const rect = moreBtn?.getBoundingClientRect() ?? null;
+    onToggleEmojiPicker(rect);
   }
 
   function portal(node: HTMLElement) {
@@ -307,8 +396,10 @@
   );
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="msg-row"
+  bind:this={rowEl}
   class:first={isFirst}
   class:last={isLast}
   class:hovered
@@ -327,6 +418,7 @@
   ontouchmove={onTouchMove}
   ontouchend={onTouchEnd}
   ontouchcancel={onTouchCancel}
+  onmousedown={suppressRightPress}
   oncontextmenu={handleContextMenu}
 >
   {#if swipeDx !== 0}
@@ -433,11 +525,30 @@
               ></video>
             {:else if autoPath && mediaSrc && mediaKind === 'audio'}
               <audio class="media-audio" src={mediaSrc} controls preload="metadata"></audio>
+            {:else if textPreview !== null}
+              <div class="text-preview" class:folded={textPreviewLong && !textExpanded}>
+                <pre>{textPreview}</pre>
+              </div>
+              {#if textPreviewLong}
+                <button
+                  class="fold-toggle"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    textExpandedId = textExpanded ? null : msg.id;
+                  }}
+                >
+                  {#if textExpanded}
+                    <ChevronUp size={12} />{t('chat.bubble.showLess')}
+                  {:else}
+                    <ChevronDown size={12} />{t('chat.bubble.showMore')}
+                  {/if}
+                </button>
+              {/if}
             {/if}
 
             <div
               class="file-bubble"
-              class:embedded={!!autoPath && mediaKind !== 'other'}
+              class:embedded={!!autoPath && (mediaKind !== 'other' || textPreview !== null)}
               style="--file-color: {fileTypeColor(msg.fileDetails.filename)};"
             >
               <div class="file-icon"><FileText size={22} /></div>
@@ -454,14 +565,27 @@
               </div>
               {#if msg.direction === 'received'}
                 {#if autoPath}
-                  <button
-                    class="file-dl-btn ghost"
-                    title={t('chat.bubble.showInFolder')}
-                    aria-label={t('chat.bubble.showInFolder')}
-                    onclick={() => revealLocalFile(autoPath)}
-                  >
-                    <FolderOpen size={16} />
-                  </button>
+                  <!-- Downloads land in app storage: desktop can jump to them
+                       in the file manager, mobile can only copy them out. -->
+                  {#if isMobile}
+                    <button
+                      class="file-dl-btn ghost"
+                      title={t('chat.bubble.saveToDevice')}
+                      aria-label={t('chat.bubble.saveToDevice')}
+                      onclick={onSaveToDevice}
+                    >
+                      <Share size={16} />
+                    </button>
+                  {:else}
+                    <button
+                      class="file-dl-btn ghost"
+                      title={t('chat.bubble.showInFolder')}
+                      aria-label={t('chat.bubble.showInFolder')}
+                      onclick={() => revealLocalFile(autoPath)}
+                    >
+                      <FolderOpen size={16} />
+                    </button>
+                  {/if}
                 {:else if fileOfferState === 'accepted' && transferDone}
                   <span class="file-done" title={t('chat.bubble.complete')}>
                     <Check size={18} />
@@ -528,9 +652,28 @@
               {/if}
             </div>
           {:else}
-            {@html searchTerm
-              ? highlightTerm(renderMarkdown(msg.content, msg.edited), searchTerm)
-              : renderMarkdown(msg.content, msg.edited)}
+            <!-- never fold during search: a match could sit below the cut -->
+            {@const foldable = msg.content.length > FOLD_THRESHOLD && !searchTerm}
+            <div class="msg-body" class:folded={foldable && !expanded}>
+              {@html searchTerm
+                ? highlightTerm(renderMarkdown(msg.content, msg.edited), searchTerm)
+                : renderMarkdown(msg.content, msg.edited)}
+            </div>
+            {#if foldable}
+              <button
+                class="fold-toggle"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  expandedId = expanded ? null : msg.id;
+                }}
+              >
+                {#if expanded}
+                  <ChevronUp size={12} />{t('chat.bubble.showLess')}
+                {:else}
+                  <ChevronDown size={12} />{t('chat.bubble.showMore')}
+                {/if}
+              </button>
+            {/if}
           {/if}
         </div>
 
@@ -656,7 +799,7 @@
               onmousedown={(e) => e.stopPropagation()}
               onclick={toggleMenu}
             >
-              <MoreHorizontal size={15} />
+              <Ellipsis size={15} />
             </button>
             {#if menuOpen}
               <div
@@ -668,34 +811,38 @@
                 bind:this={menuEl}
                 role="menu"
               >
-                <button class="menu-item" role="menuitem" onclick={() => runAction(onCopy)}>
+                <button class="menu-item" role="menuitem" {...activate(openPickerFromMenu)}>
+                  <Smile size={14} />
+                  <span>{t('chat.bubble.actionReact')}</span>
+                </button>
+                <button class="menu-item" role="menuitem" {...activate(onStartReply)}>
+                  <Reply size={14} />
+                  <span>{t('chat.bubble.actionReply')}</span>
+                </button>
+                <button class="menu-item" role="menuitem" {...activate(onCopy)}>
                   <Copy size={14} />
                   <span>{t('chat.bubble.actionCopy')}</span>
                 </button>
-                <button class="menu-item" role="menuitem" onclick={() => runAction(onTogglePin)}>
+                <button class="menu-item" role="menuitem" {...activate(onTogglePin)}>
                   <Pin size={14} />
                   <span
                     >{msg.pinned ? t('chat.bubble.actionUnpin') : t('chat.bubble.actionPin')}</span
                   >
                 </button>
                 {#if !msg.fileDetails}
-                  <button class="menu-item" role="menuitem" onclick={() => runAction(onForward)}>
+                  <button class="menu-item" role="menuitem" {...activate(onForward)}>
                     <Forward size={14} />
                     <span>{t('chat.bubble.actionForward')}</span>
                   </button>
                 {/if}
-                {#if msg.direction === 'sent' && !msg.fileDetails && msg.status !== 'queued_in_dht'}
-                  <button class="menu-item" role="menuitem" onclick={() => runAction(onStartEdit)}>
+                {#if msg.direction === 'sent' && !msg.fileDetails}
+                  <button class="menu-item" role="menuitem" {...activate(onStartEdit)}>
                     <Pencil size={14} />
                     <span>{t('chat.bubble.actionEdit')}</span>
                   </button>
                 {/if}
                 {#if msg.direction === 'sent'}
-                  <button
-                    class="menu-item danger"
-                    role="menuitem"
-                    onclick={() => runAction(onDelete)}
-                  >
+                  <button class="menu-item danger" role="menuitem" {...activate(onDelete)}>
                     <Trash2 size={14} />
                     <span>{t('chat.bubble.actionDelete')}</span>
                   </button>
@@ -742,6 +889,16 @@
         </button>
       </div>
     {/if}
+    {#if flashed}
+      <span
+        class="action-confirm"
+        class:sent={msg.direction === 'sent'}
+        role="status"
+        transition:fade={{ duration: 120 }}
+      >
+        <Check size={13} />
+      </span>
+    {/if}
   </div>
 </div>
 
@@ -761,6 +918,31 @@
   }
   :global(.msg-row.flash) {
     background: var(--accent-dim);
+  }
+
+  /* Confirms an action sheet command (copy, save to device) that closed its own
+     menu. Anchored to .msg-row on the side away from the bubble tail so it never
+     covers text and never reflows the list. */
+  .action-confirm {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    color: var(--success);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  }
+  .action-confirm.sent {
+    right: auto;
+    left: 8px;
   }
 
   .swipe-reply-indicator {
@@ -875,8 +1057,6 @@
     }
   }
 
-  /* "Waiting to sync" badge for offline edits/reactions/deletes. Sits on the
-     opposite corner from the pin flag so the two never collide. */
   .sync-flag {
     position: absolute;
     top: -7px;
@@ -951,11 +1131,6 @@
         0 0 0 10px color-mix(in srgb, var(--danger) 0%, transparent);
     }
   }
-  /* Opaque base; the translucent color-mix() version is layered on in the
-     @supports block below. A color-mix() value holding a var() cannot be
-     rejected at parse time, so it wins the cascade and then computes to
-     `transparent` on engines that lack it (Chrome < 111) -- which would leave
-     white text on the chat background. @supports is checked at parse time. */
   .bubble.queued {
     background: var(--accent);
     color: #fff;
@@ -1001,6 +1176,63 @@
   .bubble.has-file {
     padding: 8px;
   }
+  /* 10 lines at the bubble's own line-height, faded out at the cut. */
+  .msg-body.folded {
+    max-height: calc(1.55em * 10);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  }
+  /* Expanded still caps out: past 25 lines the block scrolls on its own
+     rather than turning the bubble into a page. */
+  .text-preview {
+    max-width: min(440px, 72vw);
+    max-height: calc(1.45em * 25);
+    margin-bottom: 4px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.28);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .text-preview.folded {
+    max-height: calc(1.45em * 10);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  }
+  /* Outranks the `.msg-content :global(pre)` markdown rule below. */
+  .msg-content .text-preview pre {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .fold-toggle {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 3px;
+    padding: 0;
+    width: fit-content;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: none;
+  }
+  .bubble.sent .fold-toggle {
+    color: inherit;
+    opacity: 0.75;
+  }
+  .fold-toggle:hover {
+    text-decoration: underline;
+  }
+
   .msg-content :global(p) {
     margin: 0;
   }
@@ -1200,8 +1432,6 @@
   .reaction-chip.overflow {
     cursor: default;
   }
-  /* Starts near full size: scaling from 0 reserved the chip's full layout box
-     up front, so the row jumped a beat before the chip caught up. */
   @keyframes reaction-pop {
     from {
       transform: scale(0.7);
@@ -1392,21 +1622,18 @@
     gap: 3px;
     max-width: 100%;
     min-width: 0;
+    position: relative;
   }
   .bubble-anchor.sent {
     align-self: flex-end;
     align-items: flex-end;
   }
 
-  /* Hover toolbar anchored to the whole row (.msg-row is the positioned
-     ancestor - .bubble-anchor is intentionally not positioned), pinned to the
-     row's far-right edge and raised so it's centered on the row's top edge.
-     Same fixed spot for sent + received, bubble + flat - never over the text. */
   .msg-actions {
     position: absolute;
     top: 0;
     left: auto;
-    right: 8px;
+    right: 4px;
     transform: translateY(-50%);
     z-index: 100;
     display: flex;

@@ -1,18 +1,45 @@
 import { sendVideoChunk } from '$lib/api/call';
 
 const HEADER_BYTES = 10;
-const MAX_CHUNK_BYTES = 262144 - HEADER_BYTES;
+// Must stay in sync with MAX_VIDEO_FRAME_BYTES in kursal-core/src/call/video.rs.
+const MAX_CHUNK_BYTES = 131072 - HEADER_BYTES;
 const KEYFRAME_INTERVAL_FRAMES = 90;
 const MIN_BITRATE = 150_000;
 const RECOVERY_STEP = 1.1;
 const RECOVERY_INTERVAL_MS = 5000;
 const MAX_ENCODE_QUEUE = 2;
+const AR_TOLERANCE = 0.02;
+const AR_CHANGE_GRACE_MS = 1000;
 
 export const QUALITIES: Record<number, { width: number; height: number; bitrate: number }> = {
   360: { width: 640, height: 360, bitrate: 600_000 },
   480: { width: 854, height: 480, bitrate: 900_000 },
   720: { width: 1280, height: 720, bitrate: 1_500_000 },
 };
+
+type Dims = { width: number; height: number };
+
+function evenDim(v: number): number {
+  return Math.max(2, Math.round(v / 2) * 2);
+}
+
+/**
+ * WebCodecs scales every input frame to the configured encoder size without
+ * letterboxing, so a portrait camera encoded into a landscape config arrives
+ * squashed on the far side. Fit the source into the quality budget instead,
+ * keeping its aspect ratio and orientation.
+ */
+export function fitDims(srcWidth: number, srcHeight: number, quality: number): Dims {
+  const q = QUALITIES[quality] ?? QUALITIES[480];
+  if (!srcWidth || !srcHeight) return { width: q.width, height: q.height };
+  const long = Math.max(q.width, q.height);
+  const short = Math.min(q.width, q.height);
+  const portrait = srcHeight > srcWidth;
+  const boxW = portrait ? short : long;
+  const boxH = portrait ? long : short;
+  const scale = Math.min(boxW / srcWidth, boxH / srcHeight, 1);
+  return { width: evenDim(srcWidth * scale), height: evenDim(srcHeight * scale) };
+}
 
 export function videoSupported(): boolean {
   return (
@@ -24,14 +51,14 @@ export function videoSupported(): boolean {
 }
 
 export async function pickEncoderConfig(
-  quality: number,
+  dims: Dims,
+  bitrate: number,
   forceVp8 = false
 ): Promise<VideoEncoderConfig | null> {
-  const q = QUALITIES[quality] ?? QUALITIES[480];
   const base = {
-    width: q.width,
-    height: q.height,
-    bitrate: q.bitrate,
+    width: dims.width,
+    height: dims.height,
+    bitrate,
     framerate: 30,
     latencyMode: 'realtime' as const,
   };
@@ -91,7 +118,11 @@ export class VideoSender {
   private config: VideoEncoderConfig | null = null;
   private currentBitrate = 0;
   private recoveryTimer: ReturnType<typeof setInterval> | null = null;
+  private arChangedAt = 0;
   onEnded: (() => void) | null = null;
+  // Camera orientation flipped: the far side needs a new decoder config, which
+  // only a fresh start_video signal carries.
+  onResolutionChange: (() => void) | null = null;
 
   get localStream(): MediaStream | null {
     return this.stream;
@@ -103,17 +134,35 @@ export class VideoSender {
 
   async start(quality: number, forceVp8 = false): Promise<VideoEncoderConfig> {
     this.stop();
-    const config = await pickEncoderConfig(quality, forceVp8);
-    if (!config) throw new Error('encoder-unsupported');
+    const q = QUALITIES[quality] ?? QUALITIES[480];
     this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: config.width, height: config.height, frameRate: 30 },
+      video: {
+        width: { ideal: q.width },
+        height: { ideal: q.height },
+        frameRate: { ideal: 30 },
+      },
     });
+    const el = document.createElement('video') as RvfcVideo;
+    el.muted = true;
+    el.playsInline = true;
+    el.srcObject = this.stream;
+    this.el = el;
+    await el.play();
+    await this.awaitMetadata(el);
+    const config = await pickEncoderConfig(
+      fitDims(el.videoWidth, el.videoHeight, quality),
+      q.bitrate,
+      forceVp8
+    );
+    if (!config) throw new Error('encoder-unsupported');
     this.config = config;
     this.currentBitrate = config.bitrate ?? QUALITIES[480].bitrate;
     this.encoder = new VideoEncoder({
       output: (chunk) => {
+        // Oversize frames can't cross the wire; re-keying alone would produce the
+        // same size again, so drop the bitrate too and let recovery ramp back.
         if (chunk.byteLength > MAX_CHUNK_BYTES) {
-          this.forceKey = true;
+          this.onCongestion();
           return;
         }
         void sendVideoChunk(packChunk(chunk));
@@ -124,14 +173,9 @@ export class VideoSender {
       },
     });
     this.encoder.configure(config);
-    const el = document.createElement('video') as RvfcVideo;
-    el.muted = true;
-    el.playsInline = true;
-    el.srcObject = this.stream;
-    this.el = el;
-    await el.play();
     const tick = () => {
       if (!this.encoder || !this.el) return;
+      this.checkAspectRatio();
       if (this.encoder.encodeQueueSize <= MAX_ENCODE_QUEUE) {
         const frame = new VideoFrame(this.el, {
           timestamp: Math.round(performance.now() * 1000),
@@ -150,6 +194,38 @@ export class VideoSender {
 
   requestKeyframe(): void {
     this.forceKey = true;
+  }
+
+  private async awaitMetadata(el: HTMLVideoElement): Promise<void> {
+    if (el.videoWidth && el.videoHeight) return;
+    await new Promise<void>((resolve) => {
+      const done = () => resolve();
+      el.addEventListener('loadedmetadata', done, { once: true });
+      setTimeout(done, 1000);
+    });
+  }
+
+  // Debounced, and re-armed after firing so a restart that got skipped
+  // (concurrent toggle) is retried on the next window.
+  private checkAspectRatio(): void {
+    const el = this.el;
+    const cfg = this.config;
+    if (!el || !cfg || !this.onResolutionChange) return;
+    if (!el.videoWidth || !el.videoHeight) return;
+    const srcAr = el.videoWidth / el.videoHeight;
+    const cfgAr = cfg.width / cfg.height;
+    if (Math.abs(srcAr - cfgAr) / cfgAr <= AR_TOLERANCE) {
+      this.arChangedAt = 0;
+      return;
+    }
+    const now = performance.now();
+    if (!this.arChangedAt) {
+      this.arChangedAt = now;
+      return;
+    }
+    if (now - this.arChangedAt < AR_CHANGE_GRACE_MS) return;
+    this.arChangedAt = now;
+    this.onResolutionChange();
   }
 
   onCongestion(): void {
@@ -188,6 +264,7 @@ export class VideoSender {
     this.config = null;
     this.frameCount = 0;
     this.forceKey = false;
+    this.arChangedAt = 0;
   }
 }
 

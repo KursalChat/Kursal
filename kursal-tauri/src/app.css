@@ -553,7 +553,7 @@ html {
  * the whole viewport - no gap when shrunk, no clipping when enlarged. */
 body {
   position: fixed;
-  top: 0;
+  top: calc(var(--vv-top, 0px) / var(--zoom, 1));
   left: 0;
   width: calc(100vw / var(--zoom, 1));
   height: calc(var(--app-height, 100dvh) / var(--zoom, 1));

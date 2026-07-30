@@ -5,6 +5,7 @@ use crate::{
     identity::UserId,
     messaging::{StoredMessage, enums::MessageId},
 };
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 
 pub mod address_announce;
@@ -283,7 +284,8 @@ pub enum CoreCommand {
     SendFileOffer {
         contact_id: String,
         file_path: String,
-        reply: oneshot::Sender<Result<(MessageId, u64)>>,
+        app_data_dir: PathBuf,
+        reply: oneshot::Sender<Result<(MessageId, u64, String)>>,
     },
     AcceptFileOffer {
         contact_id: String,

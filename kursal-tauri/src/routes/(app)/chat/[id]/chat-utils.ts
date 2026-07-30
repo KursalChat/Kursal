@@ -90,6 +90,25 @@ export function mediaKindFromFilename(filename: string): MediaKind {
   return 'other';
 }
 
+const TEXT_EXT = new Set([
+  'txt',
+  'md',
+  'markdown',
+  'log',
+  'json',
+  'yaml',
+  'yml',
+  'toml',
+  'diff',
+  'patch',
+]);
+
+export function isTextFilename(filename: string): boolean {
+  const dot = filename.lastIndexOf('.');
+  if (dot < 0) return false;
+  return TEXT_EXT.has(filename.slice(dot + 1).toLowerCase());
+}
+
 export function midTruncate(name: string, maxLen = 30): string {
   if (name.length <= maxLen) return name;
   const dot = name.lastIndexOf('.');
@@ -251,10 +270,6 @@ export function flatStatusLabel(status: string): string {
   return '';
 }
 
-// A message that has not reached the peer yet carries no id they can resolve,
-// so replying to / reacting to / acting on it would reference nothing. Shared
-// by the hover menu, the long-press action sheet and swipe-to-reply so all
-// three entry points agree.
 export function isMessageActionable(status: string): boolean {
   return status !== 'sending' && status !== 'failed' && status !== 'queued';
 }

@@ -22,7 +22,6 @@
   import { getNetworkStatus } from '$lib/api/settings';
   import { frontendReady } from '$lib/api/identity';
   import { OS, isMobile } from '$lib/api/window';
-  import { finalizeDeferredReceiveTarget } from '$lib/utils/file-transfer-paths';
   import { acceptFileOffer } from '$lib/api/messages';
   import { notifyError } from '$lib/utils/errors';
   import {
@@ -69,9 +68,9 @@
   } from '$lib/types';
   import { networkState } from '$lib/state/network.svelte';
   import { offlineSyncState } from '$lib/state/offlineSync.svelte';
-  import { initAndroidInsets } from '$lib/utils/android-insets';
+  import { appFocusState } from '$lib/state/appFocus.svelte';
+  import { initAndroidInsets, getImeInset, onInsetsChange } from '$lib/utils/android-insets';
 
-  // Runs before mount so the safe-area vars are correct on first paint.
   initAndroidInsets();
 
   let { children } = $props();
@@ -115,18 +114,42 @@
     document.title = backgroundUnread > 0 ? `(${backgroundUnread}) ${baseTitle}` : baseTitle;
   }
 
-  // Mirror "is something in flight" down to the backend, which needs it on the
-  // synchronous close path where it cannot ask the webview first.
+  $effect(() => {
+    if (appFocusState.focused && backgroundUnread > 0) {
+      backgroundUnread = 0;
+      refreshTitle();
+    }
+  });
+
+  // OS banner only when the window is unfocused; focused app gets an in-app
+  // toast instead, and nothing at all while the sender's chat is open.
+  function notifyIncoming(contactId: string, senderName: string, body: string) {
+    const background = !appFocusState.focused;
+    if (background) {
+      backgroundUnread += 1;
+      refreshTitle();
+    }
+    if (contactsState.isMuted(contactId)) return;
+    if (background) {
+      void notifyMessage({ senderName, body });
+      return;
+    }
+    if ($page.url.pathname === `/chat/${contactId}`) return;
+    if (prefsState.notificationPreview === 'none' || isInDndWindow()) return;
+    notifications.push(t('notifications.newMessageFrom', { sender: senderName }), 'info', {
+      action: {
+        label: t('notifications.openChat'),
+        onClick: () => goto(`/chat/${contactId}`),
+      },
+    });
+  }
+
   $effect(() => {
     const callActive = callState.status !== 'idle';
     const transferActive = messagesState.hasActiveTransfers;
     void setBusyState(callActive, transferActive).catch(() => {});
   });
 
-  // First close ever: the window would vanish into the tray with no explanation,
-  // so the backend blocks it once and lets Winston say what is happening. The
-  // answer becomes the setting; the seen flag is mirrored to the backend, which
-  // decides on the close path and cannot read localStorage.
   const CLOSE_EXPLAINER_KEY = 'kursal_close_explainer_seen';
   let closeExplainerOpen = $state(false);
 
@@ -135,14 +158,10 @@
     return localStorage.getItem(CLOSE_EXPLAINER_KEY) === 'done';
   }
 
-  // Awaited by both handlers: they destroy the webview right after, which would
-  // otherwise race the flag on its way to the backend.
   async function markCloseExplainerSeen() {
     try {
       localStorage.setItem(CLOSE_EXPLAINER_KEY, 'done');
-    } catch {
-      /* private mode: worst case the explainer runs once more */
-    }
+    } catch {}
     await setCloseExplainerPending(false).catch(() => {});
   }
 
@@ -163,15 +182,10 @@
     await closeForceQuit();
   }
 
-  // Dismissing without choosing just cancels the close: the window stays and the
-  // explainer stays pending for the next attempt.
   function cancelCloseExplainer() {
     closeExplainerOpen = false;
   }
 
-  // A call holds the camera, which cannot survive the window going away, so the
-  // only choices are to stay or to hang up. Transfers are backend-only and can
-  // finish with the window gone, so they also get the "keep going" option.
   async function handleCloseRequest(payload: CloseRequestedPayload) {
     if (payload.callActive) {
       const ok = await confirmDialog({
@@ -202,8 +216,6 @@
       return;
     }
 
-    // A busy prompt above takes priority and leaves the explainer pending, so it
-    // still runs on the next close.
     if (payload.firstClose) closeExplainerOpen = true;
   }
 
@@ -216,33 +228,24 @@
     void pinnedConvosState.init();
     void archivedConvosState.init();
     void getPermission();
-    // Re-pushed on every mount, including the one after a close-to-tray, so the
-    // backend never asks twice.
+
     if (!isMobile) void setCloseExplainerPending(!closeExplainerSeen()).catch(() => {});
     const unlistenPromises: Array<Promise<() => void>> = [];
     baseTitle = document.title || 'Kursal';
 
-    // Backend-originated dialogs (crash report, updates, file open) render
-    // through the in-app ConfirmDialog. Run startup checks only once the
-    // listener is subscribed so the first emit is not missed.
     const backendDialogReady = listen<BackendDialogPayload>('backend_dialog', (event) => {
       void handleBackendDialog(event.payload);
     });
     unlistenPromises.push(backendDialogReady);
     void backendDialogReady.then(() => runStartupDialogs());
 
+    const stopFocusTracking = appFocusState.init();
+
     const handleVisibilityChange = () => {
-      if (!document.hidden && backgroundUnread > 0) {
-        backgroundUnread = 0;
-        refreshTitle();
-      }
+      if (document.hidden) void draftsState.flush().catch(() => {});
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // The backend owns the close decision - it blocks the close itself and asks
-    // here only when a call or transfer is live. A previous version guarded this
-    // from the webview, but the Rust CloseRequested handler quit the process
-    // regardless, so the confirmation never had a chance to run.
     let closeConfirmOpen = false;
     unlistenPromises.push(
       listen<CloseRequestedPayload>('close_requested', async (event) => {
@@ -256,22 +259,18 @@
       })
     );
 
-    // Mobile keyboard handling: shrink the document to visualViewport.height
-    // so content reflows above the keyboard. Listening only to visualViewport
-    // events (not focusin/focusout) avoids a jitter where focus fires before
-    // the keyboard actually opens, causing two layout passes.
     const syncViewport = () => {
       const vv = window.visualViewport;
+      const root = document.documentElement.style;
       if (vv) {
-        document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
+        root.setProperty('--app-height', `${vv.height}px`);
+        root.setProperty('--vv-top', `${vv.offsetTop}px`);
+        const covered = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+        root.setProperty('--kb-overlap', `${Math.max(0, getImeInset() - covered)}px`);
       }
       window.scrollTo(0, 0);
     };
 
-    // Resize signals (keyboard open/close, rotation, window resize) can fire
-    // while the engine is still reflowing, so one snapshot may latch stale
-    // dimensions. Instead of trusting it, re-sync each frame until the
-    // reported size holds still; the deadline is a safety cap only.
     let settleRaf = 0;
     const syncUntilStable = () => {
       cancelAnimationFrame(settleRaf);
@@ -295,6 +294,7 @@
       step();
     };
     syncUntilStable();
+    onInsetsChange(syncUntilStable);
     window.visualViewport?.addEventListener('resize', syncUntilStable);
     window.visualViewport?.addEventListener('scroll', syncViewport);
     window.addEventListener('resize', syncUntilStable);
@@ -361,29 +361,10 @@
         const isCallRecord = !!payload.callDetails;
         if (isCallRecord) return;
         messagesState.setFirstUnread(payload.contactId, payload.id);
-        if (document.hidden) {
-          backgroundUnread += 1;
-          refreshTitle();
-        }
         if (!payload.viaOffline) contactsState.touchLastSeen(payload.contactId);
-        const onThisChat = !document.hidden && $page.url.pathname === `/chat/${payload.contactId}`;
-        if (!onThisChat && !contactsState.isMuted(payload.contactId)) {
-          const name =
-            contactsState.getById(payload.contactId)?.displayName ??
-            t('notifications.unknownSender');
-          if (document.hidden) {
-            void notifyMessage({ senderName: name, body: payload.content });
-          } else if (prefsState.notificationPreview !== 'none' && !isInDndWindow()) {
-            // Window visible but another chat is open: an OS banner can't
-            // deep-link on desktop, an in-app toast can.
-            notifications.push(t('notifications.newMessageFrom', { sender: name }), 'info', {
-              action: {
-                label: t('notifications.openChat'),
-                onClick: () => goto(`/chat/${payload.contactId}`),
-              },
-            });
-          }
-        }
+        const name =
+          contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
+        notifyIncoming(payload.contactId, name, payload.content);
       })
     );
 
@@ -423,26 +404,21 @@
       })
     );
 
-    // Listen to offline_queue_drained - the backend handed the whole queued
-    // batch to the swarm, so "waiting to sync" markers can finally clear. Lives
-    // here rather than in the chat route so conversations you haven't opened
-    // clear too.
+    // Listen to offline_queue_drained
     unlistenPromises.push(
       listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
         messagesState.flushPendingSync(event.payload.contactId);
       })
     );
 
-    // Listen to offline_sync - the core's 5-minute mailbox poll started or
-    // finished, so the UI can say whether it's checking and when it last did.
+    // Listen to offline_sync
     unlistenPromises.push(
       listen<OfflineSyncPayload>('offline_sync', (event) => {
         offlineSyncState.setActive(event.payload.active);
       })
     );
 
-    // Listen to offline_gap_skipped - backend gave up waiting on a suppressed
-    // offline mailbox counter; surface a non-alarming notice in that chat.
+    // Listen to offline_gap_skipped
     unlistenPromises.push(
       listen<OfflineGapSkippedPayload>('offline_gap_skipped', (event) => {
         messagesState.addGapNotice(event.payload.contactId, event.payload.counter);
@@ -471,9 +447,6 @@
       })
     );
 
-    // Backend took the offline path (peer unreachable / no receipt in 60s);
-    // it keeps retrying via the DHT. This event can beat the send_text reply
-    // that swaps the optimistic UUID - updateStatusIfSending buffers for that.
     unlistenPromises.push(
       listen<MessageQueuedOfflinePayload>('message_queued_offline', (event) => {
         messagesState.updateStatusIfSending(
@@ -612,13 +585,11 @@
 
         const senderName =
           contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
-        const onThisChat = !document.hidden && $page.url.pathname === `/chat/${payload.contactId}`;
-        if (!onThisChat) {
-          void notifyMessage({
-            senderName,
-            body: t('notifications.sentFile', { filename: payload.filename }),
-          });
-        }
+        notifyIncoming(
+          payload.contactId,
+          senderName,
+          t('notifications.sentFile', { filename: payload.filename })
+        );
 
         if (payload.autodownload) {
           try {
@@ -643,33 +614,15 @@
     unlistenPromises.push(
       listen<FileReceivedPayload>('file_received', async (event) => {
         const { contactId, transferId, savePath } = event.payload;
-        let filename = savePath.split(/[\\/]/).pop() || 'file';
 
         // The bubble's <img> was mounted against the still-empty preallocated
         // file, so the completed bytes only show after a forced refetch.
         messagesState.markMediaReady(contactId, transferId);
         messagesState.clearTransferProgress(transferId);
 
-        try {
-          const finalized = await finalizeDeferredReceiveTarget(savePath);
-          filename = finalized.filename;
-          // `moved` means the bytes went on to a content:// target and savePath
-          // is gone; otherwise savePath is where the file actually landed, which
-          // beats the guess made at accept time (a retry can have changed it).
-          if (!finalized.moved) {
-            messagesState.setAutodownloadPath(transferId, contactId, savePath);
-          }
-        } catch (err) {
-          notifications.push(t('fileTransfer.errorPlaceFile'), 'error');
-          log.error('Deferred receive finalization failed', err);
-        }
-
-        const contact = contactsState.getById(contactId);
-        const contactName = contact?.displayName ?? t('notifications.unknownSender');
-        notifications.push(
-          t('layout.fileReceivedToast', { filename, name: contactName }),
-          'success'
-        );
+        // savePath is where the bytes actually landed, which beats the path
+        // resolved at accept time (a retry can have changed it).
+        messagesState.setAutodownloadPath(transferId, contactId, savePath);
       })
     );
 
@@ -678,9 +631,8 @@
       listen<FileTransferFailedPayload>('file_transfer_failed', (event) => {
         const { transferId, reason } = event.payload;
         messagesState.clearTransferProgress(transferId);
-        if (reason === 'cancelled') {
-          notifications.push(t('fileTransfer.transferCancelled'), 'info');
-        } else {
+        // A cancel is user-initiated and the bubble reverts on its own.
+        if (reason !== 'cancelled') {
           notifications.push(t('fileTransfer.transferFailed'), 'error');
         }
         log.error('File transfer failed', event.payload);
@@ -703,6 +655,7 @@
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopFocusTracking();
       cancelAnimationFrame(settleRaf);
       window.visualViewport?.removeEventListener('resize', syncUntilStable);
       window.visualViewport?.removeEventListener('scroll', syncViewport);

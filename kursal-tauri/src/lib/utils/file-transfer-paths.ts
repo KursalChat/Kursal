@@ -1,10 +1,6 @@
-import { appCacheDir, join } from '@tauri-apps/api/path';
-import { copyFile, exists, readFile, remove, writeFile } from '@tauri-apps/plugin-fs';
+import { copyFile, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { isMobile, OS } from '$lib/api/window';
-import { looksLikeStrippableImage, stripImageMetadata } from './image-metadata';
-
-const deferredDownloadTargets = new Map<string, { targetUri: string; filename: string }>();
+import { createOutgoingPendingPath } from '$lib/api/messages';
 
 function isUriPath(path: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(path);
@@ -43,20 +39,16 @@ export function filenameFromPath(value: string): string {
   return part ? sanitizeFilename(part) : 'file';
 }
 
-async function writeBytesToAppCache(
-  bytes: Uint8Array,
-  suggestedFilename: string,
-  prefix: string
-): Promise<string> {
-  const cacheDir = await appCacheDir();
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1_000_000_000)
-    .toString()
-    .padStart(9, '0');
-  const tempName = `${prefix}-${timestamp}-${random}-${sanitizeFilename(suggestedFilename)}`;
-  const tempPath = await join(cacheDir, tempName);
-  await writeFile(tempPath, bytes);
-  return tempPath;
+/**
+ * Hands bytes the webview holds to a core-owned staging slot and returns its
+ * path. The core derives the filename it offers to the peer from the basename,
+ * so the name survives untouched - uniqueness lives in the directory the core
+ * picks, never in the filename.
+ */
+async function stagePendingBytes(bytes: Uint8Array, filename: string): Promise<string> {
+  const path = await createOutgoingPendingPath(filename);
+  await writeFile(path, bytes);
+  return path;
 }
 
 function extractPath(raw: unknown): string {
@@ -76,8 +68,6 @@ export interface PreparedFile {
   filename: string;
 }
 
-export type SendPickerMode = 'document' | 'media' | 'image' | 'video';
-
 function extractPaths(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw.map((r) => extractPath(r)).filter((p) => p.length > 0);
@@ -86,187 +76,63 @@ function extractPaths(raw: unknown): string[] {
   return single ? [single] : [];
 }
 
-export async function pickFilesForSend(
-  pickerMode: SendPickerMode = 'document'
-): Promise<PreparedFile[]> {
-  try {
-    const selected = await open({
-      multiple: true,
-      directory: false,
-      pickerMode,
-      fileAccessMode: 'copy',
-    });
-    const raws = extractPaths(selected);
-    return await Promise.all(raws.map((r) => prepareOfferSourcePath(r)));
-  } catch (e) {
-    // Android: some builds reject unknown options - retry without them.
-    if (isMobile) {
-      const selected = await open({ multiple: true, directory: false });
-      const raws = extractPaths(selected);
-      return await Promise.all(raws.map((r) => prepareOfferSourcePath(r)));
-    }
-    throw e;
-  }
-}
-
-export interface ResolvedReceivePath {
-  backendPath: string;
-  deferredTargetUri: string | null;
-}
-
-export async function pickFileForReceive(filename: string): Promise<ResolvedReceivePath | null> {
-  const safeName = sanitizeFilename(filename);
-  if (OS == 'android') {
-    const backendPath = await writeBytesToAppCache(new Uint8Array(0), safeName, 'recv');
-    return { backendPath, deferredTargetUri: null };
-  }
-
-  const savePath = await save({ defaultPath: safeName });
-  const raw = extractPath(savePath);
-  if (!raw) return null;
-  return await resolveReceiveSavePath(raw, safeName);
-}
-
-async function uniqueReceivePath(
-  dir: string,
-  filename: string,
-  claimed: Set<string>
-): Promise<string> {
-  const safe = sanitizeFilename(filename);
-  const dot = safe.lastIndexOf('.');
-  const base = dot > 0 ? safe.slice(0, dot) : safe;
-  const ext = dot > 0 ? safe.slice(dot) : '';
-  let candidate = await join(dir, safe);
-  let n = 1;
-  // Never clobber a file already on disk, nor one another item in this same
-  // batch already claimed (two offers can carry the identical filename).
-  while (claimed.has(candidate) || (await exists(candidate))) {
-    candidate = await join(dir, `${base} (${n})${ext}`);
-    n += 1;
-  }
-  claimed.add(candidate);
-  return candidate;
+/**
+ * Desktop file picker. Mobile picks through the webview's own file inputs
+ * (see AttachSheet), which hand back real File objects with real names rather
+ * than opaque content:// ids.
+ */
+export async function pickFilesForSend(): Promise<PreparedFile[]> {
+  const selected = await open({ multiple: true, directory: false });
+  const raws = extractPaths(selected);
+  return await Promise.all(raws.map((r) => prepareOfferSourcePath(r)));
 }
 
 /**
- * Resolves a save target for several incoming files at once. Desktop prompts
- * for one destination folder; mobile writes into the app cache like the
- * per-file receive path. Colliding names - with a file on disk or another item
- * in the same batch - get a " (n)" suffix so nothing is overwritten. Returns
- * null when the folder prompt is cancelled.
+ * Desktop picker selections and OS drag-and-drop payloads. The file is offered
+ * straight from where it already lives - nothing is read or copied here, so a
+ * multi-gigabyte drop costs nothing. `send_file_offer` strips image metadata
+ * itself, streaming, and only then makes a copy.
  */
-export async function prepareBatchReceive(
-  filenames: string[]
-): Promise<ResolvedReceivePath[] | null> {
-  if (OS == 'android') {
-    const out: ResolvedReceivePath[] = [];
-    for (const filename of filenames) {
-      const backendPath = await writeBytesToAppCache(
-        new Uint8Array(0),
-        sanitizeFilename(filename),
-        'recv'
-      );
-      out.push({ backendPath, deferredTargetUri: null });
-    }
-    return out;
-  }
-
-  const dir = extractPath(await open({ directory: true }));
-  if (!dir) return null;
-
-  const claimed = new Set<string>();
-  const out: ResolvedReceivePath[] = [];
-  for (const filename of filenames) {
-    out.push({
-      backendPath: await uniqueReceivePath(dir, filename, claimed),
-      deferredTargetUri: null,
-    });
-  }
-  return out;
-}
-
-/**
- * Images are re-written into the app cache without their metadata so EXIF/GPS
- * never leaves the device. Anything that isn't a strippable image, already
- * carries no metadata, or can't be read is offered from its original path.
- */
-async function offerWithoutMetadata(localPath: string, filename: string): Promise<PreparedFile> {
-  if (!looksLikeStrippableImage(filename)) return { backendPath: localPath, filename };
-  try {
-    const bytes = await readFile(localPath);
-    const cleaned = stripImageMetadata(bytes);
-    if (cleaned.length === bytes.length) return { backendPath: localPath, filename };
-    const tempPath = await writeBytesToAppCache(cleaned, filename, 'send');
-    return { backendPath: tempPath, filename };
-  } catch {
-    return { backendPath: localPath, filename };
-  }
-}
-
 export async function prepareOfferSourcePath(rawSelection: string): Promise<PreparedFile> {
   const filename = filenameFromPath(rawSelection);
-
-  if (rawSelection.startsWith('file://')) {
-    return await offerWithoutMetadata(pathFromFileUri(rawSelection), filename);
-  }
-
-  if (rawSelection.startsWith('content://') || isUriPath(rawSelection)) {
-    const bytes = await readFile(rawSelection);
-    const tempPath = await writeBytesToAppCache(stripImageMetadata(bytes), filename, 'send');
-    return { backendPath: tempPath, filename };
-  }
-
-  return await offerWithoutMetadata(rawSelection, filename);
+  const backendPath = rawSelection.startsWith('file://')
+    ? pathFromFileUri(rawSelection)
+    : rawSelection;
+  return { backendPath, filename };
 }
 
-export async function resolveReceiveSavePath(
-  rawSelection: string,
-  defaultFilename: string
-): Promise<ResolvedReceivePath> {
-  if (rawSelection.startsWith('file://')) {
-    return {
-      backendPath: pathFromFileUri(rawSelection),
-      deferredTargetUri: null,
-    };
-  }
-
-  if (rawSelection.startsWith('content://')) {
-    const backendPath = await writeBytesToAppCache(new Uint8Array(0), defaultFilename, 'recv');
-    return { backendPath, deferredTargetUri: rawSelection };
-  }
-
-  return { backendPath: rawSelection, deferredTargetUri: null };
+/** Webview File objects: mobile pickers and the camera input. */
+export async function prepareOfferFromFile(
+  file: File,
+  fallbackName: string
+): Promise<PreparedFile> {
+  const filename = sanitizeFilename(file.name || fallbackName);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return { backendPath: await stagePendingBytes(bytes, filename), filename };
 }
 
-export function registerDeferredReceiveTarget(
-  backendPath: string,
-  targetUri: string,
+/** Pasted image bytes, which arrive without any name of their own. */
+export async function prepareOfferFromBytes(
+  bytes: Uint8Array,
   filename: string
-) {
-  deferredDownloadTargets.set(backendPath, { targetUri, filename });
+): Promise<PreparedFile> {
+  return { backendPath: await stagePendingBytes(bytes, filename), filename };
 }
 
-export async function finalizeDeferredReceiveTarget(savePath: string): Promise<{
-  filename: string;
-  moved: boolean;
-}> {
-  const deferred = deferredDownloadTargets.get(savePath);
-  if (!deferred) {
-    return { filename: filenameFromPath(savePath), moved: false };
-  }
-
+/**
+ * Copies an already-downloaded file out of the app's storage to wherever the
+ * user wants it. Downloads themselves never prompt - this is the explicit
+ * "get it out of the app" action, which is the only way off mobile since app
+ * storage isn't browsable there. Returns false when the picker is dismissed.
+ */
+export async function exportToDevice(sourcePath: string, filename: string): Promise<boolean> {
+  const target = extractPath(await save({ defaultPath: sanitizeFilename(filename) }));
+  if (!target) return false;
   try {
-    try {
-      await copyFile(savePath, deferred.targetUri);
-    } catch {
-      const bytes = await readFile(savePath);
-      await writeFile(deferred.targetUri, bytes);
-    }
-    await remove(savePath);
-    deferredDownloadTargets.delete(savePath);
-    return { filename: deferred.filename, moved: true };
+    await copyFile(sourcePath, target);
   } catch {
-    deferredDownloadTargets.delete(savePath);
-    throw new Error('Could not finalize downloaded file to selected destination');
+    // Android SAF targets (content://) aren't valid copy destinations.
+    await writeFile(target, await readFile(sourcePath));
   }
+  return true;
 }

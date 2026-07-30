@@ -80,6 +80,8 @@
     "back": "Back",
     "copy": "Copy",
     "copied": "Copied",
+    "saved": "Saved",
+    "savedToDevice": "Saved to device",
     "relayBadge": "Relay"
   },
 
@@ -124,9 +126,7 @@
 
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
-    "errorPlaceFile": "Received file but couldn't save it to the chosen location",
-    "transferFailed": "File transfer failed integrity check and was discarded",
-    "transferCancelled": "File transfer cancelled"
+    "transferFailed": "File transfer failed integrity check and was discarded"
   },
 
 
@@ -259,8 +259,7 @@
     "peerIdRotated": "{name} rotated their peer ID.",
     "contactRenamedAndAvatar": "{oldName} changed their name to {newName} and updated their profile picture",
     "contactRenamed": "{oldName} changed their name to {newName}",
-    "contactAvatarUpdated": "{name} updated their profile picture",
-    "fileReceivedToast": "Received {filename} from {name}"
+    "contactAvatarUpdated": "{name} updated their profile picture"
   },
 
   "onboarding": {
@@ -345,8 +344,6 @@
       "invalidError": "Invalid code. Make sure you copied it correctly.",
       "connectButton": "Connect Contact",
       "generateError": "Failed to generate code",
-      "codeCopied": "Code copied!",
-      "linkCopied": "Link copied!",
       "cameraPermissionDenied": "Camera permission denied",
       "qrScanError": "QR scan failed",
       "contactAdded": "Contact added!",
@@ -447,19 +444,21 @@
       "errorReact": "Couldn't add reaction",
       "errorContactNotFound": "Contact not found",
       "errorEditMessage": "Failed to edit message",
-      "successCopied": "Copied",
       "successDeleted": "Message deleted",
       "errorCopy": "Could not copy",
       "messageNotFound": "Couldn't find that message",
-      "successFileAccepted": "File transfer accepted",
+      "errorExportFile": "Couldn't save the file to that location.",
       "errorAcceptFile": "Failed to accept file.",
       "errorDownloadAll": "Couldn't download {count} image(s).",
       "errorOpenFile": "Failed to open file.",
       "errorPrepareFile": "Failed to prepare file.",
       "errorSendFile": "Failed to send file.",
       "errorPasteImage": "Failed to paste image.",
-      "fileQueuedOffline": "{filename} queued, peer offline. Will retry when reachable.",
+      "errorPasteText": "Failed to attach the text as a file.",
       "errorMessageTooLong": "Message too long ({length}/{max})",
+      "tooLongTitle": "Message too long",
+      "tooLongMessage": "That's {length} characters, and the limit is {max}. Send it as a text file instead?",
+      "tooLongConfirm": "Send as file",
       "you": "You"
     },
     "composer": {
@@ -501,9 +500,12 @@
       "receivedAtLabel": "Received {time}",
       "replyFallback": "Original message",
       "emptyPreview": "(empty)",
+      "showMore": "Show more",
+      "showLess": "Show less",
       "fileSizeSent": "Sent",
       "fileSizeReceived": "Received",
       "showInFolder": "Show in folder",
+      "saveToDevice": "Save to device",
       "download": "Download",
       "downloadAriaLabel": "Download file",
       "cancel": "Cancel transfer",
@@ -576,6 +578,9 @@
       "title": "Select text",
       "dialogAriaLabel": "Select text from message",
       "hint": "Long-press to select",
+      "selectAll": "Select all",
+      "viewMarkdown": "Markdown",
+      "viewFormatted": "Formatted",
       "close": "Close"
     },
     "stack": {
@@ -592,7 +597,9 @@
       "send": "Send",
       "sendMulti": "Send all ({count})",
       "removeAriaLabel": "Remove {name}",
-      "totalSize": "Total: {size}"
+      "totalSize": "Total: {size}",
+      "captionPlaceholder": "Add a message…",
+      "captionAriaLabel": "Message to send with the file"
     },
     "search": {
       "placeholder": "Search messages…",
@@ -753,17 +760,14 @@
       "replaceConfirmTitle": "Replace current app data?",
       "replaceConfirmMessage": "This will overwrite your current identity, contacts, and messages with the backup. This cannot be undone.",
       "replaceConfirmLabel": "Replace everything",
-      "successProfileSaved": "Profile saved",
       "errorBroadcastFailed": "Saved locally but broadcast failed",
       "errorPasswordTooShort": "Password must be 8+ characters",
       "errorPasswordMismatch": "Passwords don't match",
-      "successBackupSaved": "Backup saved",
       "errorExport": "Export failed.",
-      "successBackupImported": "Imported backup sucessfully",
+      "successBackupImported": "Imported backup successfully",
       "errorEnterPassword": "Enter the backup password",
       "errorImport": "Import failed.",
       "errorPermissionDenied": "Permission denied. Enable in system settings.",
-      "successUserIdCopied": "Peer ID copied",
       "errorCopyFailed": "Copy failed.",
       "errorReadFailed": "Read failed.",
       "errorNameEmpty": "Display name cannot be empty",
@@ -856,19 +860,13 @@
       "deleteAllDialog2Message": "Once deleted, nothing can be recovered. Export a backup first if anything should be kept. This will close the app to reset it. Please open it again.",
       "deleteAllDialog2Confirm": "Delete everything",
       "deleteAllDialog2Cancel": "Go back",
-      "successPeerIdRotated": "Peer ID rotated",
       "errorPeerIdRotate": "Failed to rotate peer ID",
       "infoRestartRequired": "Saved. Will take effect after restart.",
-      "successPeerIdCopied": "Peer ID copied",
       "errorCopyFailed": "Copy failed.",
-      "successContactUnblocked": "Contact unblocked",
-      "successHistoryCleared": "Message history cleared",
       "appLockCard": "Application lock",
       "appLockBiometricRow": "Require biometric on launch",
       "appLockBiometricDescription": "Unlock Kursal with Face ID, Touch ID, or your device passcode each time it opens.",
       "appLockBiometricAriaLabel": "Require biometric on launch",
-      "successAppLockEnabled": "App lock enabled",
-      "successAppLockDisabled": "App lock disabled",
       "errorAppLockEnable": "Could not enable app lock"
     },
     "network": {
@@ -891,9 +889,10 @@
       "nearbyShareRow": "Nearby share",
       "nearbyShareDescription": "Allow local discovery via mDNS. Disabling this will only enable Bluetooth when on the Nearby tab.",
       "nearbyShareAriaLabel": "Nearby share",
-      "successRelaySaved": "Relay settings saved",
       "errorPortInvalid": "Port must be 1-65535 or empty",
       "successPortSaved": "Port saved, restart required to apply",
+      "successNodeAdded": "Node added",
+      "importPartial": "Imported {count} of {total} node(s)",
       "nodesCard": "Nodes",
       "nodesDescription": "Bootstrap and relay nodes Kursal connects to on startup.",
       "defaultNodesLabel": "Default nodes",
@@ -908,8 +907,6 @@
       "connectOncePlaceholder": "/ip4/1.2.3.4/tcp/4891/p2p/12D3Koo…",
       "connectOnceButton": "Connect",
       "connectOnceAriaLabel": "Address to dial once",
-      "successNodeAdded": "Node added",
-      "successNodeRemoved": "Node removed",
       "successDialed": "Connected",
       "errorInvalidAddress": "Invalid address format",
       "errorUnroutableAddress": "Address is not routable",
@@ -924,9 +921,6 @@
       "importButton": "Import",
       "importPlaceholder": "Paste node addresses, one per line",
       "importConfirm": "Import nodes",
-      "importDone": "Imported {count} node(s)",
-      "exportCopied": "Node list copied to clipboard",
-      "copied": "Copied to clipboard",
       "stateOnline": "Online",
       "stateOffline": "Offline",
       "stateConnecting": "Connecting…",
@@ -995,15 +989,21 @@
       "noSharedFilesLegend": "No shared files.",
       "openFilesFolder": "Open files folder",
       "openLogFolder": "Open log folder",
+      "viewLogs": "View logs",
+      "logViewer": {
+        "title": "Logs",
+        "fileLabel": "Log file",
+        "noFiles": "No log files yet.",
+        "empty": "This log file is empty.",
+        "truncated": "Showing the end of the file only.",
+        "refresh": "Refresh",
+        "errorLoad": "Couldn't read the log files."
+      },
       "never": "Never",
       "revokeConfirmTitle": "Revoke {count} share(s)?",
       "revokeConfirmMessage": "Recipients will immediately lose the ability to download these files.",
       "revokeConfirmDetail": "Files they have already downloaded stay on their device.",
-      "revokeConfirm": "Revoke",
-      "successShareRevoked": "Share revoked",
-      "successSharesRevoked": "Shares revoked",
-      "successAutoAcceptSaved": "Auto-accept saved",
-      "successStorageLimitSaved": "Storage limit saved"
+      "revokeConfirm": "Revoke"
     },
     "advanced": {
       "heading": "Advanced",
@@ -1020,7 +1020,6 @@
       "autoStartDescription": "Launch Kursal automatically when you log in.",
       "autoStartAriaLabel": "Start with system",
       "successAutoStartEnabled": "Auto-start enabled",
-      "successAutoStartDisabled": "Auto-start disabled",
       "errorAutoStart": "Auto-start failed.",
       "backgroundRow": "Keep running in background",
       "backgroundDescription": "When you close the window, Kursal keeps running in the background so you stay reachable and receive messages. A tray icon lets you reopen or quit.",
@@ -1036,7 +1035,6 @@
       "channelDescription": "Beta receives new features earlier, with less testing.",
       "channelStable": "Stable",
       "channelBeta": "Beta",
-      "channelSaved": "Update channel saved",
       "localApiCard": "Local API server",
       "localApiDescription": "Expose a local HTTP server for automation and custom clients. Treat the auth token as a password.",
       "enableRow": "Enable",
@@ -1079,7 +1077,6 @@
       "benchmarkResultPerIterCpu": "Per iter (CPU)",
       "benchmarkResultPerSecond": "Iter / sec",
       "benchmarkError": "Error.",
-      "benchmarkCopySuccess": "Benchmark results copied",
       "benchmarkCopyUnavailable": "Clipboard not available",
       "benchmarkCopyFailed": "Failed to copy results",
       "creditsCard": "Credits",
@@ -1090,7 +1087,6 @@
       "creditArt": "Art",
       "successApiSaved": "Local API saved. Restart Kursal to apply changes.",
       "successNewToken": "New token generated. Copy it now.",
-      "successTokenCopied": "Token copied",
       "errorCopyFailed": "Copy failed."
     }
   },
@@ -1105,7 +1101,6 @@
     "blockContact": "Block Contact",
     "unblockContact": "Unblock Contact",
     "removeContact": "Remove Contact",
-    "successUserIdCopied": "User ID copied",
     "successBlocked": "{name} blocked",
     "successUnblocked": "{name} unblocked",
     "errorBlock": "Failed to block contact",
@@ -1131,8 +1126,7 @@
     "closeButton": "Close",
     "confirmButton": "Confirm, codes match",
     "doLaterButton": "Do this later",
-    "successVerified": "Contact verified!",
-    "copied": "Security code copied"
+    "successVerified": "Contact verified!"
   },
 
   "connectionInfo": {
@@ -1145,7 +1139,6 @@
     "knownAddresses": "Known addresses",
     "noAddresses": "No addresses known yet.",
     "copyAriaLabel": "Copy address",
-    "copied": "Address copied",
     "reconnectButton": "Reconnect now",
     "reconnectSuccess": "Reconnected",
     "reconnectFailed": "Could not reach this contact",
@@ -1153,7 +1146,6 @@
   },
 
   "share": {
-    "copied": "Link copied",
     "copyLink": "Copy link",
     "close": "Close",
     "qrAlt": "QR code",
@@ -1171,7 +1163,8 @@
         "cta": "Show me"
       },
       "clickAdd": {
-        "body": "First, hit the **Add Contact** button. There are three ways to add a friend, and I'll walk you through each one."
+        "body": "First, hit the **Add Contact** button. There are three ways to add a friend, and I'll walk you through each one.",
+        "bodyOpenMenu": "Open the **menu** up there. Your contacts and the Add Contact button live in there."
       },
       "otpDetail": {
         "title": "One-Time Code",

@@ -43,6 +43,7 @@
 
 <style>
   .ks-input {
+    max-width: 100%;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--bg-input);

@@ -285,6 +285,55 @@ fn kursal_message_serialize_roundtrip_all_variants() {
 }
 
 #[test]
+fn target_message_id_covers_every_mutation() {
+    use crate::messaging::enums::{
+        MessageDelete, MessageEdit, MessagePin, ReactionAdd, ReactionRemove, TextMessage,
+    };
+
+    let target = MessageId::new();
+
+    let mutations = vec![
+        KursalMessage::MessageEdit(MessageEdit {
+            target_id: target,
+            new_content: "edited".to_string(),
+            edited_at: 1,
+        }),
+        KursalMessage::MessageDelete(MessageDelete { target_id: target }),
+        KursalMessage::MessagePin(MessagePin {
+            target_id: target,
+            pinned: true,
+        }),
+        KursalMessage::ReactionAdd(ReactionAdd {
+            target_id: target,
+            emoji: "👍".to_string(),
+            timestamp: 1,
+        }),
+        KursalMessage::ReactionRemove(ReactionRemove {
+            target_id: target,
+            emoji: "👍".to_string(),
+        }),
+    ];
+
+    for msg in &mutations {
+        assert_eq!(
+            msg.target_message_id(),
+            Some(target),
+            "{} should expose its target",
+            msg.kind_name()
+        );
+    }
+
+    let standalone = KursalMessage::Text(TextMessage {
+        id: MessageId::new(),
+        content: "hi".to_string(),
+        timestamp: 1,
+        reply_to: None,
+    });
+    assert_eq!(standalone.target_message_id(), None);
+    assert_eq!(KursalMessage::Typing.target_message_id(), None);
+}
+
+#[test]
 fn kursal_message_deserialize_rejects_garbage() {
     assert!(KursalMessage::deserialize(&[0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]).is_err());
 }

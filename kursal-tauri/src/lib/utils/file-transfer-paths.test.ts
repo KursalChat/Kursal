@@ -1,18 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // file-transfer-paths imports Tauri plugins at module load; stub them so the
-// pure helper under test (filenameFromPath) can be imported in isolation.
-vi.mock('@tauri-apps/api/path', () => ({ appCacheDir: vi.fn(), join: vi.fn() }));
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  copyFile: vi.fn(),
-  readFile: vi.fn(),
-  remove: vi.fn(),
-  writeFile: vi.fn(),
-}));
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
-vi.mock('$lib/api/window', () => ({ isMobile: false, OS: 'macos' }));
+// helpers under test can be imported in isolation.
+const writeFile = vi.fn(async () => {});
+const readFile = vi.fn(async () => new Uint8Array());
+const copyFile = vi.fn(async () => {});
 
-const { filenameFromPath } = await import('./file-transfer-paths');
+let slot = 0;
+const createOutgoingPendingPath = vi.fn(async (filename: string) => {
+  slot += 1;
+  return `/data/outgoing/pending/${slot}/${filename}`;
+});
+
+vi.mock('@tauri-apps/plugin-fs', () => ({ copyFile, readFile, writeFile }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
+vi.mock('$lib/api/messages', () => ({ createOutgoingPendingPath }));
+
+const { filenameFromPath, prepareOfferFromBytes, prepareOfferSourcePath } =
+  await import('./file-transfer-paths');
 
 describe('filenameFromPath', () => {
   it("returns 'file' for empty input", () => {
@@ -34,8 +39,53 @@ describe('filenameFromPath', () => {
   it('replaces unsafe characters with underscores', () => {
     expect(filenameFromPath('/tmp/a b*c?.txt')).toBe('a_b_c_.txt');
   });
+});
 
-  it('handles content:// URIs', () => {
-    expect(filenameFromPath('content://media/external/file/1234')).toBe('1234');
+describe('prepareOfferSourcePath', () => {
+  beforeEach(() => {
+    readFile.mockClear();
+    writeFile.mockClear();
+  });
+
+  // A drop must never be read or copied by the webview - a 1 GB file has to
+  // cost nothing until the core streams it.
+  it('offers a dropped file from its original path without touching the bytes', async () => {
+    const prepared = await prepareOfferSourcePath('/home/user/holiday.png');
+
+    expect(prepared.backendPath).toBe('/home/user/holiday.png');
+    expect(prepared.filename).toBe('holiday.png');
+    expect(readFile).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a file:// URI to a local path', async () => {
+    const prepared = await prepareOfferSourcePath('file:///home/user/my%20file.txt');
+    expect(prepared.backendPath).toBe('/home/user/my file.txt');
+  });
+});
+
+describe('pending staging', () => {
+  beforeEach(() => {
+    writeFile.mockClear();
+    createOutgoingPendingPath.mockClear();
+  });
+
+  // The core offers the peer whatever the staged path's basename is, so the
+  // name must survive staging untouched - uniqueness lives in the directory.
+  it('keeps the filename as the basename and makes the directory unique', async () => {
+    const a = await prepareOfferFromBytes(new Uint8Array([1, 2, 3]), 'holiday.png');
+    const b = await prepareOfferFromBytes(new Uint8Array([4, 5, 6]), 'holiday.png');
+
+    expect(a.filename).toBe('holiday.png');
+    expect(a.backendPath.split('/').pop()).toBe('holiday.png');
+    expect(b.backendPath.split('/').pop()).toBe('holiday.png');
+    expect(a.backendPath).not.toBe(b.backendPath);
+  });
+
+  it('writes the bytes to the slot the core handed back', async () => {
+    const staged = await prepareOfferFromBytes(new Uint8Array([1]), 'note.txt');
+
+    expect(createOutgoingPendingPath).toHaveBeenCalledWith('note.txt');
+    expect(writeFile).toHaveBeenCalledWith(staged.backendPath, new Uint8Array([1]));
   });
 });

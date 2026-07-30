@@ -37,6 +37,7 @@
     onEditLast: () => void;
     onOpenProfile: () => void;
     onPasteImage: (data: { bytes: Uint8Array; ext: string }) => void;
+    onPasteLongText: (text: string) => void;
     composerEl?: HTMLTextAreaElement | null;
   }
 
@@ -58,6 +59,7 @@
     onEditLast,
     onOpenProfile,
     onPasteImage,
+    onPasteLongText,
     composerEl = $bindable(null),
   }: Props = $props();
 
@@ -360,6 +362,13 @@
         return;
       }
     }
+
+    const text = e.clipboardData?.getData('text/plain') ?? '';
+    if (!text) return;
+    const selLen = composerEl ? composerEl.selectionEnd - composerEl.selectionStart : 0;
+    if (inputText.length - selLen + text.length <= MAX_MESSAGE_LENGTH) return;
+    e.preventDefault();
+    onPasteLongText(text);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -649,11 +658,10 @@
             ? t('chat.composer.placeholderReplying')
             : t('chat.composer.placeholder', { name: contact.displayName })}
         rows="1"
-        maxlength={MAX_MESSAGE_LENGTH}
         disabled={sending}></textarea>
 
       {#if nearLimit}
-        <span class="char-count" class:over={inputText.length >= MAX_MESSAGE_LENGTH}
+        <span class="char-count" class:over={inputText.length > MAX_MESSAGE_LENGTH}
           >{MAX_MESSAGE_LENGTH - inputText.length}</span
         >
       {/if}

@@ -10,12 +10,14 @@
   import { removeContact, setContactBlocked } from '$lib/api/contacts';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import { busy } from '$lib/utils/busy.svelte';
+  import { flash } from '$lib/utils/flash.svelte';
   import { trapFocus } from '$lib/utils/focusTrap';
   import Spinner from './Spinner.svelte';
   import { t } from '$lib/i18n';
 
   const blockBusy = busy();
   const removeBusy = busy();
+  const copiedUserId = flash();
 
   let { contact, onClose }: { contact: ContactResponse | null; onClose: () => void } = $props();
 
@@ -44,7 +46,7 @@
     if (!contact) return;
     try {
       await navigator.clipboard.writeText(contact.userId);
-      notifications.push(t('profile.successUserIdCopied'), 'success');
+      copiedUserId.trigger();
     } catch (e) {
       log.error('Copy failed', e);
     }
@@ -176,11 +178,16 @@
             <span class="user-id-label">{t('profile.userIdLabel')}</span>
             <button
               class="copy-btn"
+              class:confirmed={copiedUserId.active}
               onclick={copyUserId}
               title={t('profile.copyUserId')}
-              aria-label={t('profile.copyUserId')}
+              aria-label={copiedUserId.active ? t('common.copied') : t('profile.copyUserId')}
             >
-              <Copy size={13} />
+              {#if copiedUserId.active}
+                <Check size={13} />
+              {:else}
+                <Copy size={13} />
+              {/if}
             </button>
           </div>
           <code class="user-id-value">{contact.userId}</code>
@@ -362,6 +369,11 @@
   .copy-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+
+  .copy-btn.confirmed,
+  .copy-btn.confirmed:hover {
+    color: var(--success);
   }
 
   .user-id-value {

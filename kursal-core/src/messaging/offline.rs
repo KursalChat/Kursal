@@ -461,6 +461,16 @@ pub async fn deliver_queue_direct(
         return Ok(0);
     }
 
+    if !contact.offline.pending_bundles.is_empty() {
+        log::debug!(
+            "[offline] direct drain held for contact={} bundles={} queue={}",
+            hex::encode(contact.user_id.0),
+            contact.offline.pending_bundles.len(),
+            contact.offline.send_queue.len()
+        );
+        return Ok(0);
+    }
+
     let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
         return Ok(0);
     };

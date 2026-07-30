@@ -89,6 +89,17 @@ impl KursalMessage {
         }
     }
 
+    pub fn target_message_id(&self) -> Option<MessageId> {
+        match self {
+            KursalMessage::MessageEdit(m) => Some(m.target_id),
+            KursalMessage::MessageDelete(m) => Some(m.target_id),
+            KursalMessage::MessagePin(m) => Some(m.target_id),
+            KursalMessage::ReactionAdd(m) => Some(m.target_id),
+            KursalMessage::ReactionRemove(m) => Some(m.target_id),
+            _ => None,
+        }
+    }
+
     pub fn kind_name(&self) -> &'static str {
         match self {
             KursalMessage::Text(_) => "Text",

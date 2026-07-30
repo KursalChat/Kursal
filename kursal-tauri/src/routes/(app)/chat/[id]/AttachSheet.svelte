@@ -5,25 +5,23 @@
 
   interface Props {
     onClose: () => void;
-    onPickMedia: () => void;
-    onPickFile: () => void;
-    onCameraCapture: (file: File) => void;
+    onPickFiles: (files: File[]) => void;
   }
 
-  let { onClose, onPickMedia, onPickFile, onCameraCapture }: Props = $props();
+  let { onClose, onPickFiles }: Props = $props();
 
+  // The webview's own file inputs are what mobile picks with: the OS returns
+  // File objects carrying the real display name, where the native dialog hands
+  // back opaque content:// ids that leave the peer with an unnamed blob.
+  let galleryInput = $state<HTMLInputElement | null>(null);
+  let filesInput = $state<HTMLInputElement | null>(null);
   let cameraInput = $state<HTMLInputElement | null>(null);
 
-  function onCameraChange(e: Event) {
+  function onFilesChange(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = Array.from(input.files ?? []);
     input.value = '';
-    if (file) onCameraCapture(file);
-    onClose();
-  }
-
-  function choose(fn: () => void) {
-    fn();
+    if (files.length) onPickFiles(files);
     onClose();
   }
 </script>
@@ -51,23 +49,38 @@
 >
   <div class="sheet-handle"></div>
   <div class="sheet-actions">
-    <button class="sheet-row" onclick={() => choose(onPickMedia)}>
+    <button class="sheet-row" onclick={() => galleryInput?.click()}>
       <Image size={20} /><span>{t('chat.attach.photos')}</span>
     </button>
     <button class="sheet-row" onclick={() => cameraInput?.click()}>
       <Camera size={20} /><span>{t('chat.attach.camera')}</span>
     </button>
-    <button class="sheet-row" onclick={() => choose(onPickFile)}>
+    <button class="sheet-row" onclick={() => filesInput?.click()}>
       <Paperclip size={20} /><span>{t('chat.attach.files')}</span>
     </button>
   </div>
   <input
+    bind:this={galleryInput}
+    class="hidden-input"
+    type="file"
+    accept="image/*,video/*"
+    multiple
+    onchange={onFilesChange}
+  />
+  <input
+    bind:this={filesInput}
+    class="hidden-input"
+    type="file"
+    multiple
+    onchange={onFilesChange}
+  />
+  <input
     bind:this={cameraInput}
-    class="camera-input"
+    class="hidden-input"
     type="file"
     accept="image/*,video/*"
     capture="environment"
-    onchange={onCameraChange}
+    onchange={onFilesChange}
   />
 </div>
 
@@ -135,7 +148,7 @@
   .sheet-row:active {
     background: var(--bg-hover);
   }
-  .camera-input {
+  .hidden-input {
     position: absolute;
     width: 1px;
     height: 1px;

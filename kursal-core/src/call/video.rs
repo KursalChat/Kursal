@@ -11,9 +11,10 @@ use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Notify, mpsc, oneshot};
 
-pub const MAX_VIDEO_FRAME_BYTES: usize = 262144;
+pub const MAX_VIDEO_FRAME_BYTES: usize = 131072;
 const FRAME_OVERHEAD_BYTES: usize = 48;
 const TX_QUEUE_CHUNKS: usize = 30;
+const CONGESTION_BACKLOG_CHUNKS: usize = TX_QUEUE_CHUNKS / 2;
 const CONGESTION_EMIT_MIN: Duration = Duration::from_millis(1000);
 
 pub(crate) fn seal_frame(key: &[u8; 32], seq: u64, chunk: &[u8]) -> Result<Vec<u8>> {
@@ -50,6 +51,7 @@ pub async fn deliver_incoming_stream(peer_id: PeerId, stream: Stream) {
 struct TxSession {
     stop: Arc<AtomicBool>,
     chunk_tx: mpsc::Sender<Vec<u8>>,
+    dropped: Arc<AtomicBool>,
 }
 
 fn tx_slot() -> &'static StdMutex<Option<TxSession>> {
@@ -79,8 +81,10 @@ pub fn set_rx_forwarder(f: RxForwarder) {
 }
 
 pub fn send_chunk(bytes: Vec<u8>) {
-    if let Some(session) = tx_slot().lock().unwrap().as_ref() {
-        let _ = session.chunk_tx.try_send(bytes);
+    if let Some(session) = tx_slot().lock().unwrap().as_ref()
+        && session.chunk_tx.try_send(bytes).is_err()
+    {
+        session.dropped.store(true, Ordering::Relaxed);
     }
 }
 
@@ -91,6 +95,7 @@ pub fn start_tx(
     app_event_tx: mpsc::Sender<AppEvent>,
 ) {
     let stop = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
     let (chunk_tx, mut chunk_rx) = mpsc::channel::<Vec<u8>>(TX_QUEUE_CHUNKS);
     {
         let mut slot = tx_slot().lock().unwrap();
@@ -100,7 +105,8 @@ pub fn start_tx(
         }
         *slot = Some(TxSession {
             stop: stop.clone(),
-            chunk_tx: chunk_tx.clone(),
+            chunk_tx,
+            dropped: dropped.clone(),
         });
     }
     tokio::spawn(async move {
@@ -125,7 +131,8 @@ pub fn start_tx(
             let Some(chunk) = chunk_rx.recv().await else {
                 break;
             };
-            if chunk_tx.capacity() == 0 {
+            if dropped.swap(false, Ordering::Relaxed) || chunk_rx.len() >= CONGESTION_BACKLOG_CHUNKS
+            {
                 while chunk_rx.try_recv().is_ok() {}
                 let now = Instant::now();
                 let should_emit = match last_congestion {
@@ -134,6 +141,7 @@ pub fn start_tx(
                 };
                 if should_emit {
                     last_congestion = Some(now);
+                    log::warn!("[call] video tx: congested, dropped backlog to {peer_id}");
                     let _ = app_event_tx.try_send(AppEvent::VideoCongestion);
                 }
                 continue;

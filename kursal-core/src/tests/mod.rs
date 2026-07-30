@@ -11,6 +11,7 @@ mod contact;
 mod crypto;
 mod dht;
 mod identity;
+mod image_metadata;
 mod ltc;
 mod messaging;
 mod nearby;
