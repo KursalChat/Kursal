@@ -264,6 +264,7 @@
 
   "onboarding": {
     "stepProgress": "Step {current} of {total}",
+    "skip": "Skip",
     "screen1": {
       "heading": "Hi. I'm Winston.",
       "subtitle": "And I believe privacy is fundamental.",

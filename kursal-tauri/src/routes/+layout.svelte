@@ -150,7 +150,7 @@
     }
     if (contactsState.isMuted(contactId)) return;
     if (background) {
-      void notifyMessage({ senderName, body });
+      void notifyMessage({ contactId, senderName, body });
       return;
     }
     if ($page.url.pathname === `/chat/${contactId}`) return;

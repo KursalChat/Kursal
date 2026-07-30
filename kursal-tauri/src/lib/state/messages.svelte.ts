@@ -16,6 +16,7 @@ import {
   retryMessage as retryMessageApi,
   sendReadReceipts,
 } from '$lib/api/messages';
+import { clearNotificationsFor } from '$lib/api/system-notify';
 import { insertInSentOrder, loadDelayed, saveDelayed } from './delayedStore';
 
 const AUTODOWNLOAD_STORAGE_KEY = 'kursal:autodownloadPaths';
@@ -632,6 +633,7 @@ function createMessagesState() {
   }
 
   function markRead(contactId: string) {
+    void clearNotificationsFor(contactId);
     if (!unreadByContact[contactId]) return;
     dispatchReadReceipts(contactId, unreadByContact[contactId]);
     unreadByContact[contactId] = 0;
@@ -639,6 +641,7 @@ function createMessagesState() {
 
   function markAllRead() {
     for (const cid of Object.keys(unreadByContact)) {
+      void clearNotificationsFor(cid);
       dispatchReadReceipts(cid, unreadByContact[cid]);
       unreadByContact[cid] = 0;
     }

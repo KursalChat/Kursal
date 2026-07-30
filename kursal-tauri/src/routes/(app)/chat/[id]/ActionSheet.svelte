@@ -59,76 +59,104 @@
     }
     return out.slice(0, 6);
   });
+
+  const MOUSE_ONLY = typeof navigator !== 'undefined' && navigator.maxTouchPoints === 0;
+  let pressed = false;
+
+  function pressGuard(node: HTMLElement) {
+    const arm = () => (pressed = true);
+    const guard = (e: MouseEvent) => {
+      // detail 0 means keyboard / assistive activation, which has no press.
+      if (pressed || e.detail === 0) {
+        pressed = false;
+        return;
+      }
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    node.addEventListener('touchstart', arm, true);
+    if (MOUSE_ONLY) node.addEventListener('pointerdown', arm, true);
+    node.addEventListener('click', guard, true);
+    return {
+      destroy() {
+        node.removeEventListener('touchstart', arm, true);
+        node.removeEventListener('pointerdown', arm, true);
+        node.removeEventListener('click', guard, true);
+      },
+    };
+  }
 </script>
 
-<div
-  class="sheet-backdrop"
-  onclick={onClose}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onClose();
-  }}
-  role="button"
-  tabindex="-1"
-  aria-label={t('chat.actionSheet.backdropAriaLabel')}
-></div>
-<div
-  class="action-sheet"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('chat.actionSheet.dialogAriaLabel')}
-  tabindex="-1"
-  use:trapFocus
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onClose();
-  }}
->
-  <div class="sheet-handle"></div>
-  <div class="sheet-reactions">
-    {#each quickEmojis as emoji (emoji)}
-      <button class="sheet-emoji" onclick={() => onReact(emoji)}>{emoji}</button>
-    {/each}
-    <button
-      class="sheet-emoji more"
-      onclick={onMoreEmoji}
-      aria-label={t('chat.actionSheet.moreEmojiAriaLabel')}
-    >
-      <MoreHorizontal size={18} />
-    </button>
-  </div>
-  <div class="sheet-actions">
-    <button class="sheet-row" onclick={onReply}>
-      <Reply size={18} /><span>{t('chat.actionSheet.reply')}</span>
-    </button>
-    <button class="sheet-row" onclick={onCopy}>
-      <Copy size={18} /><span>{t('chat.actionSheet.copy')}</span>
-    </button>
-    {#if canPin}
-      <button class="sheet-row" onclick={onTogglePin}>
-        <Pin size={18} /><span
-          >{msg.pinned ? t('chat.actionSheet.unpin') : t('chat.actionSheet.pin')}</span
-        >
+<div use:pressGuard>
+  <div
+    class="sheet-backdrop"
+    onclick={onClose}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') onClose();
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label={t('chat.actionSheet.backdropAriaLabel')}
+  ></div>
+  <div
+    class="action-sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-label={t('chat.actionSheet.dialogAriaLabel')}
+    tabindex="-1"
+    use:trapFocus
+    onkeydown={(e) => {
+      if (e.key === 'Escape') onClose();
+    }}
+  >
+    <div class="sheet-handle"></div>
+    <div class="sheet-reactions">
+      {#each quickEmojis as emoji (emoji)}
+        <button class="sheet-emoji" onclick={() => onReact(emoji)}>{emoji}</button>
+      {/each}
+      <button
+        class="sheet-emoji more"
+        onclick={onMoreEmoji}
+        aria-label={t('chat.actionSheet.moreEmojiAriaLabel')}
+      >
+        <MoreHorizontal size={18} />
       </button>
-    {/if}
-    {#if !msg.fileDetails && msg.content}
-      <button class="sheet-row" onclick={onForward}>
-        <Forward size={18} /><span>{t('chat.actionSheet.forward')}</span>
+    </div>
+    <div class="sheet-actions">
+      <button class="sheet-row" onclick={onReply}>
+        <Reply size={18} /><span>{t('chat.actionSheet.reply')}</span>
       </button>
-    {/if}
-    {#if !msg.fileDetails && msg.content}
-      <button class="sheet-row" onclick={onSelectText}>
-        <TextCursorInput size={18} /><span>{t('chat.actionSheet.selectText')}</span>
+      <button class="sheet-row" onclick={onCopy}>
+        <Copy size={18} /><span>{t('chat.actionSheet.copy')}</span>
       </button>
-    {/if}
-    {#if msg.direction === 'sent' && !msg.fileDetails}
-      <button class="sheet-row" onclick={onEdit}>
-        <Pencil size={18} /><span>{t('chat.actionSheet.edit')}</span>
-      </button>
-    {/if}
-    {#if msg.direction === 'sent'}
-      <button class="sheet-row danger" onclick={onDelete}>
-        <Trash2 size={18} /><span>{t('chat.actionSheet.delete')}</span>
-      </button>
-    {/if}
+      {#if canPin}
+        <button class="sheet-row" onclick={onTogglePin}>
+          <Pin size={18} /><span
+            >{msg.pinned ? t('chat.actionSheet.unpin') : t('chat.actionSheet.pin')}</span
+          >
+        </button>
+      {/if}
+      {#if !msg.fileDetails && msg.content}
+        <button class="sheet-row" onclick={onForward}>
+          <Forward size={18} /><span>{t('chat.actionSheet.forward')}</span>
+        </button>
+      {/if}
+      {#if !msg.fileDetails && msg.content}
+        <button class="sheet-row" onclick={onSelectText}>
+          <TextCursorInput size={18} /><span>{t('chat.actionSheet.selectText')}</span>
+        </button>
+      {/if}
+      {#if msg.direction === 'sent' && !msg.fileDetails}
+        <button class="sheet-row" onclick={onEdit}>
+          <Pencil size={18} /><span>{t('chat.actionSheet.edit')}</span>
+        </button>
+      {/if}
+      {#if msg.direction === 'sent'}
+        <button class="sheet-row danger" onclick={onDelete}>
+          <Trash2 size={18} /><span>{t('chat.actionSheet.delete')}</span>
+        </button>
+      {/if}
+    </div>
   </div>
 </div>
 
