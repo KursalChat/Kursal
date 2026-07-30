@@ -78,14 +78,22 @@
     nameInput?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
+  function snapInputIntoView() {
+    nameInput?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
+
   $effect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const onViewportChange = () => {
-      if (document.activeElement === nameInput) keepInputVisible();
+      if (document.activeElement === nameInput) snapInputIntoView();
     };
     vv.addEventListener('resize', onViewportChange);
-    return () => vv.removeEventListener('resize', onViewportChange);
+    vv.addEventListener('scroll', onViewportChange);
+    return () => {
+      vv.removeEventListener('resize', onViewportChange);
+      vv.removeEventListener('scroll', onViewportChange);
+    };
   });
 
   function chars(text: string, step = 28) {

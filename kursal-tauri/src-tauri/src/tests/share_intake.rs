@@ -1,4 +1,6 @@
-use crate::share_intake::{ShareFile, SharePayload, discard_in, take_pending_in};
+use crate::share_intake::{
+    ShareFile, SharePayload, discard_in, drain_opened, queue_opened, take_pending_in,
+};
 use kursal_core::storage::filetransfer::outgoing_pending_dir;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -167,6 +169,98 @@ fn rejects_files_outside_the_root() {
 }
 
 #[test]
+fn rejects_files_belonging_to_another_share() {
+    let d = temp_dirs();
+
+    // No manifest, so this share is not drained itself - otherwise its own file
+    // would be adopted and the assertion below could not tell the two apart.
+    let victim = d.root.join("bbb");
+    std::fs::create_dir_all(&victim).unwrap();
+    std::fs::write(victim.join("private.jpg"), b"payload").unwrap();
+
+    let dir = d.root.join("aaa");
+    std::fs::create_dir_all(&dir).unwrap();
+    let manifest = SharePayload {
+        id: String::new(),
+        files: vec![ShareFile {
+            path: victim.join("private.jpg").to_string_lossy().into_owned(),
+            filename: "private.jpg".to_string(),
+            size_bytes: 7,
+        }],
+        text: Some("caption".to_string()),
+    };
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let payloads = take_pending_in(&d.root, &d.app_data).unwrap();
+    let stolen = payloads.iter().find(|p| p.id == "aaa").unwrap();
+
+    assert!(stolen.files.is_empty());
+    assert!(victim.join("private.jpg").is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_symlink_pointing_outside_the_share() {
+    let d = temp_dirs();
+    let secret = d.app_data.join("secret.txt");
+    std::fs::write(&secret, b"nope").unwrap();
+
+    let dir = d.root.join("aaa");
+    std::fs::create_dir_all(&dir).unwrap();
+    let link = dir.join("holiday.png");
+    std::os::unix::fs::symlink(&secret, &link).unwrap();
+
+    let manifest = SharePayload {
+        id: String::new(),
+        files: vec![ShareFile {
+            path: link.to_string_lossy().into_owned(),
+            filename: "holiday.png".to_string(),
+            size_bytes: 4,
+        }],
+        text: Some("caption".to_string()),
+    };
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let payloads = take_pending_in(&d.root, &d.app_data).unwrap();
+
+    assert!(payloads[0].files.is_empty());
+    assert!(secret.is_file());
+    assert_eq!(std::fs::read(&secret).unwrap(), b"nope");
+}
+
+#[test]
+fn discard_leaves_a_longer_id_sharing_the_same_prefix_alone() {
+    let d = temp_dirs();
+    stage(&d.root, "abc", &["one.jpg"], None);
+    stage(&d.root, "abc-1", &["two.jpg"], None);
+    let payloads = take_pending_in(&d.root, &d.app_data).unwrap();
+
+    let keep = payloads
+        .iter()
+        .find(|p| p.id == "abc-1")
+        .map(|p| PathBuf::from(&p.files[0].path))
+        .unwrap();
+    let gone = payloads
+        .iter()
+        .find(|p| p.id == "abc")
+        .map(|p| PathBuf::from(&p.files[0].path))
+        .unwrap();
+
+    discard_in(&d.root, &d.app_data, "abc").unwrap();
+
+    assert!(!gone.exists());
+    assert!(keep.is_file());
+}
+
+#[test]
 fn removes_unparseable_manifest() {
     let d = temp_dirs();
     let dir = d.root.join("aaa");
@@ -227,6 +321,44 @@ fn discard_rejects_traversal() {
     assert!(discard_in(&d.root, &d.app_data, "../bbb").is_err());
     assert!(discard_in(&d.root, &d.app_data, "").is_err());
     assert!(sibling.exists());
+}
+
+#[test]
+fn opened_files_are_queued_in_place_and_drained_once() {
+    let d = temp_dirs();
+    let real = d.root.join("holiday.png");
+    std::fs::write(&real, b"bytes").unwrap();
+    let missing = d.root.join("gone.png");
+
+    assert!(!queue_opened(vec![(
+        missing.to_string_lossy().into_owned(),
+        "gone.png".to_string()
+    )]));
+
+    assert!(queue_opened(vec![(
+        real.to_string_lossy().into_owned(),
+        "holiday.png".to_string()
+    )]));
+
+    let payloads = drain_opened();
+    let opened: Vec<_> = payloads
+        .iter()
+        .filter(|p| p.files.iter().any(|f| f.filename == "holiday.png"))
+        .collect();
+
+    assert_eq!(opened.len(), 1);
+    let file = &opened[0].files[0];
+    assert_eq!(file.size_bytes, 5);
+
+    assert_eq!(Path::new(&file.path), real);
+    assert!(real.is_file());
+
+    assert!(
+        drain_opened()
+            .iter()
+            .all(|p| p.files.iter().all(|f| f.filename != "holiday.png"))
+    );
+    assert!(real.is_file());
 }
 
 #[test]

@@ -260,6 +260,9 @@
     // The iOS share extension foregrounds the app with kursal://share.
     unlistenPromises.push(onOpenUrl(() => void shareIntentState.drain()));
 
+    // Desktop "Open with Kursal" hands the files straight to the backend.
+    unlistenPromises.push(listen('share_received', () => void shareIntentState.drain()));
+
     const stopFocusTracking = appFocusState.init();
 
     const handleVisibilityChange = () => {

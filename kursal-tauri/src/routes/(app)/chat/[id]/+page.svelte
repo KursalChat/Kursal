@@ -178,7 +178,9 @@
     }[]
   >([]);
   let sendingFile = $state(false);
-  let sharePayloadId = $state<string | null>(null);
+  // Several shares can be staged into one composer, so every claimed payload is
+  // tracked until the files are sent or dropped.
+  let sharePayloadIds = $state<string[]>([]);
   let shareCaption = $state('');
   let unlistenDrop: (() => void) | null = null;
   let prevMessagesLength = $state(0);
@@ -1016,16 +1018,16 @@
       return;
     }
 
-    sharePayloadId = payload.id;
-    shareCaption = text;
+    sharePayloadIds = [...sharePayloadIds, payload.id];
+    if (text) shareCaption = shareCaption ? `${shareCaption}\n${text}` : text;
     pendingFiles = [...pendingFiles, ...staged];
   }
 
   function releaseSharedFiles() {
-    const id = sharePayloadId;
-    sharePayloadId = null;
+    const ids = sharePayloadIds;
+    sharePayloadIds = [];
     shareCaption = '';
-    if (id) void shareIntentState.release(id);
+    for (const id of ids) void shareIntentState.release(id);
   }
 
   let searchSeq = 0;

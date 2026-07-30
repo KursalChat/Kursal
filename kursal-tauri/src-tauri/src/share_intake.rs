@@ -1,7 +1,9 @@
+use kursal_core::messaging::enums::MessageId;
 use kursal_core::storage::filetransfer::{outgoing_pending_dir, sanitize_filename};
 use kursal_core::{KursalError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub const SHARE_DIR: &str = "kursal-shares";
 pub const APP_GROUP: &str = "group.chat.kursal";
@@ -53,8 +55,55 @@ pub fn share_root() -> Result<PathBuf> {
     Ok(PathBuf::from(path.to_string()).join(SHARE_DIR))
 }
 
+static OPENED: Mutex<Vec<SharePayload>> = Mutex::new(Vec::new());
+
+/// Files handed over by the OS "Open with" flow
+pub fn queue_opened(files: Vec<(String, String)>) -> bool {
+    let files: Vec<ShareFile> = files
+        .into_iter()
+        .filter_map(|(path, filename)| {
+            let size_bytes = std::fs::metadata(&path).ok()?.len();
+            Path::new(&path).is_file().then_some(ShareFile {
+                path,
+                filename,
+                size_bytes,
+            })
+        })
+        .collect();
+
+    if files.is_empty() {
+        return false;
+    }
+
+    let payload = SharePayload {
+        id: hex::encode(MessageId::new().0),
+        files,
+        text: None,
+    };
+
+    match OPENED.lock() {
+        Ok(mut queue) => {
+            queue.push(payload);
+            true
+        }
+        Err(err) => {
+            log::warn!("Could not queue opened files: {err}");
+            false
+        }
+    }
+}
+
+pub fn drain_opened() -> Vec<SharePayload> {
+    OPENED
+        .lock()
+        .map(|mut queue| queue.drain(..).collect())
+        .unwrap_or_default()
+}
+
 pub fn take_pending(app_data_dir: &Path) -> Result<Vec<SharePayload>> {
-    take_pending_in(&share_root()?, app_data_dir)
+    let mut payloads = take_pending_in(&share_root()?, app_data_dir)?;
+    payloads.extend(drain_opened());
+    Ok(payloads)
 }
 
 pub fn discard(app_data_dir: &Path, id: &str) -> Result<()> {
@@ -102,7 +151,7 @@ pub fn take_pending_in(root: &Path, app_data_dir: &Path) -> Result<Vec<SharePayl
         let files = payload
             .files
             .into_iter()
-            .filter(|file| is_contained_file(root, &file.path))
+            .filter(|file| is_contained_file(&dir, &file.path))
             .enumerate()
             .filter_map(|(index, file)| adopt_into_pending(app_data_dir, &id, index, file))
             .collect();
@@ -179,7 +228,14 @@ fn discard_adopted(app_data_dir: &Path, id: &str) {
 
     let prefix = format!("{id}-");
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(&prefix) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+
+        // Only "<id>-<index>", never a longer id that merely starts the same
+        let is_own_dir = name
+            .strip_prefix(&prefix)
+            .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()));
+
+        if is_own_dir {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
@@ -198,7 +254,14 @@ fn is_safe_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-fn is_contained_file(root: &Path, path: &str) -> bool {
+fn is_contained_file(dir: &Path, path: &str) -> bool {
     let path = Path::new(path);
-    path.is_file() && path.components().all(|c| c.as_os_str() != "..") && path.starts_with(root)
+    if !path.is_file() {
+        return false;
+    }
+
+    match (path.canonicalize(), dir.canonicalize()) {
+        (Ok(file), Ok(dir)) => file.starts_with(dir),
+        _ => false,
+    }
 }
