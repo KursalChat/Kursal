@@ -25,6 +25,7 @@
   import { OS, isMobile } from '$lib/api/window';
   import { acceptFileOffer } from '$lib/api/messages';
   import { notifyError } from '$lib/utils/errors';
+  import { clearOtpSession } from '$lib/utils/otpSession';
   import {
     handleBackendDialog,
     runStartupDialogs,
@@ -461,6 +462,10 @@
         goto('/chat/' + event.payload.userId);
       })
     );
+
+    // Pairing consumes the published OTP, and contact_added navigates away from
+    // the add-contact page, so the dead code has to be dropped from here too.
+    unlistenPromises.push(listen('otp_consumed', () => clearOtpSession()));
 
     // Listen to delivery_confirmed event
     unlistenPromises.push(

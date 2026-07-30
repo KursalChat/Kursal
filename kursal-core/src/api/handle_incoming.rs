@@ -11,7 +11,7 @@ use crate::{
     },
     contacts::Contact,
     crypto::messages::message_receive,
-    first_contact::{FileTransferMessage, WireMessage, handle_fc_response},
+    first_contact::{FileTransferMessage, WireMessage, handle_fc_response, resolve_ack_waiter},
     identity::UserId,
     messaging::{
         StoredMessage,
@@ -53,6 +53,14 @@ pub async fn handle_incoming(
         }
         Ok(WireMessage::FileTransfer(chunk)) => {
             let _ = chunk_tx.send((from, chunk)).await;
+            return Ok(());
+        }
+        Ok(WireMessage::ContactAccepted(payload_id)) => {
+            resolve_ack_waiter(payload_id, Ok(()));
+            return Ok(());
+        }
+        Ok(WireMessage::ContactRejected { payload_id, reason }) => {
+            resolve_ack_waiter(payload_id, Err(reason));
             return Ok(());
         }
         Ok(WireMessage::Terminate) => {

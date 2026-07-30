@@ -6,7 +6,9 @@ use crate::{
         PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
         stream::{stream_decrypt, stream_encrypt},
     },
-    first_contact::{ContactResponse, WireMessage, make_username},
+    first_contact::{
+        ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
+    },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::{
@@ -15,7 +17,9 @@ use crate::{
         kademlia::KAD_MAX_AGE,
         swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
     },
-    storage::{SharedDatabase, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs},
+    storage::{
+        SharedDatabase, TABLE_SESSIONS, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs,
+    },
 };
 use argon2::{Argon2, ParamsBuilder};
 use libp2p::PeerId;
@@ -29,6 +33,7 @@ use zeroize::Zeroizing;
 
 const SALT: &[u8; 16] = b"kursal-otp-salt1";
 const WORDS: &str = include_str!("otp_wordlist.txt");
+const ACK_TIMEOUT_SECS: u64 = 20;
 
 pub fn generate_otp() -> Result<String> {
     let wordlist: Vec<&str> = WORDS.lines().filter(|s| !s.is_empty()).collect();
@@ -153,6 +158,8 @@ pub async fn publish_otp(otp: &str, db: SharedDatabase, network: &NetworkManager
         let db_lock = db.0.lock().await;
         db_lock.raw_write(TABLE_SETTINGS, "otp_published_at", &timestamp.to_be_bytes())?;
         db_lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)?;
+        db_lock.raw_write(TABLE_SETTINGS, "otp_dht_key", &dht_key)?;
+        db_lock.raw_delete(TABLE_SETTINGS, "otp_consumed_id")?;
     }
 
     Ok(())
@@ -318,7 +325,9 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) 
     let connected = is_peer_connected(&network.primary.cmd_tx, publisher_peer).await;
     log::info!("[otp] sending ContactResponse to {publisher_peer} connected={connected}");
 
-    network
+    let ack_rx = register_ack_waiter(payload.payload_id);
+
+    let sent = network
         .primary
         .cmd_tx
         .send(SwarmCommand::SendMessage {
@@ -326,9 +335,37 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) 
             data: response_bytes,
             addresses: publisher_addrs,
         })
-        .await
-        .ok_kursal(KursalError::Network)?;
+        .await;
 
-    contact.save(&*db.0.lock().await)?;
-    Ok(contact)
+    if sent.is_err() {
+        forget_ack_waiter(payload.payload_id);
+        rollback_handshake(&db, &remote_address).await;
+        return Err(KursalError::Network("Could not send response".to_string()));
+    }
+
+    match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
+        Ok(Ok(Ok(()))) => {
+            contact.save(&*db.0.lock().await)?;
+            Ok(contact)
+        }
+        Ok(Ok(Err(reason))) => {
+            log::warn!("[otp] publisher refused the handshake: {}", reason.as_str());
+            rollback_handshake(&db, &remote_address).await;
+            Err(KursalError::Identity(reason.as_str().to_string()))
+        }
+        _ => {
+            forget_ack_waiter(payload.payload_id);
+            rollback_handshake(&db, &remote_address).await;
+            Err(KursalError::Network(
+                "No answer from the other device".to_string(),
+            ))
+        }
+    }
+}
+
+async fn rollback_handshake(db: &SharedDatabase, remote_address: &ProtocolAddress) {
+    let db_lock = db.0.lock().await;
+    if let Err(err) = db_lock.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
+        log::warn!("[otp] could not drop the half-open session: {err}");
+    }
 }

@@ -175,6 +175,7 @@
       backendPath: string;
       filename: string;
       sizeBytes: number;
+      payloadId?: string;
     }[]
   >([]);
   let sendingFile = $state(false);
@@ -1011,7 +1012,12 @@
     const known = new Set(pendingFiles.map((f) => f.backendPath));
     const staged = payload.files
       .filter((f) => !known.has(f.path))
-      .map((f) => ({ backendPath: f.path, filename: f.filename, sizeBytes: f.sizeBytes }));
+      .map((f) => ({
+        backendPath: f.path,
+        filename: f.filename,
+        sizeBytes: f.sizeBytes,
+        payloadId: payload.id,
+      }));
 
     if (!staged.length) {
       void shareIntentState.release(payload.id);
@@ -1023,11 +1029,16 @@
     pendingFiles = [...pendingFiles, ...staged];
   }
 
+  // Releasing a payload deletes its staged files, so only payloads with no file
+  // left in the composer are freed - a share claimed mid-send keeps its files.
   function releaseSharedFiles() {
-    const ids = sharePayloadIds;
-    sharePayloadIds = [];
-    shareCaption = '';
-    for (const id of ids) void shareIntentState.release(id);
+    const held = new Set(
+      pendingFiles.map((f) => f.payloadId).filter((id): id is string => id !== undefined)
+    );
+    const released = sharePayloadIds.filter((id) => !held.has(id));
+    sharePayloadIds = sharePayloadIds.filter((id) => held.has(id));
+    if (!sharePayloadIds.length) shareCaption = '';
+    for (const id of released) void shareIntentState.release(id);
   }
 
   let searchSeq = 0;
@@ -1447,7 +1458,7 @@
   function removePendingFile(backendPath: string) {
     if (sendingFile) return;
     pendingFiles = pendingFiles.filter((f) => f.backendPath !== backendPath);
-    if (!pendingFiles.length) releaseSharedFiles();
+    releaseSharedFiles();
   }
 
   async function handleAcceptIncomingFile(msg: MessageResponse) {

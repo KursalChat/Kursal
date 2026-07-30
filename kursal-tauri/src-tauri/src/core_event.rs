@@ -346,6 +346,10 @@ pub async fn handle_core_event(
             );
         }
 
+        AppEvent::OtpConsumed => {
+            emitter(handle, api_handle, "otp_consumed", serde_json::json!({}));
+        }
+
         AppEvent::ContactUpdated { contact } => {
             emitter(
                 handle,

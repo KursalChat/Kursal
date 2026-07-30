@@ -280,3 +280,115 @@ async fn otp_mailbox_chains_match_after_handshake() {
         alice_contact.offline.recv_chain
     );
 }
+
+// A response replaying a consumed OTP gets an explicit AlreadyUsed refusal
+#[tokio::test]
+async fn otp_replayed_response_is_refused_as_already_used() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "otp_refuse_alice").await;
+    let bob = make_peer(&env, "otp_refuse_bob").await;
+    let carol = make_peer(&env, "otp_refuse_carol").await;
+
+    let payload_id = MessageId::new();
+    let now = get_timestamp_secs().unwrap();
+
+    let alice_bundle = PreKeyBundleData::build_pre_key_bundle(alice.clone())
+        .await
+        .unwrap();
+    let alice_prekey_id: u32 = alice_bundle.pre_key_id.unwrap().into();
+    {
+        let lock = alice.0.lock().await;
+        lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
+            .unwrap();
+        lock.raw_write(TABLE_SETTINGS, "otp_published_at", &now.to_be_bytes())
+            .unwrap();
+        lock.raw_write(
+            TABLE_SETTINGS,
+            "otp_prekey_id",
+            &alice_prekey_id.to_be_bytes(),
+        )
+        .unwrap();
+    }
+
+    let make_response = |db: SharedDatabase, peer_id: String| async move {
+        let bundle = PreKeyBundleData::build_pre_key_bundle(db.clone())
+            .await
+            .unwrap();
+        let mut rng = rand::rngs::OsRng.unwrap_err();
+        let ephemeral = KeyPair::generate(&mut rng);
+        ContactResponse {
+            payload_id,
+            pre_key_bundle: bundle.serialize().unwrap(),
+            peer_id,
+            dilithium_pub_key: get_dilithium_pub(&*db.0.lock().await).unwrap(),
+            relay_addresses: vec![],
+            mailbox_kem_ct: vec![],
+            mailbox_kem_prekey_id: 0,
+            mailbox_ephemeral_pub: ephemeral.public_key.serialize().to_vec(),
+        }
+    };
+
+    let bob_peer = libp2p::identity::Keypair::generate_ed25519()
+        .public()
+        .to_peer_id()
+        .to_base58();
+    let carol_peer = libp2p::identity::Keypair::generate_ed25519()
+        .public()
+        .to_peer_id()
+        .to_base58();
+
+    let (cmd_tx, mut cmd_rx) = mpsc::channel(16);
+    let (event_tx, mut event_rx) = mpsc::channel(16);
+
+    handle_fc_response(
+        make_response(bob.clone(), bob_peer).await,
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        alice
+            .0
+            .lock()
+            .await
+            .raw_read(TABLE_SETTINGS, "otp_consumed_id")
+            .unwrap()
+            .is_some_and(|id| id.as_slice() == payload_id.0.as_slice())
+    );
+
+    let mut consumed_event = false;
+    while let Ok(event) = event_rx.try_recv() {
+        if matches!(event, crate::api::AppEvent::OtpConsumed) {
+            consumed_event = true;
+        }
+    }
+    assert!(consumed_event);
+    while cmd_rx.try_recv().is_ok() {}
+
+    handle_fc_response(
+        make_response(carol.clone(), carol_peer).await,
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+
+    let mut refusal = None;
+    while let Ok(command) = cmd_rx.try_recv() {
+        if let crate::network::swarm::SwarmCommand::SendMessage { data, .. } = command
+            && let Ok(crate::first_contact::WireMessage::ContactRejected { reason, .. }) =
+                bincode::deserialize::<crate::first_contact::WireMessage>(&data)
+        {
+            refusal = Some(reason);
+        }
+    }
+
+    assert_eq!(
+        refusal,
+        Some(crate::first_contact::FcRejectReason::AlreadyUsed)
+    );
+}

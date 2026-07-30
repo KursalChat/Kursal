@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
   import { log } from '$lib/utils/log';
+  import { listen } from '@tauri-apps/api/event';
   import { onMount, tick } from 'svelte';
+  import { clearOtpSession, loadOtpSession, saveOtpSession } from '$lib/utils/otpSession';
   import { generateOtp, publishOtp, fetchOtp } from '$lib/api/otp';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { goto } from '$app/navigation';
@@ -26,10 +27,10 @@
   let countdown = $state(600);
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
   let justExpired = $state(false);
+  let justUsed = $state(false);
   let receiveSection = $state<HTMLElement | null>(null);
   const copiedCode = flash();
   const copiedLink = flash();
-  const storageKey = 'kursal_add_contact_otp';
   const OTP_LINK_PREFIX = 'kursal://otp/';
 
   function buildOtpLink(value: string): string {
@@ -47,33 +48,12 @@
     return s.trim();
   }
 
-  type PersistedOtpState = {
-    otp: string;
-    shareView: 'words' | 'qr';
-    expiresAt: number;
-  };
-
   function persistOtpState() {
-    if (!browser) return;
-
-    if (!otp || !expiresAt) {
-      sessionStorage.removeItem(storageKey);
-      return;
-    }
-
-    const payload: PersistedOtpState = {
-      otp,
-      shareView,
-      expiresAt,
-    };
-
-    sessionStorage.setItem(storageKey, JSON.stringify(payload));
+    saveOtpSession(otp && expiresAt ? { otp, shareView, expiresAt } : null);
   }
 
   function clearPersistedOtpState() {
-    if (browser) {
-      sessionStorage.removeItem(storageKey);
-    }
+    clearOtpSession();
   }
 
   function stopCountdown(clearState = false) {
@@ -113,6 +93,7 @@
   async function handleGenerateCode() {
     status = 'generating';
     justExpired = false;
+    justUsed = false;
     shareView = 'words';
     try {
       const result = await generateOtp();
@@ -157,9 +138,19 @@
       goto('/chat/' + contact.userId);
     } catch (e) {
       fetchStatus = 'error';
-      fetchError = errorText(e, 'addContact.otp.fetchError');
+      fetchError = fetchErrorText(e);
       log.error('Fetch OTP failed:', e);
     }
+  }
+
+  // The core answers a refused handshake with the reason in the error message.
+  function fetchErrorText(e: unknown): string {
+    const raw = parseError(e).message.toLowerCase();
+    if (raw.includes('already used')) return t('addContact.otp.alreadyUsedError');
+    if (raw.includes('expired')) return t('addContact.otp.expiredError');
+    if (raw.includes('no answer')) return t('addContact.otp.noAnswerError');
+    if (raw.includes('not found')) return t('addContact.otp.invalidError');
+    return errorText(e, 'addContact.otp.fetchError');
   }
 
   async function copyCode() {
@@ -234,30 +225,30 @@
       });
     }
 
-    if (browser) {
-      const raw = sessionStorage.getItem(storageKey);
-
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as PersistedOtpState;
-          if (parsed.otp && parsed.expiresAt > Date.now()) {
-            otp = parsed.otp;
-            shareView = parsed.shareView;
-            startCountdown(parsed.expiresAt);
-            void renderQr(buildOtpLink(parsed.otp));
-            status = 'waiting';
-          } else {
-            clearPersistedOtpState();
-          }
-        } catch (e) {
-          log.error('Failed to restore OTP state:', e);
-          clearPersistedOtpState();
-        }
+    const restored = loadOtpSession();
+    if (restored) {
+      if (restored.otp && restored.expiresAt > Date.now()) {
+        otp = restored.otp;
+        shareView = restored.shareView;
+        startCountdown(restored.expiresAt);
+        void renderQr(buildOtpLink(restored.otp));
+        status = 'waiting';
+      } else {
+        clearPersistedOtpState();
       }
     }
 
+    // The core pairs at most one contact per code, so the shared words are dead
+    // the moment it fires - drop them instead of leaving a live-looking timer.
+    const unlisten = listen('otp_consumed', () => {
+      if (status !== 'waiting') return;
+      justUsed = true;
+      stopCountdown(true);
+    });
+
     return () => {
       stopCountdown();
+      void unlisten.then((off) => off());
     };
   });
 
@@ -346,7 +337,11 @@
         </Button>
       </div>
     {:else}
-      {#if justExpired}
+      {#if justUsed}
+        <div class="expired-banner" role="status">
+          {t('addContact.otp.codeUsed')}
+        </div>
+      {:else if justExpired}
         <div class="expired-banner" role="status">
           {t('addContact.otp.codeExpired')}
         </div>
@@ -409,11 +404,7 @@
     </div>
 
     {#if fetchError}
-      <div class="error-message">
-        {fetchError.includes('expired')
-          ? t('addContact.otp.expiredError')
-          : t('addContact.otp.invalidError')}
-      </div>
+      <div class="error-message">{fetchError}</div>
     {/if}
 
     <Button

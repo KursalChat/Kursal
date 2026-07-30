@@ -787,6 +787,16 @@
           >
             <Reply size={15} />
           </button>
+          {#if msg.direction === 'sent' && !msg.fileDetails}
+            <button
+              class="act-btn"
+              title={t('chat.bubble.actionEdit')}
+              aria-label={t('chat.bubble.actionEdit')}
+              onclick={onStartEdit}
+            >
+              <Pencil size={15} />
+            </button>
+          {/if}
           <div class="act-more">
             <button
               bind:this={moreBtn}

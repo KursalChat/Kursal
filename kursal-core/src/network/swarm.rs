@@ -86,6 +86,9 @@ pub enum SwarmCommand {
         key: Vec<u8>,
         reply_tx: mpsc::Sender<Vec<u8>>,
     },
+    RemoveDht {
+        key: Vec<u8>,
+    },
     Shutdown,
     EnableNearby,
     DisableNearby,

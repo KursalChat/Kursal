@@ -63,6 +63,14 @@
     { tone: 5, unicode: '✋🏿' },
   ];
 
+  function onSearchKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || e.shiftKey) return;
+    const first = gridEl?.querySelector<HTMLElement>('.emoji-btn');
+    if (!first) return;
+    e.preventDefault();
+    first.focus();
+  }
+
   function adjustPosition() {
     if (!pickerEl) return;
     pickerEl.style.setProperty('--x-shift', '0px');
@@ -175,6 +183,7 @@
         placeholder={t('emojiPicker.searchPlaceholder')}
         bind:value={searchQuery}
         bind:this={searchInput}
+        onkeydown={onSearchKeydown}
       />
       {#if searchQuery}
         <button
