@@ -15,15 +15,31 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : TauriActivity() {
   private val startupPermsRequestCode = 4242
   private val insets = InsetsBridge()
+  private var webView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
     super.onCreate(savedInstanceState)
     requestStartupPermissions()
     startConnectionService()
+    takeShareIntent(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    takeShareIntent(intent)
+  }
+
+  private fun takeShareIntent(intent: Intent?) {
+    ShareIntake.handle(this, intent) {
+      runOnUiThread {
+        webView?.evaluateJavascript("window.__kursalOnShare && window.__kursalOnShare()", null)
+      }
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
+    this.webView = webView
     webView.addJavascriptInterface(insets, "__kursalInsets")
 
     ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->

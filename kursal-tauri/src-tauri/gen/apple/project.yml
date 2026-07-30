@@ -38,31 +38,19 @@ targets:
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
-    info:
-      path: kursal-app_iOS/Info.plist
-      properties:
-        LSRequiresIPhoneOS: true
-        UILaunchStoryboardName: LaunchScreen
-        UIRequiredDeviceCapabilities: [arm64, metal]
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: "1.0.0"
+    # No `info:` block because xcodegen regenerates that file
     entitlements:
       path: kursal-app_iOS/kursal-app_iOS.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.chat.kursal
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
         RUST_LOG: info
     settings:
       base:
+        INFOPLIST_FILE: kursal-app_iOS/Info.plist
         ENABLE_BITCODE: false
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
@@ -72,6 +60,8 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: KursalShare
+        embed: true
       - framework: libapp.a
         embed: false
       - sdk: CoreGraphics.framework
@@ -87,10 +77,53 @@ targets:
     preBuildScripts:
       - script: |
           export OPUS_NO_PKG=1 OPUS_STATIC=1
-          export OPUS_LIB_DIR="$SRCROOT/../../../../bin/deps/ios-arm64"
+          if [ "${PLATFORM_NAME:-}" = "iphonesimulator" ]; then
+            export OPUS_LIB_DIR="$SRCROOT/../../../../bin/deps/ios-sim-arm64"
+          else
+            export OPUS_LIB_DIR="$SRCROOT/../../../../bin/deps/ios-arm64"
+          fi
           bun tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}
         name: Build Rust Code
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+
+  KursalShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: KursalShare
+    info:
+      path: KursalShare/Info.plist
+      properties:
+        CFBundleDisplayName: Kursal
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: "1.0.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 20
+              NSExtensionActivationSupportsImageWithMaxCount: 20
+              NSExtensionActivationSupportsMovieWithMaxCount: 20
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+    entitlements:
+      path: KursalShare/KursalShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.chat.kursal
+    settings:
+      base:
+        PRODUCT_NAME: KursalShare
+        PRODUCT_BUNDLE_IDENTIFIER: chat.kursal.share
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ARCHS: [arm64]
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: false
+    dependencies:
+      - sdk: UIKit.framework
+      - sdk: UniformTypeIdentifiers.framework

@@ -74,6 +74,20 @@
     return () => timers.forEach(clearTimeout);
   });
 
+  function keepInputVisible() {
+    nameInput?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  $effect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportChange = () => {
+      if (document.activeElement === nameInput) keepInputVisible();
+    };
+    vv.addEventListener('resize', onViewportChange);
+    return () => vv.removeEventListener('resize', onViewportChange);
+  });
+
   function chars(text: string, step = 28) {
     return text.split('').map((ch, i) => ({ ch, delay: i * step }));
   }
@@ -208,8 +222,13 @@
         type="text"
         placeholder={t('onboarding.screen5.namePlaceholder')}
         maxlength={DISPLAY_NAME_MAX}
+        spellcheck="false"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
         bind:value={displayName}
         onkeydown={handleKey}
+        onfocus={keepInputVisible}
         disabled={exiting || saving || !showForm}
         tabindex={showForm ? 0 : -1}
       />

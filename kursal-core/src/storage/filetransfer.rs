@@ -69,11 +69,8 @@ pub fn download_path(
     cache_dir
         .join("files")
         .join(sanitize_filename(contact_hex))
-        .join(format!(
-            "{}-{}",
-            sanitize_filename(offer_hex),
-            sanitize_filename(filename)
-        ))
+        .join(sanitize_filename(offer_hex))
+        .join(sanitize_filename(filename))
 }
 
 pub const OUTGOING_PENDING: &str = "pending";
@@ -95,9 +92,9 @@ pub fn outgoing_offer_dir(app_data_dir: &Path, contact_hex: &str, offer_hex: &st
 }
 
 pub fn get_auto_download_storage(cache_dir: PathBuf) -> Result<u64> {
-    get_folder_size(cache_dir.join("files"), 2)
+    get_folder_size(cache_dir.join("files"), 3)
 }
 
 pub fn get_auto_download_storage_for(cache_dir: PathBuf, contact_id: String) -> Result<u64> {
-    get_folder_size(cache_dir.join("files").join(contact_id), 1)
+    get_folder_size(cache_dir.join("files").join(contact_id), 2)
 }

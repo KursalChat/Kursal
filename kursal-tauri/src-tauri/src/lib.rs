@@ -36,6 +36,9 @@ pub mod dirs;
 pub mod error;
 pub mod file;
 pub mod outgoing_sweep;
+pub mod share_intake;
+#[cfg(test)]
+mod tests;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod window_menu;
 
@@ -525,6 +528,8 @@ pub fn run() {
             commands::send_file_offer,
             commands::create_outgoing_pending_path,
             commands::cancel_file_transfer,
+            commands::take_pending_shares,
+            commands::discard_pending_share,
             commands::flush_offline,
             //
             commands::export_backup,

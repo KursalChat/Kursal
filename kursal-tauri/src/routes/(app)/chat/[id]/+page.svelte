@@ -22,6 +22,7 @@
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
+  import { shareIntentState } from '$lib/state/shareIntent.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
     sendText,
@@ -48,7 +49,8 @@
     prepareOfferFromBytes,
     exportToDevice,
   } from '$lib/utils/file-transfer-paths';
-  import type { MessageResponse } from '$lib/types';
+  import type { PickerMode } from '$lib/utils/file-transfer-paths';
+  import type { MessageResponse, SharePayload } from '$lib/types';
   import { notifications } from '$lib/state/notifications.svelte';
   import { flashSet } from '$lib/utils/flash.svelte';
   import * as haptics from '$lib/utils/haptics';
@@ -176,6 +178,8 @@
     }[]
   >([]);
   let sendingFile = $state(false);
+  let sharePayloadId = $state<string | null>(null);
+  let shareCaption = $state('');
   let unlistenDrop: (() => void) | null = null;
   let prevMessagesLength = $state(0);
   let prevLastId = $state<string | null>(null);
@@ -982,6 +986,48 @@
     if (contactId) sessionState.setLastContact(contactId);
   });
 
+  // Picks up a payload the share sheet handed over, once this chat is the one
+  // the user chose. Files were already staged on disk by the native side, so
+  // they go straight into the confirm modal.
+  $effect(() => {
+    const id = contactId;
+    const head = shareIntentState.head;
+    if (!id || !head) return;
+    const payload = shareIntentState.claim(id);
+    if (payload) untrack(() => applySharePayload(payload));
+  });
+
+  function applySharePayload(payload: SharePayload) {
+    const text = payload.text?.trim() ?? '';
+
+    if (!payload.files.length) {
+      if (text) inputText = inputText ? `${inputText}\n${text}` : text;
+      void shareIntentState.release(payload.id);
+      return;
+    }
+
+    const known = new Set(pendingFiles.map((f) => f.backendPath));
+    const staged = payload.files
+      .filter((f) => !known.has(f.path))
+      .map((f) => ({ backendPath: f.path, filename: f.filename, sizeBytes: f.sizeBytes }));
+
+    if (!staged.length) {
+      void shareIntentState.release(payload.id);
+      return;
+    }
+
+    sharePayloadId = payload.id;
+    shareCaption = text;
+    pendingFiles = [...pendingFiles, ...staged];
+  }
+
+  function releaseSharedFiles() {
+    const id = sharePayloadId;
+    sharePayloadId = null;
+    shareCaption = '';
+    if (id) void shareIntentState.release(id);
+  }
+
   let searchSeq = 0;
   $effect(() => {
     const q = searchQuery.trim();
@@ -1287,9 +1333,9 @@
     }
   }
 
-  async function handleSendFile() {
+  async function handleSendFile(pickerMode?: PickerMode) {
     try {
-      const prepared = await pickFilesForSend();
+      const prepared = await pickFilesForSend(pickerMode);
       if (!prepared.length) return;
       await stageFilesForSend(prepared);
     } catch (e) {
@@ -1381,6 +1427,7 @@
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
       if (text) sendCaption(cid, text);
+      releaseSharedFiles();
       winstonTips.show('fileOffer');
     } catch (e) {
       notifyError(e, 'chat.conversation.errorSendFile');
@@ -1392,11 +1439,13 @@
   function cancelSendFile() {
     if (sendingFile) return;
     pendingFiles = [];
+    releaseSharedFiles();
   }
 
   function removePendingFile(backendPath: string) {
     if (sendingFile) return;
     pendingFiles = pendingFiles.filter((f) => f.backendPath !== backendPath);
+    if (!pendingFiles.length) releaseSharedFiles();
   }
 
   async function handleAcceptIncomingFile(msg: MessageResponse) {
@@ -1826,7 +1875,11 @@
   </div>
 
   {#if showAttachSheet}
-    <AttachSheet onClose={() => (showAttachSheet = false)} onPickFiles={handlePickedFiles} />
+    <AttachSheet
+      onClose={() => (showAttachSheet = false)}
+      onPickFiles={handlePickedFiles}
+      onPickNative={(mode) => void handleSendFile(mode)}
+    />
   {/if}
 
   {#if actionSheetMsg}
@@ -1928,6 +1981,7 @@
       files={pendingFiles}
       sending={sendingFile}
       maxLength={MAX_MESSAGE_LENGTH}
+      initialCaption={shareCaption}
       onConfirm={confirmSendFile}
       onCancel={cancelSendFile}
       onRemove={removePendingFile}
