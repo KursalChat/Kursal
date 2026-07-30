@@ -104,6 +104,10 @@
       "desktop": {
         "schemes": ["kursal"]
       }
+    },
+    "notification": {
+      "icon": "ic_notification",
+      "iconColor": "#4d8dff"
     }
   }
 }

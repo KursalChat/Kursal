@@ -1,9 +1,21 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { LogicalSize } from '@tauri-apps/api/dpi';
 import { log } from '$lib/utils/log';
 import { platform } from '@tauri-apps/plugin-os';
 
 export const OS = platform();
 export const isMobile = OS == 'android' || OS == 'ios';
+
+// Mirrors app.windows[0] in tauri.conf.json.
+const DEFAULT_WIDTH = 1080;
+const DEFAULT_HEIGHT = 780;
+
+export async function resetWindowSize() {
+  const win = getCurrentWindow();
+  if (await win.isMaximized()) await win.unmaximize();
+  await win.setSize(new LogicalSize(DEFAULT_WIDTH, DEFAULT_HEIGHT));
+  await win.center();
+}
 
 export async function setBadgeCount(count?: number) {
   let label = count && count > 0 ? count : undefined;

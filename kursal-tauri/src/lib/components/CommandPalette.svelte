@@ -17,12 +17,18 @@
     CheckCheck,
     MessageSquare,
     ChevronLeft,
+    RefreshCw,
+    Maximize2,
+    Power,
     type Icon,
   } from 'lucide-svelte';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
   import { uiState } from '$lib/state/ui.svelte';
   import { searchMessagesGlobal } from '$lib/api/messages';
+  import { checkForUpdates, closeForceQuit } from '$lib/api/settings';
+  import { isMobile, resetWindowSize } from '$lib/api/window';
+  import { notifyError } from '$lib/utils/errors';
   import type { MessageResponse } from '$lib/types';
   import { trapFocus } from '$lib/utils/focusTrap';
   import { clockOptions } from '$lib/utils/timeFormat';
@@ -213,6 +219,40 @@
           },
         ]
       : []),
+    ...(isMobile
+      ? []
+      : [
+          {
+            id: 'check-updates',
+            label: t('commandPalette.checkForUpdates'),
+            keywords: [t('commandPalette.checkForUpdates'), 'update', 'version', 'upgrade'],
+            icon: RefreshCw,
+            run: () => {
+              onClose();
+              checkForUpdates().catch((e) => notifyError(e, 'settings.advanced.errorUpdateCheck'));
+            },
+          },
+          {
+            id: 'reset-window-size',
+            label: t('commandPalette.resetWindowSize'),
+            keywords: [t('commandPalette.resetWindowSize'), 'window', 'size', 'reset'],
+            icon: Maximize2,
+            run: () => {
+              onClose();
+              resetWindowSize().catch(notifyError);
+            },
+          },
+          {
+            id: 'quit',
+            label: t('commandPalette.quit'),
+            keywords: [t('commandPalette.quit'), 'quit', 'exit', 'close'],
+            icon: Power,
+            run: () => {
+              onClose();
+              closeForceQuit().catch(notifyError);
+            },
+          },
+        ]),
   ]);
 
   const groups = $derived([

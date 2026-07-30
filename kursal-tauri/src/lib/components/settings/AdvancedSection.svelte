@@ -13,11 +13,11 @@
     KeyRound,
     BookOpen,
   } from 'lucide-svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import {
+    checkForUpdates,
     generateLocalApiToken,
     getUpdaterEnabled,
     setUpdaterEnabled,
@@ -154,7 +154,7 @@
   async function handleCheckForUpdates() {
     checkingForUpdates = true;
     try {
-      await invoke('check_for_updates');
+      await checkForUpdates();
     } catch (e) {
       notifyError(e, 'settings.advanced.errorUpdateCheck');
     } finally {
