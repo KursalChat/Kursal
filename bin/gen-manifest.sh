@@ -62,7 +62,9 @@ for f in \
   Kursal.app.tar.gz Kursal_x64.app.tar.gz \
   Kursal_x64.AppImage Kursal_x64.rpm Kursal_x64.deb \
   Kursal_arm.AppImage Kursal_arm.rpm Kursal_arm.deb \
-  Kursal.apk Kursal.ipa; do
+  Kursal.apk
+  # Kursal.ipa
+  ; do
   [ -f "$BUILD/$f" ] && ( cd "$BUILD" && shasum -a 256 "$f" >> SHA256SUMS.txt )
 done
 

@@ -19,7 +19,8 @@ required=(
   Kursal_arm.AppImage Kursal_arm.AppImage.sig
   Kursal_arm.rpm Kursal_arm.rpm.sig
   Kursal_arm.deb Kursal_arm.deb.sig
-  Kursal.apk Kursal.ipa
+  Kursal.apk
+  # Kursal.ipa
   latest.json
 )
 for f in "${required[@]}"; do
