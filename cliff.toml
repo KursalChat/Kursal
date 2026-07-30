@@ -13,7 +13,7 @@ body = """
 ## [Unreleased]
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
-### {{ group | upper_first }}
+### {{ group | striptags | upper_first }}
 {% for commit in commits %}
 - {{ commit.message | upper_first }}\
 {% endfor %}
@@ -30,16 +30,16 @@ tag_pattern = "v[0-9]*"
 topo_order = false
 sort_commits = "newest"
 commit_parsers = [
-  { message = "^feat", group = "Features" },
-  { message = "^fix", group = "Bug Fixes" },
-  { message = "^perf", group = "Performance" },
-  { message = "^refactor", group = "Refactor" },
-  { message = "^docs", group = "Documentation" },
-  { message = "^test", group = "Testing" },
-  { message = "^build", group = "Build" },
-  { message = "^ci", group = "CI" },
-  { message = "^style", group = "Styling" },
+  { message = "^feat", group = "<!-- 00 -->Features" },
+  { message = "^fix", group = "<!-- 01 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 02 -->Performance" },
+  { message = "^refactor", group = "<!-- 03 -->Refactor" },
+  { message = "^docs", group = "<!-- 04 -->Documentation" },
+  { message = "^test", group = "<!-- 05 -->Testing" },
+  { message = "^build", group = "<!-- 06 -->Build" },
+  { message = "^ci", group = "<!-- 07 -->CI" },
+  { message = "^style", group = "<!-- 08 -->Styling" },
   { message = "^chore\\(release\\)", skip = true },
-  { message = "^chore", group = "Miscellaneous" },
-  { message = "^revert", group = "Revert" },
+  { message = "^chore", group = "<!-- 09 -->Miscellaneous" },
+  { message = "^revert", group = "<!-- 10 -->Revert" },
 ]

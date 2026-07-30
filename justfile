@@ -45,7 +45,7 @@ ship v:
 release v: verify
     bun run bin/bump-version.ts {{ v }}
     git cliff --tag v{{ v }} -o CHANGELOG.md
-    git add Cargo.toml kursal-tauri/package.json CHANGELOG.md
+    git add Cargo.toml Cargo.lock kursal-tauri/package.json CHANGELOG.md
     git commit -m "chore(release): v{{ v }}"
     git tag -a v{{ v }} -m "v{{ v }}"
     @echo "Tagged v{{ v }}. Next: merge into main + dev, then 'just build' and 'just publish'."
