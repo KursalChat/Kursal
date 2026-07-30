@@ -2,7 +2,7 @@ name: rust
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, "release/**", "hotfix/**"]
     paths:
       - "kursal-core/**"
       - "kursal-cli/**"
@@ -13,15 +13,6 @@ on:
       - "justfile"
       - ".github/workflows/checks-rust.yml"
   pull_request:
-    paths:
-      - "kursal-core/**"
-      - "kursal-cli/**"
-      - "kursal-tauri/src-tauri/**"
-      - "externals/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "justfile"
-      - ".github/workflows/checks-rust.yml"
 
 permissions:
   contents: read
