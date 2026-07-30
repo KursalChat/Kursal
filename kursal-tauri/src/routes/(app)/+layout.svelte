@@ -21,7 +21,7 @@
   import CallIncoming from '$lib/components/CallIncoming.svelte';
   import CallPill from '$lib/components/CallPill.svelte';
   import { callState } from '$lib/state/call.svelte';
-  import { setBadgeCount } from '$lib/api/window';
+  import { setBadgeCount, setTrayUnread } from '$lib/api/window';
   import { uiState } from '$lib/state/ui.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import type { PeerIdHolderPayload } from '$lib/types';
@@ -37,6 +37,7 @@
     const count = totalUnread;
     (async () => {
       await setBadgeCount(count);
+      await setTrayUnread(count);
     })();
   });
 

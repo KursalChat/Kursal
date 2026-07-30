@@ -362,8 +362,6 @@
         goto('/settings');
       } else if (signal == 'new_contact') {
         goto('/add-contact');
-      } else if (signal == 'open_chat') {
-        if (payload) goto(`/chat/${payload}`);
       } else if (signal == 'open_otp') {
         goto(`/add-contact/otp?receive=${encodeURIComponent(payload)}`);
       } else if (signal == 'add_node') {

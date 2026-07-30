@@ -141,7 +141,7 @@ pub fn run() {
                         api.prevent_close();
                     } else if bg_en && !eq {
                         api.prevent_close();
-                        let _ = window.destroy();
+                        let _ = window.hide();
                     } else {
                         crate::background::request_quit(app);
                     }
@@ -563,6 +563,7 @@ pub fn run() {
             commands::get_background_mode,
             commands::set_background_mode,
             commands::set_busy_state,
+            commands::set_tray_unread,
             commands::close_to_background,
             commands::close_force_quit,
             commands::set_close_explainer_pending,

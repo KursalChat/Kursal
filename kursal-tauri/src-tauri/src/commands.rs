@@ -664,6 +664,23 @@ pub fn set_close_explainer_pending(app: tauri::AppHandle, value: bool) {
 }
 
 #[tauri::command]
+pub fn set_tray_unread(app: tauri::AppHandle, count: usize) {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        use crate::background::{BackgroundState, refresh_tray};
+        use std::sync::atomic::Ordering;
+        use tauri::Manager;
+
+        if let Some(bg) = app.try_state::<BackgroundState>() {
+            bg.unread.store(count, Ordering::Relaxed);
+            refresh_tray(&app);
+        }
+    }
+
+    let _ = (&app, count);
+}
+
+#[tauri::command]
 pub fn close_to_background(app: tauri::AppHandle, until_idle: bool) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     crate::background::close_to_background(&app, until_idle);

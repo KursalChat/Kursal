@@ -25,7 +25,6 @@ pub struct BackgroundState {
 }
 
 pub enum PendingSignal {
-    OpenChat(String),
     NewContact,
 }
 
@@ -67,8 +66,10 @@ pub fn show_or_create_main(app: &AppHandle) -> tauri::Result<()> {
     }
 
     if let Some(bg) = app.try_state::<BackgroundState>() {
-        bg.unread.store(0, Ordering::Relaxed);
         bg.quit_when_idle.store(false, Ordering::Relaxed);
+        if !bg.background_enabled.load(Ordering::Relaxed) {
+            remove_tray(app);
+        }
     }
     refresh_tray(app);
 
@@ -80,7 +81,6 @@ pub fn drain_pending_signal(app: &AppHandle) {
         let pending = bg.pending_signal.lock().unwrap().take();
         if let Some(sig) = pending {
             let (signal, payload) = match sig {
-                PendingSignal::OpenChat(cid) => ("open_chat", cid),
                 PendingSignal::NewContact => ("new_contact", String::new()),
             };
             let _ = app.emit(
@@ -149,12 +149,8 @@ pub fn close_to_background(app: &AppHandle, until_idle: bool) {
         bg.quit_when_idle.store(until_idle, Ordering::Relaxed);
     }
     if let Some(win) = app.get_webview_window("main") {
-        if until_idle {
-            let _ = build_tray(app);
-            let _ = win.hide();
-        } else {
-            let _ = win.destroy();
-        }
+        let _ = build_tray(app);
+        let _ = win.hide();
     }
 }
 
