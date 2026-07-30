@@ -44,5 +44,38 @@
 	<!-- Biometric app lock (Face ID / Touch ID) -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate with biometric to unlock the app.</string>
+
+	<!-- "Open with Kursal" in Finder -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Kursal</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>kursal</string>
+			</array>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>kursal</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>File to send</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -24,11 +24,12 @@ just cut 0.2.0     # branch release/0.2.0 from dev, verify+bump+tag, build. all 
 
 # → install/run the build from build/ and make sure it's good ←
 
-just ship 0.2.0    # merge→main, push, publish, back-merge→dev, clean up
+just ship 0.2.0    # push branch, PR→main, publish, back-merge→dev, clean up
 ```
 
-`just ship` confirms twice: once before `git push --follow-tags origin main`, once
-before `just publish`.
+`main` and `dev` are protected and require pull requests. It confirms three times: before
+pushing the release branch, before merging the release PR into `main`, and before
+`just publish`.
 
 ## Beta / rc release
 

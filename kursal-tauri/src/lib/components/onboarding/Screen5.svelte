@@ -8,6 +8,7 @@
   import { broadcastProfile } from '$lib/api/identity';
   import { profileState } from '$lib/state/profile.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { isMobile } from '$lib/api/window';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
@@ -72,6 +73,26 @@
       }, T.form),
     ];
     return () => timers.forEach(clearTimeout);
+  });
+
+  function keepInputVisible() {
+    if (!isMobile) return;
+    nameInput?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  $effect(() => {
+    const vv = window.visualViewport;
+    if (!isMobile || !vv) return;
+    let lastHeight = vv.height;
+    const onResize = () => {
+      const shrank = vv.height < lastHeight;
+      lastHeight = vv.height;
+      if (shrank && document.activeElement === nameInput) {
+        nameInput?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
   });
 
   function chars(text: string, step = 28) {
@@ -208,8 +229,13 @@
         type="text"
         placeholder={t('onboarding.screen5.namePlaceholder')}
         maxlength={DISPLAY_NAME_MAX}
+        spellcheck="false"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
         bind:value={displayName}
         onkeydown={handleKey}
+        onfocus={keepInputVisible}
         disabled={exiting || saving || !showForm}
         tabindex={showForm ? 0 : -1}
       />

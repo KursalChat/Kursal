@@ -85,7 +85,7 @@
   }
 
   .onboarding {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background:
       radial-gradient(ellipse at 20% 15%, rgba(46, 91, 215, 0.18) 0%, transparent 45%),
@@ -167,7 +167,7 @@
   }
 
   .screen-wrap > :global(*) {
-    flex: 1;
+    flex: 1 0 auto;
     min-height: 0;
   }
 

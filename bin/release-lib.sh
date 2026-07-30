@@ -18,6 +18,16 @@ confirm() {
   [[ "$ans" == [yY] ]] || die "aborted."
 }
 
+# open_pr <base> <head> <title> <body> - prints the PR url, reusing an open one
+open_pr() {
+  local base="$1" head="$2" title="$3" body="$4" url
+  url="$(gh pr list --base "$base" --head "$head" --state open --json url --jq '.[0].url')"
+  if [ -z "$url" ]; then
+    url="$(gh pr create --base "$base" --head "$head" --title "$title" --body "$body")"
+  fi
+  printf '%s\n' "$url"
+}
+
 valid_semver() {
   [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
     || die "invalid version: $1 (expected e.g. 0.2.0 or 0.3.0-beta.1)"

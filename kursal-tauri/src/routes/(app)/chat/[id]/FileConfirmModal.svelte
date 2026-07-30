@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { FileText, X } from 'lucide-svelte';
   import Spinner from '$lib/components/Spinner.svelte';
   import { formatFileSize } from './chat-utils';
@@ -15,18 +15,28 @@
     files: PendingFile[];
     sending: boolean;
     maxLength: number;
+    initialCaption?: string;
     onConfirm: (caption: string) => void;
     onCancel: () => void;
     onRemove: (backendPath: string) => void;
   }
 
-  let { files, sending, maxLength, onConfirm, onCancel, onRemove }: Props = $props();
+  let {
+    files,
+    sending,
+    maxLength,
+    initialCaption = '',
+    onConfirm,
+    onCancel,
+    onRemove,
+  }: Props = $props();
 
   const totalBytes = $derived(files.reduce((sum, f) => sum + f.sizeBytes, 0));
 
   let dialogEl = $state<HTMLElement | null>(null);
   let captionEl = $state<HTMLTextAreaElement | null>(null);
-  let caption = $state('');
+  // Seeded once: the modal remounts per batch, so later prop changes are irrelevant.
+  let caption = $state(untrack(() => initialCaption));
 
   const CAPTION_MAX_H = 96;
 

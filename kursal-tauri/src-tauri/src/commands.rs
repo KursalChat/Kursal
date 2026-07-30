@@ -1,6 +1,7 @@
 use crate::deep_link::dispatch_deep_links;
 use crate::dirs::{app_data_dir, cache_dir, logs_dir};
 use crate::error::Result;
+use crate::share_intake::{self, SharePayload};
 use kursal_core::KursalError;
 use kursal_core::MapKursalResult;
 use kursal_core::api::cmd_wrapper::StateWrapper;
@@ -265,6 +266,17 @@ pub async fn create_outgoing_pending_path(filename: String) -> Result<String> {
         .join(sanitize_filename(&filename))
         .to_string_lossy()
         .into_owned())
+}
+
+#[tauri::command]
+pub async fn take_pending_shares() -> Result<Vec<SharePayload>> {
+    Ok(share_intake::take_pending(app_data_dir()?)?)
+}
+
+#[tauri::command]
+pub async fn discard_pending_share(id: String) -> Result<()> {
+    share_intake::discard(app_data_dir()?, &id)?;
+    Ok(())
 }
 
 core_cmd!(accept_file_offer(contact_id: String, offer_id: String, save_path: String) -> ());

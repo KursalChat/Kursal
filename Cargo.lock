@@ -4339,6 +4339,7 @@ dependencies = [
  "kursal-cli",
  "kursal-core",
  "log",
+ "objc2-foundation 0.3.2",
  "rayon",
  "sentry",
  "sentry-panic",

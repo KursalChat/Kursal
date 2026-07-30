@@ -34,6 +34,22 @@ impl FileLoader for KursalFile {
 }
 
 pub fn open_files(app: &AppHandle, files: Vec<(String, String)>) {
+    let (kursal_files, shared): (Vec<_>, Vec<_>) = files.into_iter().partition(|(path, _)| {
+        std::path::Path::new(path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("kursal"))
+    });
+
+    if crate::share_intake::queue_opened(shared) {
+        use tauri::Emitter;
+        let _ = app.emit("share_received", ());
+    }
+
+    if kursal_files.is_empty() {
+        return;
+    }
+
+    let files = kursal_files;
     let app = app.clone();
 
     std::thread::spawn(move || {

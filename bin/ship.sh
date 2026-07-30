@@ -32,30 +32,32 @@ if [[ "$V" == *-* ]]; then
   exit 0
 fi
 
-# ── stable: merge to main, publish, back-merge to dev, clean up ───────────────
+# ── stable: PR into main, publish, back-merge PR into dev, clean up ───────────
 echo "==> ship stable v$V ($BRANCH -> main)"
-git checkout main
-git pull --ff-only
-git merge --no-ff "$BRANCH" -m "Merge $BRANCH into main"
 
-echo "  merged $BRANCH into main locally (not pushed yet)."
-confirm "push main + tags to origin? (N leaves the merge local, nothing published)"
-git push --follow-tags origin main
+confirm "push $BRANCH (with tag v$V) to origin?"
+git push --follow-tags origin "$BRANCH"
 
-echo "  main pushed."
+RELEASE_PR="$(open_pr main "$BRANCH" "release: v$V" "Release v$V. Opened by \`just ship\`.")"
+echo "  release PR: $RELEASE_PR"
+
+confirm "merge that PR into main? (N leaves it open, nothing published)"
+gh pr merge "$RELEASE_PR" --merge
+
+echo "  main updated."
 confirm "publish v$V now (github + homebrew + ghcr relay + api docs)? (N = main is public but unpublished; run 'just publish' later)"
 just publish
 
-echo "==> back-merge to dev + clean up"
-git checkout dev
-git pull --ff-only
-git merge --no-ff "$BRANCH" -m "Merge $BRANCH into dev"
-git push origin dev
+echo "==> back-merge main -> dev"
+BACKMERGE_PR="$(open_pr dev main "chore: back-merge v$V into dev" "Back-merge of v$V. Opened by \`just ship\`.")"
+echo "  back-merge PR: $BACKMERGE_PR"
+gh pr merge "$BACKMERGE_PR" --merge
 
-git branch -d "$BRANCH"
-if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-  git push origin --delete "$BRANCH"
-fi
+echo "==> clean up"
+git fetch origin --prune
+git checkout dev
+git pull --ff-only origin dev
+git branch -d "$BRANCH" 2>/dev/null || true
 
 echo
 echo "✓ v$V released."

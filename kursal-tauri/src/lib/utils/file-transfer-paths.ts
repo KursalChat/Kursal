@@ -76,13 +76,17 @@ function extractPaths(raw: unknown): string[] {
   return single ? [single] : [];
 }
 
+/** Which native picker mobile should open; desktop ignores it. */
+export type PickerMode = 'media' | 'document';
+
 /**
- * Desktop file picker. Mobile picks through the webview's own file inputs
- * (see AttachSheet), which hand back real File objects with real names rather
- * than opaque content:// ids.
+ * Desktop file picker, and the iOS media/document pickers. Android picks
+ * through the webview's own file inputs instead (see AttachSheet): its dialog
+ * plugin hands back opaque content:// ids that leave the peer with an unnamed
+ * blob, while iOS returns real file paths.
  */
-export async function pickFilesForSend(): Promise<PreparedFile[]> {
-  const selected = await open({ multiple: true, directory: false });
+export async function pickFilesForSend(pickerMode?: PickerMode): Promise<PreparedFile[]> {
+  const selected = await open({ multiple: true, directory: false, pickerMode });
   const raws = extractPaths(selected);
   return await Promise.all(raws.map((r) => prepareOfferSourcePath(r)));
 }

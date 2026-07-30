@@ -11,7 +11,7 @@ require_clean
 
 echo "==> branching $BRANCH from main"
 git checkout main
-git pull --ff-only
+git pull --ff-only origin main
 git checkout -b "$BRANCH"
 
 echo
