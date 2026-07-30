@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { confirmDialog, type ConfirmOptions, type ConfirmTone } from '$lib/state/confirm.svelte';
+import { groupLabel, parseReleaseNotes } from '$lib/changelog';
 import { t } from '$lib/i18n';
 
 export interface BackendDialogPayload {
@@ -30,7 +31,9 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
         confirmLabel: t('backendDialog.crashReportConfirm'),
         cancelLabel: t('backendDialog.crashReportCancel'),
       };
-    case 'update_available':
+    case 'update_available': {
+      const notes = p.params.notes ? String(p.params.notes) : '';
+      const groups = notes ? parseReleaseNotes(notes) : [];
       return {
         ...base,
         title: t('backendDialog.updateAvailableTitle'),
@@ -38,12 +41,13 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
           version: String(p.params.version ?? ''),
           currentVersion: String(p.params.currentVersion ?? ''),
         }),
-        detail: p.params.notes
-          ? t('backendDialog.updateAvailableNotes', { notes: String(p.params.notes) })
-          : undefined,
+        detail: groups.length ? t('backendDialog.updateAvailableNotes') : undefined,
+        sections: groups.map((g) => ({ title: groupLabel(g.kind), items: g.items })),
+        code: notes && !groups.length ? notes : undefined,
         confirmLabel: t('backendDialog.updateAvailableConfirm'),
         cancelLabel: t('backendDialog.updateAvailableCancel'),
       };
+    }
     case 'update_installed':
       return {
         ...base,

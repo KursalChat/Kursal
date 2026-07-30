@@ -5,12 +5,19 @@ export interface ConfirmCheckbox {
   defaultChecked?: boolean;
 }
 
+export interface ConfirmSection {
+  title: string;
+  items: string[];
+}
+
 export interface ConfirmOptions {
   title: string;
   message?: string;
   detail?: string;
   // Raw text shown verbatim in a scrollable monospace block (crash reports, logs).
   code?: string;
+  // Headed bullet lists, scrollable (release notes).
+  sections?: ConfirmSection[];
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: ConfirmTone;

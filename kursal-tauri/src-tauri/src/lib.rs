@@ -62,6 +62,25 @@ enum Commands {
     Cli(CLIArgs),
 }
 
+#[cfg(target_os = "macos")]
+fn disable_automatic_text_substitutions() {
+    use objc2_foundation::{NSString, NSUserDefaults};
+
+    const KEYS: [&str; 6] = [
+        "WebAutomaticQuoteSubstitutionEnabled",
+        "WebAutomaticDashSubstitutionEnabled",
+        "WebAutomaticTextReplacementEnabled",
+        "NSAutomaticQuoteSubstitutionEnabled",
+        "NSAutomaticDashSubstitutionEnabled",
+        "NSAutomaticTextReplacementEnabled",
+    ];
+
+    let defaults = NSUserDefaults::standardUserDefaults();
+    for key in KEYS {
+        defaults.setBool_forKey(false, &NSString::from_str(key));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // arch seems to... not render the app window lets say
@@ -92,6 +111,9 @@ pub fn run() {
             _ => {}
         },
     }
+
+    #[cfg(target_os = "macos")]
+    disable_automatic_text_substitutions();
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();

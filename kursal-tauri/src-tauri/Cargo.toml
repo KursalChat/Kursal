@@ -72,6 +72,13 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSURL",
 ] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSString",
+    "NSUserDefaults",
+] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.38"
 windows = { version = "0.61", features = ["Win32_Foundation"] }

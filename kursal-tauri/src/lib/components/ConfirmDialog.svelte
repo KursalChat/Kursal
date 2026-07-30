@@ -98,6 +98,20 @@
       {#if o.detail}
         <p class="detail">{o.detail}</p>
       {/if}
+      {#if o.sections?.length}
+        <div class="sections">
+          {#each o.sections as s (s.title)}
+            <div class="section">
+              <span class="section-title">{s.title}</span>
+              <ul>
+                {#each s.items as item (item)}
+                  <li>{item}</li>
+                {/each}
+              </ul>
+            </div>
+          {/each}
+        </div>
+      {/if}
       {#if o.code}
         <div class="code-wrap">
           <pre class="code">{o.code}</pre>
@@ -229,6 +243,38 @@
   }
   .dialog.wide {
     max-width: 560px;
+  }
+  .sections {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 4px;
+    padding: 12px 14px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--surface-soft);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+  }
+  .section-title {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+  .sections ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sections li {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
   }
   .code-wrap {
     position: relative;

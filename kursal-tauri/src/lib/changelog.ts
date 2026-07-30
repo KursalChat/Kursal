@@ -1,39 +1,110 @@
 import raw from '../../../CHANGELOG.md?raw';
+import { t } from '$lib/i18n';
+
+export type ChangeKind = 'features' | 'fixes' | 'other';
+
+export interface ChangeGroup {
+  kind: ChangeKind;
+  items: string[];
+}
 
 export interface ChangelogEntry {
   version: string;
   date: string | null;
-  items: string[];
+  groups: ChangeGroup[];
+}
+
+const KIND_ORDER: ChangeKind[] = ['features', 'fixes', 'other'];
+
+export function groupLabel(kind: ChangeKind): string {
+  if (kind === 'features') return t('changelog.features');
+  if (kind === 'fixes') return t('changelog.fixes');
+  return t('changelog.other');
 }
 
 function cleanItem(line: string): string {
   return line
-    .replace(/^-\s+/, '')
+    .replace(/^[-*]\s+/, '')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .trim();
 }
 
-export function parseChangelog(md: string): ChangelogEntry[] {
-  const entries: ChangelogEntry[] = [];
-  let current: ChangelogEntry | null = null;
+function kindOf(heading: string): ChangeKind {
+  const h = heading.toLowerCase();
+  if (h.includes('fix')) return 'fixes';
+  if (h.includes('feature') || h.includes('added') || h.includes('performance')) return 'features';
+  return 'other';
+}
+
+type Buckets = Map<ChangeKind, string[]>;
+
+function addItem(buckets: Buckets, kind: ChangeKind, item: string) {
+  const list = buckets.get(kind);
+  if (list) list.push(item);
+  else buckets.set(kind, [item]);
+}
+
+function toGroups(buckets: Buckets): ChangeGroup[] {
+  return KIND_ORDER.filter((k) => buckets.get(k)?.length).map((k) => ({
+    kind: k,
+    items: buckets.get(k)!,
+  }));
+}
+
+// Release bodies and CHANGELOG entries share the git-cliff shape: a `###`
+// section per commit type, bullets underneath.
+export function parseReleaseNotes(md: string): ChangeGroup[] {
+  const buckets: Buckets = new Map();
+  let kind: ChangeKind = 'other';
   for (const line of md.split('\n')) {
-    const heading = line.match(/^##\s+\[?([^\]\s]+)\]?(?:\s*-\s*(\S+))?\s*$/);
+    const heading = line.match(/^#{1,6}\s+(.+?)\s*$/);
     if (heading) {
+      kind = kindOf(heading[1]);
+      continue;
+    }
+    if (/^[-*]\s+/.test(line)) {
+      const item = cleanItem(line);
+      if (item) addItem(buckets, kind, item);
+    }
+  }
+  return toGroups(buckets);
+}
+
+export function parseChangelog(md: string): ChangelogEntry[] {
+  const entries: { entry: ChangelogEntry; buckets: Buckets }[] = [];
+  let current: { entry: ChangelogEntry; buckets: Buckets } | null = null;
+  let kind: ChangeKind = 'other';
+
+  for (const line of md.split('\n')) {
+    const version = line.match(/^##\s+\[?([^\]\s]+)\]?(?:\s*-\s*(\S+))?\s*$/);
+    if (version) {
       current = null;
-      if (heading[1].toLowerCase() !== 'unreleased') {
-        current = { version: heading[1], date: heading[2] ?? null, items: [] };
+      kind = 'other';
+      if (version[1].toLowerCase() !== 'unreleased') {
+        const buckets: Buckets = new Map();
+        current = {
+          entry: { version: version[1], date: version[2] ?? null, groups: [] },
+          buckets,
+        };
         entries.push(current);
       }
       continue;
     }
-    if (current && /^-\s+/.test(line)) {
+    const section = line.match(/^#{3,6}\s+(.+?)\s*$/);
+    if (section) {
+      kind = kindOf(section[1]);
+      continue;
+    }
+    if (current && /^[-*]\s+/.test(line)) {
       const item = cleanItem(line);
-      if (item) current.items.push(item);
+      if (item) addItem(current.buckets, kind, item);
     }
   }
-  return entries.filter((e) => e.items.length > 0);
+
+  for (const e of entries) e.entry.groups = toGroups(e.buckets);
+  return entries.map((e) => e.entry).filter((e) => e.groups.length > 0);
 }
 
 const parsed = parseChangelog(raw);
