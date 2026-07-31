@@ -315,7 +315,7 @@ pub fn run() {
                 core_cmd_tx.clone(),
             ));
 
-            let cache_dir = dirs::cache_dir()?;
+            let dispatch_app_data = dirs::app_data_dir()?;
             std::thread::spawn(move || {
                 let local = tokio::task::LocalSet::new();
 
@@ -327,7 +327,7 @@ pub fn run() {
                     db_clone,
                     network_clone,
                     app_tx_clone,
-                    cache_dir,
+                    dispatch_app_data,
                 )));
             });
 

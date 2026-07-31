@@ -101,7 +101,7 @@ pub(super) async fn handle_bt_event(
 pub(super) async fn handle_internal_network_event(
     event: NetworkEvent,
     db: &SharedDatabase,
-    cache_dir: &std::path::Path,
+    app_data_dir: &std::path::Path,
     network: &Arc<Mutex<NetworkManager>>,
     app_event_tx: &mpsc::Sender<AppEvent>,
     status_map: &Arc<Mutex<HashMap<UserId, ConnectionStatus>>>,
@@ -250,14 +250,14 @@ pub(super) async fn handle_internal_network_event(
                     };
                     let db_clone = db.clone();
                     let app_event_tx_clone = app_event_tx.clone();
-                    let cache_dir_clone = cache_dir.to_path_buf();
+                    let app_data_dir_clone = app_data_dir.to_path_buf();
 
                     tokio::task::spawn_local(async move {
                         if let Err(e) = handle_incoming(
                             from,
                             data,
                             db_clone,
-                            &cache_dir_clone,
+                            &app_data_dir_clone,
                             &cmd_tx,
                             &app_event_tx_clone,
                             &chunk_tx,

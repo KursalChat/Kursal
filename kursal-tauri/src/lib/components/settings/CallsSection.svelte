@@ -40,15 +40,15 @@
   });
 
   const rateOptions = $derived([
-    { value: '16000', label: t('settings.calls.qualityLow') },
-    { value: '24000', label: t('settings.calls.qualityMedium') },
-    { value: '48000', label: t('settings.calls.qualityHigh') },
+    { value: '16000', label: t('chat.call.qualityLow') + ' · 16 kHz' },
+    { value: '24000', label: t('chat.call.qualityMedium') + ' · 24 kHz' },
+    { value: '48000', label: t('chat.call.qualityHigh') + ' · 48 kHz' },
   ]);
 
   const videoQualityOptions = $derived([
-    { value: '360', label: t('settings.calls.videoQuality360') },
-    { value: '480', label: t('settings.calls.videoQuality480') },
-    { value: '720', label: t('settings.calls.videoQuality720') },
+    { value: '360', label: t('chat.call.qualityLow') + ' · 360p' },
+    { value: '480', label: t('chat.call.qualityMedium') + ' · 480p' },
+    { value: '720', label: t('chat.call.qualityHigh') + ' · 720p' },
   ]);
 
   const inputOptions = $derived([

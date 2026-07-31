@@ -1,5 +1,5 @@
 use crate::deep_link::dispatch_deep_links;
-use crate::dirs::{app_data_dir, cache_dir, logs_dir};
+use crate::dirs::{app_data_dir, logs_dir};
 use crate::error::Result;
 use crate::share_intake::{self, SharePayload};
 use kursal_core::KursalError;
@@ -17,7 +17,8 @@ use kursal_core::messaging::enums::MessageId;
 use kursal_core::network::NetworkManager;
 use kursal_core::storage::backup::{generate_backup, load_backup};
 use kursal_core::storage::filetransfer::{
-    outgoing_contact_dir, outgoing_pending_dir, sanitize_filename,
+    incoming_contact_dir, incoming_root, outgoing_contact_dir, outgoing_pending_dir,
+    sanitize_filename,
 };
 use kursal_core::storage::{
     AutoAcceptConfig, AutoDownloadConfig, Database, RelayConfig, SharedFileEntry, StorageUsage,
@@ -108,7 +109,7 @@ core_cmd!(get_contacts() -> Vec<ContactResponse>);
 
 #[tauri::command]
 pub async fn remove_contact(state: tauri::State<'_, AppState>, contact_id: String) -> Result<()> {
-    let file_dir = cache_dir()?.join("files").join(&contact_id);
+    let file_dir = incoming_contact_dir(app_data_dir()?, &contact_id);
     let staged_dir = outgoing_contact_dir(app_data_dir()?, &contact_id);
 
     cmd_wrapper::remove_contact(AppStateWrapper(state), contact_id).await?;
@@ -288,12 +289,12 @@ core_cmd!(flush_offline(contact_id: String) -> ());
 #[tauri::command]
 pub async fn get_storage_usage(state: tauri::State<'_, AppState>) -> Result<StorageUsage> {
     let logs_dir = logs_dir()?;
-    let cache_dir = cache_dir()?;
+    let app_data_dir = app_data_dir()?;
 
     kursal_core::storage::get_storage_usage(
         &*state.db().await,
         logs_dir.to_path_buf(),
-        cache_dir.to_path_buf(),
+        app_data_dir.to_path_buf(),
         state.db_path.clone(),
     )
     .map_err(Into::into)
@@ -306,7 +307,7 @@ pub async fn resolve_download_path(
     filename: String,
 ) -> Result<String> {
     let path = kursal_core::storage::filetransfer::download_path(
-        cache_dir()?.to_path_buf(),
+        app_data_dir()?,
         &contact_id,
         &offer_id,
         &filename,
@@ -725,9 +726,14 @@ pub async fn open_log_folder(app: tauri::AppHandle) -> Result<()> {
 
 #[tauri::command]
 pub async fn open_files_folder(app: tauri::AppHandle) -> Result<()> {
-    if let Ok(cache_dir) = crate::dirs::cache_dir() {
+    if let Ok(app_data_dir) = app_data_dir() {
+        let dir = incoming_root(app_data_dir);
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(KursalError::Io)?;
+
         app.opener()
-            .open_path(cache_dir.join("files").to_string_lossy(), None::<&str>)
+            .open_path(dir.to_string_lossy(), None::<&str>)
             .ok_kursal(KursalError::Storage)?;
     }
     Ok(())

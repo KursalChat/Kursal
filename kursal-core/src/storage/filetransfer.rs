@@ -60,17 +60,25 @@ pub fn sanitize_filename(name: &str) -> String {
     safe.chars().take(MAX_LEN).collect()
 }
 
+pub fn incoming_root(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("incoming")
+}
+
+pub fn incoming_contact_dir(app_data_dir: &Path, contact_hex: &str) -> PathBuf {
+    incoming_root(app_data_dir).join(sanitize_filename(contact_hex))
+}
+
+pub fn incoming_offer_dir(app_data_dir: &Path, contact_hex: &str, offer_hex: &str) -> PathBuf {
+    incoming_contact_dir(app_data_dir, contact_hex).join(sanitize_filename(offer_hex))
+}
+
 pub fn download_path(
-    cache_dir: PathBuf,
+    app_data_dir: &Path,
     contact_hex: &str,
     offer_hex: &str,
     filename: &str,
 ) -> PathBuf {
-    cache_dir
-        .join("files")
-        .join(sanitize_filename(contact_hex))
-        .join(sanitize_filename(offer_hex))
-        .join(sanitize_filename(filename))
+    incoming_offer_dir(app_data_dir, contact_hex, offer_hex).join(sanitize_filename(filename))
 }
 
 pub const OUTGOING_PENDING: &str = "pending";
@@ -91,10 +99,10 @@ pub fn outgoing_offer_dir(app_data_dir: &Path, contact_hex: &str, offer_hex: &st
     outgoing_contact_dir(app_data_dir, contact_hex).join(sanitize_filename(offer_hex))
 }
 
-pub fn get_auto_download_storage(cache_dir: PathBuf) -> Result<u64> {
-    get_folder_size(cache_dir.join("files"), 3)
+pub fn get_auto_download_storage(app_data_dir: &Path) -> Result<u64> {
+    get_folder_size(incoming_root(app_data_dir), 3)
 }
 
-pub fn get_auto_download_storage_for(cache_dir: PathBuf, contact_id: String) -> Result<u64> {
-    get_folder_size(cache_dir.join("files").join(contact_id), 2)
+pub fn get_auto_download_storage_for(app_data_dir: &Path, contact_id: &str) -> Result<u64> {
+    get_folder_size(incoming_contact_dir(app_data_dir, contact_id), 2)
 }
