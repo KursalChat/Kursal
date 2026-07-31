@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Kursal
+Comment=Peer-to-peer, end-to-end encrypted messaging that puts you in control.
+Exec=kursal %u
+Icon=kursal
+Terminal=false
+Categories=Network;InstantMessaging;
+MimeType=application/octet-stream;x-scheme-handler/kursal;
+StartupWMClass=kursal

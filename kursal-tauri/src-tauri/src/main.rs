@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    #[cfg(target_os = "linux")] // weird fix on arch linux
+    #[cfg(target_os = "linux")] // weird fix on linux
     {
         if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
             unsafe {
