@@ -232,3 +232,15 @@ export interface AudioDevices {
   selectedInput: string | null;
   selectedOutput: string | null;
 }
+
+export interface ShareFile {
+  path: string;
+  filename: string;
+  sizeBytes: number;
+}
+
+export interface SharePayload {
+  id: string;
+  files: ShareFile[];
+  text: string | null;
+}

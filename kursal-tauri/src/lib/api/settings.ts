@@ -155,6 +155,7 @@ export const setAutoDownloadConfig = (config: AutoDownloadConfig): Promise<void>
 export const getStorageUsage = (): Promise<StorageUsage> => invoke('get_storage_usage');
 
 // Auto-updater
+export const checkForUpdates = (): Promise<void> => invoke('check_for_updates');
 export const getUpdaterEnabled = (): Promise<boolean> => invoke('get_updater_enabled');
 export const setUpdaterEnabled = (value: boolean): Promise<void> =>
   invoke('set_updater_enabled', { value });

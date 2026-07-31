@@ -467,6 +467,11 @@
     }
   }
 
+  function handleSendClick() {
+    onSend();
+    composerEl?.focus();
+  }
+
   function handleEmojiSelect(emoji: string) {
     inputText += emoji;
     showEmoji = false;
@@ -669,7 +674,8 @@
       <button
         class="send-btn"
         class:ready={!!inputText.trim() && !sending}
-        onclick={onSend}
+        onmousedown={(e) => e.preventDefault()}
+        onclick={handleSendClick}
         disabled={!inputText.trim() || sending}
         aria-label={t('chat.composer.sendAriaLabel')}
       >

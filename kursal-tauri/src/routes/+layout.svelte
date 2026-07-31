@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { listen } from '@tauri-apps/api/event';
+  import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
   import { goto } from '$app/navigation';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
@@ -24,6 +25,7 @@
   import { OS, isMobile } from '$lib/api/window';
   import { acceptFileOffer } from '$lib/api/messages';
   import { notifyError } from '$lib/utils/errors';
+  import { clearOtpSession } from '$lib/utils/otpSession';
   import {
     handleBackendDialog,
     runStartupDialogs,
@@ -41,6 +43,8 @@
     setCloseExplainerPending,
   } from '$lib/api/settings';
   import BiometricLock from '$lib/components/BiometricLock.svelte';
+  import ShareTargetModal from '$lib/components/ShareTargetModal.svelte';
+  import { shareIntentState } from '$lib/state/shareIntent.svelte';
   import CloseExplainer from '$lib/components/CloseExplainer.svelte';
   import type {
     MessageReceivedPayload,
@@ -110,6 +114,21 @@
   }
   let unlocked = $state(!isMobile || !readAppLockPref());
 
+  // Registered before the first drain so a payload that finishes staging mid
+  // startup still reaches us.
+  const stopShareBridge = shareIntentState.listenForNative();
+
+  // Shares staged by the OS are drained once the app is usable, so a locked
+  // app keeps the payload on disk instead of dropping it.
+  $effect(() => {
+    if (unlocked) void shareIntentState.drain();
+  });
+
+  function handleSharePick(contactId: string) {
+    shareIntentState.assign(contactId);
+    void goto(`/chat/${contactId}`);
+  }
+
   function refreshTitle() {
     document.title = backgroundUnread > 0 ? `(${backgroundUnread}) ${baseTitle}` : baseTitle;
   }
@@ -131,7 +150,7 @@
     }
     if (contactsState.isMuted(contactId)) return;
     if (background) {
-      void notifyMessage({ senderName, body });
+      void notifyMessage({ contactId, senderName, body });
       return;
     }
     if ($page.url.pathname === `/chat/${contactId}`) return;
@@ -239,10 +258,20 @@
     unlistenPromises.push(backendDialogReady);
     void backendDialogReady.then(() => runStartupDialogs());
 
+    // The iOS share extension foregrounds the app with kursal://share.
+    unlistenPromises.push(onOpenUrl(() => void shareIntentState.drain()));
+
+    // Desktop "Open with Kursal" hands the files straight to the backend.
+    unlistenPromises.push(listen('share_received', () => void shareIntentState.drain()));
+
     const stopFocusTracking = appFocusState.init();
 
     const handleVisibilityChange = () => {
-      if (document.hidden) void draftsState.flush().catch(() => {});
+      if (document.hidden) {
+        void draftsState.flush().catch(() => {});
+      } else {
+        void shareIntentState.drain();
+      }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -333,8 +362,6 @@
         goto('/settings');
       } else if (signal == 'new_contact') {
         goto('/add-contact');
-      } else if (signal == 'open_chat') {
-        if (payload) goto(`/chat/${payload}`);
       } else if (signal == 'open_otp') {
         goto(`/add-contact/otp?receive=${encodeURIComponent(payload)}`);
       } else if (signal == 'add_node') {
@@ -433,6 +460,10 @@
         goto('/chat/' + event.payload.userId);
       })
     );
+
+    // Pairing consumes the published OTP, and contact_added navigates away from
+    // the add-contact page, so the dead code has to be dropped from here too.
+    unlistenPromises.push(listen('otp_consumed', () => clearOtpSession()));
 
     // Listen to delivery_confirmed event
     unlistenPromises.push(
@@ -655,6 +686,7 @@
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopShareBridge();
       stopFocusTracking();
       cancelAnimationFrame(settleRaf);
       window.visualViewport?.removeEventListener('resize', syncUntilStable);
@@ -677,6 +709,13 @@
   {@render children()}
 {:else}
   <BiometricLock onUnlock={() => (unlocked = true)} />
+{/if}
+{#if unlocked && shareIntentState.awaitingTarget && shareIntentState.head}
+  <ShareTargetModal
+    payload={shareIntentState.head}
+    onPick={handleSharePick}
+    onCancel={() => void shareIntentState.discardHead()}
+  />
 {/if}
 <ToastContainer />
 <ConfirmDialog />

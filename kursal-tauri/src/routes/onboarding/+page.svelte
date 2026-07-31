@@ -33,6 +33,10 @@
     {t('onboarding.stepProgress', { current: screen, total: 5 })}
   </span>
 
+  {#if screen > 1 && screen < 5}
+    <button class="skip-global" onclick={goToLast}>{t('onboarding.skip')}</button>
+  {/if}
+
   <div class="stage">
     {#if screen === 1}
       <div class="screen-wrap" data-key="1">
@@ -85,7 +89,7 @@
   }
 
   .onboarding {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background:
       radial-gradient(ellipse at 20% 15%, rgba(46, 91, 215, 0.18) 0%, transparent 45%),
@@ -150,6 +154,22 @@
     background: var(--accent);
   }
 
+  .skip-global {
+    position: fixed;
+    top: calc(var(--safe-top) + 10px);
+    right: 16px;
+    z-index: 6;
+    font-size: 12px;
+    color: rgba(180, 195, 230, 0.4);
+    letter-spacing: 0.02em;
+    padding: 6px 10px;
+    transition: color 150ms ease;
+    animation: screenFade 500ms ease-out;
+  }
+  .skip-global:hover {
+    color: rgba(200, 215, 255, 0.75);
+  }
+
   .stage {
     position: relative;
     z-index: 1;
@@ -167,7 +187,7 @@
   }
 
   .screen-wrap > :global(*) {
-    flex: 1;
+    flex: 1 0 auto;
     min-height: 0;
   }
 

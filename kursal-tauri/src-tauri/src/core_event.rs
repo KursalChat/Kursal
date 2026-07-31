@@ -42,119 +42,6 @@ fn emitter<S: serde::Serialize + Clone>(
     handle.emit(event, payload).ok();
 }
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn dnd_active(spec: &str) -> bool {
-    let parts: Vec<&str> = spec.split('|').collect();
-    if parts.len() != 3 || parts[0] != "1" {
-        return false;
-    }
-    let parse = |s: &str| -> Option<i32> {
-        let mut it = s.split(':');
-        let h: i32 = it.next()?.parse().ok()?;
-        let m: i32 = it.next()?.parse().ok()?;
-        Some(h * 60 + m)
-    };
-    let (start, end) = match (parse(parts[1]), parse(parts[2])) {
-        (Some(s), Some(e)) => (s, e),
-        _ => return false,
-    };
-    if start == end {
-        return false;
-    }
-    use chrono::{Local, Timelike};
-    let now = Local::now();
-    let cur = now.hour() as i32 * 60 + now.minute() as i32;
-    if start < end {
-        cur >= start && cur < end
-    } else {
-        cur >= start || cur < end
-    }
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-async fn maybe_background_notify(handle: &AppHandle, contact_id: &str, content: &str) {
-    use kursal_core::api::state::AppState;
-    use kursal_core::contacts::Contact;
-    use kursal_core::identity::UserId;
-    use tauri::Manager;
-    use tauri_plugin_notification::NotificationExt;
-
-    let window_visible = handle
-        .get_webview_window("main")
-        .and_then(|w| w.is_visible().ok())
-        .unwrap_or(false);
-    if window_visible {
-        return;
-    }
-
-    {
-        use std::sync::atomic::Ordering;
-        if let Some(bg) = handle.try_state::<crate::background::BackgroundState>() {
-            bg.unread.fetch_add(1, Ordering::Relaxed);
-        }
-        crate::background::refresh_tray(handle);
-    }
-
-    let state = handle.state::<AppState>();
-    let preview = {
-        let db = state.db().await;
-        kursal_core::storage::get_notification_preview(&db)
-    };
-    if preview == "none" {
-        return;
-    }
-
-    let dnd = {
-        let db = state.db().await;
-        kursal_core::storage::get_notification_dnd(&db)
-    };
-    if dnd_active(&dnd) {
-        return;
-    }
-
-    let muted = {
-        let db = state.db().await;
-        kursal_core::storage::get_contact_muted(&db, contact_id)
-    };
-    if muted {
-        return;
-    }
-
-    let sender = {
-        let bytes = match hex::decode(contact_id) {
-            Ok(b) => b,
-            Err(_) => return,
-        };
-        let arr: [u8; 32] = match bytes.try_into() {
-            Ok(a) => a,
-            Err(_) => return,
-        };
-        let db = state.db().await;
-        Contact::load(&db, &UserId(arr))
-            .ok()
-            .flatten()
-            .map(|c| c.display_name)
-            .unwrap_or_else(|| "Kursal".to_string())
-    };
-
-    if let Some(bg) = handle.try_state::<crate::background::BackgroundState>() {
-        *bg.pending_signal.lock().unwrap() = Some(crate::background::PendingSignal::OpenChat(
-            contact_id.to_string(),
-        ));
-    }
-
-    let builder = match preview.as_str() {
-        "generic" => handle
-            .notification()
-            .builder()
-            .title("Kursal")
-            .body("New message"),
-        "sender" => handle.notification().builder().title(sender),
-        _ => handle.notification().builder().title(sender).body(content),
-    };
-    let _ = builder.show();
-}
-
 pub async fn handle_core_event(
     event: AppEvent,
     handle: &AppHandle,
@@ -186,13 +73,7 @@ pub async fn handle_core_event(
                 stamp_last_seen(handle, &resp.contact_id).await;
             }
 
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            let notify_args = (resp.contact_id.clone(), resp.content.clone());
-
             emitter(handle, api_handle, "message_received", resp);
-
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            maybe_background_notify(handle, &notify_args.0, &notify_args.1).await;
         }
 
         AppEvent::TypingIndicator { contact_id } => {
@@ -344,6 +225,10 @@ pub async fn handle_core_event(
                 "contact_added",
                 ContactResponse::from(contact),
             );
+        }
+
+        AppEvent::OtpConsumed => {
+            emitter(handle, api_handle, "otp_consumed", serde_json::json!({}));
         }
 
         AppEvent::ContactUpdated { contact } => {

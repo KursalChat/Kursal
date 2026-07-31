@@ -36,6 +36,9 @@ pub mod dirs;
 pub mod error;
 pub mod file;
 pub mod outgoing_sweep;
+pub mod share_intake;
+#[cfg(test)]
+mod tests;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod window_menu;
 
@@ -57,6 +60,25 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     Cli(CLIArgs),
+}
+
+#[cfg(target_os = "macos")]
+fn disable_automatic_text_substitutions() {
+    use objc2_foundation::{NSString, NSUserDefaults};
+
+    const KEYS: [&str; 6] = [
+        "WebAutomaticQuoteSubstitutionEnabled",
+        "WebAutomaticDashSubstitutionEnabled",
+        "WebAutomaticTextReplacementEnabled",
+        "NSAutomaticQuoteSubstitutionEnabled",
+        "NSAutomaticDashSubstitutionEnabled",
+        "NSAutomaticTextReplacementEnabled",
+    ];
+
+    let defaults = NSUserDefaults::standardUserDefaults();
+    for key in KEYS {
+        defaults.setBool_forKey(false, &NSString::from_str(key));
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -90,6 +112,9 @@ pub fn run() {
         },
     }
 
+    #[cfg(target_os = "macos")]
+    disable_automatic_text_substitutions();
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
@@ -116,7 +141,7 @@ pub fn run() {
                         api.prevent_close();
                     } else if bg_en && !eq {
                         api.prevent_close();
-                        let _ = window.destroy();
+                        let _ = window.hide();
                     } else {
                         crate::background::request_quit(app);
                     }
@@ -290,7 +315,7 @@ pub fn run() {
                 core_cmd_tx.clone(),
             ));
 
-            let cache_dir = dirs::cache_dir()?;
+            let dispatch_app_data = dirs::app_data_dir()?;
             std::thread::spawn(move || {
                 let local = tokio::task::LocalSet::new();
 
@@ -302,7 +327,7 @@ pub fn run() {
                     db_clone,
                     network_clone,
                     app_tx_clone,
-                    cache_dir,
+                    dispatch_app_data,
                 )));
             });
 
@@ -525,6 +550,8 @@ pub fn run() {
             commands::send_file_offer,
             commands::create_outgoing_pending_path,
             commands::cancel_file_transfer,
+            commands::take_pending_shares,
+            commands::discard_pending_share,
             commands::flush_offline,
             //
             commands::export_backup,
@@ -536,6 +563,7 @@ pub fn run() {
             commands::get_background_mode,
             commands::set_background_mode,
             commands::set_busy_state,
+            commands::set_tray_unread,
             commands::close_to_background,
             commands::close_force_quit,
             commands::set_close_explainer_pending,

@@ -82,6 +82,7 @@ pub enum AppEvent {
     ContactAdded {
         contact: Contact,
     },
+    OtpConsumed,
     ContactUpdated {
         contact: Contact,
     },

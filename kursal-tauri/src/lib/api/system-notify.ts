@@ -1,5 +1,6 @@
 import {
   isPermissionGranted,
+  removeActive,
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
@@ -40,11 +41,31 @@ export function isInDndWindow(now: Date = new Date()): boolean {
 }
 
 export interface MessageNotifyOptions {
+  contactId: string;
   senderName: string;
   body: string;
 }
 
-export async function notifyMessage({ senderName, body }: MessageNotifyOptions) {
+// Android only, ignored elsewhere
+const ICON = { icon: 'ic_notification', iconColor: '#4d8dff' };
+
+// Ids of the banners still sitting in the tray, per contact
+const activeIds = new Map<string, number[]>();
+let nextId = Date.now() % 1_000_000;
+
+// Android/iOS only
+export async function clearNotificationsFor(contactId: string) {
+  const ids = activeIds.get(contactId);
+  if (!ids?.length) return;
+  activeIds.delete(contactId);
+  try {
+    await removeActive(ids.map((id) => ({ id })));
+  } catch {
+    /* not supported on this platform */
+  }
+}
+
+export async function notifyMessage({ contactId, senderName, body }: MessageNotifyOptions) {
   const preview = prefsState.notificationPreview;
   if (preview === 'none') return;
   if (isInDndWindow()) return;
@@ -67,7 +88,10 @@ export async function notifyMessage({ senderName, body }: MessageNotifyOptions) 
       break;
   }
 
-  sendNotification(text ? { title, body: text } : { title });
+  const id = ++nextId;
+  const base = { ...ICON, id, title };
+  sendNotification(text ? { ...base, body: text } : base);
+  activeIds.set(contactId, [...(activeIds.get(contactId) ?? []), id]);
 }
 
 export async function sendTestNotification(): Promise<boolean> {
@@ -98,6 +122,7 @@ export async function sendTestNotification(): Promise<boolean> {
       break;
   }
 
-  sendNotification(text ? { title, body: text } : { title });
+  const base = { ...ICON, title };
+  sendNotification(text ? { ...base, body: text } : base);
   return true;
 }

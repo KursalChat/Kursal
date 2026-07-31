@@ -152,7 +152,7 @@ pub async fn dispatch_events(
     db: SharedDatabase,
     network: Arc<Mutex<NetworkManager>>,
     app_event_tx: mpsc::Sender<AppEvent>,
-    cache_dir: &std::path::Path,
+    app_data_dir: &std::path::Path,
 ) {
     let status_map: Arc<Mutex<HashMap<UserId, ConnectionStatus>>> =
         Arc::new(Mutex::new(HashMap::new()));
@@ -213,7 +213,7 @@ pub async fn dispatch_events(
     loop {
         tokio::select! {
             Some(event) = event_rx.recv() => {
-                handle_internal_network_event(event, &db, cache_dir, &network, &app_event_tx, &status_map).await
+                handle_internal_network_event(event, &db, app_data_dir, &network, &app_event_tx, &status_map).await
             }
             Some(event) = bt_event_rx.recv() => {
                 handle_bt_event(event, &db, &network, &app_event_tx).await

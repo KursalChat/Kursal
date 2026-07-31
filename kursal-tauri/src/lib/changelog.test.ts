@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChangelog } from './changelog';
+import { parseChangelog, parseReleaseNotes } from './changelog';
 
 const SAMPLE = `# Changelog
 
@@ -34,8 +34,15 @@ describe('parseChangelog', () => {
     expect(entries.map((e) => e.version)).toEqual(['1.2.0', '1.1.0']);
   });
 
-  it('collects items across subsections and strips markdown', () => {
-    expect(entries[0].items).toEqual(['Bold feature with code', 'See docs for details', 'A bug']);
+  it('splits sections into features and fixes and strips markdown', () => {
+    expect(entries[0].groups).toEqual([
+      { kind: 'features', items: ['Bold feature with code', 'See docs for details'] },
+      { kind: 'fixes', items: ['A bug'] },
+    ]);
+  });
+
+  it('files items without a section under other', () => {
+    expect(entries[1].groups).toEqual([{ kind: 'other', items: ['Bare heading style'] }]);
   });
 
   it('parses date and bare headings', () => {
@@ -45,9 +52,26 @@ describe('parseChangelog', () => {
 
   it('parses the real repo CHANGELOG shape', () => {
     const real = parseChangelog(
-      '## [Unreleased]\n\n## [0.1.0-beta] - 2026-07-17\n\n### Added\n\n- Video calls\n'
+      '## [Unreleased]\n\n## [0.1.0-beta] - 2026-07-17\n\n### Features\n\n- Video calls\n\n### Bug Fixes\n\n- Audio jitter\n\n### Miscellaneous\n\n- Clippy\n'
     );
     expect(real[0].version).toBe('0.1.0-beta');
-    expect(real[0].items).toContain('Video calls');
+    expect(real[0].groups.map((g) => g.kind)).toEqual(['features', 'fixes', 'other']);
+    expect(real[0].groups[0].items).toEqual(['Video calls']);
+  });
+});
+
+describe('parseReleaseNotes', () => {
+  it('groups a git-cliff release body', () => {
+    const groups = parseReleaseNotes(
+      '### Bug Fixes\n\n- Otp consumption\n\n### Features\n\n- Log view\n'
+    );
+    expect(groups).toEqual([
+      { kind: 'features', items: ['Log view'] },
+      { kind: 'fixes', items: ['Otp consumption'] },
+    ]);
+  });
+
+  it('returns nothing for prose without bullets', () => {
+    expect(parseReleaseNotes('Just a plain release description.')).toEqual([]);
   });
 });

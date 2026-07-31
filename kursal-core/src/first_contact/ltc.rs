@@ -3,7 +3,9 @@ use crate::{
     KursalError, Result,
     contacts::Contact,
     crypto::{PreKeyBundleData, mailbox_kem_encapsulate, session_initiate},
-    first_contact::{ContactResponse, WireMessage, make_username},
+    first_contact::{
+        ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
+    },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::{
@@ -11,8 +13,8 @@ use crate::{
         swarm::{SwarmCommand, get_listen_addrs, str_to_multiaddr},
     },
     storage::{
-        SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SETTINGS, get_dilithium_pub,
-        get_timestamp_secs,
+        SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SESSIONS, TABLE_SETTINGS,
+        get_dilithium_pub, get_timestamp_secs,
     },
 };
 use libp2p::PeerId;
@@ -20,7 +22,10 @@ use libsignal_protocol::{DeviceId, IdentityKeyStore, ProtocolAddress, PublicKey}
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
+use std::time::Duration;
 use zeroize::Zeroizing;
+
+const ACK_TIMEOUT_SECS: u64 = 20;
 
 #[derive(Serialize, Deserialize)]
 pub struct LtcPayload {
@@ -175,8 +180,10 @@ impl LtcPayload {
         let wire = WireMessage::ContactResponse(response);
         let response_bytes = bincode::serialize(&wire)?;
 
+        let ack_rx = register_ack_waiter(self.payload_id);
+
         // send off!
-        network
+        let sent = network
             .primary
             .cmd_tx
             .send(SwarmCommand::SendMessage {
@@ -185,11 +192,38 @@ impl LtcPayload {
                 data: response_bytes,
                 addresses: str_to_multiaddr(&contact.known_addresses)?,
             })
-            .await
-            .ok_kursal(KursalError::Network)?;
+            .await;
 
-        contact.save(&*db.0.lock().await)?;
+        if sent.is_err() {
+            forget_ack_waiter(self.payload_id);
+            drop_half_open_session(&db, &remote_address).await;
+            return Err(KursalError::Network("Could not send response".to_string()));
+        }
 
-        Ok(contact)
+        match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
+            Ok(Ok(Ok(()))) => {
+                contact.save(&*db.0.lock().await)?;
+                Ok(contact)
+            }
+            Ok(Ok(Err(reason))) => {
+                log::warn!("[ltc] publisher refused the handshake: {}", reason.as_str());
+                drop_half_open_session(&db, &remote_address).await;
+                Err(KursalError::Identity(reason.as_str().to_string()))
+            }
+            _ => {
+                forget_ack_waiter(self.payload_id);
+                drop_half_open_session(&db, &remote_address).await;
+                Err(KursalError::Network(
+                    "No answer from the other device".to_string(),
+                ))
+            }
+        }
+    }
+}
+
+async fn drop_half_open_session(db: &SharedDatabase, remote_address: &ProtocolAddress) {
+    let db_lock = db.0.lock().await;
+    if let Err(err) = db_lock.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
+        log::warn!("[ltc] could not drop the half-open session: {err}");
     }
 }

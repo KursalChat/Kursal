@@ -33,6 +33,7 @@
     loadingOlder: boolean;
     loadingNewer: boolean;
     sending: boolean;
+    terminated: boolean;
     onScroll: () => void;
     imageRuns: (msgs: MessageResponse[]) => ImageRun[];
     onOpenStackImage: (m: MessageResponse, msgs: MessageResponse[]) => void;
@@ -54,6 +55,7 @@
     loadingOlder,
     loadingNewer,
     sending,
+    terminated,
     onScroll,
     imageRuns,
     onOpenStackImage,
@@ -91,6 +93,7 @@
       avatar={contact.avatarBase64}
       verified={contact.verified}
       {sending}
+      canMessage={!contact.blocked && !terminated}
       {onSayHi}
       {onVerify}
     />

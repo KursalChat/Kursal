@@ -6,18 +6,20 @@ use crate::{
     crypto::{PreKeyBundleData, mailbox_kem_decapsulate, session_initiate},
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
-    network::swarm::SwarmCommand,
+    network::swarm::{SwarmCommand, str_to_multiaddr},
     storage::{SharedDatabase, TABLE_LTC_CACHE, TABLE_SETTINGS, get_timestamp_secs},
 };
+use libp2p::PeerId;
 use libsignal_protocol::{
     DeviceId, IdentityKeyStore, KyberPreKeyId, KyberPreKeyStore, PreKeyId, PreKeyStore,
     ProtocolAddress, PublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+use std::str::FromStr;
 use std::sync::{LazyLock, Mutex as StdMutex};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use zeroize::Zeroizing;
 
 pub mod ltc;
@@ -68,12 +70,74 @@ pub struct FileTransferMessage {
     pub data: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FcRejectReason {
+    AlreadyUsed,
+    Expired,
+    Unknown,
+}
+
+impl FcRejectReason {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FcRejectReason::AlreadyUsed => "code already used",
+            FcRejectReason::Expired => "code expired",
+            FcRejectReason::Unknown => "code not recognized",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum WireMessage {
     Encrypted(Vec<u8>),               // for normal encrypted libsignal
     ContactResponse(ContactResponse), // for OTP / LTC handshake
     FileTransfer(FileTransferMessage),
     Terminate,
+    ContactAccepted(MessageId),
+    ContactRejected {
+        payload_id: MessageId,
+        reason: FcRejectReason,
+    },
+}
+
+pub type FcAck = std::result::Result<(), FcRejectReason>;
+
+static FC_ACK_WAITERS: LazyLock<StdMutex<HashMap<[u8; 16], oneshot::Sender<FcAck>>>> =
+    LazyLock::new(|| StdMutex::new(HashMap::new()));
+
+pub fn register_ack_waiter(payload_id: MessageId) -> oneshot::Receiver<FcAck> {
+    let (tx, rx) = oneshot::channel();
+    FC_ACK_WAITERS.lock().unwrap().insert(payload_id.0, tx);
+    rx
+}
+
+pub fn forget_ack_waiter(payload_id: MessageId) {
+    FC_ACK_WAITERS.lock().unwrap().remove(&payload_id.0);
+}
+
+pub fn resolve_ack_waiter(payload_id: MessageId, ack: FcAck) {
+    let waiter = FC_ACK_WAITERS.lock().unwrap().remove(&payload_id.0);
+    if let Some(tx) = waiter {
+        let _ = tx.send(ack);
+    }
+}
+
+async fn send_wire(
+    wire: WireMessage,
+    peer_id: &str,
+    addresses: &[String],
+    cmd_tx: &mpsc::Sender<SwarmCommand>,
+) -> Result<()> {
+    let peer = PeerId::from_str(peer_id).ok_kursal(KursalError::Network)?;
+
+    cmd_tx
+        .send(SwarmCommand::SendMessage {
+            peer_id: peer,
+            data: bincode::serialize(&wire)?,
+            addresses: str_to_multiaddr(addresses)?,
+        })
+        .await
+        .ok_kursal(KursalError::Network)
 }
 
 pub fn make_username(peer_id: &str) -> String {
@@ -97,16 +161,19 @@ pub async fn handle_fc_response(
 
     let now = get_timestamp_secs()?;
 
-    let handshake = {
+    let (handshake, otp_expired) = {
         let db_lock = db.0.lock().await;
 
+        let mut otp_expired = false;
         let otp_match = match db_lock.raw_read(TABLE_SETTINGS, "otp_pending_id")? {
             Some(id) if id.as_slice() == response.payload_id.0.as_slice() => {
                 let published_at: u64 = db_lock
                     .raw_read(TABLE_SETTINGS, "otp_published_at")?
                     .and_then(|b| b.try_into().ok().map(u64::from_be_bytes))
                     .unwrap_or(0);
-                now.saturating_sub(published_at) <= 600
+                let fresh = now.saturating_sub(published_at) <= 600;
+                otp_expired = !fresh;
+                fresh
             }
             _ => false,
         };
@@ -120,17 +187,49 @@ pub async fn handle_fc_response(
             _ => false,
         };
 
-        if otp_match {
+        let kind = if otp_match {
             Some(HandshakeKind::Otp)
         } else if ltc_match {
             Some(HandshakeKind::Ltc)
         } else {
             None
-        }
+        };
+
+        (kind, otp_expired)
     };
 
     let Some(handshake) = handshake else {
-        log::warn!("Rejected incoming ContactResponse: payload_id matches no pending handshake");
+        let consumed =
+            db.0.lock()
+                .await
+                .raw_read(TABLE_SETTINGS, "otp_consumed_id")?
+                .is_some_and(|id| id.as_slice() == response.payload_id.0.as_slice());
+
+        let reason = if consumed {
+            FcRejectReason::AlreadyUsed
+        } else if otp_expired {
+            FcRejectReason::Expired
+        } else {
+            FcRejectReason::Unknown
+        };
+
+        log::warn!(
+            "Rejected incoming ContactResponse: {} (payload matches no pending handshake)",
+            reason.as_str()
+        );
+
+        let rejection = WireMessage::ContactRejected {
+            payload_id: response.payload_id,
+            reason,
+        };
+        let _ = send_wire(
+            rejection,
+            &response.peer_id,
+            &response.relay_addresses,
+            cmd_tx,
+        )
+        .await;
+
         return Ok(());
     };
 
@@ -145,6 +244,13 @@ pub async fn handle_fc_response(
             "[fc] ignoring ContactResponse for already-established contact {} (replay or duplicate)",
             hex::encode(user_id.0)
         );
+        let _ = send_wire(
+            WireMessage::ContactAccepted(response.payload_id),
+            &response.peer_id,
+            &response.relay_addresses,
+            cmd_tx,
+        )
+        .await;
         return Ok(());
     }
 
@@ -211,7 +317,7 @@ pub async fn handle_fc_response(
         avatar_bytes: None,
         identity_pub_key: identity_key_bytes.clone(),
         dilithium_pub_key: response.dilithium_pub_key.clone(),
-        known_addresses: response.relay_addresses,
+        known_addresses: response.relay_addresses.clone(),
         verified: false,
         profile_shared: false,
         blocked: false,
@@ -219,15 +325,34 @@ pub async fn handle_fc_response(
         offline: new_offline_state(&db, &identity_key_bytes, &classical_secret, &pq_secret).await?,
     };
 
-    {
+    let otp_dht_key = {
         let db_lock = db.0.lock().await;
         contact.save(&db_lock)?;
         crate::storage::set_contact_terminated(&db_lock, &hex::encode(user_id.0), false)?;
+
         if matches!(handshake, HandshakeKind::Otp) {
+            let dht_key = db_lock.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
+            db_lock.raw_write(TABLE_SETTINGS, "otp_consumed_id", &response.payload_id.0)?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
+            db_lock.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
+            dht_key
+        } else {
+            None
         }
+    };
+
+    let _ = send_wire(
+        WireMessage::ContactAccepted(response.payload_id),
+        &response.peer_id,
+        &response.relay_addresses,
+        cmd_tx,
+    )
+    .await;
+
+    if let Some(key) = otp_dht_key {
+        let _ = cmd_tx.send(SwarmCommand::RemoveDht { key }).await;
     }
 
     cmd_tx
@@ -241,6 +366,10 @@ pub async fn handle_fc_response(
         .send(AppEvent::ContactAdded { contact })
         .await
         .ok_kursal(KursalError::Network)?;
+
+    if matches!(handshake, HandshakeKind::Otp) {
+        let _ = event_tx.send(AppEvent::OtpConsumed).await;
+    }
 
     fc_replay_remember(response_hash);
     Ok(())

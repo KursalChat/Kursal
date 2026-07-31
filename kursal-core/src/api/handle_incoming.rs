@@ -11,7 +11,7 @@ use crate::{
     },
     contacts::Contact,
     crypto::messages::message_receive,
-    first_contact::{FileTransferMessage, WireMessage, handle_fc_response},
+    first_contact::{FileTransferMessage, WireMessage, handle_fc_response, resolve_ack_waiter},
     identity::UserId,
     messaging::{
         StoredMessage,
@@ -39,7 +39,7 @@ pub async fn handle_incoming(
     from: PeerId,
     ciphertext: Vec<u8>,
     db: SharedDatabase,
-    cache_dir: &std::path::Path,
+    app_data_dir: &std::path::Path,
     cmd_tx: &mpsc::Sender<SwarmCommand>,
     event_tx: &mpsc::Sender<AppEvent>,
     chunk_tx: &mpsc::Sender<(PeerId, FileTransferMessage)>,
@@ -53,6 +53,14 @@ pub async fn handle_incoming(
         }
         Ok(WireMessage::FileTransfer(chunk)) => {
             let _ = chunk_tx.send((from, chunk)).await;
+            return Ok(());
+        }
+        Ok(WireMessage::ContactAccepted(payload_id)) => {
+            resolve_ack_waiter(payload_id, Ok(()));
+            return Ok(());
+        }
+        Ok(WireMessage::ContactRejected { payload_id, reason }) => {
+            resolve_ack_waiter(payload_id, Err(reason));
             return Ok(());
         }
         Ok(WireMessage::Terminate) => {
@@ -255,16 +263,16 @@ pub async fn handle_incoming(
                 let contact_hex = hex::encode(contact.user_id.0);
 
                 let size = if auto_config.scope == "all_contacts" {
-                    get_auto_download_storage(cache_dir.to_path_buf())
+                    get_auto_download_storage(app_data_dir)
                 } else {
-                    get_auto_download_storage_for(cache_dir.to_path_buf(), contact_hex.clone())
+                    get_auto_download_storage_for(app_data_dir, &contact_hex)
                 };
 
                 match size {
                     Ok(size) => {
                         if size.saturating_add(size_bytes) <= auto_config.limit_bytes {
                             let path = download_path(
-                                cache_dir.to_path_buf(),
+                                app_data_dir,
                                 &contact_hex,
                                 &hex::encode(offer_id.0),
                                 &filename,

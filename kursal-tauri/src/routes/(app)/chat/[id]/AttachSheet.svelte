@@ -2,20 +2,26 @@
   import { Image, Camera, Paperclip } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { trapFocus } from '$lib/utils/focusTrap';
+  import { OS } from '$lib/api/window';
+  import type { PickerMode } from '$lib/utils/file-transfer-paths';
 
   interface Props {
     onClose: () => void;
     onPickFiles: (files: File[]) => void;
+    onPickNative: (mode: PickerMode) => void;
   }
 
-  let { onClose, onPickFiles }: Props = $props();
+  let { onClose, onPickFiles, onPickNative }: Props = $props();
+  const nativePickers = OS === 'ios';
 
-  // The webview's own file inputs are what mobile picks with: the OS returns
-  // File objects carrying the real display name, where the native dialog hands
-  // back opaque content:// ids that leave the peer with an unnamed blob.
   let galleryInput = $state<HTMLInputElement | null>(null);
   let filesInput = $state<HTMLInputElement | null>(null);
   let cameraInput = $state<HTMLInputElement | null>(null);
+
+  function pickNative(mode: PickerMode) {
+    onPickNative(mode);
+    onClose();
+  }
 
   function onFilesChange(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -49,13 +55,19 @@
 >
   <div class="sheet-handle"></div>
   <div class="sheet-actions">
-    <button class="sheet-row" onclick={() => galleryInput?.click()}>
+    <button
+      class="sheet-row"
+      onclick={() => (nativePickers ? pickNative('media') : galleryInput?.click())}
+    >
       <Image size={20} /><span>{t('chat.attach.photos')}</span>
     </button>
     <button class="sheet-row" onclick={() => cameraInput?.click()}>
       <Camera size={20} /><span>{t('chat.attach.camera')}</span>
     </button>
-    <button class="sheet-row" onclick={() => filesInput?.click()}>
+    <button
+      class="sheet-row"
+      onclick={() => (nativePickers ? pickNative('document') : filesInput?.click())}
+    >
       <Paperclip size={20} /><span>{t('chat.attach.files')}</span>
     </button>
   </div>
@@ -78,7 +90,7 @@
     bind:this={cameraInput}
     class="hidden-input"
     type="file"
-    accept="image/*,video/*"
+    accept="image/*"
     capture="environment"
     onchange={onFilesChange}
   />

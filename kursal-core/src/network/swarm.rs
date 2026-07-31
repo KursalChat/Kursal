@@ -7,7 +7,7 @@ use crate::{
     identity::TransportIdentity,
     network::{
         bootstrap::bootstrap_peers,
-        kademlia::{KAD_MAX_PAYLOAD, KursalKadStore},
+        kademlia::{KAD_MAX_PACKET, KAD_VALIDATED_QUEUE, KursalKadStore},
         limiter::ConnectionLimiter,
     },
     storage::RelayConfig,
@@ -17,6 +17,7 @@ use libp2p::mdns;
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     futures::StreamExt,
+    kad::store::RecordStore,
     multiaddr::Protocol,
     request_response::{self, ProtocolSupport},
     swarm::{ConnectionId, behaviour::toggle::Toggle},
@@ -85,6 +86,9 @@ pub enum SwarmCommand {
     FetchDht {
         key: Vec<u8>,
         reply_tx: mpsc::Sender<Vec<u8>>,
+    },
+    RemoveDht {
+        key: Vec<u8>,
     },
     Shutdown,
     EnableNearby,
@@ -203,7 +207,8 @@ impl SwarmHandle {
                 let dcutr = libp2p::dcutr::Behaviour::new(local_peer_id);
 
                 let mut kad_config = libp2p::kad::Config::new(StreamProtocol::new("/kursal/kad/1.0.0"));
-                kad_config.set_max_packet_size(KAD_MAX_PAYLOAD + 16 * 1024);
+                kad_config.set_max_packet_size(KAD_MAX_PACKET);
+                kad_config.set_record_filtering(libp2p::kad::StoreInserts::FilterBoth);
                 kad_config.set_record_ttl(Some(Duration::from_secs(3 * 7 * 24 * 60 * 60))); // 3 weeks
 
                 let kad = libp2p::kad::Behaviour::with_config(
@@ -357,6 +362,8 @@ impl SwarmHandle {
 
             let mut stream_control = swarm.behaviour().streaming.new_control();
             let peer_streams: PeerStreams = Arc::new(Mutex::new(HashMap::new()));
+            let (validated_tx, mut validated_rx) =
+                mpsc::channel::<libp2p::kad::Record>(KAD_VALIDATED_QUEUE);
 
             for multiaddr in bootstrap_peers() {
                 if let Some(Protocol::P2p(peer_id)) = multiaddr.iter().last() {
@@ -374,7 +381,12 @@ impl SwarmHandle {
 
             loop {
                 tokio::select! {
-                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns).await,
+                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &validated_tx).await,
+                    Some(record) = validated_rx.recv() => {
+                        if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
+                            log::debug!("[kad] validated record not stored: {err:?}");
+                        }
+                    }
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             Some(SwarmCommand::Shutdown) => break,

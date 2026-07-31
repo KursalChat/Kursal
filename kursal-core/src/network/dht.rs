@@ -18,12 +18,12 @@ pub const POW_PREFILTER_TARGET: [u8; 32] = [
 ];
 
 pub const DHT_TARGET: [u8; 32] = [
-    0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x1F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
 pub const DHT_LONG_TARGET: [u8; 32] = [
-    0x07, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x0B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
@@ -76,7 +76,7 @@ impl DHTRecord {
     }
 
     pub fn is_valid(key: &[u8], bytes: &[u8]) -> Result<Self> {
-        if bytes.len() > KAD_MAX_PAYLOAD {
+        if bytes.len() >= KAD_MAX_PAYLOAD {
             return Err(KursalError::Crypto(format!(
                 "payload too large: {} bytes (max {} bytes)",
                 bytes.len(),
@@ -134,8 +134,10 @@ impl DHTRecord {
 //
 
 fn record_payload(key: &[u8], value: &[u8], timestamp: u64, is_long: bool) -> Vec<u8> {
-    let mut out = Vec::with_capacity(key.len() + value.len() + 9);
+    let mut out = Vec::with_capacity(key.len() + value.len() + 25);
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
     out.extend_from_slice(key);
+    out.extend_from_slice(&(value.len() as u64).to_le_bytes());
     out.extend_from_slice(value);
     out.extend_from_slice(&timestamp.to_le_bytes());
     out.push(is_long as u8);
@@ -149,6 +151,7 @@ pub async fn mine_pow_async(target: [u8; 32], message: Vec<u8>, tag: [u8; 32]) -
 }
 
 pub fn mine_pow(target: &[u8; 32], message: &[u8], tag: &[u8; 32]) -> Result<u128> {
+    let digest = pow_digest(message, tag);
     let threads = rayon::current_num_threads() as u128;
 
     (0..threads)
@@ -156,7 +159,7 @@ pub fn mine_pow(target: &[u8; 32], message: &[u8], tag: &[u8; 32]) -> Result<u12
         .find_map_any(|thread_id| {
             let mut nonce = thread_id;
             loop {
-                if check_pow(target, message, nonce, tag) {
+                if check_pow_digest(target, &digest, nonce) {
                     return Some(nonce);
                 }
                 nonce = nonce.checked_add(threads)?;
@@ -166,12 +169,22 @@ pub fn mine_pow(target: &[u8; 32], message: &[u8], tag: &[u8; 32]) -> Result<u12
 }
 
 pub fn check_pow(target: &[u8; 32], message: &[u8], nonce: u128, tag: &[u8; 32]) -> bool {
-    let mut input = Vec::with_capacity(tag.len() + message.len() + 16);
-    input.extend_from_slice(tag);
-    input.extend_from_slice(message);
-    input.extend_from_slice(&nonce.to_le_bytes());
+    check_pow_digest(target, &pow_digest(message, tag), nonce)
+}
 
-    let sha: [u8; 32] = Sha256::digest(&input).into();
+fn pow_digest(message: &[u8], tag: &[u8; 32]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(tag);
+    hasher.update(message);
+    hasher.finalize().into()
+}
+
+fn check_pow_digest(target: &[u8; 32], digest: &[u8; 32], nonce: u128) -> bool {
+    let mut input = [0u8; 48];
+    input[..32].copy_from_slice(digest);
+    input[32..].copy_from_slice(&nonce.to_le_bytes());
+
+    let sha: [u8; 32] = Sha256::digest(input).into();
     if sha > POW_PREFILTER_TARGET {
         return false;
     }

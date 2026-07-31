@@ -4,7 +4,7 @@ Thanks for helping build Kursal. This document explains how we branch, commit, a
 
 ## One-time setup
 
-You need to have [cargo](https://rust-lang.org/tools/install/) and [bun](https://bun.sh) installed.
+You need to have [cargo](https://rust-lang.org/tools/install/), [bun](https://bun.sh) as well as [tauri-cli](https://v2.tauri.app/reference/cli/) (with cargo) installed.
 
 ```bash
 # you can inspect the justfile for more details of what this does

@@ -34,6 +34,9 @@
     "groupAddContact": "Add contact",
     "groupActions": "Actions",
     "markAllRead": "Mark all as read",
+    "checkForUpdates": "Check for updates",
+    "resetWindowSize": "Reset window size",
+    "quit": "Quit Kursal",
     "searchMessages": "Search messages",
     "searchMessagesPlaceholder": "Search all messages…",
     "searchMessagesHint": "Type to search across all your conversations",
@@ -129,7 +132,6 @@
     "transferFailed": "File transfer failed integrity check and was discarded"
   },
 
-
   "backendDialog": {
     "crashReportTitle": "Crash detected",
     "crashReportMessage": "Kursal crashed last time. Send an anonymous crash report to help fix it?",
@@ -138,7 +140,7 @@
     "crashReportCancel": "Not now",
     "updateAvailableTitle": "Update available",
     "updateAvailableMessage": "Version {version} is available. You're currently on {currentVersion}.",
-    "updateAvailableNotes": "Release notes:\n{notes}",
+    "updateAvailableNotes": "Here's what changed:",
     "updateAvailableConfirm": "Update now",
     "updateAvailableCancel": "Later",
     "updateInstalledTitle": "Update installed",
@@ -173,6 +175,11 @@
     "checkingTitle": "Fetching anything your contacts left in the offline mailbox while you were away",
     "justNow": "Offline checked just now",
     "idleTitle": "Kursal checks the offline mailbox every 15 minutes while you're connected"
+  },
+  "changelog": {
+    "features": "New features",
+    "fixes": "Fixes",
+    "other": "Other changes"
   },
   "home": {
     "greetingMorning": "Good morning, {name}",
@@ -213,7 +220,7 @@
     "closeTransferKeepGoing": "Keep transferring in the background, then quit",
     "closeCallTitle": "Close Kursal?",
     "closeCallMessage": "You're on a call. Closing the app hangs up.",
-    "closeCallWithTransferMessage": "You're on a call and a file transfer is still running. Closing hangs up, turns off your camera, and cancels the transfer.",
+    "closeCallWithTransferMessage": "You're on a call and a file transfer is still running. Closing hangs up, and cancels the transfer.",
     "closeCallConfirm": "End call and close",
     "closeExplainer": {
       "title": "Closing isn't quitting",
@@ -264,6 +271,7 @@
 
   "onboarding": {
     "stepProgress": "Step {current} of {total}",
+    "skip": "Skip",
     "screen1": {
       "heading": "Hi. I'm Winston.",
       "subtitle": "And I believe privacy is fundamental.",
@@ -321,6 +329,9 @@
       "shareSubtitle": "This one-time code expires automatically after 10 minutes.",
       "expiringIn": "Expiring in {time}",
       "codeExpired": "That code expired. Generate a new one to share.",
+      "codeUsed": "That code was used to add a contact. Generate a new one to add someone else.",
+      "alreadyUsedError": "This code was already used to add a contact. Ask for a new one.",
+      "noAnswerError": "The other device never confirmed. Make sure it is online and try again.",
       "sendInstructions": "Send this to your contact through a secure channel.",
       "wordsLabel": "Words",
       "qrLabel": "QR",
@@ -697,14 +708,8 @@
       "qualityCard": "Call quality",
       "qualityRow": "Sample rate",
       "qualityHint": "Higher = clearer voice but may lag on slow connections. Applies to your next call.",
-      "qualityLow": "Low · 16 kHz",
-      "qualityMedium": "Medium · 24 kHz",
-      "qualityHigh": "High · 48 kHz",
       "videoQualityRow": "Video quality",
       "videoQualityHint": "Camera resolution used for video calls",
-      "videoQuality360": "Low (360p)",
-      "videoQuality480": "Standard (480p)",
-      "videoQuality720": "High (720p)",
       "audioCard": "Audio devices",
       "audioDescription": "Default microphone and speaker for calls.",
       "microphoneRow": "Microphone",

@@ -88,8 +88,8 @@ ble-peripheral-rust = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
-ndk-context = "0.1"
-jni = "0.19"
+ndk-context = "0.1.1"
+jni = "0.19.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = [
@@ -121,7 +121,7 @@ windows-native-keyring-store = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-keyutils-keyring-store = { workspace = true }
 
-[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 dbus-secret-service-keyring-store = { workspace = true, features = [
     "crypto-rust",
     "vendored",

@@ -66,7 +66,7 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
-  import { latestEntry, olderEntries } from '$lib/changelog';
+  import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
   import { getNodeStats } from '$lib/api/settings';
   import { formatFileSize } from './chat/[id]/chat-utils';
   import type { ContactResponse } from '$lib/types';
@@ -267,11 +267,18 @@
           </span>
         </button>
         {#if whatsNewOpen}
-          <ul>
-            {#each whatsNew.items as item (item)}
-              <li>{item}</li>
+          <div class="groups">
+            {#each whatsNew.groups as group (group.kind)}
+              <div class="group" data-kind={group.kind}>
+                <span class="group-title">{groupLabel(group.kind)}</span>
+                <ul>
+                  {#each group.items as item (item)}
+                    <li>{item}</li>
+                  {/each}
+                </ul>
+              </div>
             {/each}
-          </ul>
+          </div>
           {#if history.length > 0}
             <button
               class="history-toggle"
@@ -288,11 +295,18 @@
                 {#each history as entry (entry.version)}
                   <div class="history-entry">
                     <span class="version-tag">v{entry.version}</span>
-                    <ul>
-                      {#each entry.items as item (item)}
-                        <li>{item}</li>
+                    <div class="groups">
+                      {#each entry.groups as group (group.kind)}
+                        <div class="group" data-kind={group.kind}>
+                          <span class="group-title">{groupLabel(group.kind)}</span>
+                          <ul>
+                            {#each group.items as item (item)}
+                              <li>{item}</li>
+                            {/each}
+                          </ul>
+                        </div>
                       {/each}
-                    </ul>
+                    </div>
                   </div>
                 {/each}
               </div>
@@ -616,8 +630,26 @@
     border-radius: var(--radius-sm);
     padding: 1px 6px;
   }
+  .groups {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .group-title {
+    display: block;
+    padding-left: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+  .group[data-kind='features'] .group-title {
+    color: var(--accent);
+  }
   .whats-new ul {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
     padding-left: 24px;
     display: flex;
     flex-direction: column;
@@ -654,8 +686,9 @@
     max-height: 220px;
     overflow-y: auto;
   }
-  .history-entry ul {
-    margin-top: 4px;
+  .history-entry .groups {
+    margin-top: 6px;
+    gap: 8px;
   }
 
   .badge {

@@ -140,14 +140,11 @@ pub async fn check_pending_crash(app: &AppHandle) {
     .await;
 
     if send {
-        let _guard = sentry::init((
-            SENTRY_DSN,
-            sentry::ClientOptions {
-                release: sentry::release_name!(),
-                traces_sample_rate: 0.0,
-                ..Default::default()
-            },
-        ));
+        let mut client_options = sentry::ClientOptions::default();
+        client_options.release = sentry::release_name!();
+        client_options.traces_sampling_strategy = sentry::TracesSamplingStrategy::Disabled;
+        let _guard = sentry::init((SENTRY_DSN, client_options));
+
         sentry::configure_scope(|scope| {
             scope.set_tag("os", std::env::consts::OS);
             scope.set_tag("arch", std::env::consts::ARCH);

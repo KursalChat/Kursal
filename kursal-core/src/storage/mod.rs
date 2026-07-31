@@ -96,7 +96,7 @@ impl StorageUsage {
 pub fn get_storage_usage(
     db: &Database,
     logs_dir: PathBuf,
-    cache_dir: PathBuf,
+    app_data_dir: PathBuf,
     db_path: PathBuf,
 ) -> Result<StorageUsage> {
     let logs_bytes = get_folder_size(logs_dir, 1)?;
@@ -112,8 +112,7 @@ pub fn get_storage_usage(
     for contact in contacts.into_iter() {
         let contact_id = hex::encode(contact.user_id.0);
 
-        let contact_files_bytes =
-            get_auto_download_storage_for(cache_dir.clone(), contact_id.clone())?;
+        let contact_files_bytes = get_auto_download_storage_for(&app_data_dir, &contact_id)?;
 
         let read_txn = db.inner.begin_read().ok_kursal(KursalError::Storage)?;
 

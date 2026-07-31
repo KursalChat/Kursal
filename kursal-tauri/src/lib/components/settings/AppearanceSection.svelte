@@ -30,7 +30,7 @@
 
   async function openTranslate() {
     try {
-      await openUrl('https://translate.kursal.chat');
+      await openUrl(`https://translate.kursal.chat/engage/kursal/${locale.current}/`);
     } catch (e) {
       notifyError(e);
     }

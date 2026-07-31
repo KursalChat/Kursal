@@ -56,7 +56,7 @@ cask "kursal" do
       sudo: false
   end
 
-  binary "#{appdir}/Kursal.app/Contents/MacOS/kursal-app", target: "kursal"
+  binary "#{appdir}/Kursal.app/Contents/MacOS/kursal", target: "kursal"
 end
 EOF
 

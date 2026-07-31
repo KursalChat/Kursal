@@ -1,6 +1,6 @@
 use crate::MapKursalResult;
 use crate::{KursalError, Result};
-use keyring_core::{Entry, set_default_store};
+use keyring_core::{CredentialPersistence, Entry, set_default_store};
 use rand::{TryRngCore, rngs::OsRng};
 use std::{collections::HashMap, path::Path};
 use zeroize::Zeroizing;
@@ -39,19 +39,28 @@ pub fn init_keychain() -> Result<()> {
         set_default_store(Store::new_with_configuration(config).ok_kursal(KursalError::Storage)?);
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        use linux_keyutils_keyring_store::Store;
-        set_default_store(Store::new_with_configuration(config).ok_kursal(KursalError::Storage)?);
-    }
-
-    #[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
     {
         use dbus_secret_service_keyring_store::Store;
         set_default_store(Store::new_with_configuration(config).ok_kursal(KursalError::Storage)?);
     }
 
+    warn_if_not_persistent();
+
     Ok(())
+}
+
+fn warn_if_not_persistent() {
+    let Some(store) = keyring_core::get_default_store() else {
+        return;
+    };
+
+    if !matches!(store.persistence(), CredentialPersistence::UntilDelete) {
+        log::error!(
+            "keychain: store does not persist across reboots, the master secret will be lost: {}",
+            store.vendor()
+        );
+    }
 }
 
 pub fn get_entry(config: &KeychainConfig) -> Result<Option<Entry>> {

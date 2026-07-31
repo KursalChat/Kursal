@@ -120,6 +120,14 @@ pub(super) async fn handle_swarm_command(
                 }
             }
         }
+        SwarmCommand::RemoveDht { key } => {
+            let key_dbg = hex::encode(&key[..key.len().min(8)]);
+            swarm
+                .behaviour_mut()
+                .kad
+                .remove_record(&libp2p::kad::RecordKey::new(&key));
+            log::info!("[kad] RemoveDht key={key_dbg}");
+        }
         SwarmCommand::FetchDht { key, reply_tx } => {
             let key_dbg = hex::encode(&key[..key.len().min(8)]);
             let connected_peers = swarm.connected_peers().count();

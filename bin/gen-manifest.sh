@@ -48,8 +48,8 @@ jq -n \
       "linux-x86_64":      { url: $lx_url,    signature: $lx_sig,    sha256: $lx_sha },
       "linux-x86_64-rpm":  { url: $lxr_url,   signature: $lxr_sig,   sha256: $lxr_sha },
       "linux-x86_64-deb":  { url: $lxd_url,   signature: $lxd_sig,   sha256: $lxd_sha },
-      "android":           { url: $and_url,   sha256: $and_sha },
-      "ios":               { url: $ios_url,   sha256: $ios_sha }
+      "android":           { url: $and_url,   signature: "",         sha256: $and_sha },
+      "ios":               { url: $ios_url,   signature: "",         sha256: $ios_sha }
     }
   }' > "$BUILD/latest.json"
 
@@ -62,7 +62,9 @@ for f in \
   Kursal.app.tar.gz Kursal_x64.app.tar.gz \
   Kursal_x64.AppImage Kursal_x64.rpm Kursal_x64.deb \
   Kursal_arm.AppImage Kursal_arm.rpm Kursal_arm.deb \
-  Kursal.apk Kursal.ipa; do
+  Kursal.apk
+  # Kursal.ipa
+  ; do
   [ -f "$BUILD/$f" ] && ( cd "$BUILD" && shasum -a 256 "$f" >> SHA256SUMS.txt )
 done
 
