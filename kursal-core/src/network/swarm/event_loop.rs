@@ -3,6 +3,7 @@ use super::{
     helpers::is_routable_multiaddr,
 };
 use crate::network::bootstrap::is_bootstrap_peer;
+use crate::network::kademlia::spawn_record_validation;
 #[cfg(not(target_os = "ios"))]
 use libp2p::mdns;
 use libp2p::{
@@ -25,8 +26,19 @@ pub(super) async fn handle_swarm_event(
     #[allow(unused_variables)] nearby_enabled: bool,
     #[allow(unused_variables)] mdns_peers: &mut HashMap<PeerId, Multiaddr>,
     peer_conns: &mut HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    validated_tx: &mpsc::Sender<libp2p::kad::Record>,
 ) {
     match event {
+        SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(
+            libp2p::kad::Event::InboundRequest {
+                request:
+                    libp2p::kad::InboundRequest::PutRecord {
+                        record: Some(record),
+                        ..
+                    },
+            },
+        )) => spawn_record_validation(record, validated_tx.clone()),
+
         SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(
             libp2p::kad::Event::OutboundQueryProgressed { id, result, .. },
         )) => match result {

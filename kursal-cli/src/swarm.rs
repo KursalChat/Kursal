@@ -9,13 +9,14 @@ use kursal_core::{
     KursalError, Result,
     network::{
         bootstrap::bootstrap_peers,
-        kademlia::{KAD_MAX_PAYLOAD, KursalKadStore},
+        kademlia::{KAD_MAX_PACKET, KAD_VALIDATED_QUEUE, KursalKadStore, spawn_record_validation},
         limiter::ConnectionLimiter,
     },
 };
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder,
     futures::StreamExt,
+    kad::store::RecordStore,
     multiaddr::Protocol,
     swarm::{NetworkBehaviour, SwarmEvent},
 };
@@ -26,7 +27,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::{RwLock, watch};
+use tokio::sync::{RwLock, mpsc, watch};
 
 const EVENT_LOG_CAP: usize = 200;
 
@@ -150,7 +151,8 @@ pub async fn spawn_relay_swarm(
 
                 let mut kad_config =
                     libp2p::kad::Config::new(StreamProtocol::new("/kursal/kad/1.0.0"));
-                kad_config.set_max_packet_size(KAD_MAX_PAYLOAD);
+                kad_config.set_max_packet_size(KAD_MAX_PACKET);
+                kad_config.set_record_filtering(libp2p::kad::StoreInserts::FilterBoth);
                 kad_config.set_record_ttl(Some(Duration::from_secs(3 * 7 * 24 * 60 * 60))); // 3 weeks
 
                 let mut kad = libp2p::kad::Behaviour::with_config(
@@ -258,9 +260,17 @@ pub async fn spawn_relay_swarm(
     };
     state.publish();
 
+    let (validated_tx, mut validated_rx) =
+        mpsc::channel::<libp2p::kad::Record>(KAD_VALIDATED_QUEUE);
+
     loop {
         tokio::select! {
-            event = swarm.select_next_some() => handle_swarm_event(event, &mut swarm, &mut state).await,
+            event = swarm.select_next_some() => handle_swarm_event(event, &mut swarm, &mut state, &validated_tx).await,
+            Some(record) = validated_rx.recv() => {
+                if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
+                    log::debug!("[kad] validated record not stored: {err:?}");
+                }
+            }
             _ = tokio::signal::ctrl_c() => {
                 log::info!("[relay] shutting down");
                 break;
@@ -275,6 +285,7 @@ async fn handle_swarm_event(
     event: SwarmEvent<KursalBehaviourEvent>,
     swarm: &mut Swarm<KursalBehaviour>,
     state: &mut RelayState,
+    validated_tx: &mpsc::Sender<libp2p::kad::Record>,
 ) {
     match event {
         SwarmEvent::Behaviour(KursalBehaviourEvent::Identify(
@@ -333,6 +344,14 @@ async fn handle_swarm_event(
             state.log_event("[relay] circuit denied".to_string());
             state.publish();
         }
+
+        SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(libp2p::kad::Event::InboundRequest {
+            request:
+                libp2p::kad::InboundRequest::PutRecord {
+                    record: Some(record),
+                    ..
+                },
+        })) => spawn_record_validation(record, validated_tx.clone()),
 
         SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(_)) => {}
 
