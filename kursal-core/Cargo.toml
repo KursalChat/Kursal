@@ -121,7 +121,7 @@ windows-native-keyring-store = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-keyutils-keyring-store = { workspace = true }
 
-[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 dbus-secret-service-keyring-store = { workspace = true, features = [
     "crypto-rust",
     "vendored",
