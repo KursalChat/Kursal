@@ -29,15 +29,13 @@ pub(super) async fn handle_swarm_event(
     validated_tx: &mpsc::Sender<libp2p::kad::Record>,
 ) {
     match event {
-        SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(
-            libp2p::kad::Event::InboundRequest {
-                request:
-                    libp2p::kad::InboundRequest::PutRecord {
-                        record: Some(record),
-                        ..
-                    },
-            },
-        )) => spawn_record_validation(record, validated_tx.clone()),
+        SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(libp2p::kad::Event::InboundRequest {
+            request:
+                libp2p::kad::InboundRequest::PutRecord {
+                    record: Some(record),
+                    ..
+                },
+        })) => spawn_record_validation(record, validated_tx.clone()),
 
         SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(
             libp2p::kad::Event::OutboundQueryProgressed { id, result, .. },
