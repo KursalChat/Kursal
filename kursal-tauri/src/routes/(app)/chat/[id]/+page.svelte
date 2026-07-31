@@ -1741,6 +1741,7 @@
       {loadingOlder}
       {loadingNewer}
       {sending}
+      {terminated}
       onScroll={handleScroll}
       {imageRuns}
       onOpenStackImage={openStackImage}

@@ -7,6 +7,9 @@
     "autostart:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    "core:window:allow-unmaximize",
+    "core:window:allow-set-size",
+    "core:window:allow-center"
   ]
 }

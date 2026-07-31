@@ -46,6 +46,9 @@ export interface MessageNotifyOptions {
   body: string;
 }
 
+// Android only, ignored elsewhere
+const ICON = { icon: 'ic_notification', iconColor: '#4d8dff' };
+
 // Ids of the banners still sitting in the tray, per contact
 const activeIds = new Map<string, number[]>();
 let nextId = Date.now() % 1_000_000;
@@ -86,7 +89,8 @@ export async function notifyMessage({ contactId, senderName, body }: MessageNoti
   }
 
   const id = ++nextId;
-  sendNotification(text ? { id, title, body: text } : { id, title });
+  const base = { ...ICON, id, title };
+  sendNotification(text ? { ...base, body: text } : base);
   activeIds.set(contactId, [...(activeIds.get(contactId) ?? []), id]);
 }
 
@@ -118,6 +122,7 @@ export async function sendTestNotification(): Promise<boolean> {
       break;
   }
 
-  sendNotification(text ? { title, body: text } : { title });
+  const base = { ...ICON, title };
+  sendNotification(text ? { ...base, body: text } : base);
   return true;
 }

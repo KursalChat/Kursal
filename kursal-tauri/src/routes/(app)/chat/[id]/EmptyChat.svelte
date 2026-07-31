@@ -8,11 +8,12 @@
     avatar: string | null | undefined;
     verified: boolean;
     sending: boolean;
+    canMessage: boolean;
     onSayHi: () => void;
     onVerify: () => void;
   }
 
-  let { name, avatar, verified, sending, onSayHi, onVerify }: Props = $props();
+  let { name, avatar, verified, sending, canMessage, onSayHi, onVerify }: Props = $props();
 </script>
 
 <div class="empty-chat">
@@ -25,10 +26,12 @@
     <ShieldAlert size={13} />
     {t('chat.conversation.emptyEncrypted')}
   </p>
-  <button class="empty-hi" disabled={sending} onclick={onSayHi}>
-    <span class="empty-hi-wave">👋</span>
-    {t('chat.conversation.sayHi', { name })}
-  </button>
+  {#if canMessage}
+    <button class="empty-hi" disabled={sending} onclick={onSayHi}>
+      <span class="empty-hi-wave">👋</span>
+      {t('chat.conversation.sayHi', { name })}
+    </button>
+  {/if}
   {#if !verified}
     <button class="empty-verify" onclick={onVerify}>
       <ShieldAlert size={14} />
