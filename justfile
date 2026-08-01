@@ -44,6 +44,7 @@ ship v:
 # bump version + changelog + commit + tag (run on a release/* or hotfix/* branch)
 release v: verify
     bun run bin/bump-version.ts {{ v }}
+    cargo update --workspace --offline
     git cliff --tag v{{ v }} -o CHANGELOG.md
     git add Cargo.toml Cargo.lock kursal-tauri/package.json CHANGELOG.md
     git commit -m "chore(release): v{{ v }}"
@@ -56,6 +57,7 @@ build: clean build-win build-mac build-linux build-android build-ios build-relay
 clean:
     rm -f build/Kursal*
     rm -f build/latest*.json
+    rm -f build/SHA256SUMS.txt
 
     mkdir -p build
 
