@@ -34,7 +34,7 @@ libp2p = { version = "0.56.0", features = [
     "relay",
     "dcutr",
     "kad",
-    # "mdns", # TODO: turn on (because ios)
+    "mdns",
     "noise",
     "yamux",
     "identify",
