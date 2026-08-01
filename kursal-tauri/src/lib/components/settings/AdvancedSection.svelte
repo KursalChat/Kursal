@@ -279,10 +279,7 @@
       <ExternalLink size={11} />
     </button>
   </SettingRow>
-  <SettingRow
-    title={t('settings.advanced.termsRow')}
-    description={termsDateLabel(dateLocale())}
-  >
+  <SettingRow title={t('settings.advanced.termsRow')} description={termsDateLabel(dateLocale())}>
     <button class="link" onclick={() => openLink(TERMS_URL)}>
       {t('settings.advanced.termsButton')}
       <ExternalLink size={11} />

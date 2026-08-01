@@ -11,6 +11,10 @@ const host = process.env.TAURI_DEV_HOST;
 const TERMS_VERSION_URL = "https://kursal.chat/terms/v";
 const TERMS_FALLBACK = "2026-07-27";
 
+/**
+ * @param {boolean} isBuild
+ * @returns {Promise<string>}
+ */
 async function resolveTermsVersion(isBuild) {
   try {
     const res = await fetch(TERMS_VERSION_URL, {
@@ -23,12 +27,11 @@ async function resolveTermsVersion(isBuild) {
     }
     return version;
   } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
     if (isBuild) {
-      throw new Error(
-        `Could not read the terms version from ${TERMS_VERSION_URL}: ${e.message}`
-      );
+      throw new Error(`Could not read the terms version from ${TERMS_VERSION_URL}: ${reason}`);
     }
-    console.warn(`[terms] ${e.message} — falling back to ${TERMS_FALLBACK}`);
+    console.warn(`[terms] ${reason} — falling back to ${TERMS_FALLBACK}`);
     return TERMS_FALLBACK;
   }
 }

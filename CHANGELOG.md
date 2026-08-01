@@ -3,6 +3,9 @@
 All notable changes to Kursal are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
+
+---
+
 ## [0.1.0-beta.3] - 2026-08-01
 
 ### Bug Fixes
@@ -34,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Revert
 
 - Don't fully close the window, keep it open and hide
+
 ## [0.1.0-beta.2] - 2026-07-30
 
 ### Features
@@ -60,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Miscellaneous
 
 - Clippy
+
 ## [0.1.0-beta] - 2026-07-27
 
 ### CI
