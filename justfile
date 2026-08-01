@@ -104,6 +104,7 @@ publish-github:
 	for f in ./build/*; do echo "Uploading: $f"; gh release upload v{{ version }} "$f"; done
 
 publish-relay:
+    orb start || echo "orb start failed, continuing anyway"
     ./bin/build-relay.sh --push
     gh release upload v{{ version }} ./dist/kursal-relay-{{ version }}-linux-*.tar.gz ./dist/kursal-relay-{{ version }}-linux-*.tar.gz.sha256 --clobber
 
