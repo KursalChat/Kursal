@@ -120,8 +120,17 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
+        #[allow(unused_mut)]
+        let mut autostart = tauri_plugin_autostart::Builder::new();
+
+        #[cfg(target_os = "macos")]
+        {
+            autostart =
+                autostart.macos_launcher(tauri_plugin_autostart::MacosLauncher::AppleScript);
+        }
+
         builder = builder
-            .plugin(tauri_plugin_autostart::Builder::new().build())
+            .plugin(autostart.build())
             .on_window_event(|window, event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     use std::sync::atomic::Ordering;

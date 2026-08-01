@@ -25,7 +25,10 @@
   import { uiState } from '$lib/state/ui.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import type { PeerIdHolderPayload } from '$lib/types';
-  import { t } from '$lib/i18n';
+  import { t, dateLocale } from '$lib/i18n';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import { confirmDialog } from '$lib/state/confirm.svelte';
+  import { acceptTerms, termsDateLabel, termsPending, TERMS_URL } from '$lib/utils/terms';
 
   let { children } = $props();
 
@@ -53,9 +56,29 @@
     void goto('/chat/' + lastId, { replaceState: true });
   }
 
+  async function promptTermsIfChanged() {
+    if (!termsPending()) return;
+    const accepted = await confirmDialog({
+      title: t('terms.updatedTitle'),
+      message: t('terms.updatedMessage', { date: termsDateLabel(dateLocale()) }),
+      detail: t('terms.updatedDetail'),
+      confirmLabel: t('terms.acceptButton'),
+      cancelLabel: t('terms.laterButton'),
+      dismissible: false,
+      link: {
+        label: t('terms.reviewButton'),
+        onClick: () => {
+          openUrl(TERMS_URL).catch((e) => log.error('Failed to open terms', e));
+        },
+      },
+    });
+    if (accepted) acceptTerms();
+  }
+
   onMount(() => {
     void callState.init();
     void restoreLastChat();
+    void promptTermsIfChanged();
     let unlisten: (() => void) | null = null;
     let unlistenDrop: (() => void) | null = null;
     let disposed = false;

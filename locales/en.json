@@ -313,8 +313,20 @@
       "removePhoto": "Remove photo",
       "errorPickName": "Pick a name first",
       "errorBroadcastFailed": "Saved locally but broadcast failed",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "consentPrefix": "By continuing, you agree to the",
+      "consentLink": "Terms of Service"
     }
+  },
+
+  "terms": {
+    "updatedTitle": "Terms of Service updated",
+    "updatedMessage": "The Terms of Service changed on {date}.",
+    "updatedDetail": "Continuing to use Kursal means you accept them.",
+    "acceptButton": "Accept",
+    "laterButton": "Later",
+    "reviewButton": "Read the terms",
+    "errorOpenLink": "Couldn't open the terms. Visit kursal.chat/terms in your browser."
   },
 
   "addContact": {
@@ -1020,6 +1032,8 @@
       "licenseValue": "AGPL-3.0-only",
       "sourceCodeRow": "Source code",
       "sourceCodeButton": "View repository",
+      "termsRow": "Terms of Service",
+      "termsButton": "Read the terms",
       "backgroundCard": "System",
       "autoStartRow": "Start with system",
       "autoStartDescription": "Launch Kursal automatically when you log in.",

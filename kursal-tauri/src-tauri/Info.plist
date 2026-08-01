@@ -45,6 +45,10 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate with biometric to unlock the app.</string>
 
+	<!-- Required to add/remove Kursal from the login items list -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Kursal needs this to turn "Open at login" on or off.</string>
+
 	<!-- "Open with Kursal" in Finder -->
 	<key>CFBundleDocumentTypes</key>
 	<array>

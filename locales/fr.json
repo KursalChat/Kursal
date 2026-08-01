@@ -633,6 +633,8 @@
       "serverOnline": "EN LIGNE"
     },
     "screen5": {
+      "consentLink": "Conditions d'utilisation",
+      "consentPrefix": "En continuant, vous acceptez les",
       "cta": "C'est parti",
       "errorBroadcastFailed": "Sauvegardé localement mais la diffusion a échoué",
       "errorPickName": "Choisissez d'abord un nom",
@@ -824,6 +826,8 @@
       "saveButton": "Enregistrer",
       "sourceCodeButton": "Voir le repository",
       "sourceCodeRow": "Code source",
+      "termsButton": "Lire les conditions",
+      "termsRow": "Conditions d'utilisation",
       "successApiSaved": "API locale enregistrée. Redémarrez Kursal pour appliquer.",
       "successAutoStartEnabled": "Démarrage automatique activé",
       "successNewToken": "Nouveau jeton généré. Copiez-le maintenant.",
@@ -1128,6 +1132,15 @@
     "spoiler": "Spoiler",
     "strike": "Barré",
     "title": "Raccourcis clavier"
+  },
+  "terms": {
+    "acceptButton": "Accepter",
+    "errorOpenLink": "Impossible d'ouvrir les conditions. Rendez-vous sur kursal.chat/terms dans votre navigateur.",
+    "laterButton": "Plus tard",
+    "reviewButton": "Lire les conditions",
+    "updatedDetail": "Continuer à utiliser Kursal vaut acceptation.",
+    "updatedMessage": "Les conditions d'utilisation ont changé le {date}.",
+    "updatedTitle": "Conditions d'utilisation mises à jour"
   },
   "time": {
     "today": "Aujourd'hui",
