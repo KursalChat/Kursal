@@ -17,7 +17,7 @@ build_linux() {
       -v "kursal-cargo-registry-$name":/root/.cargo/registry \
       -v "kursal-cargo-target-$name":/root/kursal-target \
       -w /workspace/kursal-tauri \
-      ubuntu:26.04 bash -c '
+      ubuntu:22.04 bash -c '
         if [ ! -f /root/.setup-done ]; then
           echo "==> Running first-time setup..." &&
           apt-get update && apt-get install -y \
