@@ -25,9 +25,10 @@ build_linux() {
             libssl-dev pkg-config libasound2-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev librsvg2-dev \
-            fuse libfuse2 squashfs-tools meson ninja-build \
+            fuse libfuse2 squashfs-tools ninja-build python3-pip \
             protobuf-compiler xdg-utils libclang-dev clang \
             autoconf automake libtool libopus-dev cmake &&
+          pip3 install --upgrade meson &&
           curl https://sh.rustup.rs -sSf | sh -s -- -y &&
           curl -fsSL https://bun.sh/install | bash &&
           touch /root/.setup-done &&

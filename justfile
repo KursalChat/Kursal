@@ -59,6 +59,8 @@ clean:
     rm -f build/latest*.json
     rm -f build/SHA256SUMS.txt
 
+    rm -f dist/kursal*
+
     mkdir -p build
 
 build-opus:

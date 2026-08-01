@@ -57,7 +57,6 @@ dirs = "6.0.0"
 android-native-keyring-store = "1.0.0"
 apple-native-keyring-store = "1.0.0"
 windows-native-keyring-store = "1.0.0"
-linux-keyutils-keyring-store = "1.0.0"
 dbus-secret-service-keyring-store = "1.0.0"
 
 # API
