@@ -96,7 +96,7 @@
 <style>
   .chat-header {
     height: calc(var(--header-height) + var(--safe-top));
-    padding: var(--safe-top) 12px 0;
+    padding: var(--safe-top) max(12px, var(--safe-right)) 0 max(12px, var(--safe-left));
     display: flex;
     align-items: center;
     justify-content: space-between;

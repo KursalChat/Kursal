@@ -184,7 +184,8 @@
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
-    padding: 8px 10px max(16px, var(--safe-bottom));
+    padding: 8px max(10px, var(--safe-right)) max(16px, var(--safe-bottom))
+      max(10px, var(--safe-left));
     z-index: 310;
     animation: sheetUp 0.22s cubic-bezier(0.3, 0, 0.2, 1);
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);

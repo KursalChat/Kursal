@@ -1,5 +1,3 @@
-mkdir -p ./keys
-
 if [ ! -f ./keys/publishing.key ]; then
     echo "\n\n=> Publishing key not found!"
     echo "You will have to enter the same password thrice\n"

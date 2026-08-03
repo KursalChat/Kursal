@@ -154,7 +154,7 @@
     border: none;
     animation: backdrop-in 0.2s ease;
     cursor: default;
-    padding: 0;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
   }
 
   @keyframes backdrop-in {

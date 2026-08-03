@@ -1,5 +1,6 @@
 <script lang="ts" generics="T extends string">
   import { ChevronDown, Check } from 'lucide-svelte';
+  import { readInsets } from '$lib/utils/android-insets';
 
   let {
     value,
@@ -35,16 +36,20 @@
   function position() {
     if (!triggerEl) return;
     const rect = triggerEl.getBoundingClientRect();
-    const menuHeight = Math.min(280, options.length * 34 + 8);
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const placeAbove = spaceBelow < menuHeight + 8 && spaceAbove > spaceBelow;
+    const safe = readInsets();
+    const gap = 8;
+    const wanted = Math.min(280, options.length * 34 + 8);
+    const spaceBelow = window.innerHeight - safe.bottom - rect.bottom - gap;
+    const spaceAbove = rect.top - safe.top - gap;
+    const placeAbove = spaceBelow < wanted && spaceAbove > spaceBelow;
 
-    const top = placeAbove ? Math.max(8, rect.top - menuHeight - 4) : rect.bottom + 4;
-    const left = rect.left;
-    const width = rect.width;
+    const height = Math.min(wanted, Math.max(placeAbove ? spaceAbove : spaceBelow, 80));
+    const top = placeAbove ? Math.max(safe.top + gap, rect.top - height - 4) : rect.bottom + 4;
+    const rightEdge = window.innerWidth - safe.right - gap - rect.width;
+    const left = Math.max(safe.left + gap, Math.min(rect.left, rightEdge));
 
-    menuStyle = `top: ${top}px; left: ${left}px; min-width: ${width}px; max-height: ${menuHeight}px;`;
+    menuStyle =
+      `top: ${top}px; left: ${left}px; ` + `min-width: ${rect.width}px; max-height: ${height}px;`;
   }
 
   function scrollHighlightedIntoView() {

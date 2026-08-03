@@ -17,12 +17,17 @@
   } = $props();
 
   const tone = getTone();
+
+  const popStyle = $derived(
+    `bottom:max(${bottom}px, calc(var(--safe-bottom) + 8px));` +
+      `left:max(${left}px, calc(var(--safe-left) + 8px));`
+  );
 </script>
 
 {#if items.length}
   <div
     class="sc-pop"
-    style="bottom:{bottom}px; left:{left}px;"
+    style={popStyle}
     role="listbox"
     aria-label={t('chat.composer.shortcodeAriaLabel')}
   >

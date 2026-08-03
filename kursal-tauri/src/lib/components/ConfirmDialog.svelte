@@ -188,11 +188,14 @@
   }
   .dialog {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: var(--safe-center-y);
+    left: var(--safe-center-x);
     transform: translate(-50%, -50%);
-    width: calc(100% - 32px);
+    width: calc(var(--safe-w) - 32px);
     max-width: 420px;
+    max-height: calc(var(--safe-h) - 32px);
+    display: flex;
+    flex-direction: column;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -206,6 +209,7 @@
     align-items: center;
     gap: 12px;
     padding: 18px 20px 14px;
+    flex-shrink: 0;
   }
   .head h3 {
     margin: 0;
@@ -239,6 +243,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
   }
   .message {
     margin: 0;
@@ -370,6 +376,7 @@
     padding: 14px 20px 18px;
     border-top: 1px solid var(--border-light);
     background: var(--surface-soft);
+    flex-shrink: 0;
   }
   @keyframes fadein {
     from {

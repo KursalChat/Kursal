@@ -105,11 +105,11 @@
   }
   .sh-panel {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: var(--safe-center-y);
+    left: var(--safe-center-x);
     transform: translate(-50%, -50%);
-    width: min(540px, 92vw);
-    max-height: 80vh;
+    width: min(540px, calc(var(--safe-w) - 32px));
+    max-height: min(80vh, calc(var(--safe-h) - 32px));
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary);

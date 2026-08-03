@@ -3,6 +3,7 @@
   import { X, Search } from 'lucide-svelte';
   import Spinner from '$lib/components/Spinner.svelte';
   import { trapFocus } from '$lib/utils/focusTrap';
+  import { readInsets } from '$lib/utils/android-insets';
   import { t } from '$lib/i18n';
   import {
     loadEmojiIndex,
@@ -75,11 +76,13 @@
     if (!pickerEl) return;
     pickerEl.style.setProperty('--x-shift', '0px');
     const rect = pickerEl.getBoundingClientRect();
-    const vw = window.innerWidth;
+    const safe = readInsets();
     const margin = 8;
+    const right = window.innerWidth - safe.right - margin;
+    const left = safe.left + margin;
     let shift = 0;
-    if (rect.right > vw - margin) shift = vw - margin - rect.right;
-    if (rect.left + shift < margin) shift = margin - rect.left;
+    if (rect.right > right) shift = right - rect.right;
+    if (rect.left + shift < left) shift = left - rect.left;
     pickerEl.style.setProperty('--x-shift', `${shift}px`);
   }
 
@@ -287,8 +290,8 @@
 
 <style>
   .emoji-picker {
-    width: min(352px, calc(100vw - 16px));
-    max-height: min(420px, calc(100vh - 80px));
+    width: min(352px, calc(100vw - var(--safe-left) - var(--safe-right) - 16px));
+    max-height: min(420px, calc(100vh - var(--safe-top) - var(--safe-bottom) - 80px));
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -312,8 +315,8 @@
     }
   }
   .emoji-picker.compact {
-    width: min(288px, calc(100vw - 16px));
-    max-height: min(248px, calc(100vh - 40px));
+    width: min(288px, calc(100vw - var(--safe-left) - var(--safe-right) - 16px));
+    max-height: min(248px, calc(100vh - var(--safe-top) - var(--safe-bottom) - 40px));
     border-radius: var(--radius-md);
   }
   .emoji-picker.compact .picker-header {
@@ -552,7 +555,7 @@
 
   @media (max-width: 500px) {
     .emoji-picker {
-      max-height: min(360px, calc(100vh - 60px));
+      max-height: min(360px, calc(100vh - var(--safe-top) - var(--safe-bottom) - 60px));
     }
   }
 </style>

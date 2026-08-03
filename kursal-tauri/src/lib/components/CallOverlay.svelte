@@ -284,7 +284,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+    padding: calc(24px + var(--safe-top)) max(20px, var(--safe-right))
+      calc(24px + var(--safe-bottom)) max(20px, var(--safe-left));
     animation: overlay-in 0.22s ease-out;
   }
   @keyframes overlay-in {

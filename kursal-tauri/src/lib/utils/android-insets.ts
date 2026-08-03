@@ -43,6 +43,30 @@ export function getImeInset(): number {
   return imeInset;
 }
 
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * The four insets as numbers, for popovers that have to decide where to flip.
+ * Read back off the custom properties so the value is the same one CSS uses,
+ * whichever side (env() or the native bridge) produced it.
+ */
+export function readInsets(): Insets {
+  if (typeof document === 'undefined') return { top: 0, right: 0, bottom: 0, left: 0 };
+  const style = getComputedStyle(document.documentElement);
+  const px = (name: string) => parseFloat(style.getPropertyValue(name)) || 0;
+  return {
+    top: px('--safe-top'),
+    right: px('--safe-right'),
+    bottom: px('--safe-bottom'),
+    left: px('--safe-left'),
+  };
+}
+
 /** Called whenever native pushes new insets, so the layout can re-measure. */
 export function onInsetsChange(cb: () => void): void {
   listener = cb;

@@ -50,7 +50,7 @@
   .incoming {
     position: fixed;
     top: calc(12px + var(--safe-top));
-    left: 50%;
+    left: var(--safe-center-x);
     transform: translateX(-50%);
     z-index: 650;
     display: flex;
@@ -64,7 +64,7 @@
     border-radius: 999px;
     box-shadow: var(--shadow-3);
     animation: incoming-in 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
-    max-width: calc(100vw - 24px);
+    max-width: calc(var(--safe-w) - 24px);
   }
   @keyframes incoming-in {
     from {

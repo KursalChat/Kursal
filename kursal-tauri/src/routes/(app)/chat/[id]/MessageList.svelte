@@ -251,7 +251,8 @@
     overflow-y: auto;
     overflow-x: hidden;
     --msg-pad-x: 16px;
-    padding: 16px var(--msg-pad-x) 0;
+    padding: 16px calc(var(--msg-pad-x) + var(--safe-right)) 0
+      calc(var(--msg-pad-x) + var(--safe-left));
     display: flex;
     flex-direction: column;
     gap: 2px;

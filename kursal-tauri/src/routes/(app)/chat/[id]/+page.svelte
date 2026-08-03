@@ -87,6 +87,7 @@
     emojiPickerPosition,
     mediaUrl,
     isMessageActionable,
+    PICKER_W,
   } from './chat-utils';
   import type { EmojiPickerPos } from './chat-utils';
   import { buildMessageGroups, sortByOfflineTier } from './chat-grouping';
@@ -471,13 +472,16 @@
   const PICKER_CENTER_STYLE = 'top:50%;left:50%;transform:translate(-50%,-50%);';
 
   // Only one of top/bottom is set, so the picker keeps the edge facing the
-  // message fixed while search results change its height.
+  // message fixed while search results change its height. The geometry is
+  // computed against the raw viewport, so the insets are clamped back in here.
   function emojiPickerLayerStyle(pos: EmojiPickerPos): string {
     const vertical =
       pos.bottom !== null
-        ? `bottom:${pos.bottom}px;`
+        ? `bottom:max(${pos.bottom}px, calc(var(--safe-bottom) + 8px));`
         : `top:max(${pos.top}px, calc(var(--safe-top) + 8px));`;
-    return `${vertical}left:${pos.left}px;`;
+    const minLeft = 'calc(var(--safe-left) + 8px)';
+    const maxLeft = `max(${minLeft}, calc(100% - var(--safe-right) - ${PICKER_W + 8}px))`;
+    return `${vertical}left:clamp(${minLeft}, ${pos.left}px, ${maxLeft});`;
   }
 
   async function handlePickerSelect(emoji: string) {
@@ -2032,7 +2036,8 @@
     bottom: 0;
     max-width: var(--chat-max);
     margin-inline: auto;
-    padding: 0 8px max(8px, var(--safe-bottom), var(--kb-overlap, 0px));
+    padding: 0 max(8px, var(--safe-right)) max(8px, var(--safe-bottom), var(--kb-overlap, 0px))
+      max(8px, var(--safe-left));
     display: flex;
     flex-direction: column;
     align-items: stretch;

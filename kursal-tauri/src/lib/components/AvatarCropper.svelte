@@ -263,7 +263,7 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    padding: 0;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
   }
   .modal {
     background: var(--bg-secondary);

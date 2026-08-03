@@ -30,6 +30,7 @@
   import { t } from '$lib/i18n';
   import Spinner from '$lib/components/Spinner.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { readInsets } from '$lib/utils/android-insets';
   import type { MessageResponse } from '$lib/types';
   import {
     formatFileSize,
@@ -245,12 +246,15 @@
   // Drops below `bottom`, or flips above `top` when there isn't room underneath.
   function positionMenu(left: number, bottom: number, top: number = bottom) {
     const margin = 8;
-    const clampedLeft = Math.max(margin, Math.min(left, window.innerWidth - MENU_W - margin));
+    const safe = readInsets();
+    const maxLeft = window.innerWidth - safe.right - MENU_W - margin;
+    const clampedLeft = Math.max(safe.left + margin, Math.min(left, maxLeft));
     const right = Math.round(window.innerWidth - clampedLeft - MENU_W);
-    menuUp = window.innerHeight - bottom < MENU_H;
+    menuUp = window.innerHeight - safe.bottom - bottom < MENU_H;
+    const above = Math.round(window.innerHeight - top + 6);
     menuStyle = menuUp
-      ? `right:${right}px; bottom:${Math.round(window.innerHeight - top + 6)}px; top:auto;`
-      : `right:${right}px; top:${Math.round(bottom + 6)}px;`;
+      ? `right:${right}px; bottom:${Math.max(safe.bottom + margin, above)}px; top:auto;`
+      : `right:${right}px; top:${Math.max(safe.top + margin, Math.round(bottom + 6))}px;`;
   }
 
   function toggleMenu(e: MouseEvent) {

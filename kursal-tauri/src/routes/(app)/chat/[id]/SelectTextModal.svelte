@@ -114,11 +114,11 @@
 
   .select-sheet {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: var(--safe-center-y);
+    left: var(--safe-center-x);
     transform: translate(-50%, -50%);
-    width: min(520px, calc(100% - 32px));
-    max-height: min(70vh, 560px);
+    width: min(520px, calc(var(--safe-w) - 32px));
+    max-height: min(70vh, 560px, calc(var(--safe-h) - 32px));
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);

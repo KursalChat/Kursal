@@ -43,6 +43,7 @@
   import { callState } from '$lib/state/call.svelte';
   import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
   import type { ContactResponse } from '$lib/types';
+  import { readInsets } from '$lib/utils/android-insets';
   import { t, dateLocale } from '$lib/i18n';
 
   interface Props {
@@ -135,10 +136,11 @@
   let contactMenu = $state<{ userId: string; x: number; y: number } | null>(null);
   let contactLongPress: ReturnType<typeof setTimeout> | null = null;
   function openContactMenu(userId: string, x: number, y: number) {
+    const safe = readInsets();
     contactMenu = {
       userId,
-      x: Math.min(x, window.innerWidth - 200),
-      y: Math.min(y, window.innerHeight - 260),
+      x: Math.max(safe.left + 8, Math.min(x, window.innerWidth - safe.right - 200)),
+      y: Math.max(safe.top + 8, Math.min(y, window.innerHeight - safe.bottom - 260)),
     };
   }
   function startContactLongPress(e: TouchEvent, userId: string) {
@@ -602,6 +604,8 @@
 <style>
   .sidebar {
     width: var(--sidebar-width);
+    padding-left: var(--safe-left);
+    padding-bottom: var(--safe-bottom);
     background: var(--panel);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);

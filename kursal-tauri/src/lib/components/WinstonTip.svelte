@@ -52,10 +52,10 @@
 
   .tip {
     position: fixed;
-    right: 22px;
-    bottom: 22px;
+    right: calc(22px + var(--safe-right));
+    bottom: calc(22px + var(--safe-bottom));
     z-index: 8900;
-    max-width: min(400px, calc(100vw - 44px));
+    max-width: min(400px, calc(var(--safe-w) - 44px));
   }
 
   .title {
@@ -116,9 +116,9 @@
 
   @media (max-width: 768px) {
     .tip {
-      right: 12px;
-      bottom: 12px;
-      left: 12px;
+      right: max(12px, var(--safe-right));
+      bottom: calc(12px + var(--safe-bottom));
+      left: max(12px, var(--safe-left));
       max-width: none;
     }
   }

@@ -161,6 +161,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom))
+      max(16px, var(--safe-left));
     z-index: 400;
     animation: fadeIn 0.14s ease;
   }
@@ -173,7 +175,9 @@
     }
   }
   .file-confirm {
-    width: min(380px, calc(100vw - 32px));
+    width: min(380px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);

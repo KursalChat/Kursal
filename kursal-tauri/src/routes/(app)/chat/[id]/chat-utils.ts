@@ -213,7 +213,7 @@ export function mediaUrl(path: string, version: number): string {
 // therefore pins the edge that faces the anchor (`bottom` when placed above,
 // `top` when below) so the picker shrinks away from the message instead of
 // detaching from it.
-const PICKER_W = 288;
+export const PICKER_W = 288;
 const PICKER_H = 248;
 export interface EmojiPickerPos {
   top: number | null;

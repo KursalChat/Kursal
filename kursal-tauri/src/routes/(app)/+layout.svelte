@@ -266,7 +266,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 6px max(12px, var(--safe-right)) 6px max(12px, var(--safe-left));
     background: var(--warning, #f59e0b);
     color: #1a1300;
     font-size: 12.5px;
@@ -364,7 +364,7 @@
       left: 0;
       right: 0;
       height: calc(var(--header-height) + var(--safe-top));
-      padding: var(--safe-top) 6px 0;
+      padding: var(--safe-top) max(6px, var(--safe-right)) 0 max(6px, var(--safe-left));
       background: var(--panel);
       backdrop-filter: blur(20px) saturate(140%);
       -webkit-backdrop-filter: blur(20px) saturate(140%);

@@ -141,7 +141,7 @@
     display: flex;
     align-items: stretch;
     gap: 2px;
-    padding: 5px 8px;
+    padding: 5px max(8px, var(--safe-right)) 5px max(8px, var(--safe-left));
     background: var(--bg-secondary);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -258,8 +258,8 @@
   .pin-pop {
     position: absolute;
     top: calc(100% + 4px);
-    right: 8px;
-    width: min(340px, calc(100vw - 24px));
+    right: max(8px, var(--safe-right));
+    width: min(340px, calc(var(--safe-w) - 24px));
     max-height: 340px;
     display: flex;
     flex-direction: column;

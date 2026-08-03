@@ -384,7 +384,7 @@
 
   .settings-header {
     height: var(--header-height);
-    padding: 0 20px;
+    padding: 0 max(20px, var(--safe-right)) 0 max(20px, var(--safe-left));
     display: flex;
     align-items: center;
     background: var(--panel);
@@ -392,6 +392,13 @@
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: inset 0 -1px 0 var(--panel-border);
     flex-shrink: 0;
+  }
+
+  @media (min-width: 769px) {
+    .settings-header {
+      height: calc(var(--header-height) + var(--safe-top));
+      padding-top: var(--safe-top);
+    }
   }
 
   .settings-header h2 {
@@ -415,7 +422,7 @@
   .sidenav {
     flex-shrink: 0;
     width: 220px;
-    padding: 16px 10px;
+    padding: 16px 10px calc(16px + var(--safe-bottom)) max(10px, var(--safe-left));
     background: var(--panel);
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -504,7 +511,8 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 36px 32px 96px;
+    padding: 36px max(32px, var(--safe-right)) calc(96px + var(--safe-bottom))
+      max(32px, var(--safe-left));
   }
 
   .settings-content {
@@ -597,7 +605,7 @@
     }
     .sidenav {
       width: 100%;
-      padding: 10px 12px;
+      padding: 10px max(12px, var(--safe-right)) 10px max(12px, var(--safe-left));
       border-right: none;
       border-bottom: 1px solid var(--border);
       gap: 8px;
@@ -620,7 +628,8 @@
       margin-bottom: 0;
     }
     .settings-body {
-      padding: 24px 16px 84px;
+      padding: 24px max(16px, var(--safe-right)) calc(84px + var(--safe-bottom))
+        max(16px, var(--safe-left));
     }
   }
 </style>
