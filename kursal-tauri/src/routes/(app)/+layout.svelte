@@ -10,7 +10,6 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
-  import { sessionState } from '$lib/state/session.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import WinstonContactsTour from '$lib/components/WinstonContactsTour.svelte';
   import AutostartPrompt from '$lib/components/AutostartPrompt.svelte';
@@ -44,18 +43,6 @@
     })();
   });
 
-  async function restoreLastChat() {
-    const lastId = await sessionState.init();
-    if (!lastId || page.url.pathname !== '/') return;
-    await contactsState.loaded;
-    if (page.url.pathname !== '/') return;
-    if (!contactsState.getById(lastId)) {
-      sessionState.clearLastContact();
-      return;
-    }
-    void goto('/chat/' + lastId, { replaceState: true });
-  }
-
   async function promptTermsIfChanged() {
     if (!termsPending()) return;
     const accepted = await confirmDialog({
@@ -77,7 +64,6 @@
 
   onMount(() => {
     void callState.init();
-    void restoreLastChat();
     void promptTermsIfChanged();
     let unlisten: (() => void) | null = null;
     let unlistenDrop: (() => void) | null = null;

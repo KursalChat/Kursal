@@ -18,7 +18,6 @@
   import { uiState } from '$lib/state/ui.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
-  import { sessionState } from '$lib/state/session.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
@@ -986,11 +985,6 @@
     // While editing, inputText holds the edit buffer, not a draft.
     if (untrack(() => editingMessageId)) return;
     draftsState.set(id, text);
-  });
-
-  // Recorded on open, not on close: see the note in session.svelte.ts.
-  $effect(() => {
-    if (contactId) sessionState.setLastContact(contactId);
   });
 
   // Picks up a payload the share sheet handed over, once this chat is the one
