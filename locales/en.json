@@ -391,7 +391,7 @@
       "expiredError": "This long-term code has expired. Ask your contact to generate a new one.",
       "invalidFileError": "Invalid file. Please select a valid .kursal long-term code.",
       "selfError": "That's your own contact code, you can't add yourself.",
-      "saveCancelled": "Save cancelled",
+      "saveCancelled": "Save canceled",
       "exportSuccess": "Long-term code ready",
       "exportError": "Failed to export file",
       "importSuccess": "Long-term code imported",
@@ -429,7 +429,7 @@
 
   "chat": {
     "empty": {
-      "mascotAlt": "Kursal Mascott",
+      "mascotAlt": "Kursal Mascot",
       "hasContactsHeading": "Select a conversation",
       "hasContactsBody": "Pick a contact from the sidebar to start chatting. All your messages are end-to-end encrypted.",
       "noContactsHeading": "Welcome to Kursal",
@@ -638,12 +638,12 @@
       "pendingUploadTitle": "Uploads automatically a few seconds after you stop typing",
       "mixed": "{uploading} uploading · {stored} stored",
       "stored": "Stored for {name}",
-      "storedTitle": "Uploaded and waiting in {name}'s mailbox. They arrive the next time {name} is online - you don't need to stay connected.",
+      "storedTitle": "Uploaded and waiting in {name}'s mailbox. They arrive the next time {name} is online — you don't need to stay connected.",
       "retryError": "Couldn't upload the offline bundle. It will retry automatically."
     },
     "delayedMessages": "Jump to {count} earlier",
     "offline": {
-      "sectionStored": "Stored - they arrive even if you go offline",
+      "sectionStored": "Stored — they arrive even if you go offline",
       "sectionWaiting": "Waiting to upload"
     },
     "call": {
