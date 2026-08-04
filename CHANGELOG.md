@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.4] - 2026-08-04
+
+### Features
+
+- Major LTC improvements / configuration
+
+### Bug Fixes
+
+- En/fr grammar & consistency
+- Mobile edge-to-edge display
+- Re-enable mdns
+- Build ubuntu 22 for more compatibility
+- ToS pop up & autostart permission
+
+### CI
+
+- Build deps cleanups
+- Orb start for publishing relay
+- Preflight signature
+- Adjustements
+
+### Styling
+
+- Changelog line breaks
+
+### Revert
+
+- No need to restore last contact
+
 ## [0.1.0-beta.3] - 2026-08-01
 
 ### Bug Fixes
@@ -79,3 +108,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Bump actions/checkout in the actions group
 - Initial commit
+
