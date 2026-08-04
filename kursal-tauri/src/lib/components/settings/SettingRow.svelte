@@ -61,7 +61,10 @@
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
+    max-width: 100%;
   }
 
   @media (max-width: 560px) {
@@ -71,9 +74,6 @@
     }
     .label-col {
       min-width: min(190px, 100%);
-    }
-    .control-col {
-      max-width: 100%;
     }
   }
 </style>

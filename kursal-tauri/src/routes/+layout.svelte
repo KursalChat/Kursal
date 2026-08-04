@@ -32,6 +32,8 @@
     type BackendDialogPayload,
   } from '$lib/api/dialog-bridge';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import UpdateDownloadRing from '$lib/components/UpdateDownloadRing.svelte';
+  import { updateDownloadState } from '$lib/state/updateDownload.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
   import { callState } from '$lib/state/call.svelte';
@@ -61,6 +63,7 @@
     FileReceivedPayload,
     FileTransferFailedPayload,
     TypingIndicatorPayload,
+    UpdateDownloadProgressPayload,
     BackendSignalPayload,
     NetworkOnlinePayload,
     OfflineBundlePublishedPayload,
@@ -684,6 +687,14 @@
       })
     );
 
+    // Listen to the auto-updater download
+    unlistenPromises.push(
+      listen<UpdateDownloadProgressPayload>('update_download_progress', (event) => {
+        updateDownloadState.setProgress(event.payload.downloaded, event.payload.contentLength);
+      })
+    );
+    unlistenPromises.push(listen('update_download_finished', () => updateDownloadState.finish()));
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopShareBridge();
@@ -718,6 +729,7 @@
   />
 {/if}
 <ToastContainer />
+<UpdateDownloadRing />
 <ConfirmDialog />
 <CloseExplainer
   open={closeExplainerOpen}

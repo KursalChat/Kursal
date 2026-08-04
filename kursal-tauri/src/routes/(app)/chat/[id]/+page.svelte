@@ -186,6 +186,7 @@
   let unlistenDrop: (() => void) | null = null;
   let prevMessagesLength = $state(0);
   let prevLastId = $state<string | null>(null);
+  let prevFirstId = $state<string | null>(null);
   let pendingScrollFrame = 0;
   let windowFocused = $state(true);
   let lastFocusedBeforeModal = $state<HTMLElement | null>(null);
@@ -1121,10 +1122,12 @@
   $effect(() => {
     const len = messages.length;
     const lastId = len > 0 ? messages[len - 1].id : null;
+    const firstId = len > 0 ? messages[0].id : null;
     if (needInitialScroll && len > 0 && listEl) {
       needInitialScroll = false;
       prevMessagesLength = len;
       prevLastId = lastId;
+      prevFirstId = firstId;
       // Position synchronously (DOM is already updated when this effect runs),
       // so the chat is at its spot on first paint - no visible top→bottom scroll.
       const savedTop = scrollMemory.get(contactId);
@@ -1148,19 +1151,20 @@
     if (loadingOlder || loadingNewer || jumping) {
       prevMessagesLength = len;
       prevLastId = lastId;
+      prevFirstId = firstId;
       return;
     }
-    // Only react to new messages at the bottom - prepended older pages
-    // (loadOlder) grow the list without changing the newest message.
-    if (len > prevMessagesLength && lastId !== prevLastId) {
+
+    const prepended = prevMessagesLength > 0 && firstId !== prevFirstId;
+    if (len > prevMessagesLength && !prepended) {
       const diff = len - prevMessagesLength;
+      const tailChanged = lastId !== prevLastId;
       tick().then(() => {
         const lastMsg = messages[len - 1];
-        if (lastMsg?.direction === 'sent' || isScrolledToBottom) {
+        if ((tailChanged && lastMsg?.direction === 'sent') || isScrolledToBottom) {
           const behavior: ScrollBehavior = isScrolledToBottom ? 'auto' : 'smooth';
           scrollToBottom(behavior);
-          // Re-pin only for the instant path - a smooth scroll animates
-          // itself and must not be yanked.
+
           if (behavior === 'auto') {
             requestAnimationFrame(() => pinBottomFrames(4));
           }
@@ -1171,6 +1175,7 @@
     }
     prevMessagesLength = len;
     prevLastId = lastId;
+    prevFirstId = firstId;
   });
 
   $effect(() => {

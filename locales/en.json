@@ -176,11 +176,18 @@
     "justNow": "Offline checked just now",
     "idleTitle": "Kursal checks the offline mailbox every 15 minutes while you're connected"
   },
+
+  "updateDownload": {
+    "titleVersion": "Downloading {version}",
+    "installing": "Installing…"
+  },
+
   "changelog": {
     "features": "New features",
     "fixes": "Fixes",
     "other": "Other changes"
   },
+
   "home": {
     "greetingMorning": "Good morning, {name}",
     "greetingAfternoon": "Good afternoon, {name}",

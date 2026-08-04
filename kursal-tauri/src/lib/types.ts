@@ -186,6 +186,11 @@ export interface TypingIndicatorPayload {
   replyTo: string | null;
 }
 
+export interface UpdateDownloadProgressPayload {
+  downloaded: number;
+  contentLength: number | null;
+}
+
 export type CallStatus =
   'idle' | 'ringing_out' | 'ringing_in' | 'connecting' | 'connected' | 'ended';
 

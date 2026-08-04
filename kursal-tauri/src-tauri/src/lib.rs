@@ -701,6 +701,7 @@ pub(crate) async fn check_for_updates_impl(
     log::debug!("checking for updates... manual={manual}");
     use crate::dialog_bridge::{DialogRequest, ask};
     use serde_json::json;
+    use tauri::Emitter;
     use tauri_plugin_updater::UpdaterExt;
 
     let channel = {
@@ -740,16 +741,29 @@ pub(crate) async fn check_for_updates_impl(
             return Ok(());
         }
 
-        let mut downloaded = 0;
+        let progress_app = app.clone();
+        let finish_app = app.clone();
+        let mut downloaded = 0usize;
+        let mut last_emit = std::time::Instant::now();
 
         update
             .download_and_install(
-                |chunk_len, content_len| {
+                move |chunk_len, content_len| {
                     downloaded += chunk_len;
                     log::debug!("[updater] downloaded {downloaded} out of {content_len:?}");
+                    let complete = Some(downloaded as u64) == content_len;
+                    if !complete && last_emit.elapsed() < std::time::Duration::from_millis(200) {
+                        return;
+                    }
+                    last_emit = std::time::Instant::now();
+                    let _ = progress_app.emit(
+                        "update_download_progress",
+                        json!({ "downloaded": downloaded, "contentLength": content_len }),
+                    );
                 },
-                || {
+                move || {
                     log::debug!("[updater] download finished");
+                    let _ = finish_app.emit("update_download_finished", ());
                 },
             )
             .await?;
