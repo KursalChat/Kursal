@@ -327,7 +327,7 @@
     display: flex;
     flex-direction: column;
   }
-  
+
   @media (min-width: 769px) {
     .home {
       padding-top: calc(24px + var(--safe-top));

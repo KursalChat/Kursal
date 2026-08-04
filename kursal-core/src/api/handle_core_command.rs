@@ -1,4 +1,5 @@
 use crate::MapKursalResult;
+use crate::first_contact::ltc::LtcState;
 use crate::{
     KursalError,
     api::{
@@ -57,13 +58,62 @@ pub async fn handle_core_command(
             reply.send(result).ok();
         }
 
+        CoreCommand::GetLtcStatus { reply } => {
+            let db_lock = db.0.lock().await;
+            let result = LtcState::load(&db_lock)
+                .map(|opt| opt.and_then(|p| LtcState::dto_serialize(&p).ok()));
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::CreateLtc {
+            max_uses,
+            ttl_secs,
+            reply,
+        } => {
+            let result = LtcState::create(db, max_uses, ttl_secs)
+                .await
+                .and_then(|p| LtcState::dto_serialize(&p));
+            let status = result.as_ref().ok().cloned();
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status })
+                .await
+                .ok();
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::UpdateLtcLimits {
+            max_uses,
+            ttl_secs,
+            reply,
+        } => {
+            let result = LtcState::update_limits(db, max_uses, ttl_secs).await;
+            let status = result.as_ref().ok().cloned();
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status })
+                .await
+                .ok();
+
+            reply.send(result).ok();
+        }
+
         CoreCommand::ExportLtc { reply } => {
             let net = network.lock().await;
-            let result = LtcPayload::generate(db, &net)
+            let result = LtcState::export_ltc(db, &net).await;
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::RevokeLtc { reply } => {
+            let result = LtcState::revoke_ltc(db).await;
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status: None })
                 .await
-                .and_then(|p| p.serialize())
-                .map(KursalFile::LtcPayload)
-                .and_then(|p| p.serialize());
+                .ok();
 
             reply.send(result).ok();
         }
@@ -77,9 +127,10 @@ pub async fn handle_core_command(
             };
 
             let result = match result {
-                Ok(payload) => payload.import_ltc(db, &net).await,
+                Ok(payload) => LtcState::import_ltc(payload, db, &net).await,
                 Err(e) => Err(e),
             };
+
             reply.send(result).ok();
         }
 

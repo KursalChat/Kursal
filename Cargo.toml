@@ -81,6 +81,9 @@ sentry = { version = "0.49.0", default-features = false, features = [
     "rustls",
 ] }
 sentry-panic = "0.49.0"
+objc2-foundation = { version = "0.3.2", default-features = false }
+webview2-com = "0.38.2"
+windows = "0.61.3"
 
 # Audio
 audiopus = "0.2.0"
@@ -88,6 +91,27 @@ cpal = "0.18.1"
 ringbuf = "0.5.1"
 webrtc-audio-processing = "2.1.0"
 objc2-avf-audio = "0.3.2"
+
+# Tauri
+tauri-build = "2.6.3"
+tauri = "2.11.5"
+
+tauri-plugin-dialog = "2.7.2"
+tauri-plugin-fs = "2.5.1"
+tauri-plugin-opener = "2.5.4"
+tauri-plugin-clipboard-manager = "2.3.2"
+tauri-plugin-os = "2.3.2"
+tauri-plugin-deep-link = "2.4.9"
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2.4.3"
+tauri-plugin-window-state = "2.4.1"
+tauri-plugin-barcode-scanner = "2.4.5"
+tauri-plugin-biometric = "2.3.2"
+tauri-plugin-haptics = "2.3.2"
+
+tauri-plugin-sharekit = "=0.4.0-rc.5"
 
 # libsignal deps - from https://github.com/signalapp/libsignal/blob/main/Cargo.toml
 libsignal-protocol = { path = "externals/libsignal/rust/protocol" }

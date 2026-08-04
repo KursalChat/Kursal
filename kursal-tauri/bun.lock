@@ -5,6 +5,7 @@
     "": {
       "name": "kursal-tauri",
       "dependencies": {
+        "@choochmeque/tauri-plugin-sharekit-api": "^0.4.0-rc.5",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-autostart": "~2.5.1",
         "@tauri-apps/plugin-barcode-scanner": "~2.4.5",
@@ -27,7 +28,7 @@
       },
       "devDependencies": {
         "@sveltejs/adapter-static": "^3.0.10",
-        "@sveltejs/kit": "^2.70.1",
+        "@sveltejs/kit": "^2.70.2",
         "@sveltejs/vite-plugin-svelte": "^7.2.0",
         "@tauri-apps/cli": "^2.11.4",
         "@types/qrcode": "^1.5.6",
@@ -35,9 +36,9 @@
         "prettier": "^3.9.6",
         "prettier-plugin-svelte": "^4.1.1",
         "svelte": "^5.56.8",
-        "svelte-check": "^4.7.3",
+        "svelte-check": "^4.7.4",
         "typescript": "^6.0.3",
-        "vite": "^8.1.5",
+        "vite": "^8.2.0",
         "vitest": "^4.1.10",
       },
     },
@@ -52,6 +53,8 @@
     "@asamuzakjp/nwsapi": ["@asamuzakjp/nwsapi@2.3.9", "", {}, "sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q=="],
 
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
+
+    "@choochmeque/tauri-plugin-sharekit-api": ["@choochmeque/tauri-plugin-sharekit-api@0.4.0-rc.5", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-VpO3Uw5ZmPa0M0ta/oS5WyiW/jdNAPFh1zXbHA5dJtLMeA4RJqqj4vAlVMYoYRqtrE/1Op/GQ3jXvxgU4WgSVA=="],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.0.2", "", {}, "sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q=="],
 

@@ -197,6 +197,11 @@ pub fn run() {
             .plugin(tauri_plugin_biometric::init());
     }
 
+    #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+    {
+        builder = builder.plugin(tauri_plugin_sharekit::init())
+    }
+
     builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
@@ -502,7 +507,11 @@ pub fn run() {
             commands::generate_otp,
             commands::publish_otp,
             commands::fetch_otp,
+            commands::get_ltc_status,
+            commands::create_ltc,
+            commands::update_ltc_limits,
             commands::export_ltc,
+            commands::revoke_ltc,
             commands::import_ltc,
             commands::start_nearby,
             commands::stop_nearby,

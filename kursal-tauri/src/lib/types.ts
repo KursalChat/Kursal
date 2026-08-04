@@ -244,3 +244,12 @@ export interface SharePayload {
   files: ShareFile[];
   text: string | null;
 }
+
+export interface LtcStatus {
+  payloadId: string;
+  createdAt: number; // unix seconds, not ms
+  expiresAt: number | null; // unix seconds; null = never
+  maxUses: number | null; // null = unlimited
+  uses: number;
+  sizeBytes: number;
+}

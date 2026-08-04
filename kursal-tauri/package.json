@@ -16,6 +16,7 @@
   },
   "license": "AGPL-3.0-only",
   "dependencies": {
+    "@choochmeque/tauri-plugin-sharekit-api": "^0.4.0-rc.5",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-autostart": "~2.5.1",
     "@tauri-apps/plugin-barcode-scanner": "~2.4.5",

@@ -1,4 +1,6 @@
 use crate::MapKursalResult;
+use crate::dto::LtcStatusDto;
+use crate::storage::Database;
 use crate::{
     KursalError, Result,
     contacts::Contact,
@@ -14,7 +16,7 @@ use crate::{
     },
     storage::{
         SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SESSIONS, TABLE_SETTINGS,
-        get_dilithium_pub, get_timestamp_secs,
+        file::KursalFile, get_dilithium_pub, get_timestamp_secs,
     },
 };
 use libp2p::PeerId;
@@ -28,67 +30,87 @@ use zeroize::Zeroizing;
 const ACK_TIMEOUT_SECS: u64 = 20;
 
 #[derive(Serialize, Deserialize)]
-pub struct LtcPayload {
+pub struct LtcState {
     pub payload_id: MessageId,
-    pub peer_id: String,
-    pub pre_key_bundle: Vec<u8>, // no one-time prekey
+    pub pre_key_bundle: Vec<u8>,
+    pub kyber_pre_key_id: u32,
     pub dilithium_pub_key: Vec<u8>,
-    pub relay_addresses: Vec<String>,
     pub created_at: u64,
-    pub expires_at: u64,
+    pub expires_at: u64,       // u64::MAX = basically never
+    pub max_uses: Option<u32>, // None = unlimited
+    pub uses: u32,
 }
 
-impl LtcPayload {
-    pub async fn generate(db: SharedDatabase, network: &NetworkManager) -> Result<Self> {
+impl LtcState {
+    pub async fn create(
+        db: SharedDatabase,
+        max_uses: Option<u32>,
+        ttl_secs: Option<u64>,
+    ) -> Result<Self> {
         let bundle = PreKeyBundleData::build_pre_key_bundle_noprekey(db.clone()).await?;
-        let new_kyber_id: u32 = bundle.kyber_pre_key_id.into();
+        let kyber_pre_key_id: u32 = bundle.kyber_pre_key_id.into();
 
         {
-            let lock = db.0.lock().await;
-            if let Some(old) = lock
-                .raw_read(TABLE_LTC_CACHE, "ltc_current_kyber_id")?
-                .and_then(|b| b.try_into().ok().map(u32::from_be_bytes))
-                && old != new_kyber_id
-            {
-                lock.raw_delete(TABLE_KYBER_PRE_KEYS, &format!("kyber_prekey_{old}"))?;
-                lock.raw_delete(TABLE_SETTINGS, &format!("kyber_lastresort_{old}"))?;
-            }
-            lock.raw_write(
-                TABLE_LTC_CACHE,
-                "ltc_current_kyber_id",
-                &new_kyber_id.to_be_bytes(),
-            )?;
+            Self::revoke_ltc(db.clone()).await.ok();
         }
 
-        let peer_id = network.primary.peer_id.to_base58();
         let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
 
         let created_at = get_timestamp_secs()?;
-        let expires_at = created_at + 604800; // 1 week
+        let expires_at = ttl_secs
+            .map(|t| created_at.saturating_add(t))
+            .unwrap_or(u64::MAX);
 
         let payload_id = MessageId::new();
 
-        db.0.lock()
-            .await
-            .raw_write(TABLE_LTC_CACHE, "ltc_current_id", &payload_id.0)?;
-
-        let payload = LtcPayload {
+        let state = LtcState {
             payload_id,
-            peer_id,
             pre_key_bundle: bundle.serialize()?,
+            kyber_pre_key_id,
             dilithium_pub_key,
-            relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
             created_at,
             expires_at,
+            max_uses,
+            uses: 0,
         };
 
-        db.0.lock().await.raw_write(
-            TABLE_LTC_CACHE,
-            "ltc_current_expiry",
-            &expires_at.to_be_bytes(),
-        )?;
+        db.0.lock()
+            .await
+            .raw_write(TABLE_LTC_CACHE, "ltc_current", &state.serialize()?)?;
 
-        Ok(payload)
+        Ok(state)
+    }
+
+    pub async fn update_limits(
+        db: SharedDatabase,
+        max_uses: Option<u32>,
+        ttl_secs: Option<u64>,
+    ) -> Result<LtcStatusDto> {
+        let db_lock = db.0.lock().await;
+
+        let mut state = Self::load(&db_lock)?
+            .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?;
+
+        state.max_uses = max_uses;
+
+        let now = get_timestamp_secs()?;
+        state.expires_at = ttl_secs.map(|t| now.saturating_add(t)).unwrap_or(u64::MAX);
+
+        state.save(&db_lock)?;
+
+        Self::dto_serialize(&state)
+    }
+
+    pub fn load(db: &Database) -> Result<Option<Self>> {
+        db.raw_read(TABLE_LTC_CACHE, "ltc_current")?
+            .map(|raw: Vec<u8>| Self::deserialize(&raw))
+            .transpose()
+    }
+
+    pub fn save(&self, db: &Database) -> Result<()> {
+        db.raw_write(TABLE_LTC_CACHE, "ltc_current", &self.serialize()?)?;
+
+        Ok(())
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
@@ -99,17 +121,79 @@ impl LtcPayload {
         bincode::deserialize(bytes).map_err(Into::into)
     }
 
+    pub fn dto_serialize(&self) -> Result<LtcStatusDto> {
+        let expires_at = match self.expires_at {
+            u64::MAX => None,
+            v => Some(v),
+        };
+
+        let dto = LtcStatusDto {
+            payload_id: hex::encode(self.payload_id.0),
+            created_at: self.created_at,
+            expires_at,
+            max_uses: self.max_uses,
+            uses: self.uses,
+            size_bytes: u32::try_from(self.dilithium_pub_key.len() + self.pre_key_bundle.len())
+                .unwrap_or(u32::MAX),
+        };
+
+        Ok(dto)
+    }
+
     pub fn is_expired(&self) -> bool {
         let now = get_timestamp_secs().unwrap_or(u64::MAX);
         now > self.expires_at
     }
 
+    pub async fn revoke_ltc(db: SharedDatabase) -> Result<()> {
+        let lock = db.0.lock().await;
+        let loaded = Self::load(&lock);
+
+        if let Ok(Some(previous)) = loaded {
+            lock.raw_delete(
+                TABLE_KYBER_PRE_KEYS,
+                &format!("kyber_prekey_{}", previous.kyber_pre_key_id),
+            )?;
+            lock.raw_delete(
+                TABLE_SETTINGS,
+                &format!("kyber_lastresort_{}", previous.kyber_pre_key_id),
+            )?;
+        }
+
+        lock.raw_delete(TABLE_LTC_CACHE, "ltc_current")?;
+
+        Ok(())
+    }
+
+    pub async fn export_ltc(db: SharedDatabase, network: &NetworkManager) -> Result<Vec<u8>> {
+        let state = {
+            let db_lock = db.0.lock().await;
+            Self::load(&db_lock)?
+                .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?
+        };
+
+        let peer_id = network.primary.peer_id.to_base58();
+        let relay_addresses = get_listen_addrs(&network.primary.cmd_tx).await?;
+
+        let payload = LtcPayload {
+            payload_id: state.payload_id,
+            peer_id,
+            pre_key_bundle: state.pre_key_bundle,
+            dilithium_pub_key: state.dilithium_pub_key,
+            relay_addresses,
+            created_at: state.created_at,
+            expires_at: state.expires_at,
+        };
+
+        KursalFile::LtcPayload(payload.serialize()?).serialize()
+    }
+
     pub async fn import_ltc(
-        &self,
+        payload: LtcPayload,
         db: SharedDatabase,
         network: &NetworkManager,
     ) -> Result<Contact> {
-        if self.peer_id == network.primary.peer_id.to_base58() {
+        if payload.peer_id == network.primary.peer_id.to_base58() {
             log::debug!("[ltc] Cannot add yourself as a contact");
             return Err(KursalError::Network(
                 "Cannot add yourself as a contact".to_string(),
@@ -118,11 +202,11 @@ impl LtcPayload {
 
         let now = get_timestamp_secs()?;
 
-        if self.expires_at < now {
+        if payload.expires_at < now {
             return Err(KursalError::Identity("LTC expired".to_string()));
         }
 
-        let bundle = PreKeyBundleData::deserialize(&self.pre_key_bundle)?;
+        let bundle = PreKeyBundleData::deserialize(&payload.pre_key_bundle)?;
         let identity_key_bytes = bundle.identity_key.public_key().serialize().to_vec();
 
         let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
@@ -151,12 +235,12 @@ impl LtcPayload {
 
         let contact = Contact {
             user_id,
-            peer_id: self.peer_id.clone(),
-            display_name: make_username(&self.peer_id),
+            peer_id: payload.peer_id.clone(),
+            display_name: make_username(&payload.peer_id),
             avatar_bytes: None,
             identity_pub_key: identity_key_bytes.clone(),
-            dilithium_pub_key: self.dilithium_pub_key.clone(),
-            known_addresses: self.relay_addresses.clone(),
+            dilithium_pub_key: payload.dilithium_pub_key.clone(),
+            known_addresses: payload.relay_addresses.clone(),
             verified: false,
             profile_shared: false,
             blocked: false,
@@ -167,7 +251,7 @@ impl LtcPayload {
 
         // now build bundle back
         let response = ContactResponse {
-            payload_id: self.payload_id,
+            payload_id: payload.payload_id,
             pre_key_bundle: my_bundle.serialize()?,
             peer_id: network.primary.peer_id.to_base58(),
             dilithium_pub_key,
@@ -180,14 +264,14 @@ impl LtcPayload {
         let wire = WireMessage::ContactResponse(response);
         let response_bytes = bincode::serialize(&wire)?;
 
-        let ack_rx = register_ack_waiter(self.payload_id);
+        let ack_rx = register_ack_waiter(payload.payload_id);
 
         // send off!
         let sent = network
             .primary
             .cmd_tx
             .send(SwarmCommand::SendMessage {
-                peer_id: PeerId::from_str(&self.peer_id)
+                peer_id: PeerId::from_str(&payload.peer_id)
                     .map_err(|err| KursalError::Identity(format!("Invalid peer_id: {err}")))?,
                 data: response_bytes,
                 addresses: str_to_multiaddr(&contact.known_addresses)?,
@@ -195,7 +279,7 @@ impl LtcPayload {
             .await;
 
         if sent.is_err() {
-            forget_ack_waiter(self.payload_id);
+            forget_ack_waiter(payload.payload_id);
             drop_half_open_session(&db, &remote_address).await;
             return Err(KursalError::Network("Could not send response".to_string()));
         }
@@ -211,13 +295,34 @@ impl LtcPayload {
                 Err(KursalError::Identity(reason.as_str().to_string()))
             }
             _ => {
-                forget_ack_waiter(self.payload_id);
+                forget_ack_waiter(payload.payload_id);
                 drop_half_open_session(&db, &remote_address).await;
                 Err(KursalError::Network(
                     "No answer from the other device".to_string(),
                 ))
             }
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LtcPayload {
+    pub payload_id: MessageId,
+    pub peer_id: String,
+    pub pre_key_bundle: Vec<u8>, // no one-time prekey
+    pub dilithium_pub_key: Vec<u8>,
+    pub relay_addresses: Vec<String>,
+    pub created_at: u64,
+    pub expires_at: u64,
+}
+
+impl LtcPayload {
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self).map_err(Into::into)
+    }
+
+    pub fn deserialize(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(Into::into)
     }
 }
 

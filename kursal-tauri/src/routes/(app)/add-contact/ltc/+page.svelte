@@ -2,18 +2,24 @@
   import { onMount } from 'svelte';
   import { log } from '$lib/utils/log';
   import { listen } from '@tauri-apps/api/event';
-  import { open, save } from '@tauri-apps/plugin-dialog';
-  import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-  import { exportLtc, importLtc } from '$lib/api/ltc';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import { readFile } from '@tauri-apps/plugin-fs';
+  import { importLtc } from '$lib/api/ltc';
   import { notifications } from '$lib/state/notifications.svelte';
   import { parseError } from '$lib/utils/errors';
   import { contactsState } from '$lib/state/contacts.svelte';
+  import { ltcState } from '$lib/state/ltc.svelte';
   import { goto } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
+  import LtcCard from '$lib/components/LtcCard.svelte';
+  import LtcLimitsPicker from '$lib/components/LtcLimitsPicker.svelte';
+  import Spinner from '$lib/components/Spinner.svelte';
   import { t } from '$lib/i18n';
-  import { Download, Upload, ShieldAlert, FolderOpen, FileCheckCorner } from 'lucide-svelte';
+  import { Plus, Upload, ShieldAlert, FolderOpen, FileCheckCorner } from 'lucide-svelte';
 
-  let exporting = $state(false);
+  let creating = $state(false);
+  let newMaxUses = $state<number | null>(null);
+  let newTtl = $state<number | null>(2592000);
   let importing = $state(false);
   let importError = $state('');
   let dragging = $state(false);
@@ -21,6 +27,8 @@
   let unlistenPromises: Array<Promise<() => void>> = [];
 
   onMount(() => {
+    void ltcState.init();
+
     unlistenPromises.push(
       listen<{ paths: string[] }>('tauri://drag-enter', () => {
         dragging = true;
@@ -65,6 +73,8 @@
       const errMsg = parseError(e).message;
       if (errMsg.includes('expired')) {
         importError = t('addContact.ltc.expiredError');
+      } else if (errMsg.toLowerCase().includes('already used')) {
+        importError = t('addContact.ltc.alreadyUsedError');
       } else if (errMsg.toLowerCase().includes('yourself')) {
         importError = t('addContact.ltc.selfError');
       } else {
@@ -76,37 +86,16 @@
     }
   }
 
-  async function handleExport() {
-    exporting = true;
+  async function handleCreate() {
+    creating = true;
     try {
-      const bytes = await exportLtc();
-      const path = await save({
-        title: t('addContact.ltc.saveDialog'),
-        defaultPath: 'kursal-contact.kursal',
-        filters: [
-          {
-            name: t('addContact.ltc.fileFilter'),
-            extensions: ['kursal', 'application/octet-stream'],
-          },
-        ],
-      });
-
-      if (!path) {
-        notifications.push(t('addContact.ltc.saveCancelled'), 'info');
-        return;
-      }
-
-      await writeFile(path, new Uint8Array(bytes));
-      notifications.push(t('addContact.ltc.exportSuccess'), 'success');
+      await ltcState.create(newMaxUses, newTtl);
+      notifications.push(t('addContact.ltc.created'), 'success');
     } catch (e) {
-      if (parseError(e).message.toLowerCase().includes('cancel')) {
-        notifications.push(t('addContact.ltc.saveCancelled'), 'info');
-      } else {
-        notifications.push(t('addContact.ltc.exportError'), 'error');
-      }
-      log.error('Export failed:', e);
+      notifications.push(t('addContact.ltc.createError'), 'error');
+      log.error('Creating the LTC failed:', e);
     } finally {
-      exporting = false;
+      creating = false;
     }
   }
 
@@ -202,10 +191,17 @@
       {t('addContact.ltc.createDescription')}
     </p>
 
-    <Button variant="primary" loading={exporting} onclick={handleExport}>
-      <Download size={14} />
-      {t('addContact.ltc.generateButton')}
-    </Button>
+    {#if ltcState.loading}
+      <div class="loading"><Spinner size={18} /></div>
+    {:else if ltcState.status}
+      <LtcCard status={ltcState.status} />
+    {:else}
+      <LtcLimitsPicker bind:maxUses={newMaxUses} bind:ttlSecs={newTtl} disabled={creating} />
+      <Button variant="primary" loading={creating} onclick={handleCreate}>
+        <Plus size={14} />
+        {t('addContact.ltc.createButton')}
+      </Button>
+    {/if}
 
     <div class="warning">
       <ShieldAlert size={16} />
@@ -323,6 +319,12 @@
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.5;
+  }
+
+  .loading {
+    display: grid;
+    place-items: center;
+    padding: 24px 0;
   }
 
   .warning {

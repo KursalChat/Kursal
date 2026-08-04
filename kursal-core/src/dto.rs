@@ -203,6 +203,17 @@ pub struct OtpResponse {
     pub otp: String,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LtcStatusDto {
+    pub payload_id: String,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    pub max_uses: Option<u32>,
+    pub uses: u32,
+    pub size_bytes: u32,
+}
+
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NodesResponse {

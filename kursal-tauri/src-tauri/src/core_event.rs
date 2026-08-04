@@ -227,6 +227,10 @@ pub async fn handle_core_event(
             );
         }
 
+        AppEvent::LtcUpdated { status } => {
+            emitter(handle, api_handle, "ltc_updated", status);
+        }
+
         AppEvent::OtpConsumed => {
             emitter(handle, api_handle, "otp_consumed", serde_json::json!({}));
         }

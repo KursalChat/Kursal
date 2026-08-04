@@ -1,6 +1,9 @@
 use crate::dialog_bridge::{DialogRequest, ask};
 use kursal_core::{
-    Result, api::state::AppState, first_contact::ltc::LtcPayload, storage::file::KursalFile,
+    Result,
+    api::state::AppState,
+    first_contact::ltc::{LtcPayload, LtcState},
+    storage::file::KursalFile,
 };
 use serde_json::json;
 use tauri::{AppHandle, Manager, async_runtime::block_on};
@@ -19,9 +22,12 @@ impl FileLoader for KursalFile {
 
                 let _result = match result {
                     Ok(payload) => {
-                        payload
-                            .import_ltc(state.db.clone(), &*state.network.lock().await)
-                            .await
+                        LtcState::import_ltc(
+                            payload,
+                            state.db.clone(),
+                            &*state.network.lock().await,
+                        )
+                        .await
                     }
                     Err(e) => Err(e),
                 }?;
