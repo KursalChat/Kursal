@@ -169,7 +169,6 @@
   // the re-selected inner range.
   let isApplyingFormat = false;
 
-  // Replace the textarea's [start..end] range with `text`.
   // Uses execCommand('insertText') so the change lands in the native
   // undo stack (Ctrl/Cmd+Z works), then sets the new selection.
   function replaceRange(
@@ -209,7 +208,6 @@
     const after = value.slice(end);
     const wrapped = before.endsWith(prefix) && after.startsWith(suffix);
     if (wrapped) {
-      // Strip surrounding markers
       replaceRange(
         start - prefix.length,
         end + suffix.length,
@@ -233,8 +231,8 @@
     replaceRange(start, end, inserted, urlStart, urlStart + 3);
   }
 
-  // Mirror-div trick: copy textarea styles into a hidden div,
-  // splice a marker span at the caret, read its rect, position popover.
+  // Mirror-div trick: mirrors the textarea's styles in a hidden div to read
+  // the caret's screen position.
   function getCaretCoords(
     el: HTMLTextAreaElement,
     pos: number
@@ -303,7 +301,7 @@
 
   // The bar is `position: fixed`, so clamping it to the viewport lets it slide
   // out of the chat column and over the sidebar, which paints on top of it.
-  // Clamp to the composer's own box instead - it never leaves the chat column.
+  // Clamp to the composer's own box instead: it never leaves the chat column.
   function clampPopoverLeft(desired: number): number {
     const margin = 8;
     const safe = readInsets();

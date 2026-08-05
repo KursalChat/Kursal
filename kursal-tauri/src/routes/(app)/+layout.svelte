@@ -306,7 +306,6 @@
     font-family: var(--font-mono);
   }
 
-  /* Main content */
   .content {
     flex: 1;
     min-width: 0;
@@ -322,7 +321,6 @@
     padding-top: calc(30px + var(--safe-top));
   }
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     .backdrop {
       display: block;

@@ -280,7 +280,7 @@
     justify-content: center;
   }
 
-  /* VIGNETTE - covers full viewport */
+  /* VIGNETTE: covers full viewport */
   .screen-vignette {
     position: fixed;
     inset: 0;
@@ -299,7 +299,6 @@
     opacity: 1;
   }
 
-  /* RACK */
   .rack {
     position: relative;
     width: 300px;
@@ -597,7 +596,6 @@
     box-shadow: none;
   }
 
-  /* FLOOR */
   .floor {
     position: absolute;
     left: 8%;
@@ -613,7 +611,7 @@
     );
   }
 
-  /* TUMBLEWEED - uses viewport units so it travels the full screen */
+  /* TUMBLEWEED: uses viewport units so it travels the full screen */
   .tumbleweed {
     position: absolute;
     bottom: 22px;
@@ -648,7 +646,6 @@
     }
   }
 
-  /* WINSTON */
   .winston-shrug {
     position: absolute;
     bottom: 14px;
@@ -688,7 +685,6 @@
     }
   }
 
-  /* TEXT */
   .text-block {
     display: flex;
     flex-direction: column;
@@ -729,7 +725,6 @@
     }
   }
 
-  /* RELAY CARD */
   .relay-card {
     display: flex;
     align-items: center;
@@ -847,7 +842,6 @@
     transform: translateX(16px);
   }
 
-  /* ACTIONS */
   .actions {
     display: flex;
     gap: 12px;

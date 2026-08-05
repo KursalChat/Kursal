@@ -43,7 +43,7 @@ function saveAutodownloadStore(store: Record<string, string>) {
   try {
     localStorage.setItem(AUTODOWNLOAD_STORAGE_KEY, JSON.stringify(store));
   } catch {
-    // quota / unavailable - non-fatal
+    // Non-fatal: quota exceeded or storage unavailable.
   }
 }
 
@@ -61,51 +61,45 @@ function savePendingSyncStore(state: PendingSyncState) {
   try {
     localStorage.setItem(PENDING_SYNC_STORAGE_KEY, serializePendingSync(state));
   } catch {
-    // quota / unavailable - non-fatal
+    // Non-fatal: quota exceeded or storage unavailable.
   }
 }
 
 function createMessagesState() {
   const autodownloadPaths: Record<string, string> = loadAutodownloadStore();
-  // keyed by contactId
   let map = $state<Record<string, MessageResponse[]>>({});
-  // keyed by contactId
   let unreadByContact = $state<Record<string, number>>({});
-  // keyed by contactId - the id of the first message that arrived while the
-  // chat wasn't being actively viewed. Used to draw a "New messages" separator.
+  // The id of the first message that arrived while the chat wasn't
+  // actively viewed. Used to draw a "New messages" separator.
   let firstUnreadByContact = $state<Record<string, string>>({});
-  // keyed by `${contactId}:${messageId}`
   let reactions = $state<Record<string, Array<{ emoji: string; userIds: string[] }>>>({});
-  // keyed by contactId - pinned messages, sourced from the backend pinned index
+  // Pinned messages, sourced from the backend pinned index.
   let pinnedByContact = $state<Record<string, MessageResponse[]>>({});
   // messageIds hidden optimistically between the delete click and its commit
   let pendingDelete = $state<Set<string>>(new Set());
-  // keyed by transfer/message id
   let transferProgress = $state<Record<string, { bytesTransferred: number; totalBytes: number }>>(
     {}
   );
-  // Bumped when a received file finishes writing. The <img>/<video> for a
-  // transfer is mounted while the destination is still an empty preallocated
-  // file, so that first fetch fails; the counter is folded into the media URL
-  // to force a refetch once the bytes are actually on disk.
-  // Keyed `${contactId}:${messageId}`.
+  // Bumped when a received file finishes writing. The <img>/<video> mounts against
+  // the still-empty preallocated file, so the first fetch fails; folding this into
+  // the media URL forces a refetch once the bytes are actually on disk.
   let mediaVersions = $state<Record<string, number>>({});
   let loadedContacts = $state<Set<string>>(new Set());
   // `message_queued_offline` events can beat the id swap (replaceId/append);
-  // buffered here until the id exists. Keyed `${contactId}:${messageId}`.
+  // buffered here until the id exists.
   const pendingQueued: Set<string> = new Set();
   function pendingQueuedKey(contactId: string, messageId: string) {
     return `${contactId}:${messageId}`;
   }
   // Messages that took the offline path, so `delivery_confirmed` promotes to
-  // `offline_delivered` instead of `delivered`. Session-only; keyed like above.
+  // `offline_delivered` instead of `delivered`. Session-only.
   const viaOffline: Set<string> = new Set();
   // Offline mailbox counters the backend gave up on (48h gap-skip); rendered
-  // as a greyed notice. Session-only, keyed by contactId.
+  // as a greyed notice. Session-only.
   let gapNoticesByContact = $state<Record<string, { counter: number; timestamp: number }[]>>({});
   // Received messages whose sent-time placed them above the live tail (delayed
-  // offline delivery), so they'd be easy to miss. Persisted; keyed by contactId
-  // → message ids, cleared once the message is scrolled into view.
+  // offline delivery), so they'd be easy to miss. Persisted per contact,
+  // cleared once the message is scrolled into view.
   let delayedUnseen = $state<Record<string, string[]>>(loadDelayed());
 
   function addDelayed(contactId: string, id: string) {
@@ -169,7 +163,7 @@ function createMessagesState() {
     }
   }
 
-  // Loads (or reloads) the newest page - the live tail. Reloads a contact that
+  // Loads (or reloads) the newest page: the live tail. Reloads a contact that
   // was previously left in a jumped (non-tail) window.
   async function loadFor(contactId: string) {
     void loadPinned(contactId);
@@ -278,11 +272,9 @@ function createMessagesState() {
     return mediaVersions[`${contactId}:${messageId}`] ?? 0;
   }
 
-  // Edits/reactions/deletes made while the peer is offline; shown with a
-  // "waiting to sync" clock until the backend reports that contact's queue
-  // drained (`offline_queue_drained`). `pendingSyncDelete` is the delete
-  // subset, kept visible as a tombstone until the flush. Persisted, because the
-  // backend queue outlives a restart and the markers must too.
+  // Edits/reactions/deletes made while the peer is offline, shown with a "waiting
+  // to sync" clock until `offline_queue_drained`. `pendingSyncDelete` tracks the
+  // delete subset as a tombstone; persisted since the backend queue outlives a restart.
   const persistedPendingSync = loadPendingSyncStore();
   let pendingSync = $state<Set<string>>(persistedPendingSync.sync);
   let pendingSyncDelete = $state<Set<string>>(persistedPendingSync.deleted);
@@ -338,7 +330,7 @@ function createMessagesState() {
   function append(msg: MessageResponse) {
     if (!hasRenderableBody(msg)) return;
     const cid = msg.contactId;
-    // Viewing a jumped (non-tail) window: don't inject new messages into it -
+    // Viewing a jumped (non-tail) window: don't inject new messages into it;
     // they'd appear out of place. Still count them as unread.
     if (loadedContacts.has(cid) && !newestReached.has(cid)) {
       if (msg.direction === 'received') {
@@ -348,7 +340,6 @@ function createMessagesState() {
     }
     if (!map[cid]) map[cid] = [];
     const list = map[cid];
-    // Don't add duplicate if already exists
     if (!list.find((m) => m.id === msg.id)) {
       // Insert by sent-time so a delayed offline message lands at its true
       // position, and live order matches reloaded order.
@@ -373,7 +364,7 @@ function createMessagesState() {
     persistAutodownloadFromMessage(msg);
     if (msg.direction === 'sent') clearFirstUnread(msg.contactId);
     // File offers append with their real backend id, so a queued event that
-    // raced ahead of this append may already be buffered - apply it now.
+    // raced ahead of this append may already be buffered; apply it now.
     // (Text sends use a temp UUID; replaceId consumes for those.)
     consumePendingQueued(msg.contactId, msg.id);
     const ts = msg.timestamp;
@@ -808,7 +799,7 @@ function createMessagesState() {
     Object.keys(mediaVersions)
       .filter((k) => k.startsWith(prefix))
       .forEach((k) => delete mediaVersions[k]);
-    // Drop markers outright - the whole contact is going away, so there are no
+    // Drop markers outright: the whole contact is going away, so there are no
     // tombstoned deletes left to finalize.
     const flushed = flushContact({ sync: pendingSync, deleted: pendingSyncDelete }, contactId);
     if (flushed.changed) {

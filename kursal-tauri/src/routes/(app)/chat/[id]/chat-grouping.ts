@@ -10,10 +10,9 @@ export interface MessageGroup {
 
 const GROUP_MERGE_WINDOW_MS = 60_000;
 
-// While the peer is offline, undelivered sends sink below the chronological
-// messages in two tiers: 1 = stored in the DHT, 2 = still waiting to upload.
-// When the peer is reachable a brief "sending" is a normal direct delivery,
-// so everything stays tier 0.
+// While the peer is offline, undelivered sends sink below the chronological messages
+// in two tiers: 1 = stored in the DHT, 2 = still waiting to upload. A brief "sending"
+// while the peer is reachable is normal direct delivery, so it stays tier 0.
 export function offlineTier(status: string, peerOnline: boolean): number {
   if (peerOnline) return 0;
   if (status === 'queued_in_dht') return 1;
@@ -28,10 +27,9 @@ export function sortByOfflineTier(list: MessageResponse[], peerOnline: boolean):
   );
 }
 
-// Groups consecutive same-direction messages (within the merge window, same
-// tier, not split by the unread separator). A connected call emits two records
-// (started + terminal); the 'started' one is hidden once its terminal exists
-// so a call renders as a single line.
+// Groups consecutive same-direction messages (within the merge window, same tier,
+// not split by the unread separator). A connected call emits two records (started +
+// terminal); the 'started' one is hidden once its terminal exists, so it renders as one line.
 export function buildMessageGroups(
   visible: MessageResponse[],
   peerOnline: boolean,

@@ -24,10 +24,9 @@ function evenDim(v: number): number {
 }
 
 /**
- * WebCodecs scales every input frame to the configured encoder size without
- * letterboxing, so a portrait camera encoded into a landscape config arrives
- * squashed on the far side. Fit the source into the quality budget instead,
- * keeping its aspect ratio and orientation.
+ * WebCodecs scales every frame to the configured encoder size without letterboxing,
+ * so a portrait camera in a landscape config arrives squashed. This fits the source
+ * into the quality budget instead, keeping its aspect ratio and orientation.
  */
 export function fitDims(srcWidth: number, srcHeight: number, quality: number): Dims {
   const q = QUALITIES[quality] ?? QUALITIES[480];

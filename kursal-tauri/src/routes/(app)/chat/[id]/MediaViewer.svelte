@@ -63,7 +63,7 @@
   let ty = $state(0);
   let dragging = false;
   let dragStart = { x: 0, y: 0, tx: 0, ty: 0 };
-  // Active touch/pen/mouse pointers, keyed by pointerId - drives pinch-zoom.
+  // Active touch/pen/mouse pointers, keyed by pointerId: drives pinch-zoom.
   const pointers = new Map<number, { x: number; y: number }>();
   let pinchStart: { dist: number; scale: number } | null = null;
 

@@ -21,7 +21,6 @@ export type PaletteId =
 export interface PalettePreset {
   id: PaletteId;
   label: string;
-  // Primary and secondary colors used in the picker preview tile
   previewFrom: string;
   previewTo: string;
   accent: string;

@@ -641,7 +641,7 @@
     }
   }
 
-  /* EYE - use fill-box with center origin so transforms stay anchored to each ellipse */
+  /* EYE: fill-box with center origin keeps transforms anchored to each ellipse */
   .eye-halo-svg {
     transform-box: fill-box;
     transform-origin: center;

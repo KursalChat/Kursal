@@ -32,18 +32,14 @@ export interface MessageResponse {
   contactId: string; // hex of UserId bytes
   direction: 'sent' | 'received';
   content: string;
-  // Sent-message lifecycle:
-  //   sending           - DR ciphertext is in flight (direct path attempt)
-  //   queued            - backend confirmed offline path; awaiting peer to fetch
-  //   delivered         - receipt back, peer was reachable directly
-  //   offline_delivered - receipt back, peer fetched via DHT-backed offline channel
-  //   failed            - gave up
+  // Sent-message lifecycle: sending (DR ciphertext in flight), queued (offline path
+  // confirmed, awaiting fetch), delivered (peer reachable directly), offline_delivered
+  // (peer fetched via DHT), failed (gave up).
   status:
     'sending' | 'delivered' | 'failed' | 'queued' | 'queued_in_dht' | 'offline_delivered' | 'read';
-  // Received messages only: true when this message was fetched from the
-  // DHT-backed offline channel rather than a live direct connection. Set by
-  // the backend on the offline receive path; session-only (not persisted, so
-  // it won't reappear on history reload - same degradation as offline_delivered).
+  // Received messages only: true when fetched via the DHT-backed offline channel
+  // rather than a live connection. Session-only, not persisted, so it won't
+  // reappear on history reload; same degradation as offline_delivered.
   viaOffline?: boolean;
   timestamp: number; // sent time (derived from MessageId), ms after hydration
   receivedTimestamp: number; // local receive time, ms after hydration
@@ -74,7 +70,7 @@ export interface NearbyPeerResponse {
   origin: NearbyOrigin;
 }
 
-// Tauri event payloads - mirror what the Rust AppEvent forwarder emits
+// Tauri event payloads: mirrors what the Rust AppEvent forwarder emits
 export type MessageReceivedPayload = MessageResponse;
 
 export interface ConnectionChangedPayload {

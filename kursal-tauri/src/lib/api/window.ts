@@ -56,20 +56,17 @@ async function setOverlayBadge(label?: number) {
   canvas.height = 16;
   const ctx = canvas.getContext('2d')!;
 
-  // Red circle
   ctx.fillStyle = '#e11d48';
   ctx.beginPath();
   ctx.arc(8, 8, 8, 0, Math.PI * 2);
   ctx.fill();
 
-  // Number text
   ctx.fillStyle = 'white';
   ctx.font = 'bold 10px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label > 99 ? '99+' : String(label), 8, 8);
 
-  // Convert to Uint8Array and pass to Tauri
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
   if (!blob) return;
   const arrayBuffer = await blob.arrayBuffer();

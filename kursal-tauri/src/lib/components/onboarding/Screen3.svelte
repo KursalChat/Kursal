@@ -454,7 +454,6 @@
     overflow: visible;
   }
 
-  /* PHONES */
   .phone {
     opacity: 0;
     transform-box: fill-box;
@@ -494,7 +493,6 @@
     }
   }
 
-  /* SERVER */
   .server {
     opacity: 0;
     transform: translate(460px, 60px) translateY(-12px);
@@ -604,7 +602,6 @@
     }
   }
 
-  /* BAD ROUTE */
   .bad-path {
     stroke-dasharray: 8 8;
     stroke-dashoffset: 320;
@@ -723,7 +720,7 @@
     }
   }
 
-  /* MESSAGE BUBBLE - overlays the SVG, positioned in % of the scene */
+  /* MESSAGE BUBBLE: overlays the SVG, positioned in % of the scene */
   .bubble {
     position: absolute;
     top: 45%;
@@ -850,7 +847,6 @@
     }
   }
 
-  /* WINSTON */
   .winston-here {
     position: absolute;
     bottom: 12px;
@@ -897,7 +893,6 @@
     }
   }
 
-  /* TEXT */
   .text-block {
     display: flex;
     flex-direction: column;
@@ -941,7 +936,6 @@
     }
   }
 
-  /* ACTIONS */
   .actions {
     display: flex;
     align-items: center;

@@ -50,7 +50,7 @@
     }
   });
 
-  // On-demand global message search - only runs once in message-search mode,
+  // On-demand global message search: only runs once in message-search mode,
   // never on every keystroke of the normal palette.
   $effect(() => {
     if (mode !== 'messages') return;

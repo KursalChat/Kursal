@@ -45,7 +45,7 @@ export const getPinnedMessages = async (contactId: string): Promise<MessageRespo
   return msgs.map(hydrateTimestamps);
 };
 
-/** Returns [messageId, sizeBytes, storedPath] - the path the core kept the copy at. */
+/** Returns [messageId, sizeBytes, storedPath]: storedPath is the path the core kept the copy at. */
 export const sendFileOffer = (
   contactId: string,
   filePath: string

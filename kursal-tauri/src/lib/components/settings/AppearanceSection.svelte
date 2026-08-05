@@ -286,7 +286,6 @@
     border-radius: var(--radius-md);
   }
 
-  /* Layout picker */
   .layout-tiles {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -380,7 +379,6 @@
     background: var(--accent);
   }
 
-  /* Flat preview elements */
   .prev-flat-group {
     display: flex;
     align-items: flex-start;

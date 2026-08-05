@@ -142,7 +142,7 @@
   let forwardContent = $state<string | null>(null);
   let selectTextMsgId = $state<string | null>(null);
   let fileOfferActionState = $state<Record<string, 'idle' | 'accepting' | 'accepted'>>({});
-  // Copy and save-to-device run from the action sheet, which closes on click -
+  // Copy and save-to-device run from the action sheet, which closes on click:
   // the bubble itself flashes the confirmation instead.
   const messageFlash = flashSet();
   const completedFileTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -169,7 +169,7 @@
     filename: string;
   }
   // The viewer navigates within a single "batch" (the stack it was opened from,
-  // or just the one image for a standalone bubble) - not all chat media.
+  // or just the one image for a standalone bubble), not all chat media.
   let mediaViewer = $state<{ items: MediaItem[]; index: number } | null>(null);
   let pendingFiles = $state<
     {
@@ -267,13 +267,9 @@
   );
   const OFFLINE_FLUSH_DELAY = 5000;
 
-  // Nudge the queue when the peer becomes reachable: the backend's own
-  // reconnect flush is threshold-gated (count/age/size), so a short queue can
-  // otherwise sit untouched until the next periodic poll.
-  //
-  // "Waiting to sync" markers are NOT cleared here - reachability doesn't mean
-  // the queue drained, and the drain can still fail. They clear on the
-  // `offline_queue_drained` event instead (see +layout.svelte).
+  // Nudge the queue when the peer becomes reachable: the backend's own reconnect
+  // flush is threshold-gated, so a short queue can sit untouched otherwise. This
+  // doesn't clear "waiting to sync" markers; those clear on `offline_queue_drained`.
   $effect(() => {
     if (!peerOnline || !contactId) return;
     const cid = contactId;
@@ -366,7 +362,7 @@
 
   // The pin bar shows whichever pinned message you're currently reading: the
   // last one scrolled past (nearest above the anchor line), else the next one
-  // coming up. Measured from already-rendered nodes - cheap, no extra listener.
+  // coming up. Measured from already-rendered nodes: cheap, no extra listener.
   const PIN_ANCHOR = 56;
   function updateActivePin() {
     if (!listEl || !contactId) return;
@@ -788,7 +784,7 @@
 
   // Re-runs the full send lifecycle for a failed message. The backend reuses the
   // same MessageId (kept in place, status flips back to sending), so a duplicate
-  // arrival collapses to one message - no delete-and-resend, no duplicate.
+  // arrival collapses to one message: no delete-and-resend, no duplicate.
   async function handleRetry(msg: MessageResponse) {
     void haptics.impact('medium');
     await messagesState.retryMessage(msg.contactId, msg.id);
@@ -1028,7 +1024,7 @@
   }
 
   // Releasing a payload deletes its staged files, so only payloads with no file
-  // left in the composer are freed - a share claimed mid-send keeps its files.
+  // left in the composer are freed: a share claimed mid-send keeps its files.
   function releaseSharedFiles() {
     const held = new Set(
       pendingFiles.map((f) => f.payloadId).filter((id): id is string => id !== undefined)
@@ -1128,7 +1124,7 @@
       prevLastId = lastId;
       prevFirstId = firstId;
       // Position synchronously (DOM is already updated when this effect runs),
-      // so the chat is at its spot on first paint - no visible top→bottom scroll.
+      // so the chat is at its spot on first paint: no visible top→bottom scroll.
       const savedTop = scrollMemory.get(contactId);
       if (savedTop != null) {
         listEl.scrollTop = savedTop;
@@ -1483,7 +1479,7 @@
     }
   }
 
-  // Downloads never prompt, so this is how a file leaves the app - the only
+  // Downloads never prompt, so this is how a file leaves the app: the only
   // route out on mobile, where app storage isn't browsable.
   async function handleSaveToDevice(msg: MessageResponse) {
     const path = msg.fileDetails?.autodownloadPath;
@@ -1508,10 +1504,9 @@
     messagesState.setAutodownloadPath(msg.id, msg.contactId, null);
   }
 
-  // Backend handles offline retry automatically (on reconnect, every 10 min,
-  // and across app restarts via persisted pending bundles). Flushing just
-  // nudges the backend to republish the contact's pending bundles right now;
-  // the existing `delivery_confirmed` event flow takes over from there.
+  // Backend already retries offline sends automatically (on reconnect, every 10
+  // min, and across restarts). This just nudges it to republish right now; the
+  // existing `delivery_confirmed` event flow takes over from there.
   async function flushQueue(cid: string) {
     if (!cid || flushingQueue) return;
     flushingQueue = true;
@@ -1612,7 +1607,7 @@
   }
 
   // Accepts every not-yet-downloaded image in a stack. Like a single download
-  // this prompts for nothing - each file lands in the app's download folder.
+  // this prompts for nothing: each file lands in the app's download folder.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
     const items = msgs

@@ -84,7 +84,7 @@
     avatarTooLarge: 'settings.account.errorAvatarTooLarge',
   } as const;
 
-  // Validate the trimmed value - surrounding spaces are dropped on save rather
+  // Validate the trimmed value: surrounding spaces are dropped on save rather
   // than reported back to the user as an error.
   const profileError = $derived(
     validateDisplayName(displayName.trim()) ?? validateAvatarBytes(avatarBytes)

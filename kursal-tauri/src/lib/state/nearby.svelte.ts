@@ -2,7 +2,7 @@ import type { NearbyPeerResponse } from '$lib/types';
 
 function createNearbyState() {
   let peers = $state<NearbyPeerResponse[]>([]);
-  // Map of peerId -> sessionName for incoming ConnectRequest decisions
+  // For incoming ConnectRequest decisions.
   let pendingRequests = $state<Record<string, string>>({});
   let active = $state(false);
   let mySessionName = $state<string | null>(null);

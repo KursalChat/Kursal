@@ -32,10 +32,9 @@ export function validateAvatarBytes(bytes: number[] | null | undefined): Display
 }
 
 /**
- * Best-effort cleanup applied while typing: drops unsupported characters and
- * collapses the name to the maximum length. Leading/trailing spaces are left
- * alone so the field stays usable mid-edit; `validateDisplayName` catches them
- * on submit.
+ * Best-effort cleanup applied while typing: drops unsupported characters and collapses
+ * to the maximum length. Leading/trailing spaces are left alone so the field stays
+ * usable mid-edit; `validateDisplayName` catches them on submit.
  */
 export function sanitizeDisplayNameInput(raw: string): string {
   const kept = [...raw].filter((c) => ALLOWED_CHAR.test(c));

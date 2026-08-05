@@ -315,7 +315,7 @@
   }
 
   // The menu mirrors the toolbar's quick actions, so "React" has to hand the
-  // picker an anchor - the "..." button, since the menu itself is closing.
+  // picker an anchor: the "..." button, since the menu itself is closing.
   function openPickerFromMenu() {
     const rect = moreBtn?.getBoundingClientRect() ?? null;
     onToggleEmojiPicker(rect);
@@ -360,7 +360,7 @@
   }
 
   // Bounds the chip row so a peer spamming distinct emoji can't grow the message
-  // unboundedly. Display-only - the queued reactions still exist in the backend.
+  // unboundedly. Display-only; the queued reactions still exist in the backend.
   const MAX_VISIBLE_REACTIONS = 20;
   const visibleReactions = $derived(reactions.slice(0, MAX_VISIBLE_REACTIONS));
   const hiddenReactionCount = $derived(Math.max(0, reactions.length - MAX_VISIBLE_REACTIONS));
@@ -389,7 +389,7 @@
   }
 
   // Sent messages in a non-terminal state (sending / queued / failed) always
-  // show their meta row so the lifecycle icon is visible - independent of the
+  // show their meta row so the lifecycle icon is visible: independent of the
   // hover/last logic that controls it for delivered messages.
   const showMetaAlways = $derived(
     msg.direction === 'sent' &&
@@ -1408,7 +1408,7 @@
     z-index: 2;
   }
 
-  /* In flow under the bubble - the .bubble-anchor gap spaces it. Chips used to
+  /* In flow under the bubble: the .bubble-anchor gap spaces it. Chips used to
      be pulled up over the bubble's edge, which landed them on the timestamp. */
   .reactions {
     display: flex;
@@ -1517,20 +1517,20 @@
     line-height: 0;
     color: var(--text-muted);
   }
-  /* Pending direct send - neutral, soft pulse via the spinner itself. */
+  /* Pending direct send: neutral, soft pulse via the spinner itself. */
   .msg-status.sending {
     opacity: 0.85;
   }
-  /* Waiting for offline delivery - slow upward "lift" pulse. */
+  /* Waiting for offline delivery: slow upward "lift" pulse. */
   .msg-status.queued {
     color: var(--text-muted);
     animation: msg-status-pulse 2.4s ease-in-out infinite;
   }
-  /* Direct delivered - single check. */
+  /* Direct delivered: single check. */
   .msg-status.delivered {
     color: var(--text-secondary);
   }
-  /* Delivered via the offline mailbox - reached the peer's device but not
+  /* Delivered via the offline mailbox: reached the peer's device but not
      necessarily read. Neutral tone so it never reads as the "read" state. */
   .msg-status.offline-delivered {
     color: var(--text-secondary);
@@ -1538,7 +1538,7 @@
   .msg-status.failed {
     color: var(--danger);
   }
-  /* Read by the peer - double check in success green. */
+  /* Read by the peer: double check in success green. */
   .msg-status.read {
     color: var(--success);
   }
@@ -1571,10 +1571,9 @@
     }
   }
 
-  /* Inline discard - sits beside the bubble (toward the chat center for
-     sent messages, the chat edge for received) instead of below it. The
-     lifecycle icon next to the time communicates state; this is purely a
-     per-message cancel affordance. */
+  /* Inline discard: sits beside the bubble (toward the chat center for sent
+     messages, the chat edge for received) instead of below it. The lifecycle
+     icon next to the time already communicates state; this is a cancel affordance. */
   .bubble-row {
     display: flex;
     align-items: center;
@@ -2029,7 +2028,7 @@
   }
   /* flat: time + status are owned by the layout (gutter time on hover for
      follow-up rows, the group's status in the lead header), so the in-bubble
-     meta is hidden - it would otherwise duplicate over the avatar gutter. */
+     meta is hidden; it would otherwise duplicate over the avatar gutter. */
   .msg-row[data-layout='flat'] .msg-meta {
     display: none;
   }

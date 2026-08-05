@@ -197,22 +197,17 @@ export function isTransferDone(p: TransferProgress): boolean {
   return p.bytesTransferred >= p.totalBytes;
 }
 
-// Local media URL for a received file. `version` (bumped on `file_received`)
-// busts the webview cache: the element is mounted while the destination is
-// still the empty preallocated file, so that first response must not stick.
-// The asset protocol routes on the path only, so the query is inert.
+// Local media URL for a received file. `version` (bumped on `file_received`) busts
+// the webview cache, since the element mounts while the destination is still the
+// empty preallocated file. The asset protocol routes on the path only, so the query is inert.
 export function mediaUrl(path: string, version: number): string {
   const base = convertFileSrc(path);
   return version > 0 ? `${base}?v=${version}` : base;
 }
 
-// Places the emoji picker relative to its anchor, preferring above, then below,
-// then clamped into the viewport. Pure so it can be unit-tested.
-//
-// PICKER_H is the picker's *maximum* height - searching shrinks it. The result
-// therefore pins the edge that faces the anchor (`bottom` when placed above,
-// `top` when below) so the picker shrinks away from the message instead of
-// detaching from it.
+// Places the emoji picker relative to its anchor, preferring above, then below, then
+// clamped into the viewport. PICKER_H is the *maximum* height (search shrinks it), so
+// the result pins the edge facing the anchor, letting the picker shrink without detaching.
 export const PICKER_W = 288;
 const PICKER_H = 248;
 export interface EmojiPickerPos {

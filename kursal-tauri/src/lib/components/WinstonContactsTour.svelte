@@ -86,7 +86,6 @@
     rect = offscreen ? null : { x: r.left, y: r.top, w: r.width, h: r.height };
   }
 
-  // Recompute on step change, route change, drawer toggle, or resize.
   $effect(() => {
     if (!active) return;
     void step;

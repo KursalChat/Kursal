@@ -21,9 +21,7 @@
 
   const status = $derived(contactsState.connectionStatus[contact.userId] ?? 'disconnected');
 
-  const statusLabel = $derived(
-    connectionLabel(status, contactsState.lastSeenAt(contact.userId))
-  );
+  const statusLabel = $derived(connectionLabel(status, contactsState.lastSeenAt(contact.userId)));
 </script>
 
 <header class="chat-header" data-tauri-drag-region>

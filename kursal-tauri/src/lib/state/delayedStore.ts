@@ -34,6 +34,6 @@ export function saveDelayed(store: Record<string, string[]>) {
   try {
     localStorage.setItem(KEY, JSON.stringify(store));
   } catch {
-    // quota / unavailable - non-fatal
+    // Non-fatal: quota exceeded or storage unavailable.
   }
 }

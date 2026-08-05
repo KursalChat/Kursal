@@ -53,13 +53,11 @@ export interface LocalApiConfig {
   port: number;
 }
 
-// Peer rotation
 export const getPeerRotationInterval = (): Promise<PeerRotationInterval> =>
   invoke('get_peer_rotation_interval');
 export const setPeerRotationInterval = (interval: PeerRotationInterval): Promise<void> =>
   invoke('set_peer_rotation_interval', { interval });
 
-// App lock
 export const getAppLockConfig = (): Promise<AppLockConfig> => invoke('get_app_lock_config');
 export const setAppLock = (
   enabled: boolean,
@@ -69,27 +67,22 @@ export const setAppLock = (
 export const verifyAppLock = (password: string): Promise<boolean> =>
   invoke('verify_app_lock', { password });
 
-// Typing indicators
 export const getTypingIndicatorsEnabled = (): Promise<boolean> =>
   invoke('get_typing_indicators_enabled');
 export const setTypingIndicatorsEnabled = (enabled: boolean): Promise<void> =>
   invoke('set_typing_indicators_enabled', { value: enabled });
 
-// Read receipts
 export const getReadReceiptsEnabled = (): Promise<boolean> => invoke('get_read_receipts_enabled');
 export const setReadReceiptsEnabled = (enabled: boolean): Promise<void> =>
   invoke('set_read_receipts_enabled', { value: enabled });
 
-// Blocked contacts
 export const listBlockedContacts = (): Promise<import('$lib/types').ContactResponse[]> =>
   invoke('list_blocked_contacts');
 
-// Destructive
 export const clearMessageHistory = (contactId: string | null): Promise<void> =>
   invoke('clear_message_history', { contactId });
 export const deleteAllLocalData = (): Promise<void> => invoke('delete_all_local_data');
 
-// Relay
 export const getRelayConfig = (): Promise<RelayConfig> => invoke('get_relay_config');
 export const setRelayConfig = (config: RelayConfig): Promise<void> =>
   invoke('set_relay_config', { config });
@@ -123,38 +116,31 @@ export interface NodeStats {
 }
 export const getNodeStats = (): Promise<NodeStats> => invoke('get_node_stats');
 
-// Listening port
 export const getListeningPort = (): Promise<number | null> => invoke('get_listening_port');
 export const setListeningPort = (port: number | null): Promise<void> =>
   invoke('set_listening_port', { port });
 
-// Nearby share
 export const getNearbyShareEnabled = (): Promise<boolean> => invoke('get_nearby_share_enabled');
 export const setNearbyShareEnabled = (enabled: boolean): Promise<void> =>
   invoke('set_nearby_share_enabled', { value: enabled });
 
-// Shared files
 export const listSharedFiles = (): Promise<SharedFileEntry[]> => invoke('list_shared_files');
 export const revokeSharedFile = (id: string): Promise<void> => invoke('revoke_shared_file', { id });
 export const revokeSharedFilesBulk = (ids: string[]): Promise<void> =>
   invoke('revoke_shared_files_bulk', { ids });
 
-// Auto-accept
 export const getAutoAcceptConfig = (): Promise<AutoAcceptConfig> =>
   invoke('get_auto_accept_config');
 export const setAutoAcceptConfig = (config: AutoAcceptConfig): Promise<void> =>
   invoke('set_auto_accept_config', { config });
 
-// Auto-download storage
 export const getAutoDownloadConfig = (): Promise<AutoDownloadConfig> =>
   invoke('get_auto_download_config');
 export const setAutoDownloadConfig = (config: AutoDownloadConfig): Promise<void> =>
   invoke('set_auto_download_config', { config });
 
-// Storage usage
 export const getStorageUsage = (): Promise<StorageUsage> => invoke('get_storage_usage');
 
-// Auto-updater
 export const checkForUpdates = (): Promise<void> => invoke('check_for_updates');
 export const getUpdaterEnabled = (): Promise<boolean> => invoke('get_updater_enabled');
 export const setUpdaterEnabled = (value: boolean): Promise<void> =>
@@ -165,7 +151,6 @@ export const getUpdateChannel = (): Promise<UpdateChannel> => invoke('get_update
 export const setUpdateChannel = (channel: UpdateChannel): Promise<void> =>
   invoke('set_update_channel', { channel });
 
-// Background mode (keep running when window closed)
 export const getBackgroundMode = (): Promise<boolean> => invoke('get_background_mode');
 export const setBackgroundMode = (value: boolean): Promise<void> =>
   invoke('set_background_mode', { value });
@@ -193,7 +178,6 @@ export const getUiState = (key: string): Promise<string | null> => invoke('get_u
 export const setUiState = (key: string, value: string): Promise<void> =>
   invoke('set_ui_state', { key, value });
 
-// Local API
 export const getLocalApiConfig = (): Promise<LocalApiConfig> => invoke('get_local_api_config');
 export const setLocalApiConfig = (config: LocalApiConfig): Promise<void> =>
   invoke('set_local_api_config', { config });

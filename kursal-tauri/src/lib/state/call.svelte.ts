@@ -77,7 +77,7 @@ function createCallState() {
     receiver.onFrame = (frame) => {
       if (!dbgDecode) {
         dbgDecode = true;
-        // warn so it survives production log gating - temporary diagnostic
+        // warn so it survives production log gating; temporary diagnostic
         log.warn('[video] first decoded frame', frame.displayWidth, 'x', frame.displayHeight);
       }
       if (remoteFrameSink) remoteFrameSink(frame);
@@ -137,7 +137,7 @@ function createCallState() {
       await openVideoRxChannel((bytes) => {
         if (!dbgChunk) {
           dbgChunk = true;
-          // warn so it survives production log gating - temporary diagnostic
+          // warn so it survives production log gating; temporary diagnostic
           log.warn('[video] first chunk from core', bytes.byteLength, 'bytes');
         }
         receiver.push(bytes);
@@ -435,7 +435,7 @@ function createCallState() {
     const next = !muted;
     await setMuted(next);
     deafenAutoMuted = false;
-    // Unmuting while deafened also undeafens - you can't talk into a void.
+    // Unmuting while deafened also undeafens: you can't talk into a void.
     if (!next && deafened) await setDeafened(false);
   }
 

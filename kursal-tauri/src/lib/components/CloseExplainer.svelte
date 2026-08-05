@@ -4,8 +4,7 @@
   import WinstonCard from './WinstonCard.svelte';
 
   // Shown once ever, on the first window close that would silently leave Kursal
-  // running in the tray. Same corner placement as WinstonTip, but it is not part
-  // of the tips registry: the close is held open until one of the two answers.
+  // running in the tray. Stays open until the user picks Keep or Quit.
   let {
     open,
     onKeep,
