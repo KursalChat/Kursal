@@ -21,6 +21,7 @@
     MicOff,
     Headphones,
     HeadphoneOff,
+    Mail,
   } from 'lucide-svelte';
   import { connectionLabel } from '$lib/utils/connectionLabel';
   import { contactsState } from '$lib/state/contacts.svelte';
@@ -423,16 +424,18 @@
 
   <div class="user-panel">
     <button class="user-identity" onclick={handleSettings} aria-label={t('layout.openSettings')}>
-      <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={36} />
+      <div class="user-avatar">
+        <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={36} />
+        {#if totalUnread > 0}
+          <span class="badge total">{totalUnread > 99 ? '99+' : totalUnread}</span>
+        {/if}
+      </div>
       <div class="user-info">
         <span class="user-name">{profileState.displayName}</span>
         <span class="user-id"
           >{profileState.peerId ? profileState.peerId.slice(0, 10) + '...' : '...'}</span
         >
       </div>
-      {#if totalUnread > 0}
-        <span class="badge total">{totalUnread > 99 ? '99+' : totalUnread}</span>
-      {/if}
     </button>
 
     <div class="self-controls">
@@ -541,12 +544,23 @@
       <button
         class="ctx-item"
         onclick={() => {
-          messagesState.markRead(menu.userId);
+          messagesState.markRead(menu.userId, true);
           contactMenu = null;
         }}
       >
         <Check size={14} />
         {t('layout.contactMenu.markRead')}
+      </button>
+    {:else}
+      <button
+        class="ctx-item"
+        onclick={() => {
+          messagesState.markUnread(menu.userId);
+          contactMenu = null;
+        }}
+      >
+        <Mail size={14} />
+        {t('layout.contactMenu.markUnread')}
       </button>
     {/if}
     <button class="ctx-item" onclick={() => startRename(menu.userId)}>
@@ -990,10 +1004,14 @@
     justify-content: center;
   }
   .badge.total {
-    min-width: 22px;
-    height: 22px;
-    font-size: 11px;
-    margin-left: auto;
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    border: 2px solid var(--bg-secondary);
   }
 
   /* User panel */
@@ -1121,6 +1139,10 @@
     padding: 6px 8px;
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+  .user-avatar {
+    position: relative;
+    flex-shrink: 0;
   }
   .user-info {
     flex: 1;

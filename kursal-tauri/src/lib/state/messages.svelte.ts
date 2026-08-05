@@ -20,11 +20,13 @@ import { clearNotificationsFor } from '$lib/api/system-notify';
 import { insertInSentOrder, loadDelayed, saveDelayed } from './delayedStore';
 
 const AUTODOWNLOAD_STORAGE_KEY = 'kursal:autodownloadPaths';
+const UNREAD_STORAGE_KEY = 'kursal:unread';
 const SEND_TIMEOUT_MS = 15_000;
 
-// Renderable messages have text content or are structured events (call records)
-// whose body lives in a typed field rather than `content`.
-const hasRenderableBody = (m: MessageResponse) => m.content !== '' || !!m.callDetails;
+// Renderable messages have text content or are structured events (call and pin
+// records) whose body lives in a typed field rather than `content`.
+const hasRenderableBody = (m: MessageResponse) =>
+  m.content !== '' || !!m.callDetails || !!m.pinDetails;
 
 function loadAutodownloadStore(): Record<string, string> {
   if (typeof localStorage === 'undefined') return {};
@@ -65,13 +67,59 @@ function savePendingSyncStore(state: PendingSyncState) {
   }
 }
 
+type UnreadStore = {
+  counts: Record<string, number>;
+  first: Record<string, string>;
+  marked: string[];
+};
+
+function loadUnreadStore(): UnreadStore {
+  const empty: UnreadStore = { counts: {}, first: {}, marked: [] };
+  if (typeof localStorage === 'undefined') return empty;
+  try {
+    const raw = localStorage.getItem(UNREAD_STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return empty;
+    return {
+      counts: typeof parsed.counts === 'object' && parsed.counts ? parsed.counts : {},
+      first: typeof parsed.first === 'object' && parsed.first ? parsed.first : {},
+      marked: Array.isArray(parsed.marked) ? parsed.marked : [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function saveUnreadStore(store: UnreadStore) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(UNREAD_STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    // Non-fatal: quota exceeded or storage unavailable.
+  }
+}
+
 function createMessagesState() {
   const autodownloadPaths: Record<string, string> = loadAutodownloadStore();
+  const persistedUnread = loadUnreadStore();
   let map = $state<Record<string, MessageResponse[]>>({});
-  let unreadByContact = $state<Record<string, number>>({});
+  let unreadByContact = $state<Record<string, number>>(persistedUnread.counts);
   // The id of the first message that arrived while the chat wasn't
   // actively viewed. Used to draw a "New messages" separator.
-  let firstUnreadByContact = $state<Record<string, string>>({});
+  let firstUnreadByContact = $state<Record<string, string>>(persistedUnread.first);
+  // Conversations the user put back to unread by hand. Reading actions are
+  // suppressed for these until the chat is left and reopened, otherwise the
+  // at-bottom auto-read would undo the click in the same frame.
+  let markedUnread = $state<Set<string>>(new Set(persistedUnread.marked));
+
+  function persistUnread() {
+    saveUnreadStore({
+      counts: unreadByContact,
+      first: firstUnreadByContact,
+      marked: [...markedUnread],
+    });
+  }
   let reactions = $state<Record<string, Array<{ emoji: string; userIds: string[] }>>>({});
   // Pinned messages, sourced from the backend pinned index.
   let pinnedByContact = $state<Record<string, MessageResponse[]>>({});
@@ -335,6 +383,7 @@ function createMessagesState() {
     if (loadedContacts.has(cid) && !newestReached.has(cid)) {
       if (msg.direction === 'received') {
         unreadByContact[cid] = (unreadByContact[cid] ?? 0) + 1;
+        persistUnread();
       }
       return;
     }
@@ -348,6 +397,7 @@ function createMessagesState() {
       persistAutodownloadFromMessage(msg);
       if (msg.direction === 'received') {
         unreadByContact[cid] = (unreadByContact[cid] ?? 0) + 1;
+        persistUnread();
         // Not at the tail => it slotted into history and is easy to miss.
         if (idx < list.length - 1) addDelayed(cid, msg.id);
       }
@@ -362,7 +412,12 @@ function createMessagesState() {
     map[msg.contactId].push(msg);
     map[msg.contactId] = [...map[msg.contactId]];
     persistAutodownloadFromMessage(msg);
-    if (msg.direction === 'sent') clearFirstUnread(msg.contactId);
+    // Replying is proof of presence: drop the hand-set unread so the normal
+    // at-bottom auto-read can take over again.
+    if (msg.direction === 'sent') {
+      clearMarkedUnread(msg.contactId);
+      clearFirstUnread(msg.contactId);
+    }
     // File offers append with their real backend id, so a queued event that
     // raced ahead of this append may already be buffered; apply it now.
     // (Text sends use a temp UUID; replaceId consumes for those.)
@@ -623,11 +678,14 @@ function createMessagesState() {
     if (ids.length) void sendReadReceipts(contactId, ids).catch(() => {});
   }
 
-  function markRead(contactId: string) {
+  function markRead(contactId: string, force = false) {
+    if (!force && markedUnread.has(contactId)) return;
     void clearNotificationsFor(contactId);
+    clearMarkedUnread(contactId);
     if (!unreadByContact[contactId]) return;
     dispatchReadReceipts(contactId, unreadByContact[contactId]);
     unreadByContact[contactId] = 0;
+    persistUnread();
   }
 
   function markAllRead() {
@@ -636,6 +694,66 @@ function createMessagesState() {
       dispatchReadReceipts(cid, unreadByContact[cid]);
       unreadByContact[cid] = 0;
     }
+    markedUnread = new Set();
+    persistUnread();
+  }
+
+  // Everything from `messageId` down goes back to unread. The count is the
+  // received messages at or after it, so the badge matches what the separator
+  // is about to sit on top of.
+  function markUnreadFrom(contactId: string, messageId: string) {
+    const list = map[contactId];
+    if (!list) return;
+    const idx = list.findIndex((m) => m.id === messageId);
+    if (idx === -1) return;
+    let count = 0;
+    for (let i = idx; i < list.length; i++) if (list[i].direction === 'received') count++;
+    if (count === 0) return;
+    unreadByContact[contactId] = count;
+    firstUnreadByContact[contactId] =
+      list[idx].direction === 'received'
+        ? messageId
+        : (list.slice(idx).find((m) => m.direction === 'received')?.id ?? messageId);
+    markedUnread = new Set(markedUnread).add(contactId);
+    persistUnread();
+  }
+
+  function markUnread(contactId: string) {
+    const list = map[contactId] ?? [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].direction !== 'received') continue;
+      markUnreadFrom(contactId, list[i].id);
+      return;
+    }
+    if (loadedContacts.has(contactId)) return;
+    // Never opened this session, so there is no list to anchor a separator to.
+    // The count alone is enough for the badge; opening derives the separator.
+    unreadByContact[contactId] = Math.max(1, unreadByContact[contactId] ?? 0);
+    markedUnread = new Set(markedUnread).add(contactId);
+    persistUnread();
+  }
+
+  function isMarkedUnread(contactId: string): boolean {
+    return markedUnread.has(contactId);
+  }
+
+  function clearMarkedUnread(contactId: string) {
+    if (!markedUnread.has(contactId)) return;
+    const next = new Set(markedUnread);
+    next.delete(contactId);
+    markedUnread = next;
+    persistUnread();
+  }
+
+  // Suppression is scoped to the visit that set it, so opening the chat is
+  // always what reads it. Leaving keeps the separator the user just placed.
+  function enterChat(contactId: string) {
+    clearMarkedUnread(contactId);
+  }
+
+  function leaveChat(contactId: string) {
+    if (markedUnread.has(contactId)) return;
+    clearFirstUnread(contactId);
   }
 
   function markMessagesRead(contactId: string, messageIds: string[]) {
@@ -659,13 +777,16 @@ function createMessagesState() {
   function setFirstUnread(contactId: string, messageId: string) {
     if (firstUnreadByContact[contactId]) return;
     firstUnreadByContact[contactId] = messageId;
+    persistUnread();
   }
 
   function clearFirstUnread(contactId: string) {
+    if (markedUnread.has(contactId)) return;
     if (!firstUnreadByContact[contactId]) return;
     const next = { ...firstUnreadByContact };
     delete next[contactId];
     firstUnreadByContact = next;
+    persistUnread();
   }
 
   function addReaction(messageId: string, contactId: string, emoji: string, userId: string) {
@@ -780,6 +901,8 @@ function createMessagesState() {
     delete map[contactId];
     delete unreadByContact[contactId];
     delete firstUnreadByContact[contactId];
+    markedUnread = new Set([...markedUnread].filter((id) => id !== contactId));
+    persistUnread();
     delete pinnedByContact[contactId];
     const prefix = `${contactId}:`;
     Object.keys(reactions)
@@ -827,6 +950,8 @@ function createMessagesState() {
     Object.keys(map).forEach((k) => delete map[k]);
     Object.keys(unreadByContact).forEach((k) => delete unreadByContact[k]);
     Object.keys(firstUnreadByContact).forEach((k) => delete firstUnreadByContact[k]);
+    markedUnread = new Set();
+    persistUnread();
     Object.keys(reactions).forEach((k) => delete reactions[k]);
     Object.keys(pinnedByContact).forEach((k) => delete pinnedByContact[k]);
     Object.keys(transferProgress).forEach((k) => delete transferProgress[k]);
@@ -877,6 +1002,12 @@ function createMessagesState() {
     totalUnread,
     markRead,
     markAllRead,
+    markUnread,
+    markUnreadFrom,
+    isMarkedUnread,
+    clearMarkedUnread,
+    enterChat,
+    leaveChat,
     firstUnreadFor,
     setFirstUnread,
     clearFirstUnread,

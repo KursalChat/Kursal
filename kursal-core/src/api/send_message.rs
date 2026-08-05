@@ -1,7 +1,7 @@
 use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
-    api::AppEvent,
+    api::{AppEvent, message_apply::store_pin_record},
     contacts::Contact,
     crypto::messages::message_send,
     first_contact::WireMessage,
@@ -222,6 +222,8 @@ pub async fn send_message_tracked(
             })
             .await
             .ok();
+
+            store_pin_record(contact, pin, Direction::Sent, &db, tx).await;
         }
         return Ok((None, queued_offline));
     }

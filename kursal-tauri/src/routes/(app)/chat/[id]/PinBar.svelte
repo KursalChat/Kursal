@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Pin, List, X, ChevronUp } from 'lucide-svelte';
+  import { Pin, List, X, ChevronUp, ChevronDown } from 'lucide-svelte';
   import type { MessageResponse } from '$lib/types';
   import { t } from '$lib/i18n';
   import { getMessagePreview, formatGroupTime } from './chat-utils';
@@ -41,10 +41,14 @@
     return getMessagePreview(m.content);
   }
 
-  function cycle() {
+  // `order` runs newest -> oldest, so stepping forward in it walks back in time.
+  function step(delta: number) {
     if (!current) return;
-    const target = activeIdx >= 0 ? order[(displayIndex + 1) % len] : current;
-    onJump(target.id);
+    if (activeIdx < 0) {
+      onJump(current.id);
+      return;
+    }
+    onJump(order[(displayIndex + delta + len) % len].id);
   }
 
   function openPopover() {
@@ -72,7 +76,7 @@
       {/each}
     </span>
 
-    <button class="pin-main" onclick={cycle} title={t('chat.pin.jumpTitle')}>
+    <button class="pin-main" onclick={() => step(1)} title={t('chat.pin.jumpTitle')}>
       <Pin size={14} class="pin-icon" />
       <span class="pin-meta">
         <span class="pin-label">{t('chat.pin.pinnedLabel')}</span>
@@ -81,10 +85,28 @@
       {#key current.id}
         <span class="pin-preview">{preview(current)}</span>
       {/key}
-      {#if len > 1}
-        <ChevronUp size={14} class="pin-next" />
-      {/if}
     </button>
+
+    {#if len > 1}
+      <div class="pin-nav">
+        <button
+          class="pin-step"
+          onclick={() => step(1)}
+          title={t('chat.pin.older')}
+          aria-label={t('chat.pin.older')}
+        >
+          <ChevronUp size={13} />
+        </button>
+        <button
+          class="pin-step"
+          onclick={() => step(-1)}
+          title={t('chat.pin.newer')}
+          aria-label={t('chat.pin.newer')}
+        >
+          <ChevronDown size={13} />
+        </button>
+      </div>
+    {/if}
 
     <button
       class="pin-list-btn"
@@ -136,8 +158,12 @@
 {/if}
 
 <style>
+  /* Above the composer (12), the header (10) and the sticky day pills (4):
+     backdrop-filter makes this a stacking context, so the popover can only
+     rise as high as the bar itself does. */
   .pin-bar {
     position: relative;
+    z-index: 14;
     display: flex;
     align-items: stretch;
     gap: 2px;
@@ -198,9 +224,29 @@
     color: var(--accent);
     flex-shrink: 0;
   }
-  .pin-main :global(.pin-next) {
-    color: var(--text-muted);
+  .pin-nav {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
     flex-shrink: 0;
+  }
+  .pin-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 15px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    transition: all var(--transition);
+  }
+  .pin-step:hover {
+    background: var(--bg-hover);
+    color: var(--accent-hover);
+  }
+  .pin-step:active {
+    transform: scale(0.94);
   }
 
   .pin-meta {

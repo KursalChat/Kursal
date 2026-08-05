@@ -8,6 +8,7 @@
     MoreHorizontal,
     TextCursorInput,
     Pin,
+    Mail,
   } from 'lucide-svelte';
   import type { MessageResponse } from '$lib/types';
   import { t } from '$lib/i18n';
@@ -16,6 +17,7 @@
 
   interface Props {
     msg: MessageResponse;
+    canMarkUnread: boolean;
     onClose: () => void;
     onReact: (emoji: string) => void;
     onMoreEmoji: () => void;
@@ -24,12 +26,14 @@
     onSelectText: () => void;
     onEdit: () => void;
     onTogglePin: () => void;
+    onMarkUnread: () => void;
     onForward: () => void;
     onDelete: () => void;
   }
 
   let {
     msg,
+    canMarkUnread,
     onClose,
     onReact,
     onMoreEmoji,
@@ -38,6 +42,7 @@
     onSelectText,
     onEdit,
     onTogglePin,
+    onMarkUnread,
     onForward,
     onDelete,
   }: Props = $props();
@@ -134,6 +139,11 @@
           <Pin size={18} /><span
             >{msg.pinned ? t('chat.actionSheet.unpin') : t('chat.actionSheet.pin')}</span
           >
+        </button>
+      {/if}
+      {#if canMarkUnread}
+        <button class="sheet-row" onclick={onMarkUnread}>
+          <Mail size={18} /><span>{t('chat.actionSheet.markUnread')}</span>
         </button>
       {/if}
       {#if !msg.fileDetails && msg.content}

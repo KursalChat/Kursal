@@ -31,8 +31,11 @@ function cleanItem(line: string): string {
     .trim();
 }
 
-function kindOf(heading: string): ChangeKind {
+const HIDDEN = new Set(['testing', 'build', 'ci', 'styling', 'revert']);
+
+function kindOf(heading: string): ChangeKind | null {
   const h = heading.toLowerCase();
+  if (HIDDEN.has(h)) return null;
   if (h.includes('fix')) return 'fixes';
   if (h.includes('feature') || h.includes('added') || h.includes('performance')) return 'features';
   return 'other';
@@ -53,18 +56,16 @@ function toGroups(buckets: Buckets): ChangeGroup[] {
   }));
 }
 
-// Release bodies and CHANGELOG entries share the git-cliff shape: a `###`
-// section per commit type, bullets underneath.
 export function parseReleaseNotes(md: string): ChangeGroup[] {
   const buckets: Buckets = new Map();
-  let kind: ChangeKind = 'other';
+  let kind: ChangeKind | null = 'other';
   for (const line of md.split('\n')) {
     const heading = line.match(/^#{1,6}\s+(.+?)\s*$/);
     if (heading) {
       kind = kindOf(heading[1]);
       continue;
     }
-    if (/^[-*]\s+/.test(line)) {
+    if (kind && /^[-*]\s+/.test(line)) {
       const item = cleanItem(line);
       if (item) addItem(buckets, kind, item);
     }
@@ -75,7 +76,7 @@ export function parseReleaseNotes(md: string): ChangeGroup[] {
 export function parseChangelog(md: string): ChangelogEntry[] {
   const entries: { entry: ChangelogEntry; buckets: Buckets }[] = [];
   let current: { entry: ChangelogEntry; buckets: Buckets } | null = null;
-  let kind: ChangeKind = 'other';
+  let kind: ChangeKind | null = 'other';
 
   for (const line of md.split('\n')) {
     const version = line.match(/^##\s+\[?([^\]\s]+)\]?(?:\s*-\s*(\S+))?\s*$/);
@@ -97,7 +98,7 @@ export function parseChangelog(md: string): ChangelogEntry[] {
       kind = kindOf(section[1]);
       continue;
     }
-    if (current && /^[-*]\s+/.test(line)) {
+    if (current && kind && /^[-*]\s+/.test(line)) {
       const item = cleanItem(line);
       if (item) addItem(current.buckets, kind, item);
     }

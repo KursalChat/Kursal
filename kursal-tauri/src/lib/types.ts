@@ -56,6 +56,10 @@ export interface MessageResponse {
     outcome: string;
     durationMs: number;
   } | null;
+  pinDetails?: {
+    targetId: string;
+    pinned: boolean;
+  } | null;
 }
 
 export interface OtpResponse {

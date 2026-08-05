@@ -13,6 +13,7 @@
   import EmptyChat from './EmptyChat.svelte';
   import ChatSeparator from './ChatSeparator.svelte';
   import CallLine from './CallLine.svelte';
+  import PinLine from './PinLine.svelte';
   import TypingIndicator from './TypingIndicator.svelte';
   import ImageStackBubble from './ImageStackBubble.svelte';
 
@@ -41,6 +42,7 @@
     onStackContextMenu: (e: MouseEvent, m: MessageResponse) => void;
     onSayHi: () => void;
     onVerify: () => void;
+    onViewPinned: (messageId: string) => void;
     msgBubble: Snippet<[MessageResponse, number, number, boolean]>;
   }
 
@@ -63,10 +65,40 @@
     onStackContextMenu,
     onSayHi,
     onVerify,
+    onViewPinned,
     msgBubble,
   }: Props = $props();
 
   const groupFirstId = (g: MessageGroup): string | undefined => g.messages[0]?.id;
+
+  interface Section {
+    key: string;
+    tier: number;
+    day: number | null;
+    items: { group: MessageGroup; gi: number }[];
+  }
+
+  // A sticky pill is only pushed out by the box it lives in, so each day (and
+  // each offline tier) gets its own section instead of one flat sibling list.
+  const sections = $derived.by(() => {
+    const out: Section[] = [];
+    messageGroups.forEach((group, gi) => {
+      const last = out[out.length - 1];
+      const continues =
+        last &&
+        last.tier === group.tier &&
+        (group.tier > 0 || isSameDay(group.timestamp, last.items[0].group.timestamp));
+      if (continues) last.items.push({ group, gi });
+      else
+        out.push({
+          key: `${group.tier}:${gi}`,
+          tier: group.tier,
+          day: group.tier === 0 ? group.timestamp : null,
+          items: [{ group, gi }],
+        });
+    });
+    return out;
+  });
 </script>
 
 <div class="messages" bind:this={listEl} onscroll={onScroll}>
@@ -100,127 +132,143 @@
   {:else}
     <div class="msg-spacer"></div>
 
-    {#each messageGroups as group, gi (gi)}
-      {#if group.tier > 0 && group.tier !== (gi > 0 ? messageGroups[gi - 1].tier : 0)}
-        <ChatSeparator
-          variant={group.tier === 1 ? 'offline-stored' : 'offline-waiting'}
-          label={group.tier === 1
-            ? t('chat.offline.sectionStored')
-            : t('chat.offline.sectionWaiting')}
-        />
-      {/if}
-      {#if group.tier === 0 && (gi === 0 || !isSameDay(group.timestamp, messageGroups[gi - 1].timestamp))}
-        <ChatSeparator variant="day" label={formatDaySeparator(group.timestamp)} />
-      {/if}
-      {#if firstUnreadId && groupFirstId(group) === firstUnreadId}
-        <ChatSeparator
-          variant="unread"
-          label={t('chat.conversation.newMessages')}
-          ariaLabel={t('chat.conversation.newMessages')}
-        />
-      {/if}
-      {#if group.kind === 'call'}
-        {@const rec = group.messages[0]?.callDetails}
-        {#if rec}
-          <CallLine {rec} direction={group.direction} timestamp={group.timestamp} />
+    {#each sections as section (section.key)}
+      <div class="day-section">
+        {#if section.tier > 0}
+          <ChatSeparator
+            variant={section.tier === 1 ? 'offline-stored' : 'offline-waiting'}
+            label={section.tier === 1
+              ? t('chat.offline.sectionStored')
+              : t('chat.offline.sectionWaiting')}
+          />
         {/if}
-      {:else}
-        <div
-          class="msg-group"
-          class:sent={group.direction === 'sent' && appearanceState.layout === 'bubble'}
-        >
-          {#if group.tier === 0 && gi > 0 && isSameDay(group.timestamp, messageGroups[gi - 1].timestamp) && group.timestamp - messageGroups[gi - 1].timestamp > 3600000}
-            <ChatSeparator variant="time" label={formatTime(group.timestamp)} />
+        {#if section.day !== null}
+          <ChatSeparator variant="day" label={formatDaySeparator(section.day)} />
+        {/if}
+        {#each section.items as { group, gi } (gi)}
+          {#if firstUnreadId && groupFirstId(group) === firstUnreadId}
+            <ChatSeparator
+              variant="unread"
+              label={t('chat.conversation.newMessages')}
+              ariaLabel={t('chat.conversation.newMessages')}
+            />
           {/if}
-
-          {#if appearanceState.layout === 'flat'}
-            {#each imageRuns(group.messages) as run (run.msgs[0].id)}
-              {@const msg = run.msgs[0]}
-              {@const mi = run.startIdx}
-              <div
-                class="flat-row"
-                class:group-start={mi === 0}
-                class:hovered={hoveredMessageId === msg.id}
-                data-dir={group.direction}
-                role="presentation"
-                onmouseenter={() => (hoveredMessageId = msg.id)}
-                onmouseleave={() => (hoveredMessageId = null)}
-              >
-                <div class="flat-aside">
-                  {#if mi === 0}
-                    <Avatar
-                      name={group.direction === 'received'
-                        ? contact.displayName
-                        : profileState.displayName}
-                      src={group.direction === 'received'
-                        ? contact.avatarBase64
-                        : profileState.avatarBase64}
-                      size={32}
-                    />
-                  {:else}
-                    <span class="flat-thread" aria-hidden="true"></span>
-                    <time class="flat-gutter-time">{formatTime(msg.timestamp)}</time>
-                  {/if}
-                </div>
-                <div class="flat-body">
-                  {#if mi === 0}
-                    <div class="flat-header-line">
-                      <span class="flat-sender-name" class:sent={group.direction === 'sent'}>
-                        {group.direction === 'received'
-                          ? contact.displayName
-                          : t('chat.conversation.you')}
-                      </span>
-                      <span class="flat-prompt" aria-hidden="true">~</span>
-                      <time class="flat-time">{formatTime(msg.timestamp)}</time>
-                    </div>
-                  {/if}
-                  {#if run.msgs.length > 1}
-                    <ImageStackBubble
-                      msgs={run.msgs}
-                      direction={group.direction}
-                      onOpen={onOpenStackImage}
-                      onDownloadAll={onDownloadStack}
-                      onContextMenu={onStackContextMenu}
-                    />
-                  {:else}
-                    {@render msgBubble(msg, mi, group.messages.length, true)}
-                  {/if}
-                </div>
-              </div>
-            {/each}
-            {#if group.direction === 'sent' && gi === messageGroups.length - 1}
-              {@const lastStatus = group.messages[group.messages.length - 1]?.status ?? 'delivered'}
-              <div class="flat-group-status" data-status={lastStatus}>
-                {@render flatStatus(lastStatus)}
-                <span>{flatStatusLabel(lastStatus)}</span>
-              </div>
+          {#if group.kind === 'call'}
+            {@const rec = group.messages[0]?.callDetails}
+            {#if rec}
+              <CallLine {rec} direction={group.direction} timestamp={group.timestamp} />
+            {/if}
+          {:else if group.kind === 'pin'}
+            {@const rec = group.messages[0]?.pinDetails}
+            {#if rec}
+              <PinLine
+                pinned={rec.pinned}
+                direction={group.direction}
+                peerName={contact.displayName}
+                timestamp={group.timestamp}
+                onView={() => onViewPinned(rec.targetId)}
+              />
             {/if}
           {:else}
-            <div class="group-body" class:sent={group.direction === 'sent'}>
-              {#if group.direction === 'received'}
-                <div class="group-avatar">
-                  <Avatar name={contact.displayName} src={contact.avatarBase64} size={28} />
+            <div
+              class="msg-group"
+              class:sent={group.direction === 'sent' && appearanceState.layout === 'bubble'}
+            >
+              {#if group.tier === 0 && gi > 0 && isSameDay(group.timestamp, messageGroups[gi - 1].timestamp) && group.timestamp - messageGroups[gi - 1].timestamp > 3600000}
+                <ChatSeparator variant="time" label={formatTime(group.timestamp)} />
+              {/if}
+
+              {#if appearanceState.layout === 'flat'}
+                {#each imageRuns(group.messages) as run (run.msgs[0].id)}
+                  {@const msg = run.msgs[0]}
+                  {@const mi = run.startIdx}
+                  <div
+                    class="flat-row"
+                    class:group-start={mi === 0}
+                    class:hovered={hoveredMessageId === msg.id}
+                    data-dir={group.direction}
+                    role="presentation"
+                    onmouseenter={() => (hoveredMessageId = msg.id)}
+                    onmouseleave={() => (hoveredMessageId = null)}
+                  >
+                    <div class="flat-aside">
+                      {#if mi === 0}
+                        <Avatar
+                          name={group.direction === 'received'
+                            ? contact.displayName
+                            : profileState.displayName}
+                          src={group.direction === 'received'
+                            ? contact.avatarBase64
+                            : profileState.avatarBase64}
+                          size={32}
+                        />
+                      {:else}
+                        <span class="flat-thread" aria-hidden="true"></span>
+                        <time class="flat-gutter-time">{formatTime(msg.timestamp)}</time>
+                      {/if}
+                    </div>
+                    <div class="flat-body">
+                      {#if mi === 0}
+                        <div class="flat-header-line">
+                          <span class="flat-sender-name" class:sent={group.direction === 'sent'}>
+                            {group.direction === 'received'
+                              ? contact.displayName
+                              : t('chat.conversation.you')}
+                          </span>
+                          <span class="flat-prompt" aria-hidden="true">~</span>
+                          <time class="flat-time">{formatTime(msg.timestamp)}</time>
+                        </div>
+                      {/if}
+                      {#if run.msgs.length > 1}
+                        <ImageStackBubble
+                          msgs={run.msgs}
+                          direction={group.direction}
+                          onOpen={onOpenStackImage}
+                          onDownloadAll={onDownloadStack}
+                          onContextMenu={onStackContextMenu}
+                        />
+                      {:else}
+                        {@render msgBubble(msg, mi, group.messages.length, true)}
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+                {#if group.direction === 'sent' && gi === messageGroups.length - 1}
+                  {@const lastStatus =
+                    group.messages[group.messages.length - 1]?.status ?? 'delivered'}
+                  <div class="flat-group-status" data-status={lastStatus}>
+                    {@render flatStatus(lastStatus)}
+                    <span>{flatStatusLabel(lastStatus)}</span>
+                  </div>
+                {/if}
+              {:else}
+                <div class="group-body" class:sent={group.direction === 'sent'}>
+                  {#if group.direction === 'received'}
+                    <div class="group-avatar">
+                      <Avatar name={contact.displayName} src={contact.avatarBase64} size={28} />
+                    </div>
+                  {/if}
+                  <div class="group-messages" class:sent={group.direction === 'sent'}>
+                    {#each imageRuns(group.messages) as run (run.msgs[0].id)}
+                      {#if run.msgs.length > 1}
+                        <ImageStackBubble
+                          msgs={run.msgs}
+                          direction={group.direction}
+                          onOpen={onOpenStackImage}
+                          onDownloadAll={onDownloadStack}
+                          onContextMenu={onStackContextMenu}
+                        />
+                      {:else}
+                        {@render msgBubble(run.msgs[0], run.startIdx, group.messages.length, false)}
+                      {/if}
+                    {/each}
+                  </div>
                 </div>
               {/if}
-              <div class="group-messages" class:sent={group.direction === 'sent'}>
-                {#each imageRuns(group.messages) as run (run.msgs[0].id)}
-                  {#if run.msgs.length > 1}
-                    <ImageStackBubble
-                      msgs={run.msgs}
-                      direction={group.direction}
-                      onOpen={onOpenStackImage}
-                      onDownloadAll={onDownloadStack}
-                      onContextMenu={onStackContextMenu}
-                    />
-                  {:else}
-                    {@render msgBubble(run.msgs[0], run.startIdx, group.messages.length, false)}
-                  {/if}
-                {/each}
-              </div>
             </div>
           {/if}
-        </div>
-      {/if}
+        {/each}
+      </div>
     {/each}
   {/if}
 
@@ -260,6 +308,12 @@
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 14px);
     mask-image: linear-gradient(to bottom, transparent 0, black 14px);
     scrollbar-width: thin;
+  }
+
+  .day-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .msg-group {

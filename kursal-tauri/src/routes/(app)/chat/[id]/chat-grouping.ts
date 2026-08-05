@@ -1,7 +1,7 @@
 import type { MessageResponse } from '$lib/types';
 
 export interface MessageGroup {
-  kind: 'msgs' | 'call';
+  kind: 'msgs' | 'call' | 'pin';
   direction: 'sent' | 'received';
   messages: MessageResponse[];
   timestamp: number;
@@ -47,10 +47,12 @@ export function buildMessageGroups(
   for (const msg of visible) {
     if (hiddenStarted.has(msg.id)) continue;
     const isCall = !!msg.callDetails;
+    const isPin = !!msg.pinDetails;
     const last = groups[groups.length - 1];
     const tier = offlineTier(msg.status, peerOnline);
     const canMerge =
       !isCall &&
+      !isPin &&
       msg.id !== firstUnreadId &&
       last &&
       last.kind === 'msgs' &&
@@ -61,7 +63,7 @@ export function buildMessageGroups(
       last.messages.push(msg);
     } else {
       groups.push({
-        kind: isCall ? 'call' : 'msgs',
+        kind: isCall ? 'call' : isPin ? 'pin' : 'msgs',
         direction: msg.direction,
         messages: [msg],
         timestamp: msg.timestamp,

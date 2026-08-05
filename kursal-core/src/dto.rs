@@ -61,6 +61,13 @@ pub struct CallDetailsDto {
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct PinDetailsDto {
+    pub target_id: String,
+    pub pinned: bool,
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MessageResponse {
     pub id: String,
     pub contact_id: String,
@@ -75,6 +82,7 @@ pub struct MessageResponse {
     pub reactions: Vec<ReactionResponse>,
     pub file_details: Option<FileDetailsDto>,
     pub call_details: Option<CallDetailsDto>,
+    pub pin_details: Option<PinDetailsDto>,
     pub via_offline: bool,
 }
 
@@ -118,6 +126,14 @@ impl From<StoredMessage> for MessageResponse {
             _ => None,
         };
 
+        let pin_details = match &value.payload {
+            KursalMessage::MessagePin(p) => Some(PinDetailsDto {
+                target_id: hex::encode(p.target_id.0),
+                pinned: p.pinned,
+            }),
+            _ => None,
+        };
+
         Self {
             id: hex::encode(value.id.0),
             contact_id: hex::encode(value.contact_id.0),
@@ -138,7 +154,7 @@ impl From<StoredMessage> for MessageResponse {
                 KursalMessage::DeliveryReceipt(_) => "[receipt]".to_string(),
                 KursalMessage::ProfileUpdate(_) => "[profile updated]".to_string(),
                 KursalMessage::Typing => "[user typing]".to_string(),
-                KursalMessage::MessagePin(_) => "[message pinned]".to_string(),
+                KursalMessage::MessagePin(_) => String::new(),
                 KursalMessage::AddressAnnounce(_) => "[address update]".to_string(),
                 KursalMessage::CallRecord(_) => String::new(),
                 KursalMessage::ReadReceipt(_) => "[receipt]".to_string(),
@@ -162,6 +178,7 @@ impl From<StoredMessage> for MessageResponse {
             reactions: db_reactions,
             file_details,
             call_details,
+            pin_details,
             via_offline: matches!(value.status, MessageStatus::OfflineDelivered)
                 && matches!(value.direction, Direction::Received),
         }

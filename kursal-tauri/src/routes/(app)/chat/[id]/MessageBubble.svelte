@@ -22,6 +22,7 @@
     Ellipsis,
     ChevronDown,
     ChevronUp,
+    Mail,
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -84,6 +85,7 @@
     transferInProgress: boolean;
     transferDone: boolean;
     mediaVersion: number;
+    canMarkUnread: boolean;
     onHoverEnter: () => void;
     onHoverLeave: () => void;
     onTouchStart: (e: TouchEvent) => void;
@@ -100,6 +102,7 @@
     onCopy: () => void;
     onStartEdit: () => void;
     onTogglePin: () => void;
+    onMarkUnread: () => void;
     onForward: () => void;
     onDelete: () => void;
     onDeleteLocal: () => void;
@@ -131,6 +134,7 @@
     transferInProgress,
     transferDone,
     mediaVersion,
+    canMarkUnread,
     onHoverEnter,
     onHoverLeave,
     onTouchStart,
@@ -147,6 +151,7 @@
     onCopy,
     onStartEdit,
     onTogglePin,
+    onMarkUnread,
     onForward,
     onDelete,
     onDeleteLocal,
@@ -843,6 +848,12 @@
                     >{msg.pinned ? t('chat.bubble.actionUnpin') : t('chat.bubble.actionPin')}</span
                   >
                 </button>
+                {#if canMarkUnread}
+                  <button class="menu-item" role="menuitem" {...activate(onMarkUnread)}>
+                    <Mail size={14} />
+                    <span>{t('chat.bubble.actionMarkUnread')}</span>
+                  </button>
+                {/if}
                 {#if !msg.fileDetails}
                   <button class="menu-item" role="menuitem" {...activate(onForward)}>
                     <Forward size={14} />

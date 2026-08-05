@@ -1,8 +1,9 @@
 import { t } from '$lib/i18n';
+import { nowTick } from './clock.svelte';
 
 export function lastSeenLabel(ts: number | null): string {
   if (!ts) return t('layout.statusOffline');
-  const mins = Math.floor((Date.now() - ts) / 60000);
+  const mins = Math.floor((nowTick() - ts) / 60000);
   if (mins < 1) return t('layout.lastSeenJustNow');
   if (mins < 60) return t('layout.lastSeenMinutes', { n: mins });
   const hours = Math.floor(mins / 60);
