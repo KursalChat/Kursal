@@ -22,7 +22,7 @@
     Headphones,
     HeadphoneOff,
   } from 'lucide-svelte';
-  import { lastSeenLabel } from '$lib/utils/lastSeen';
+  import { connectionLabel } from '$lib/utils/connectionLabel';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
@@ -42,7 +42,7 @@
   import CallDock from '$lib/components/CallDock.svelte';
   import { callState } from '$lib/state/call.svelte';
   import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
-  import type { ContactResponse } from '$lib/types';
+  import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
   import { readInsets } from '$lib/utils/android-insets';
   import { t, dateLocale } from '$lib/i18n';
 
@@ -120,17 +120,11 @@
     return d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' });
   }
 
-  function getStatusLabel(status: string | undefined, contactId?: string): string {
-    if (!status || status === 'disconnected') {
-      return contactId
-        ? lastSeenLabel(contactsState.lastSeenAt(contactId))
-        : t('layout.statusOffline');
-    }
-    if (status === 'direct') return t('layout.statusOnline');
-    if (status === 'holepunch') return t('layout.statusOnline');
-    if (status === 'relay') return t('layout.statusOnlineRelay');
-    if (status === 'connecting') return t('layout.statusConnecting');
-    return status.charAt(0).toUpperCase() + status.slice(1);
+  function getStatusLabel(
+    status: ConnectionChangedPayload['status'] | undefined,
+    contactId?: string
+  ): string {
+    return connectionLabel(status, contactId ? contactsState.lastSeenAt(contactId) : null);
   }
 
   let contactMenu = $state<{ userId: string; x: number; y: number } | null>(null);

@@ -10,7 +10,11 @@ use crate::{
         DIRECT_ACK_DEADLINE_SECS, deliver_queue_direct, expire_and_fail, list_pending_ack,
         maybe_flush, move_to_mailbox_if_stuck, republish_pending,
     },
-    network::{NetworkManager, kademlia::KAD_LONG_MAX_AGE, swarm::SwarmCommand},
+    network::{
+        NetworkManager,
+        kademlia::KAD_LONG_MAX_AGE,
+        swarm::{ConnectionKind, SwarmCommand},
+    },
     storage::{SharedDatabase, get_timestamp_secs},
 };
 use libp2p::PeerId;
@@ -48,6 +52,7 @@ pub(super) async fn presence_sync_loop(
             .await
             .into_iter()
             .collect();
+        let peer_kinds = crate::network::swarm::get_peer_connection_kinds(&cmd_tx).await;
         let peer_count = connected_peers.len();
         let online = peer_count > 0;
         if last_state != Some((online, peer_count)) {
@@ -71,27 +76,20 @@ pub(super) async fn presence_sync_loop(
             let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
                 continue;
             };
-            let connected = connected_peers.contains(&peer_id);
-
             let mut map = status_map.lock().await;
             let prev = map.get(&contact.user_id).cloned();
-            let prev_online = matches!(
-                prev,
-                Some(ConnectionStatus::Direct)
-                    | Some(ConnectionStatus::Relay)
-                    | Some(ConnectionStatus::HolePunch)
-            );
 
-            let next = if connected {
-                if prev_online {
-                    None
-                } else {
-                    Some(ConnectionStatus::Direct)
-                }
-            } else if matches!(prev, Some(ConnectionStatus::Disconnected)) {
-                None
-            } else {
-                Some(ConnectionStatus::Disconnected)
+            let actual = peer_kinds.get(&peer_id).map(|kind| match kind {
+                ConnectionKind::Relay => ConnectionStatus::Relay,
+                ConnectionKind::Direct => ConnectionStatus::Direct,
+                ConnectionKind::HolePunch => ConnectionStatus::HolePunch,
+            });
+
+            let next = match actual {
+                Some(status) => (prev.as_ref() != Some(&status)).then_some(status),
+                None if prev == Some(ConnectionStatus::Connecting) => None,
+                None if prev == Some(ConnectionStatus::Disconnected) => None,
+                None => Some(ConnectionStatus::Disconnected),
             };
 
             if let Some(status) = next {

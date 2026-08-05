@@ -171,13 +171,14 @@
     border-radius: 50%;
     background: var(--text-muted);
   }
-  .status-line[data-status='direct'] .dot {
+  .status-line[data-status='direct'] .dot,
+  .status-line[data-status='holepunch'] .dot {
     background: var(--success);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
   }
-  .status-line[data-status='relay'] .dot,
-  .status-line[data-status='holepunch'] .dot {
+  .status-line[data-status='relay'] .dot {
     background: var(--info, #4fc3f7);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--info, #4fc3f7) 22%, transparent);
   }
   .status-line[data-status='connecting'] .dot {
     background: var(--warning, #fbbf24);

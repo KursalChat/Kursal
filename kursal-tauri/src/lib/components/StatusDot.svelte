@@ -17,11 +17,11 @@
     background: var(--text-muted);
   }
 
-  .status-dot[data-status='direct'] {
+  .status-dot[data-status='direct'],
+  .status-dot[data-status='holepunch'] {
     background: var(--success);
   }
-  .status-dot[data-status='relay'],
-  .status-dot[data-status='holepunch'] {
+  .status-dot[data-status='relay'] {
     background: var(--info);
   }
   .status-dot[data-status='connecting'] {
@@ -31,8 +31,7 @@
     background: var(--text-muted);
   }
 
-  .status-dot[data-status='connecting'],
-  .status-dot[data-status='holepunch'] {
+  .status-dot[data-status='connecting'] {
     animation: status-breathe 1.6s ease-in-out infinite;
   }
   @keyframes status-breathe {

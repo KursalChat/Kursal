@@ -36,7 +36,7 @@
       case 'holepunch':
         return 'var(--success)';
       case 'relay':
-        return 'var(--warning)';
+        return 'var(--info)';
       case 'connecting':
         return 'var(--warning)';
       case 'disconnected':

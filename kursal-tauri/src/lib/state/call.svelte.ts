@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import { listen } from '@tauri-apps/api/event';
 import { notifications } from '$lib/state/notifications.svelte';
 import { log } from '$lib/utils/log';
+import { isOnlineStatus } from '$lib/utils/presence';
 import { t } from '$lib/i18n';
 import {
   acceptCall as apiAccept,
@@ -312,8 +313,7 @@ function createCallState() {
   function applyConnectionChanged(p: ConnectionChangedPayload) {
     if (!contactId || p.contactId !== contactId) return;
     if (status === 'idle' || status === 'ringing_in') return;
-    const online = p.status === 'direct' || p.status === 'holepunch' || p.status === 'relay';
-    if (online) {
+    if (isOnlineStatus(p.status)) {
       clearDropTimer();
       return;
     }

@@ -1,8 +1,9 @@
-use super::{PeerStreams, STREAM_PROTOCOL, SwarmCommand};
+use super::{ConnectionKind, PeerStreams, STREAM_PROTOCOL, SwarmCommand};
 use crate::MapKursalResult;
 use crate::{KursalError, Result};
 use futures::io::AsyncWriteExt;
 use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use tokio::sync::{mpsc, oneshot};
 
@@ -41,6 +42,20 @@ pub async fn get_connected_peers(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Vec<Pee
         .is_err()
     {
         return Vec::new();
+    }
+    rx.await.unwrap_or_default()
+}
+
+pub async fn get_peer_connection_kinds(
+    cmd_tx: &mpsc::Sender<SwarmCommand>,
+) -> HashMap<PeerId, ConnectionKind> {
+    let (tx, rx) = oneshot::channel();
+    if cmd_tx
+        .send(SwarmCommand::GetPeerConnectionKinds { reply_tx: tx })
+        .await
+        .is_err()
+    {
+        return HashMap::new();
     }
     rx.await.unwrap_or_default()
 }

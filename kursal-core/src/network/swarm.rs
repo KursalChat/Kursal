@@ -37,8 +37,8 @@ pub use behaviour::{KursalBehaviour, KursalBehaviourEvent};
 pub use codec::KursalMsgCodec;
 pub use helpers::{
     get_all_listen_addrs, get_connected_peer_count, get_connected_peers, get_listen_addrs,
-    get_nearby_listen_addrs, is_peer_connected, is_routable_multiaddr, open_peer_stream,
-    str_to_multiaddr,
+    get_nearby_listen_addrs, get_peer_connection_kinds, is_peer_connected, is_routable_multiaddr,
+    open_peer_stream, str_to_multiaddr,
 };
 
 use commands::handle_swarm_command;
@@ -110,6 +110,9 @@ pub enum SwarmCommand {
     GetConnectedPeers {
         reply_tx: oneshot::Sender<Vec<PeerId>>,
     },
+    GetPeerConnectionKinds {
+        reply_tx: oneshot::Sender<HashMap<PeerId, ConnectionKind>>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -117,6 +120,16 @@ pub enum ConnectionKind {
     Relay,
     HolePunch,
     Direct,
+}
+
+impl ConnectionKind {
+    pub fn rank(self) -> u8 {
+        match self {
+            ConnectionKind::Relay => 0,
+            ConnectionKind::Direct => 1,
+            ConnectionKind::HolePunch => 2,
+        }
+    }
 }
 
 pub enum NetworkEvent {
@@ -135,6 +148,12 @@ pub enum NetworkEvent {
     ConnectionKindChanged {
         peer_id: PeerId,
         via: ConnectionKind,
+    },
+    ConnectionPending {
+        peer_id: PeerId,
+    },
+    ConnectionFailed {
+        peer_id: PeerId,
     },
     ConnectionLost {
         peer_id: PeerId,
@@ -398,7 +417,7 @@ impl SwarmHandle {
 
                                 log::info!("Nearby enabled ({} known mdns peers)", mdns_peers.len());
                             },
-                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams).await,
+                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
                             None => break
                         }
                     }

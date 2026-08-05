@@ -1,10 +1,10 @@
 use super::{
-    CALL_PROTOCOL, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
+    CALL_PROTOCOL, ConnectionKind, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
     helpers::open_peer_stream,
 };
 use crate::network::bootstrap::bootstrap_peers;
 use libp2p::{
-    Multiaddr, Swarm,
+    Multiaddr, PeerId, Swarm,
     multiaddr::Protocol,
     swarm::{ConnectionId, dial_opts::DialOpts},
 };
@@ -22,6 +22,7 @@ pub(super) async fn handle_swarm_command(
     nearby_enabled: &mut bool,
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
+    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
 ) {
     match cmd {
         SwarmCommand::Shutdown | SwarmCommand::EnableNearby => {} // handled in the loop itself
@@ -183,6 +184,19 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::GetConnectedPeers { reply_tx } => {
             let peers: Vec<libp2p::PeerId> = swarm.connected_peers().cloned().collect();
             let _ = reply_tx.send(peers);
+        }
+        SwarmCommand::GetPeerConnectionKinds { reply_tx } => {
+            let mut best: HashMap<PeerId, ConnectionKind> = HashMap::new();
+            for (peer_id, kind) in peer_conns.values() {
+                best.entry(*peer_id)
+                    .and_modify(|current| {
+                        if kind.rank() > current.rank() {
+                            *current = *kind;
+                        }
+                    })
+                    .or_insert(*kind);
+            }
+            let _ = reply_tx.send(best);
         }
         SwarmCommand::OpenStream {
             peer_id,

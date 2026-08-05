@@ -13,6 +13,7 @@
   import { stat } from '@tauri-apps/plugin-fs';
   import { t } from '$lib/i18n';
   import { contactsState } from '$lib/state/contacts.svelte';
+  import { isOnlineStatus } from '$lib/utils/presence';
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { uiState } from '$lib/state/ui.svelte';
@@ -257,8 +258,7 @@
   const terminated = $derived(!!contactId && contactsState.isTerminated(contactId));
   const peerOnline = $derived.by(() => {
     if (!contactId) return false;
-    const s = contactsState.connectionStatus[contactId];
-    return s === 'direct' || s === 'holepunch' || s === 'relay';
+    return isOnlineStatus(contactsState.connectionStatus[contactId]);
   });
   // Reactions/edits/deletes ride the same offline queue but aren't messages, so
   // they only show up as "waiting to sync" markers. Both feed the flush timer.
@@ -287,8 +287,7 @@
     await shareBusy.run(async () => {
       try {
         await shareProfile(profileState.displayName, profileState.avatarBytes, contactId);
-        const status = contactsState.connectionStatus[contactId];
-        const online = status === 'direct' || status === 'holepunch' || status === 'relay';
+        const online = isOnlineStatus(contactsState.connectionStatus[contactId]);
         if (contact) contactsState.upsert({ ...contact, profileShared: true });
         notifications.push(
           online

@@ -427,6 +427,49 @@ pub(super) async fn handle_internal_network_event(
                     .ok();
             }
         }
+        NetworkEvent::ConnectionPending { peer_id } => {
+            let peer_id_str = peer_id.to_base58();
+            if let Ok(Some(contact)) = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str) {
+                let mut map = status_map.lock().await;
+                let settled = matches!(
+                    map.get(&contact.user_id),
+                    Some(ConnectionStatus::Direct)
+                        | Some(ConnectionStatus::Relay)
+                        | Some(ConnectionStatus::HolePunch)
+                        | Some(ConnectionStatus::Connecting)
+                );
+                if !settled {
+                    map.insert(contact.user_id.clone(), ConnectionStatus::Connecting);
+                    drop(map);
+
+                    app_event_tx
+                        .send(AppEvent::ConnectionChange {
+                            contact_id: contact.user_id,
+                            status: ConnectionStatus::Connecting,
+                        })
+                        .await
+                        .ok();
+                }
+            }
+        }
+        NetworkEvent::ConnectionFailed { peer_id } => {
+            let peer_id_str = peer_id.to_base58();
+            if let Ok(Some(contact)) = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str) {
+                let mut map = status_map.lock().await;
+                if map.get(&contact.user_id) != Some(&ConnectionStatus::Disconnected) {
+                    map.insert(contact.user_id.clone(), ConnectionStatus::Disconnected);
+                    drop(map);
+
+                    app_event_tx
+                        .send(AppEvent::ConnectionChange {
+                            contact_id: contact.user_id,
+                            status: ConnectionStatus::Disconnected,
+                        })
+                        .await
+                        .ok();
+                }
+            }
+        }
         NetworkEvent::ConnectionLost { peer_id } => {
             let peer_id_str = peer_id.to_base58();
 

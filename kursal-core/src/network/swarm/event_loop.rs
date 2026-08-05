@@ -15,6 +15,17 @@ use libp2p::{
 use std::collections::{HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
 
+fn best_kind(
+    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_id: &PeerId,
+) -> Option<ConnectionKind> {
+    peer_conns
+        .values()
+        .filter(|(p, _)| p == peer_id)
+        .map(|(_, k)| *k)
+        .max_by_key(|k| k.rank())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_swarm_event(
     event: SwarmEvent<KursalBehaviourEvent>,
@@ -264,8 +275,9 @@ pub(super) async fn handle_swarm_event(
                 }
             }
 
+            let via = best_kind(peer_conns, &peer_id).unwrap_or(kind);
             let _ = event_tx
-                .send(NetworkEvent::ConnectionEstablished { peer_id, via: kind })
+                .send(NetworkEvent::ConnectionEstablished { peer_id, via })
                 .await;
         }
         SwarmEvent::ConnectionClosed {
@@ -283,15 +295,7 @@ pub(super) async fn handle_swarm_event(
                     .send(NetworkEvent::ConnectionLost { peer_id })
                     .await;
             } else {
-                let best = peer_conns
-                    .values()
-                    .filter(|(p, _)| *p == peer_id)
-                    .map(|(_, k)| *k)
-                    .max_by_key(|k| match k {
-                        ConnectionKind::HolePunch | ConnectionKind::Direct => 2,
-                        ConnectionKind::Relay => 1,
-                    });
-                if let Some(via) = best {
+                if let Some(via) = best_kind(peer_conns, &peer_id) {
                     log::info!("[conn] peer={peer_id} now via {via:?} after close");
                     let _ = event_tx
                         .send(NetworkEvent::ConnectionKindChanged { peer_id, via })
@@ -350,6 +354,17 @@ pub(super) async fn handle_swarm_event(
             log::info!("[swarm] listener closed ({} addrs)", addresses.len());
         }
 
+        SwarmEvent::Dialing {
+            peer_id: Some(peer_id),
+            ..
+        } => {
+            if best_kind(peer_conns, &peer_id).is_none() {
+                let _ = event_tx
+                    .send(NetworkEvent::ConnectionPending { peer_id })
+                    .await;
+            }
+        }
+
         SwarmEvent::OutgoingConnectionError {
             peer_id,
             error,
@@ -360,6 +375,14 @@ pub(super) async fn handle_swarm_event(
                 let _ = tx.send(Err(error.to_string()));
             }
             log::info!("[swarm] outgoing connection error peer={peer_id:?} error={error}");
+
+            if let Some(peer_id) = peer_id
+                && best_kind(peer_conns, &peer_id).is_none()
+            {
+                let _ = event_tx
+                    .send(NetworkEvent::ConnectionFailed { peer_id })
+                    .await;
+            }
         }
         SwarmEvent::IncomingConnectionError { error, .. } => {
             log::info!("[swarm] incoming connection error: {error}");

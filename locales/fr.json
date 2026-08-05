@@ -407,10 +407,6 @@
       "connectionInfo": "Information de la connexion",
       "openSidebar": "Ouvrir la barre latérale",
       "search": "Rechercher les messages",
-      "statusConnecting": "Connexion…",
-      "statusOffline": "Hors ligne",
-      "statusOnline": "En ligne",
-      "statusRelay": "En ligne via relai",
       "verifyIdentity": "Vérifier l'identité",
       "viewProfile": "Voir le profil"
     },
@@ -629,7 +625,8 @@
     "settings": "Réglages",
     "statusConnecting": "Connexion…",
     "statusOffline": "Hors ligne",
-    "statusOnline": "En ligne",
+    "statusOnlineDirect": "En ligne · direct",
+    "statusOnlineHolepunch": "En ligne · hole-punching",
     "statusOnlineRelay": "En ligne · relai",
     "typing": "écrit…"
   },
