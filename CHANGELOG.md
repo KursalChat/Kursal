@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.5] - 2026-08-05
+
+### Features
+
+- "offline" LTC access for PeerID rotation
+- Updater progress bar
+
+### Bug Fixes
+
+- OTP & LTC deadlock
+- Pinned messages & unread improvements
+- More accurate user status
+
+### Styling
+
+- Reworked comments
+
 ## [0.1.0-beta.4] - 2026-08-04
 
 ### Features
