@@ -4341,7 +4341,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-app"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4372,6 +4372,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-plugin-sharekit",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
@@ -4382,7 +4383,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-cli"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.5"
 dependencies = [
  "anyhow",
  "axum",
@@ -4398,7 +4399,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-core"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.5"
 dependencies = [
  "aes-gcm 0.11.0",
  "android-native-keyring-store",
@@ -4426,7 +4427,6 @@ dependencies = [
  "libp2p",
  "libp2p-stream",
  "libsignal-protocol",
- "linux-keyutils-keyring-store",
  "log",
  "log4rs",
  "ndk-context",
@@ -5120,7 +5120,7 @@ dependencies = [
 
 [[package]]
 name = "libsignal-debug"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.5"
 dependencies = [
  "cfg-if",
 ]
@@ -5190,26 +5190,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f50e8f47623268b5407192d26876c4d7f89d686ca130fdc53bced4814cd29f8"
 dependencies = [
  "bitflags 2.13.1",
-]
-
-[[package]]
-name = "linux-keyutils"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83270a18e9f90d0707c41e9f35efada77b64c0e6f3f1810e71c8368a864d5590"
-dependencies = [
- "bitflags 2.13.1",
- "libc",
-]
-
-[[package]]
-name = "linux-keyutils-keyring-store"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39fbed79f71dc21eb21d3d07c0e908a3c58ff9a1fdbf5cf44230fb3deb6d994b"
-dependencies = [
- "keyring-core",
- "linux-keyutils",
 ]
 
 [[package]]
@@ -5863,10 +5843,17 @@ checksum = "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c"
 dependencies = [
  "bitflags 2.13.1",
  "block2 0.6.2",
+ "libc",
  "objc2 0.6.4",
+ "objc2-cloud-kit",
+ "objc2-core-data",
  "objc2-core-foundation",
  "objc2-core-graphics",
+ "objc2-core-image",
+ "objc2-core-text",
+ "objc2-core-video",
  "objc2-foundation 0.3.2",
+ "objc2-quartz-core",
 ]
 
 [[package]]
@@ -5950,6 +5937,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b402a653efbb5e82ce4df10683b6b28027616a2715e90009947d50b8dd298fa"
 dependencies = [
+ "bitflags 2.13.1",
  "objc2 0.6.4",
  "objc2-foundation 0.3.2",
 ]
@@ -6010,6 +5998,19 @@ dependencies = [
  "objc2 0.6.4",
  "objc2-core-foundation",
  "objc2-core-graphics",
+]
+
+[[package]]
+name = "objc2-core-video"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d425caf1df73233f29fd8a5c3e5edbc30d2d4307870f802d18f00d83dc5141a6"
+dependencies = [
+ "bitflags 2.13.1",
+ "objc2 0.6.4",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-io-surface",
 ]
 
 [[package]]
@@ -9168,6 +9169,28 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "tauri-plugin-sharekit"
+version = "0.4.0-rc.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa2859b9cca583f03524e426e12d161e3091c4f2fb18702a33050350be261380"
+dependencies = [
+ "log",
+ "objc2 0.6.4",
+ "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.19",
+ "tokio",
+ "windows 0.61.3",
+ "windows-collections 0.2.0",
 ]
 
 [[package]]

@@ -120,8 +120,17 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
+        #[allow(unused_mut)]
+        let mut autostart = tauri_plugin_autostart::Builder::new();
+
+        #[cfg(target_os = "macos")]
+        {
+            autostart =
+                autostart.macos_launcher(tauri_plugin_autostart::MacosLauncher::AppleScript);
+        }
+
         builder = builder
-            .plugin(tauri_plugin_autostart::Builder::new().build())
+            .plugin(autostart.build())
             .on_window_event(|window, event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     use std::sync::atomic::Ordering;
@@ -186,6 +195,11 @@ pub fn run() {
             .plugin(tauri_plugin_haptics::init())
             .plugin(tauri_plugin_barcode_scanner::init())
             .plugin(tauri_plugin_biometric::init());
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+    {
+        builder = builder.plugin(tauri_plugin_sharekit::init())
     }
 
     builder
@@ -493,7 +507,13 @@ pub fn run() {
             commands::generate_otp,
             commands::publish_otp,
             commands::fetch_otp,
+            commands::get_ltc_status,
+            commands::create_ltc,
+            commands::update_ltc_limits,
             commands::export_ltc,
+            commands::set_ltc_follow_rotations,
+            commands::republish_ltc_pointer,
+            commands::revoke_ltc,
             commands::import_ltc,
             commands::start_nearby,
             commands::stop_nearby,
@@ -683,6 +703,7 @@ pub(crate) async fn check_for_updates_impl(
     log::debug!("checking for updates... manual={manual}");
     use crate::dialog_bridge::{DialogRequest, ask};
     use serde_json::json;
+    use tauri::Emitter;
     use tauri_plugin_updater::UpdaterExt;
 
     let channel = {
@@ -722,16 +743,29 @@ pub(crate) async fn check_for_updates_impl(
             return Ok(());
         }
 
-        let mut downloaded = 0;
+        let progress_app = app.clone();
+        let finish_app = app.clone();
+        let mut downloaded = 0usize;
+        let mut last_emit = std::time::Instant::now();
 
         update
             .download_and_install(
-                |chunk_len, content_len| {
+                move |chunk_len, content_len| {
                     downloaded += chunk_len;
                     log::debug!("[updater] downloaded {downloaded} out of {content_len:?}");
+                    let complete = Some(downloaded as u64) == content_len;
+                    if !complete && last_emit.elapsed() < std::time::Duration::from_millis(200) {
+                        return;
+                    }
+                    last_emit = std::time::Instant::now();
+                    let _ = progress_app.emit(
+                        "update_download_progress",
+                        json!({ "downloaded": downloaded, "contentLength": content_len }),
+                    );
                 },
-                || {
+                move || {
                     log::debug!("[updater] download finished");
+                    let _ = finish_app.emit("update_download_finished", ());
                 },
             )
             .await?;

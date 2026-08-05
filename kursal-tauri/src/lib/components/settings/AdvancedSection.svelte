@@ -41,7 +41,8 @@
   import Toggle from './Toggle.svelte';
   import Segmented from './Segmented.svelte';
   import TextInput from './TextInput.svelte';
-  import { t } from '$lib/i18n';
+  import { t, dateLocale } from '$lib/i18n';
+  import { TERMS_URL, termsDateLabel } from '$lib/utils/terms';
 
   let appVersion = $state('...');
   let checkingForUpdates = $state(false);
@@ -275,6 +276,12 @@
   <SettingRow title={t('settings.advanced.sourceCodeRow')}>
     <button class="link" onclick={() => openLink('https://kursal.chat/repository')}>
       {t('settings.advanced.sourceCodeButton')}
+      <ExternalLink size={11} />
+    </button>
+  </SettingRow>
+  <SettingRow title={t('settings.advanced.termsRow')} description={termsDateLabel(dateLocale())}>
+    <button class="link" onclick={() => openLink(TERMS_URL)}>
+      {t('settings.advanced.termsButton')}
       <ExternalLink size={11} />
     </button>
   </SettingRow>

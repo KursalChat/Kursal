@@ -13,12 +13,12 @@
   import { stat } from '@tauri-apps/plugin-fs';
   import { t } from '$lib/i18n';
   import { contactsState } from '$lib/state/contacts.svelte';
+  import { isOnlineStatus } from '$lib/utils/presence';
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { uiState } from '$lib/state/ui.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
-  import { sessionState } from '$lib/state/session.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
@@ -63,6 +63,7 @@
   import ProfileModal from '$lib/components/ProfileModal.svelte';
   import ChatHeader from './ChatHeader.svelte';
   import PinBar from './PinBar.svelte';
+  import UnreadBar from './UnreadBar.svelte';
   import ChatSearchBar from './ChatSearchBar.svelte';
   import MessageBubble from './MessageBubble.svelte';
   import MessageComposer from './MessageComposer.svelte';
@@ -87,6 +88,7 @@
     emojiPickerPosition,
     mediaUrl,
     isMessageActionable,
+    PICKER_W,
   } from './chat-utils';
   import type { EmojiPickerPos } from './chat-utils';
   import { buildMessageGroups, sortByOfflineTier } from './chat-grouping';
@@ -97,6 +99,32 @@
   const contact = $derived(contactId ? contactsState.getById(contactId) : null);
   const messages = $derived(contactId ? messagesState.forContact(contactId) : []);
   const firstUnreadId = $derived(contactId ? messagesState.firstUnreadFor(contactId) : null);
+  const pendingUnread = $derived(contactId ? messagesState.unreadFor(contactId) : 0);
+  const lastReceivedTs = $derived(
+    messages.reduce((ts, m) => (m.direction === 'received' ? Math.max(ts, m.timestamp) : ts), 0)
+  );
+  // Counted off the separator, not the unread tally: arriving at the bottom
+  // clears the tally, but the run it marked is still what you scrolled past.
+  const unreadRunCount = $derived.by(() => {
+    if (!firstUnreadId) return 0;
+    const idx = messages.findIndex((m) => m.id === firstUnreadId);
+    if (idx === -1) return pendingUnread;
+    let n = 0;
+    for (let i = idx; i < messages.length; i++) if (messages[i].direction === 'received') n++;
+    return n;
+  });
+  const unreadFromTs = $derived(
+    pendingUnread > 0 && firstUnreadId
+      ? (messages.find((m) => m.id === firstUnreadId)?.timestamp ?? null)
+      : null
+  );
+
+  // Needs a received message at or below the anchor to mean anything, and the
+  // anchor itself must not already sit inside the unread run.
+  function canMarkUnread(msg: MessageResponse): boolean {
+    if (lastReceivedTs === 0 || msg.timestamp > lastReceivedTs) return false;
+    return unreadFromTs === null || msg.timestamp < unreadFromTs;
+  }
   const gapNotices = $derived(contactId ? messagesState.gapNoticesFor(contactId) : []);
 
   $effect(() => {
@@ -141,7 +169,7 @@
   let forwardContent = $state<string | null>(null);
   let selectTextMsgId = $state<string | null>(null);
   let fileOfferActionState = $state<Record<string, 'idle' | 'accepting' | 'accepted'>>({});
-  // Copy and save-to-device run from the action sheet, which closes on click -
+  // Copy and save-to-device run from the action sheet, which closes on click:
   // the bubble itself flashes the confirmation instead.
   const messageFlash = flashSet();
   const completedFileTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -155,6 +183,10 @@
   let isAtMaxBottom = $state(true);
   let farFromBottom = $state(false);
   let unreadCount = $state(0);
+  let unreadBarShown = $state(false);
+  // Where the view sat when the user marked the chat unread, so the mark can be
+  // released the first time they move off (or onto) the bottom themselves.
+  let bottomAtMark = $state<boolean | null>(null);
   let needInitialScroll = $state(false);
   let loadingOlder = $state(false);
   let loadingNewer = $state(false);
@@ -168,7 +200,7 @@
     filename: string;
   }
   // The viewer navigates within a single "batch" (the stack it was opened from,
-  // or just the one image for a standalone bubble) - not all chat media.
+  // or just the one image for a standalone bubble), not all chat media.
   let mediaViewer = $state<{ items: MediaItem[]; index: number } | null>(null);
   let pendingFiles = $state<
     {
@@ -186,6 +218,7 @@
   let unlistenDrop: (() => void) | null = null;
   let prevMessagesLength = $state(0);
   let prevLastId = $state<string | null>(null);
+  let prevFirstId = $state<string | null>(null);
   let pendingScrollFrame = 0;
   let windowFocused = $state(true);
   let lastFocusedBeforeModal = $state<HTMLElement | null>(null);
@@ -256,8 +289,7 @@
   const terminated = $derived(!!contactId && contactsState.isTerminated(contactId));
   const peerOnline = $derived.by(() => {
     if (!contactId) return false;
-    const s = contactsState.connectionStatus[contactId];
-    return s === 'direct' || s === 'holepunch' || s === 'relay';
+    return isOnlineStatus(contactsState.connectionStatus[contactId]);
   });
   // Reactions/edits/deletes ride the same offline queue but aren't messages, so
   // they only show up as "waiting to sync" markers. Both feed the flush timer.
@@ -266,13 +298,9 @@
   );
   const OFFLINE_FLUSH_DELAY = 5000;
 
-  // Nudge the queue when the peer becomes reachable: the backend's own
-  // reconnect flush is threshold-gated (count/age/size), so a short queue can
-  // otherwise sit untouched until the next periodic poll.
-  //
-  // "Waiting to sync" markers are NOT cleared here - reachability doesn't mean
-  // the queue drained, and the drain can still fail. They clear on the
-  // `offline_queue_drained` event instead (see +layout.svelte).
+  // Nudge the queue when the peer becomes reachable: the backend's own reconnect
+  // flush is threshold-gated, so a short queue can sit untouched otherwise. This
+  // doesn't clear "waiting to sync" markers; those clear on `offline_queue_drained`.
   $effect(() => {
     if (!peerOnline || !contactId) return;
     const cid = contactId;
@@ -286,8 +314,7 @@
     await shareBusy.run(async () => {
       try {
         await shareProfile(profileState.displayName, profileState.avatarBytes, contactId);
-        const status = contactsState.connectionStatus[contactId];
-        const online = status === 'direct' || status === 'holepunch' || status === 'relay';
+        const online = isOnlineStatus(contactsState.connectionStatus[contactId]);
         if (contact) contactsState.upsert({ ...contact, profileShared: true });
         notifications.push(
           online
@@ -357,16 +384,43 @@
       farFromBottom = distFromBottom > 120;
       if (contactId) scrollMemory.set(contactId, scrollTop);
       if (isAtMaxBottom && unreadCount > 0) unreadCount = 0;
-      if (isAtMaxBottom && contactId && windowFocused) messagesState.markRead(contactId);
+      scheduleRead();
+      updateUnreadBar();
       if (scrollTop < 300) void maybeLoadOlder();
       if (distFromBottom < 300 && !messagesState.isNewestReached(contactId)) void maybeLoadNewer();
       updateActivePin();
     });
   }
 
+  // Landing at the bottom isn't reading: an initial scroll, a jump or a send
+  // all get you there without a message having been looked at. The dwell has
+  // to elapse with the view still parked there and the window still focused.
+  const READ_DWELL_MS = 2500;
+  let readTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelScheduledRead() {
+    if (!readTimer) return;
+    clearTimeout(readTimer);
+    readTimer = null;
+  }
+
+  function scheduleRead() {
+    if (!contactId || !isAtMaxBottom || !windowFocused || pendingUnread === 0) {
+      cancelScheduledRead();
+      return;
+    }
+    if (readTimer) return;
+    const id = contactId;
+    readTimer = setTimeout(() => {
+      readTimer = null;
+      if (id !== contactId || !isAtMaxBottom || !windowFocused) return;
+      messagesState.markRead(id);
+    }, READ_DWELL_MS);
+  }
+
   // The pin bar shows whichever pinned message you're currently reading: the
   // last one scrolled past (nearest above the anchor line), else the next one
-  // coming up. Measured from already-rendered nodes - cheap, no extra listener.
+  // coming up. Measured from already-rendered nodes: cheap, no extra listener.
   const PIN_ANCHOR = 56;
   function updateActivePin() {
     if (!listEl || !contactId) return;
@@ -404,6 +458,41 @@
 
   // Jump that lands the pinned message just under the bar (not centered) so the
   // scroll-driven active pin resolves to it, keeping the bar in sync.
+  // The separator is what tells you where the unread run starts, so once it
+  // scrolls off the top the bar stands in for it.
+  function updateUnreadBar() {
+    if (!listEl || unreadRunCount === 0 || !firstUnreadId) {
+      unreadBarShown = false;
+      return;
+    }
+    const sep = listEl.querySelector<HTMLElement>('.unread-separator');
+    if (!sep) {
+      unreadBarShown = true;
+      return;
+    }
+    unreadBarShown = sep.getBoundingClientRect().bottom < listEl.getBoundingClientRect().top;
+  }
+
+  async function jumpToUnread() {
+    if (!firstUnreadId) return;
+    let sep = listEl?.querySelector<HTMLElement>('.unread-separator');
+    if (!sep && contactId) {
+      jumping = true;
+      const ok = await messagesState.loadAround(contactId, firstUnreadId);
+      await tick();
+      jumping = false;
+      if (!ok) return;
+      sep = listEl?.querySelector<HTMLElement>('.unread-separator');
+    }
+    if (!sep || !listEl) return;
+    markProgrammaticScroll(600);
+    const delta = sep.getBoundingClientRect().top - listEl.getBoundingClientRect().top - 8;
+    listEl.scrollTo({ top: listEl.scrollTop + delta, behavior: 'smooth' });
+    isScrolledToBottom = false;
+    isAtMaxBottom = false;
+    farFromBottom = true;
+  }
+
   async function jumpToPinned(id: string) {
     let el = listEl?.querySelector<HTMLElement>(`[data-msg-id="${id}"]`);
     if (!el && contactId) {
@@ -432,6 +521,15 @@
     void messagesState.forContact(contactId);
     if (!listEl) return;
     const raf = requestAnimationFrame(updateActivePin);
+    return () => cancelAnimationFrame(raf);
+  });
+
+  $effect(() => {
+    void firstUnreadId;
+    void unreadRunCount;
+    void messages.length;
+    if (!listEl) return;
+    const raf = requestAnimationFrame(updateUnreadBar);
     return () => cancelAnimationFrame(raf);
   });
 
@@ -471,13 +569,16 @@
   const PICKER_CENTER_STYLE = 'top:50%;left:50%;transform:translate(-50%,-50%);';
 
   // Only one of top/bottom is set, so the picker keeps the edge facing the
-  // message fixed while search results change its height.
+  // message fixed while search results change its height. The geometry is
+  // computed against the raw viewport, so the insets are clamped back in here.
   function emojiPickerLayerStyle(pos: EmojiPickerPos): string {
     const vertical =
       pos.bottom !== null
-        ? `bottom:${pos.bottom}px;`
+        ? `bottom:max(${pos.bottom}px, calc(var(--safe-bottom) + 8px));`
         : `top:max(${pos.top}px, calc(var(--safe-top) + 8px));`;
-    return `${vertical}left:${pos.left}px;`;
+    const minLeft = 'calc(var(--safe-left) + 8px)';
+    const maxLeft = `max(${minLeft}, calc(100% - var(--safe-right) - ${PICKER_W + 8}px))`;
+    return `${vertical}left:clamp(${minLeft}, ${pos.left}px, ${maxLeft});`;
   }
 
   async function handlePickerSelect(emoji: string) {
@@ -501,7 +602,7 @@
     isScrolledToBottom = true;
     isAtMaxBottom = true;
     farFromBottom = false;
-    if (contactId && windowFocused) messagesState.markRead(contactId);
+    scheduleRead();
   }
 
   // Pins to the bottom across a few frames: late layout (images, avatars,
@@ -761,6 +862,23 @@
     });
   }
 
+  function markUnreadFrom(msg: MessageResponse) {
+    messagesState.markUnreadFrom(msg.contactId, msg.id);
+    bottomAtMark = isAtMaxBottom;
+    void haptics.impact('light');
+  }
+
+  // Forced: reading by hand has to override a conversation the user themselves
+  // put back to unread. The separator goes with it, or the bar would linger.
+  function markCurrentRead() {
+    if (!contactId) return;
+    messagesState.markRead(contactId, true);
+    messagesState.clearFirstUnread(contactId);
+    bottomAtMark = null;
+    unreadBarShown = false;
+    void haptics.impact('light');
+  }
+
   function openSearch() {
     searchOpen = true;
   }
@@ -785,7 +903,7 @@
 
   // Re-runs the full send lifecycle for a failed message. The backend reuses the
   // same MessageId (kept in place, status flips back to sending), so a duplicate
-  // arrival collapses to one message - no delete-and-resend, no duplicate.
+  // arrival collapses to one message: no delete-and-resend, no duplicate.
   async function handleRetry(msg: MessageResponse) {
     void haptics.impact('medium');
     await messagesState.retryMessage(msg.contactId, msg.id);
@@ -810,6 +928,11 @@
     document.addEventListener('visibilitychange', onVisibility);
 
     const onGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && e.shiftKey) {
+        e.preventDefault();
+        markCurrentRead();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         if (searchOpen) closeSearch();
@@ -926,6 +1049,8 @@
   $effect(() => {
     const id = contactId;
     if (!id) return;
+    untrack(() => messagesState.enterChat(id));
+    bottomAtMark = null;
     const jump = uiState.pendingMessageJump;
     const wantJump = !!jump && jump.contactId === id;
     if (wantJump) {
@@ -936,6 +1061,9 @@
       needInitialScroll = true;
       jumping = false;
     }
+    // Read before the load: reaching the bottom while messages stream in can
+    // mark them read, and the separator has to reflect the count on arrival.
+    const unreadAtOpen = untrack(() => messagesState.unreadFor(id));
     void messagesState.loadFor(id).then(async () => {
       if (id !== contactId) return;
       if (wantJump && jump) {
@@ -950,16 +1078,15 @@
         jumping = false;
         return;
       }
-      const unread = messagesState.unreadFor(id);
-      if (unread > 0 && !messagesState.firstUnreadFor(id)) {
+      if (unreadAtOpen > 0 && !messagesState.firstUnreadFor(id)) {
         const list = messagesState.forContact(id);
-        const idx = Math.max(0, list.length - unread);
+        const idx = Math.max(0, list.length - unreadAtOpen);
         const first = list.slice(idx).find((m) => m.direction === 'received');
         if (first) messagesState.setFirstUnread(id, first.id);
       }
     });
     return () => {
-      messagesState.clearFirstUnread(id);
+      messagesState.leaveChat(id);
     };
   });
 
@@ -982,11 +1109,6 @@
     // While editing, inputText holds the edit buffer, not a draft.
     if (untrack(() => editingMessageId)) return;
     draftsState.set(id, text);
-  });
-
-  // Recorded on open, not on close: see the note in session.svelte.ts.
-  $effect(() => {
-    if (contactId) sessionState.setLastContact(contactId);
   });
 
   // Picks up a payload the share sheet handed over, once this chat is the one
@@ -1030,7 +1152,7 @@
   }
 
   // Releasing a payload deletes its staged files, so only payloads with no file
-  // left in the composer are freed - a share claimed mid-send keeps its files.
+  // left in the composer are freed: a share claimed mid-send keeps its files.
   function releaseSharedFiles() {
     const held = new Set(
       pendingFiles.map((f) => f.payloadId).filter((id): id is string => id !== undefined)
@@ -1123,12 +1245,14 @@
   $effect(() => {
     const len = messages.length;
     const lastId = len > 0 ? messages[len - 1].id : null;
+    const firstId = len > 0 ? messages[0].id : null;
     if (needInitialScroll && len > 0 && listEl) {
       needInitialScroll = false;
       prevMessagesLength = len;
       prevLastId = lastId;
+      prevFirstId = firstId;
       // Position synchronously (DOM is already updated when this effect runs),
-      // so the chat is at its spot on first paint - no visible top→bottom scroll.
+      // so the chat is at its spot on first paint: no visible top→bottom scroll.
       const savedTop = scrollMemory.get(contactId);
       if (savedTop != null) {
         listEl.scrollTop = savedTop;
@@ -1150,19 +1274,20 @@
     if (loadingOlder || loadingNewer || jumping) {
       prevMessagesLength = len;
       prevLastId = lastId;
+      prevFirstId = firstId;
       return;
     }
-    // Only react to new messages at the bottom - prepended older pages
-    // (loadOlder) grow the list without changing the newest message.
-    if (len > prevMessagesLength && lastId !== prevLastId) {
+
+    const prepended = prevMessagesLength > 0 && firstId !== prevFirstId;
+    if (len > prevMessagesLength && !prepended) {
       const diff = len - prevMessagesLength;
+      const tailChanged = lastId !== prevLastId;
       tick().then(() => {
         const lastMsg = messages[len - 1];
-        if (lastMsg?.direction === 'sent' || isScrolledToBottom) {
+        if ((tailChanged && lastMsg?.direction === 'sent') || isScrolledToBottom) {
           const behavior: ScrollBehavior = isScrolledToBottom ? 'auto' : 'smooth';
           scrollToBottom(behavior);
-          // Re-pin only for the instant path - a smooth scroll animates
-          // itself and must not be yanked.
+
           if (behavior === 'auto') {
             requestAnimationFrame(() => pinBottomFrames(4));
           }
@@ -1173,10 +1298,26 @@
     }
     prevMessagesLength = len;
     prevLastId = lastId;
+    prevFirstId = firstId;
+  });
+
+  // Suppression exists so the auto-read can't undo the click on the spot. Once
+  // the user scrolls off the bottom, or reaches it from elsewhere, that is a
+  // deliberate move and reading takes over again.
+  $effect(() => {
+    if (bottomAtMark === null || !contactId || isAtMaxBottom === bottomAtMark) return;
+    bottomAtMark = null;
+    messagesState.clearMarkedUnread(contactId);
   });
 
   $effect(() => {
-    if (contactId && isAtMaxBottom && windowFocused) messagesState.markRead(contactId);
+    void contactId;
+    void isAtMaxBottom;
+    void windowFocused;
+    // A message arriving while you sit at the bottom has to start its own dwell.
+    void pendingUnread;
+    scheduleRead();
+    return cancelScheduledRead;
   });
 
   $effect(() => {
@@ -1481,7 +1622,7 @@
     }
   }
 
-  // Downloads never prompt, so this is how a file leaves the app - the only
+  // Downloads never prompt, so this is how a file leaves the app: the only
   // route out on mobile, where app storage isn't browsable.
   async function handleSaveToDevice(msg: MessageResponse) {
     const path = msg.fileDetails?.autodownloadPath;
@@ -1506,10 +1647,9 @@
     messagesState.setAutodownloadPath(msg.id, msg.contactId, null);
   }
 
-  // Backend handles offline retry automatically (on reconnect, every 10 min,
-  // and across app restarts via persisted pending bundles). Flushing just
-  // nudges the backend to republish the contact's pending bundles right now;
-  // the existing `delivery_confirmed` event flow takes over from there.
+  // Backend already retries offline sends automatically (on reconnect, every 10
+  // min, and across restarts). This just nudges it to republish right now; the
+  // existing `delivery_confirmed` event flow takes over from there.
   async function flushQueue(cid: string) {
     if (!cid || flushingQueue) return;
     flushingQueue = true;
@@ -1610,7 +1750,7 @@
   }
 
   // Accepts every not-yet-downloaded image in a stack. Like a single download
-  // this prompts for nothing - each file lands in the app's download folder.
+  // this prompts for nothing: each file lands in the app's download folder.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
     const items = msgs
@@ -1707,6 +1847,14 @@
       }}
     />
 
+    {#if unreadBarShown}
+      <UnreadBar
+        count={unreadRunCount}
+        onJump={() => void jumpToUnread()}
+        onMarkRead={markCurrentRead}
+      />
+    {/if}
+
     {#if searchOpen}
       <ChatSearchBar
         query={searchQuery}
@@ -1757,6 +1905,7 @@
         void handleSend();
       }}
       onVerify={openSecurityCodeModal}
+      onViewPinned={(id) => void jumpToPinned(id)}
     >
       {#snippet msgBubble(msg: MessageResponse, mi: number, groupLen: number, flatMode: boolean)}
         {@const repliedMessage = msg.replyTo ? (messageIndex.get(msg.replyTo) ?? null) : null}
@@ -1814,7 +1963,9 @@
           onStartReply={() => startReply(msg)}
           onCopy={() => copyMessageText(msg)}
           onStartEdit={() => startEdit(msg)}
+          canMarkUnread={canMarkUnread(msg)}
           onTogglePin={() => togglePin(msg)}
+          onMarkUnread={() => markUnreadFrom(msg)}
           onForward={() => (forwardContent = msg.content)}
           onDelete={() => handleDelete(msg)}
           onDeleteLocal={() => handleDeleteLocal(msg)}
@@ -1899,6 +2050,7 @@
   {#if actionSheetMsg}
     <ActionSheet
       msg={actionSheetMsg}
+      canMarkUnread={canMarkUnread(actionSheetMsg)}
       onClose={() => (actionSheetMsgId = null)}
       onReact={(emoji) => actionSheetMsg && toggleReaction(actionSheetMsg, emoji)}
       onMoreEmoji={() => {
@@ -1914,6 +2066,12 @@
       onTogglePin={() => {
         if (actionSheetMsg) {
           togglePin(actionSheetMsg);
+          actionSheetMsgId = null;
+        }
+      }}
+      onMarkUnread={() => {
+        if (actionSheetMsg) {
+          markUnreadFrom(actionSheetMsg);
           actionSheetMsgId = null;
         }
       }}
@@ -2032,7 +2190,8 @@
     bottom: 0;
     max-width: var(--chat-max);
     margin-inline: auto;
-    padding: 0 8px max(8px, var(--safe-bottom), var(--kb-overlap, 0px));
+    padding: 0 max(8px, var(--safe-right)) max(8px, var(--safe-bottom), var(--kb-overlap, 0px))
+      max(8px, var(--safe-left));
     display: flex;
     flex-direction: column;
     align-items: stretch;

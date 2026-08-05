@@ -239,7 +239,7 @@
     }
 
     // The core pairs at most one contact per code, so the shared words are dead
-    // the moment it fires - drop them instead of leaving a live-looking timer.
+    // the moment it fires; drop them instead of leaving a live-looking timer.
     const unlisten = listen('otp_consumed', () => {
       if (status !== 'waiting') return;
       justUsed = true;

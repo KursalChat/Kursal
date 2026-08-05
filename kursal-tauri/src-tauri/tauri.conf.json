@@ -70,10 +70,12 @@
     },
     "linux": {
       "deb": {
-        "desktopTemplate": "linux/kursal.desktop"
+        "desktopTemplate": "linux/kursal.desktop",
+        "recommends": ["gnome-keyring | kwalletd6 | kwalletd5 | keepassxc"]
       },
       "rpm": {
-        "desktopTemplate": "linux/kursal.desktop"
+        "desktopTemplate": "linux/kursal.desktop",
+        "recommends": ["gnome-keyring"]
       }
     },
     "shortDescription": "Peer-to-peer, end-to-end encrypted messaging that puts you in control.",

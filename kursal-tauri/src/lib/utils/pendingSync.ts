@@ -1,10 +1,6 @@
-// "Waiting to sync" markers for edits/reactions/deletes the backend put on a
-// contact's offline queue. They must outlive a restart: the backend's queue is
-// persisted, so markers kept only in memory would disappear while the queued
-// work is still pending.
-//
-// Entries are `contactId:messageId` composite keys and are cleared per-contact
-// when the backend reports that contact's queue drained.
+// "Waiting to sync" markers for edits/reactions/deletes on a contact's offline queue,
+// persisted because the backend's own queue survives a restart. Keyed
+// `contactId:messageId`, cleared per-contact once that queue drains.
 export const PENDING_SYNC_STORAGE_KEY = 'kursal:pendingSync';
 
 export interface PendingSyncState {

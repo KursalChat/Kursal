@@ -17,6 +17,7 @@
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   import ShortcodeAutocomplete from './ShortcodeAutocomplete.svelte';
   import { loadEmojiIndex, searchEmojis, applyTone, getTone, type Emoji } from '$lib/emoji';
+  import { readInsets } from '$lib/utils/android-insets';
   import type { ContactResponse } from '$lib/types';
 
   interface Props {
@@ -100,6 +101,18 @@
     }
   );
 
+  // The geometry above is measured against the raw viewport, so a display
+  // cutout or a gesture bar is clamped back in here.
+  function emojiLayerStyle(pos: { top?: number; bottom?: number; left: number }): string {
+    const vertical =
+      pos.bottom !== undefined
+        ? `bottom:max(${pos.bottom}px, calc(var(--safe-bottom) + 8px));`
+        : `top:max(${pos.top}px, calc(var(--safe-top) + 8px));`;
+    const minLeft = 'calc(var(--safe-left) + 8px)';
+    const maxLeft = `max(${minLeft}, calc(100% - var(--safe-right) - ${EMOJI_PICKER_W + 8}px))`;
+    return `${vertical}left:clamp(${minLeft}, ${pos.left}px, ${maxLeft});`;
+  }
+
   function toggleEmoji(e: MouseEvent) {
     if (showEmoji) {
       showEmoji = false;
@@ -156,7 +169,6 @@
   // the re-selected inner range.
   let isApplyingFormat = false;
 
-  // Replace the textarea's [start..end] range with `text`.
   // Uses execCommand('insertText') so the change lands in the native
   // undo stack (Ctrl/Cmd+Z works), then sets the new selection.
   function replaceRange(
@@ -196,7 +208,6 @@
     const after = value.slice(end);
     const wrapped = before.endsWith(prefix) && after.startsWith(suffix);
     if (wrapped) {
-      // Strip surrounding markers
       replaceRange(
         start - prefix.length,
         end + suffix.length,
@@ -220,8 +231,8 @@
     replaceRange(start, end, inserted, urlStart, urlStart + 3);
   }
 
-  // Mirror-div trick: copy textarea styles into a hidden div,
-  // splice a marker span at the caret, read its rect, position popover.
+  // Mirror-div trick: mirrors the textarea's styles in a hidden div to read
+  // the caret's screen position.
   function getCaretCoords(
     el: HTMLTextAreaElement,
     pos: number
@@ -290,11 +301,12 @@
 
   // The bar is `position: fixed`, so clamping it to the viewport lets it slide
   // out of the chat column and over the sidebar, which paints on top of it.
-  // Clamp to the composer's own box instead - it never leaves the chat column.
+  // Clamp to the composer's own box instead: it never leaves the chat column.
   function clampPopoverLeft(desired: number): number {
     const margin = 8;
-    let min = margin;
-    let max = window.innerWidth - POPOVER_W - margin;
+    const safe = readInsets();
+    let min = safe.left + margin;
+    let max = window.innerWidth - safe.right - POPOVER_W - margin;
     const host = composerRootEl?.getBoundingClientRect();
     if (host) {
       min = Math.max(min, host.left);
@@ -537,8 +549,9 @@
       const coords = getCaretCoords(composerEl, composerEl.selectionStart);
       const popW = 220;
       const margin = 8;
-      let left = coords.left;
-      left = Math.max(margin, Math.min(left, window.innerWidth - popW - margin));
+      const safe = readInsets();
+      const maxLeft = window.innerWidth - safe.right - popW - margin;
+      const left = Math.max(safe.left + margin, Math.min(coords.left, maxLeft));
       // Anchor the popup ABOVE the caret line so it grows upward and never
       // clips off the bottom of the viewport (the composer sits at screen bottom).
       const bottom = window.innerHeight - coords.top + 8;
@@ -693,10 +706,8 @@
   <div
     class="emoji-compose-layer"
     style={emojiPickerPos
-      ? emojiPickerPos.bottom !== undefined
-        ? `bottom:${emojiPickerPos.bottom}px;left:${emojiPickerPos.left}px;`
-        : `top:${emojiPickerPos.top}px;left:${emojiPickerPos.left}px;`
-      : `bottom:84px;left:8px;`}
+      ? emojiLayerStyle(emojiPickerPos)
+      : `bottom:calc(84px + var(--safe-bottom));left:calc(8px + var(--safe-left));`}
   >
     <EmojiPicker
       onSelect={handleEmojiSelect}

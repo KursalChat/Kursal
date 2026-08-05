@@ -67,7 +67,7 @@
   .pill {
     position: fixed;
     top: calc(10px + var(--safe-top));
-    left: 50%;
+    left: var(--safe-center-x);
     transform: translateX(-50%);
     z-index: 500;
     display: flex;

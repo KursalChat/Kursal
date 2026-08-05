@@ -37,7 +37,7 @@
   .container {
     position: fixed;
     bottom: calc(24px + var(--safe-bottom));
-    right: 24px;
+    right: calc(24px + var(--safe-right));
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -129,8 +129,8 @@
 
   @media (max-width: 640px) {
     .container {
-      right: 12px;
-      left: 12px;
+      right: max(12px, var(--safe-right));
+      left: max(12px, var(--safe-left));
       bottom: calc(12px + var(--safe-bottom));
     }
 

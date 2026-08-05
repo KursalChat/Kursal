@@ -32,6 +32,8 @@
     type BackendDialogPayload,
   } from '$lib/api/dialog-bridge';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import UpdateDownloadRing from '$lib/components/UpdateDownloadRing.svelte';
+  import { updateDownloadState } from '$lib/state/updateDownload.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
   import { callState } from '$lib/state/call.svelte';
@@ -61,6 +63,7 @@
     FileReceivedPayload,
     FileTransferFailedPayload,
     TypingIndicatorPayload,
+    UpdateDownloadProgressPayload,
     BackendSignalPayload,
     NetworkOnlinePayload,
     OfflineBundlePublishedPayload,
@@ -335,7 +338,6 @@
     document.addEventListener('gesturechange', blockGesture);
     document.addEventListener('gestureend', blockGesture);
 
-    // Block double-tap zoom (iOS).
     let lastTouchEnd = 0;
     const blockDoubleTap = (e: TouchEvent) => {
       const now = Date.now();
@@ -375,7 +377,6 @@
     unlistenPromises.push(backendSignalReady);
     void backendSignalReady.then(() => frontendReady());
 
-    // Listen to message_received event
     unlistenPromises.push(
       listen<MessageReceivedPayload>('message_received', (event) => {
         const payload = event.payload;
@@ -395,64 +396,59 @@
       })
     );
 
-    // Listen to connection_changed event
     unlistenPromises.push(
       listen<ConnectionChangedPayload>('connection_changed', (event) => {
         contactsState.setConnectionStatus(event.payload.contactId, event.payload.status);
       })
     );
 
-    // Listen to network_online - local node has any libp2p peer (relay/bootstrap/contact)
+    // "Online" means the node has any libp2p peer: relay, bootstrap, or contact.
     unlistenPromises.push(
       listen<NetworkOnlinePayload>('network_online', (event) => {
         networkState.set(event.payload.online, event.payload.peerCount);
       })
     );
 
-    // Listen to offline_bundle_published - DHT put dispatched for these msgs
+    // The DHT put for these messages has already been dispatched.
     unlistenPromises.push(
       listen<OfflineBundlePublishedPayload>('offline_bundle_published', (event) => {
         messagesState.markBundlePublished(event.payload.contactId, event.payload.messageIds);
       })
     );
 
-    // Listen to message_failed - offline retry window elapsed for these msgs
+    // The offline retry window elapsed for these messages.
     unlistenPromises.push(
       listen<{ contactId: string; messageIds: string[] }>('message_failed', (event) => {
         messagesState.markFailed(event.payload.contactId, event.payload.messageIds);
       })
     );
 
-    // Listen to contact_terminated - the peer removed us (or re-established
-    // contact). The chat stays readable; only sending is closed off.
+    // The peer removed us, or we re-established contact.
+    // The chat stays readable; only sending is closed off.
     unlistenPromises.push(
       listen<ContactTerminatedPayload>('contact_terminated', (event) => {
         contactsState.setTerminated(event.payload.contactId, event.payload.terminated);
       })
     );
 
-    // Listen to offline_queue_drained
     unlistenPromises.push(
       listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
         messagesState.flushPendingSync(event.payload.contactId);
       })
     );
 
-    // Listen to offline_sync
     unlistenPromises.push(
       listen<OfflineSyncPayload>('offline_sync', (event) => {
         offlineSyncState.setActive(event.payload.active);
       })
     );
 
-    // Listen to offline_gap_skipped
     unlistenPromises.push(
       listen<OfflineGapSkippedPayload>('offline_gap_skipped', (event) => {
         messagesState.addGapNotice(event.payload.contactId, event.payload.counter);
       })
     );
 
-    // Listen to contact_added event
     unlistenPromises.push(
       listen<ContactResponse>('contact_added', (event) => {
         contactsState.upsert(event.payload);
@@ -461,11 +457,9 @@
       })
     );
 
-    // Pairing consumes the published OTP, and contact_added navigates away from
-    // the add-contact page, so the dead code has to be dropped from here too.
+    // The OTP is single-use, so this session data is now dead and can be cleared.
     unlistenPromises.push(listen('otp_consumed', () => clearOtpSession()));
 
-    // Listen to delivery_confirmed event
     unlistenPromises.push(
       listen<{ messageId: string; contactId: string }>('delivery_confirmed', (event) => {
         messagesState.updateStatus(event.payload.messageId, event.payload.contactId, 'delivered');
@@ -489,7 +483,6 @@
       })
     );
 
-    // Listen to message_edited event
     unlistenPromises.push(
       listen<MessageEditedPayload>('message_edited', (event) => {
         messagesState.updateContent(
@@ -500,14 +493,12 @@
       })
     );
 
-    // Listen to message_deleted event
     unlistenPromises.push(
       listen<MessageDeletedPayload>('message_deleted', (event) => {
         messagesState.markDeleted(event.payload.messageId, event.payload.contactId);
       })
     );
 
-    // Listen to message_pinned event
     unlistenPromises.push(
       listen<{ contactId: string; messageId: string; pinned: boolean }>(
         'message_pinned',
@@ -521,7 +512,6 @@
       )
     );
 
-    // Listen to reaction_added event
     unlistenPromises.push(
       listen<ReactionChangedPayload>('reaction_added', (event) => {
         messagesState.addReaction(
@@ -533,7 +523,6 @@
       })
     );
 
-    // Listen to reaction_removed event
     unlistenPromises.push(
       listen<ReactionChangedPayload>('reaction_removed', (event) => {
         messagesState.removeReaction(
@@ -545,7 +534,6 @@
       })
     );
 
-    // Listen to contact_updated event (Either peer ID rotated, OR profile updated)
     unlistenPromises.push(
       listen<ContactResponse>('contact_updated', (event) => {
         const payload = event.payload;
@@ -556,7 +544,6 @@
         const oldName = existing?.displayName;
         const oldAvatar = existing?.avatarBase64;
 
-        // Upsert handles avatar base64 decoding automatically
         contactsState.upsert(payload);
 
         if (!existing) return;
@@ -593,7 +580,6 @@
       })
     );
 
-    // Listen to file_offered event
     unlistenPromises.push(
       listen<FileOfferedPayload>('file_offered', async (event) => {
         const payload = event.payload;
@@ -633,7 +619,6 @@
       })
     );
 
-    // Listen to file transfer progress
     unlistenPromises.push(
       listen<FileTransferProgressPayload>('file_transfer_progress', (event) => {
         const { transferId, bytesTransferred, totalBytes } = event.payload;
@@ -641,7 +626,6 @@
       })
     );
 
-    // Listen to file_received event
     unlistenPromises.push(
       listen<FileReceivedPayload>('file_received', async (event) => {
         const { contactId, transferId, savePath } = event.payload;
@@ -657,7 +641,6 @@
       })
     );
 
-    // Listen to file_transfer_failed event
     unlistenPromises.push(
       listen<FileTransferFailedPayload>('file_transfer_failed', (event) => {
         const { transferId, reason } = event.payload;
@@ -670,19 +653,24 @@
       })
     );
 
-    // Listen to nearby_request event
     unlistenPromises.push(
       listen<NearbyRequestPayload>('nearby_request', (event) => {
         nearbyState.addPendingRequest(event.payload.peerId, event.payload.sessionName);
       })
     );
 
-    // Listen to typing_indicator event
     unlistenPromises.push(
       listen<TypingIndicatorPayload>('typing_indicator', (event) => {
         typingState.set(event.payload.contactId, event.payload.replyTo ?? null);
       })
     );
+
+    unlistenPromises.push(
+      listen<UpdateDownloadProgressPayload>('update_download_progress', (event) => {
+        updateDownloadState.setProgress(event.payload.downloaded, event.payload.contentLength);
+      })
+    );
+    unlistenPromises.push(listen('update_download_finished', () => updateDownloadState.finish()));
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -718,6 +706,7 @@
   />
 {/if}
 <ToastContainer />
+<UpdateDownloadRing />
 <ConfirmDialog />
 <CloseExplainer
   open={closeExplainerOpen}

@@ -9,11 +9,9 @@ declare global {
 }
 
 /**
- * Payloads handed over by the OS share sheet. Native code stages them on disk;
- * `drain()` pulls them into memory, `assign()` records which contact the user
- * picked, and the chat page `claim()`s the payload once it is mounted for that
- * contact. Staged files are deleted through `release()` after a send, or
- * `discardHead()` when the user backs out.
+ * Payloads handed over by the OS share sheet, staged on disk by native code.
+ * `drain()` loads them, `assign()` records the picked contact, `claim()` hands
+ * the payload to the mounted chat page; `release()`/`discardHead()` clean up.
  */
 function createShareIntentState() {
   let queue = $state<SharePayload[]>([]);

@@ -40,10 +40,9 @@ export function filenameFromPath(value: string): string {
 }
 
 /**
- * Hands bytes the webview holds to a core-owned staging slot and returns its
- * path. The core derives the filename it offers to the peer from the basename,
- * so the name survives untouched - uniqueness lives in the directory the core
- * picks, never in the filename.
+ * Hands bytes the webview holds to a core-owned staging slot and returns its path.
+ * The filename survives untouched; uniqueness lives in the directory the core
+ * picks, never in the filename itself.
  */
 async function stagePendingBytes(bytes: Uint8Array, filename: string): Promise<string> {
   const path = await createOutgoingPendingPath(filename);
@@ -80,10 +79,9 @@ function extractPaths(raw: unknown): string[] {
 export type PickerMode = 'media' | 'document';
 
 /**
- * Desktop file picker, and the iOS media/document pickers. Android picks
- * through the webview's own file inputs instead (see AttachSheet): its dialog
- * plugin hands back opaque content:// ids that leave the peer with an unnamed
- * blob, while iOS returns real file paths.
+ * Desktop file picker, and the iOS media/document pickers. Android instead picks
+ * through the webview's own file inputs (see AttachSheet): its dialog plugin hands
+ * back opaque content:// ids with no real filename, while iOS returns real paths.
  */
 export async function pickFilesForSend(pickerMode?: PickerMode): Promise<PreparedFile[]> {
   const selected = await open({ multiple: true, directory: false, pickerMode });
@@ -93,9 +91,8 @@ export async function pickFilesForSend(pickerMode?: PickerMode): Promise<Prepare
 
 /**
  * Desktop picker selections and OS drag-and-drop payloads. The file is offered
- * straight from where it already lives - nothing is read or copied here, so a
- * multi-gigabyte drop costs nothing. `send_file_offer` strips image metadata
- * itself, streaming, and only then makes a copy.
+ * straight from where it already lives: nothing is read or copied here, so a
+ * multi-gigabyte drop costs nothing. `send_file_offer` streams and copies it later.
  */
 export async function prepareOfferSourcePath(rawSelection: string): Promise<PreparedFile> {
   const filename = filenameFromPath(rawSelection);
@@ -124,10 +121,9 @@ export async function prepareOfferFromBytes(
 }
 
 /**
- * Copies an already-downloaded file out of the app's storage to wherever the
- * user wants it. Downloads themselves never prompt - this is the explicit
- * "get it out of the app" action, which is the only way off mobile since app
- * storage isn't browsable there. Returns false when the picker is dismissed.
+ * Copies an already-downloaded file out of the app's storage to wherever the user
+ * wants it: the explicit "get it out of the app" action, and the only way off
+ * mobile since app storage isn't browsable there. Returns false if the picker is dismissed.
  */
 export async function exportToDevice(sourcePath: string, filename: string): Promise<boolean> {
   const target = extractPath(await save({ defaultPath: sanitizeFilename(filename) }));

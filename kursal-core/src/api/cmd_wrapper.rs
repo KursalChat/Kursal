@@ -2,7 +2,10 @@ use crate::{
     KursalError, MapKursalResult, Result,
     api::CoreCommand,
     contacts::Contact,
-    dto::{ContactResponse, MessageResponse, NearbyPeerResponse, NetworkStatusDto, OtpResponse},
+    dto::{
+        ContactResponse, LtcStatusDto, MessageResponse, NearbyPeerResponse, NetworkStatusDto,
+        OtpResponse,
+    },
     first_contact::{
         nearby::{NearbyBeacon, generate_session_name},
         otp,
@@ -92,10 +95,17 @@ pub async fn generate_otp() -> Result<OtpResponse> {
     })
 }
 
+core_request!(get_ltc_status() => GetLtcStatus -> Option<LtcStatusDto>);
+core_request!(create_ltc(max_uses: Option<u32>, ttl_secs: Option<u64>) => CreateLtc -> LtcStatusDto);
+core_request!(update_ltc_limits(max_uses: Option<u32>, ttl_secs: Option<u64>) => UpdateLtcLimits -> LtcStatusDto);
+core_request!(export_ltc() => ExportLtc -> Vec<u8>);
+core_request!(set_ltc_follow_rotations(enabled: bool) => SetLtcFollowRotations -> LtcStatusDto);
+core_request!(republish_ltc_pointer() => RepublishLtcPointer -> LtcStatusDto);
+core_request!(revoke_ltc() => RevokeLtc -> ());
+core_request!(import_ltc(bytes: Vec<u8>) => ImportLtc -> ContactResponse, map ContactResponse::from);
+
 core_request!(publish_otp(otp: String) => PublishOtp -> ());
 core_request!(fetch_otp(otp: String) => FetchOtp -> ContactResponse, map ContactResponse::from);
-core_request!(export_ltc() => ExportLtc -> Vec<u8>);
-core_request!(import_ltc(bytes: Vec<u8>) => ImportLtc -> ContactResponse, map ContactResponse::from);
 
 pub async fn start_nearby<S: StateWrapper>(state: S) -> Result<String> {
     let session_name = generate_session_name()?;

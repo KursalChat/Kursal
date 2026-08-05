@@ -81,7 +81,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 6px 10px;
+    padding: 6px max(10px, var(--safe-right)) 6px max(10px, var(--safe-left));
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;

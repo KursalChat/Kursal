@@ -165,7 +165,8 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: 16px;
+    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom))
+      max(16px, var(--safe-left));
   }
   .modal {
     background: var(--bg-secondary, var(--surface));
@@ -175,7 +176,7 @@
     width: 100%;
     max-width: 720px;
     /* Fixed height: content length must not resize the dialog on refresh. */
-    height: min(640px, 85vh);
+    height: min(640px, 85vh, 100%);
     display: flex;
     flex-direction: column;
     gap: 12px;

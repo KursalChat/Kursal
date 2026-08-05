@@ -9,10 +9,9 @@ export type PersistedOtpState = {
 const STORAGE_KEY = 'kursal_add_contact_otp';
 
 /**
- * The published code survives navigation away from the add-contact page, so it
- * lives in sessionStorage. The core consumes an OTP as soon as it pairs someone
- * and emits `otp_consumed`, which is what clears this - otherwise coming back to
- * the page would restore a dead code with a running countdown.
+ * The published code survives navigation away from the add-contact page, so it lives
+ * in sessionStorage. The core consumes the OTP on pairing and emits `otp_consumed`,
+ * which clears this; otherwise a return visit would restore a dead code mid-countdown.
  */
 export function saveOtpSession(state: PersistedOtpState | null) {
   if (!browser) return;

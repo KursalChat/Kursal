@@ -5,12 +5,17 @@ use crate::{
         poll_contact_offline,
     },
     contacts::Contact,
+    first_contact::ltc::LtcState,
     identity::UserId,
     messaging::offline::{
         DIRECT_ACK_DEADLINE_SECS, deliver_queue_direct, expire_and_fail, list_pending_ack,
         maybe_flush, move_to_mailbox_if_stuck, republish_pending,
     },
-    network::{NetworkManager, kademlia::KAD_LONG_MAX_AGE, swarm::SwarmCommand},
+    network::{
+        NetworkManager,
+        kademlia::KAD_LONG_MAX_AGE,
+        swarm::{ConnectionKind, SwarmCommand},
+    },
     storage::{SharedDatabase, get_timestamp_secs},
 };
 use libp2p::PeerId;
@@ -29,6 +34,8 @@ const PRESENCE_DIAL_INTERVAL_SECS: u64 = 3 * 60;
 const PRESENCE_DIAL_STAGGER_MS: u64 = 250;
 const RELAY_RESERVE_INTERVAL_SECS: u64 = 30;
 const PRESENCE_SYNC_INTERVAL_SECS: u64 = 10;
+const LTC_POINTER_STARTUP_DELAY_SECS: u64 = 10;
+const LTC_POINTER_REPUBLISH_SECS: u64 = 24 * 60 * 60;
 
 pub(super) async fn presence_sync_loop(
     db: SharedDatabase,
@@ -48,6 +55,7 @@ pub(super) async fn presence_sync_loop(
             .await
             .into_iter()
             .collect();
+        let peer_kinds = crate::network::swarm::get_peer_connection_kinds(&cmd_tx).await;
         let peer_count = connected_peers.len();
         let online = peer_count > 0;
         if last_state != Some((online, peer_count)) {
@@ -71,27 +79,20 @@ pub(super) async fn presence_sync_loop(
             let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
                 continue;
             };
-            let connected = connected_peers.contains(&peer_id);
-
             let mut map = status_map.lock().await;
             let prev = map.get(&contact.user_id).cloned();
-            let prev_online = matches!(
-                prev,
-                Some(ConnectionStatus::Direct)
-                    | Some(ConnectionStatus::Relay)
-                    | Some(ConnectionStatus::HolePunch)
-            );
 
-            let next = if connected {
-                if prev_online {
-                    None
-                } else {
-                    Some(ConnectionStatus::Direct)
-                }
-            } else if matches!(prev, Some(ConnectionStatus::Disconnected)) {
-                None
-            } else {
-                Some(ConnectionStatus::Disconnected)
+            let actual = peer_kinds.get(&peer_id).map(|kind| match kind {
+                ConnectionKind::Relay => ConnectionStatus::Relay,
+                ConnectionKind::Direct => ConnectionStatus::Direct,
+                ConnectionKind::HolePunch => ConnectionStatus::HolePunch,
+            });
+
+            let next = match actual {
+                Some(status) => (prev.as_ref() != Some(&status)).then_some(status),
+                None if prev == Some(ConnectionStatus::Connecting) => None,
+                None if prev == Some(ConnectionStatus::Disconnected) => None,
+                None => Some(ConnectionStatus::Disconnected),
             };
 
             if let Some(status) = next {
@@ -105,6 +106,27 @@ pub(super) async fn presence_sync_loop(
                     .await
                     .ok();
             }
+        }
+
+        interval.tick().await;
+    }
+}
+
+pub(super) async fn ltc_pointer_loop(
+    db: SharedDatabase,
+    network: Arc<Mutex<NetworkManager>>,
+    event_tx: mpsc::Sender<AppEvent>,
+) {
+    tokio::time::sleep(Duration::from_secs(LTC_POINTER_STARTUP_DELAY_SECS)).await;
+
+    let mut interval = tokio::time::interval(Duration::from_secs(LTC_POINTER_REPUBLISH_SECS));
+    interval.tick().await;
+
+    loop {
+        let swarm = network.lock().await.primary.clone();
+
+        if let Err(err) = LtcState::publish_pointer(db.clone(), swarm, event_tx.clone()).await {
+            log::warn!("[ltc] periodic rendezvous publish failed: {err}");
         }
 
         interval.tick().await;

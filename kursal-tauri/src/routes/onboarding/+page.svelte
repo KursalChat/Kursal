@@ -103,6 +103,8 @@
     -webkit-overflow-scrolling: touch;
     padding-top: var(--safe-top);
     padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
   }
 
   .onboarding.bright {
@@ -157,7 +159,7 @@
   .skip-global {
     position: fixed;
     top: calc(var(--safe-top) + 10px);
-    right: 16px;
+    right: max(16px, var(--safe-right));
     z-index: 6;
     font-size: 12px;
     color: rgba(180, 195, 230, 0.4);

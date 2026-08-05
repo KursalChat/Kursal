@@ -241,6 +241,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
     z-index: 100;
     animation: backdrop-in 0.18s ease;
   }
@@ -259,6 +260,8 @@
     border-radius: var(--radius-lg);
     width: 90%;
     max-width: 320px;
+    max-height: 100%;
+    overflow-y: auto;
     padding: 32px 24px 24px;
     position: relative;
     display: flex;

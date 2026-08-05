@@ -5,6 +5,9 @@ header = """
 All notable changes to Kursal are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
+
+---
+
 """
 body = """
 {% if version %}\
@@ -18,6 +21,7 @@ body = """
 - {{ commit.message | upper_first }}\
 {% endfor %}
 {% endfor %}
+ 
 """
 trim = true
 

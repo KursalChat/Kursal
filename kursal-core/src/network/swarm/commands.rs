@@ -1,10 +1,10 @@
 use super::{
-    CALL_PROTOCOL, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
+    CALL_PROTOCOL, ConnectionKind, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
     helpers::open_peer_stream,
 };
 use crate::network::bootstrap::bootstrap_peers;
 use libp2p::{
-    Multiaddr, Swarm,
+    Multiaddr, PeerId, Swarm,
     multiaddr::Protocol,
     swarm::{ConnectionId, dial_opts::DialOpts},
 };
@@ -17,11 +17,13 @@ pub(super) async fn handle_swarm_command(
     cmd: SwarmCommand,
     swarm: &mut Swarm<KursalBehaviour>,
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
+    pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
     listen_addresses: &mut HashSet<Multiaddr>,
     nearby_enabled: &mut bool,
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
+    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
 ) {
     match cmd {
         SwarmCommand::Shutdown | SwarmCommand::EnableNearby => {} // handled in the loop itself
@@ -82,6 +84,7 @@ pub(super) async fn handle_swarm_command(
             key,
             value,
             expires,
+            reply_tx,
         } => {
             let key_dbg = hex::encode(&key[..key.len().min(8)]);
             let connected_peers = swarm.connected_peers().count();
@@ -114,9 +117,15 @@ pub(super) async fn handle_swarm_command(
             {
                 Ok(query_id) => {
                     log::info!("[kad] PutRecord started key={key_dbg} query_id={query_id:?}");
+                    if let Some(reply_tx) = reply_tx {
+                        pending_puts.insert(query_id, reply_tx);
+                    }
                 }
                 Err(err) => {
                     log::error!("[kad] PutRecord failed to start key={key_dbg}: {err:?}");
+                    if let Some(reply_tx) = reply_tx {
+                        let _ = reply_tx.send(false);
+                    }
                 }
             }
         }
@@ -183,6 +192,19 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::GetConnectedPeers { reply_tx } => {
             let peers: Vec<libp2p::PeerId> = swarm.connected_peers().cloned().collect();
             let _ = reply_tx.send(peers);
+        }
+        SwarmCommand::GetPeerConnectionKinds { reply_tx } => {
+            let mut best: HashMap<PeerId, ConnectionKind> = HashMap::new();
+            for (peer_id, kind) in peer_conns.values() {
+                best.entry(*peer_id)
+                    .and_modify(|current| {
+                        if kind.rank() > current.rank() {
+                            *current = *kind;
+                        }
+                    })
+                    .or_insert(*kind);
+            }
+            let _ = reply_tx.send(best);
         }
         SwarmCommand::OpenStream {
             peer_id,

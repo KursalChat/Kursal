@@ -10,7 +10,6 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
-  import { sessionState } from '$lib/state/session.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import WinstonContactsTour from '$lib/components/WinstonContactsTour.svelte';
   import AutostartPrompt from '$lib/components/AutostartPrompt.svelte';
@@ -25,7 +24,10 @@
   import { uiState } from '$lib/state/ui.svelte';
   import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import type { PeerIdHolderPayload } from '$lib/types';
-  import { t } from '$lib/i18n';
+  import { t, dateLocale } from '$lib/i18n';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import { confirmDialog } from '$lib/state/confirm.svelte';
+  import { acceptTerms, termsDateLabel, termsPending, TERMS_URL } from '$lib/utils/terms';
 
   let { children } = $props();
 
@@ -41,21 +43,28 @@
     })();
   });
 
-  async function restoreLastChat() {
-    const lastId = await sessionState.init();
-    if (!lastId || page.url.pathname !== '/') return;
-    await contactsState.loaded;
-    if (page.url.pathname !== '/') return;
-    if (!contactsState.getById(lastId)) {
-      sessionState.clearLastContact();
-      return;
-    }
-    void goto('/chat/' + lastId, { replaceState: true });
+  async function promptTermsIfChanged() {
+    if (!termsPending()) return;
+    const accepted = await confirmDialog({
+      title: t('terms.updatedTitle'),
+      message: t('terms.updatedMessage', { date: termsDateLabel(dateLocale()) }),
+      detail: t('terms.updatedDetail'),
+      confirmLabel: t('terms.acceptButton'),
+      cancelLabel: t('terms.laterButton'),
+      dismissible: false,
+      link: {
+        label: t('terms.reviewButton'),
+        onClick: () => {
+          openUrl(TERMS_URL).catch((e) => log.error('Failed to open terms', e));
+        },
+      },
+    });
+    if (accepted) acceptTerms();
   }
 
   onMount(() => {
     void callState.init();
-    void restoreLastChat();
+    void promptTermsIfChanged();
     let unlisten: (() => void) | null = null;
     let unlistenDrop: (() => void) | null = null;
     let disposed = false;
@@ -243,7 +252,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 6px max(12px, var(--safe-right)) 6px max(12px, var(--safe-left));
     background: var(--warning, #f59e0b);
     color: #1a1300;
     font-size: 12.5px;
@@ -297,7 +306,6 @@
     font-family: var(--font-mono);
   }
 
-  /* Main content */
   .content {
     flex: 1;
     min-width: 0;
@@ -313,7 +321,6 @@
     padding-top: calc(30px + var(--safe-top));
   }
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     .backdrop {
       display: block;
@@ -341,7 +348,7 @@
       left: 0;
       right: 0;
       height: calc(var(--header-height) + var(--safe-top));
-      padding: var(--safe-top) 6px 0;
+      padding: var(--safe-top) max(6px, var(--safe-right)) 0 max(6px, var(--safe-left));
       background: var(--panel);
       backdrop-filter: blur(20px) saturate(140%);
       -webkit-backdrop-filter: blur(20px) saturate(140%);

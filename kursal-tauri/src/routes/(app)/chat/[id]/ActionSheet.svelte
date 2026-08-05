@@ -8,6 +8,7 @@
     MoreHorizontal,
     TextCursorInput,
     Pin,
+    Mail,
   } from 'lucide-svelte';
   import type { MessageResponse } from '$lib/types';
   import { t } from '$lib/i18n';
@@ -16,6 +17,7 @@
 
   interface Props {
     msg: MessageResponse;
+    canMarkUnread: boolean;
     onClose: () => void;
     onReact: (emoji: string) => void;
     onMoreEmoji: () => void;
@@ -24,12 +26,14 @@
     onSelectText: () => void;
     onEdit: () => void;
     onTogglePin: () => void;
+    onMarkUnread: () => void;
     onForward: () => void;
     onDelete: () => void;
   }
 
   let {
     msg,
+    canMarkUnread,
     onClose,
     onReact,
     onMoreEmoji,
@@ -38,6 +42,7 @@
     onSelectText,
     onEdit,
     onTogglePin,
+    onMarkUnread,
     onForward,
     onDelete,
   }: Props = $props();
@@ -136,6 +141,11 @@
           >
         </button>
       {/if}
+      {#if canMarkUnread}
+        <button class="sheet-row" onclick={onMarkUnread}>
+          <Mail size={18} /><span>{t('chat.actionSheet.markUnread')}</span>
+        </button>
+      {/if}
       {#if !msg.fileDetails && msg.content}
         <button class="sheet-row" onclick={onForward}>
           <Forward size={18} /><span>{t('chat.actionSheet.forward')}</span>
@@ -184,7 +194,8 @@
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
-    padding: 8px 10px max(16px, var(--safe-bottom));
+    padding: 8px max(10px, var(--safe-right)) max(16px, var(--safe-bottom))
+      max(10px, var(--safe-left));
     z-index: 310;
     animation: sheetUp 0.22s cubic-bezier(0.3, 0, 0.2, 1);
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);

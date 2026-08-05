@@ -20,7 +20,7 @@ function writeSet(set: Set<string>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
   } catch {
-    /* quota or disabled - silent */
+    /* quota or disabled: silent */
   }
 }
 

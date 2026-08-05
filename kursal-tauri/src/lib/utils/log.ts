@@ -1,10 +1,6 @@
-// Centralized frontend logger. Single control point for app logging so we can
-// gate verbosity by build and avoid scattered console.* calls.
-// - Console: debug/info are silenced in production builds; warn/error always emit.
-// - .log file: info/warn/error are mirrored into the Rust logger (same file as
-//   the backend) via the `log_frontend` command so webview logs sit alongside
-//   backend logs. Debug is only mirrored in dev to avoid prod IPC noise. The
-//   Rust logger still applies RUST_LOG on top.
+// Centralized frontend logger. Console debug/info are silenced in production;
+// warn/error always emit. Everything (except dev-only debug) also mirrors into
+// the Rust logger via `log_frontend`, landing in the same log file as the backend.
 
 import { invoke } from '@tauri-apps/api/core';
 

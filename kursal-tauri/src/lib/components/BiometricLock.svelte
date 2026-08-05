@@ -64,7 +64,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: max(24px, var(--safe-top)) 24px max(24px, var(--safe-bottom));
+    padding: max(24px, var(--safe-top)) max(24px, var(--safe-right)) max(24px, var(--safe-bottom))
+      max(24px, var(--safe-left));
   }
   .lock-card {
     max-width: 360px;

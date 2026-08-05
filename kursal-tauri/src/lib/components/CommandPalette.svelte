@@ -50,7 +50,7 @@
     }
   });
 
-  // On-demand global message search - only runs once in message-search mode,
+  // On-demand global message search: only runs once in message-search mode,
   // never on every keystroke of the normal palette.
   $effect(() => {
     if (mode !== 'messages') return;
@@ -378,10 +378,10 @@
   }
   .cp-wrap {
     position: fixed;
-    top: 14vh;
-    left: 50%;
+    top: calc(var(--safe-top) + 14vh);
+    left: var(--safe-center-x);
     transform: translateX(-50%);
-    width: min(560px, 92vw);
+    width: min(560px, calc(var(--safe-w) - 32px));
     z-index: 2001;
     animation: cp-pop 150ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
   }
@@ -400,7 +400,7 @@
   :global(.cp) {
     display: flex;
     flex-direction: column;
-    max-height: min(60vh, 480px);
+    max-height: min(60vh, 480px, calc(86vh - var(--safe-top) - var(--safe-bottom)));
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);

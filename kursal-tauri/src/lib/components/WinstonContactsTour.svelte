@@ -86,7 +86,6 @@
     rect = offscreen ? null : { x: r.left, y: r.top, w: r.width, h: r.height };
   }
 
-  // Recompute on step change, route change, drawer toggle, or resize.
   $effect(() => {
     if (!active) return;
     void step;
@@ -347,10 +346,10 @@
 
   .card-pos {
     position: fixed;
-    right: 22px;
-    bottom: 22px;
+    right: calc(22px + var(--safe-right));
+    bottom: calc(22px + var(--safe-bottom));
     pointer-events: auto;
-    max-width: min(440px, calc(100vw - 44px));
+    max-width: min(440px, calc(var(--safe-w) - 44px));
     z-index: 1;
   }
 
@@ -433,9 +432,9 @@
 
   @media (max-width: 768px) {
     .card-pos {
-      right: 12px;
-      bottom: 12px;
-      left: 12px;
+      right: max(12px, var(--safe-right));
+      bottom: calc(12px + var(--safe-bottom));
+      left: max(12px, var(--safe-left));
       max-width: none;
     }
   }

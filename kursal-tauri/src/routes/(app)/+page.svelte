@@ -29,9 +29,8 @@
     const next = [...s.hist, v];
     s.hist = next.length > SPARK_LEN ? next.slice(next.length - SPARK_LEN) : next;
     // Grow onto a new peak at once, but shrink only once the window falls to a
-    // quarter of the domain, and then only to half-height. A domain that tracked
-    // the window max rescaled every time the old peak scrolled off, which drew a
-    // rising line for a falling value.
+    // quarter of the domain, and then only to half-height. Rescaling to the window
+    // max on every scroll-off drew a rising line for what was really a falling value.
     const max = Math.max(...s.hist);
     const target = niceCeil(max);
     if (target > s.ceil) s.ceil = target;
@@ -322,9 +321,16 @@
   .home {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 24px max(24px, var(--safe-right)) calc(24px + var(--safe-bottom))
+      max(24px, var(--safe-left));
     display: flex;
     flex-direction: column;
+  }
+
+  @media (min-width: 769px) {
+    .home {
+      padding-top: calc(24px + var(--safe-top));
+    }
   }
   .home-inner {
     width: 100%;

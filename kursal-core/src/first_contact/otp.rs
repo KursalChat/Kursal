@@ -12,10 +12,9 @@ use crate::{
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::{
-        NetworkManager,
         dht::DHTRecord,
         kademlia::KAD_MAX_AGE,
-        swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
+        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, is_peer_connected, str_to_multiaddr},
     },
     storage::{
         SharedDatabase, TABLE_SESSIONS, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs,
@@ -106,7 +105,7 @@ impl OtpPayload {
 
 pub async fn build_otp_payload(
     db: SharedDatabase,
-    network: &NetworkManager,
+    swarm: &SwarmHandle,
     enc_key: &[u8; 32],
     payload_id: MessageId,
 ) -> Result<Vec<u8>> {
@@ -119,7 +118,7 @@ pub async fn build_otp_payload(
         .await
         .raw_write(TABLE_SETTINGS, "otp_prekey_id", &prekey_id.to_be_bytes())?;
     let bundle = bundle_data.serialize()?;
-    let peer_id = network.primary.peer_id.to_base58();
+    let peer_id = swarm.peer_id.to_base58();
     let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
 
     let payload = OtpPayload {
@@ -127,29 +126,29 @@ pub async fn build_otp_payload(
         pre_key_bundle: bundle,
         peer_id,
         dilithium_pub_key,
-        relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
+        relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
     };
 
     stream_encrypt(enc_key, &payload.serialize()?)
 }
 
-pub async fn publish_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) -> Result<()> {
+pub async fn publish_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Result<()> {
     let timestamp = get_timestamp_secs()?;
     let payload_id = MessageId::new();
 
     let (enc_key, dht_key) = otp_to_keys(otp)?;
     let enc_key = Zeroizing::new(enc_key);
-    let payload = build_otp_payload(db.clone(), network, &enc_key, payload_id).await?;
+    let payload = build_otp_payload(db.clone(), swarm, &enc_key, payload_id).await?;
 
     let dht_record = DHTRecord::new(dht_key.to_vec(), payload, timestamp, false).await?;
 
-    network
-        .primary
+    swarm
         .cmd_tx
         .send(SwarmCommand::PublishDht {
             key: dht_key.to_vec(),
             value: dht_record.serialize()?,
             expires: Some(KAD_MAX_AGE),
+            reply_tx: None,
         })
         .await
         .ok_kursal(KursalError::Network)?;
@@ -165,8 +164,8 @@ pub async fn publish_otp(otp: &str, db: SharedDatabase, network: &NetworkManager
     Ok(())
 }
 
-pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) -> Result<Contact> {
-    let local_peer_id = network.primary.peer_id.to_base58();
+pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Result<Contact> {
+    let local_peer_id = swarm.peer_id.to_base58();
     let timestamp = get_timestamp_secs()?;
     let (enc_key, dht_key) = otp_to_keys(otp)?;
     let enc_key = Zeroizing::new(enc_key);
@@ -178,8 +177,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) 
         attempt += 1;
         let (reply_tx, mut reply_rx) = mpsc::channel(16);
 
-        network
-            .primary
+        swarm
             .cmd_tx
             .send(SwarmCommand::FetchDht {
                 key: dht_key.to_vec(),
@@ -287,9 +285,9 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) 
     let response = ContactResponse {
         payload_id: payload.payload_id,
         pre_key_bundle: my_bundle.serialize()?,
-        peer_id: network.primary.peer_id.to_base58(),
+        peer_id: swarm.peer_id.to_base58(),
         dilithium_pub_key,
-        relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
+        relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
         mailbox_kem_ct,
         mailbox_kem_prekey_id,
         mailbox_ephemeral_pub,
@@ -301,34 +299,29 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, network: &NetworkManager) 
     let publisher_peer = PeerId::from_str(&payload.peer_id).ok_kursal(KursalError::Network)?;
     let publisher_addrs = str_to_multiaddr(&contact.known_addresses)?;
 
-    if !is_peer_connected(&network.primary.cmd_tx, publisher_peer).await {
+    if !is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
         log::info!(
             "[otp] dialing publisher {publisher_peer} via {} addr(s)",
             publisher_addrs.len()
         );
         for addr in &publisher_addrs {
-            let _ = network
-                .primary
-                .cmd_tx
-                .send(SwarmCommand::Dial(addr.clone()))
-                .await;
+            let _ = swarm.cmd_tx.send(SwarmCommand::Dial(addr.clone())).await;
         }
         let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
         while tokio::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(250)).await;
-            if is_peer_connected(&network.primary.cmd_tx, publisher_peer).await {
+            if is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
                 break;
             }
         }
     }
 
-    let connected = is_peer_connected(&network.primary.cmd_tx, publisher_peer).await;
+    let connected = is_peer_connected(&swarm.cmd_tx, publisher_peer).await;
     log::info!("[otp] sending ContactResponse to {publisher_peer} connected={connected}");
 
     let ack_rx = register_ack_waiter(payload.payload_id);
 
-    let sent = network
-        .primary
+    let sent = swarm
         .cmd_tx
         .send(SwarmCommand::SendMessage {
             peer_id: publisher_peer,

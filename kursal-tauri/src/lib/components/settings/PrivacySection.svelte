@@ -25,6 +25,7 @@
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import type { ContactResponse } from '$lib/types';
   import { profileState } from '$lib/state/profile.svelte';
+  import { ltcState } from '$lib/state/ltc.svelte';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
@@ -43,6 +44,14 @@
   let rotating = $state(false);
   const copiedPeerId = flash();
   const rotationInterval = $derived(settingsState.peerRotation);
+  // An active code only breaks on rotation when its rendezvous record is not live.
+  const ltcAtRisk = $derived.by(() => {
+    const ltc = ltcState.status;
+    if (!ltc || ltcState.survivesRotation) return false;
+    const expired = ltc.expiresAt !== null && Date.now() / 1000 > ltc.expiresAt;
+    const exhausted = ltc.maxUses !== null && ltc.uses >= ltc.maxUses;
+    return !expired && !exhausted;
+  });
   const typing = $derived(settingsState.typingIndicators);
 
   let blocked = $state<ContactResponse[]>([]);
@@ -57,6 +66,7 @@
 
   onMount(async () => {
     void settingsState.load();
+    void ltcState.init();
     prefsState.init();
     await reloadBlocked();
     if (isMobile) {
@@ -105,7 +115,9 @@
     const ok = await confirmDialog({
       title: t('settings.privacy.rotatePeerIdTitle'),
       message: t('settings.privacy.rotatePeerIdMessage'),
-      detail: t('settings.privacy.rotatePeerIdDetail'),
+      detail: ltcAtRisk
+        ? t('settings.privacy.rotatePeerIdDetailLtc')
+        : t('settings.privacy.rotatePeerIdDetail'),
       confirmLabel: t('settings.privacy.rotatePeerIdConfirm'),
       tone: 'warning',
     });
@@ -114,6 +126,7 @@
     try {
       await rotatePeerId();
       await profileState.refreshPeerId();
+      ltcState.notePeerIdRotated();
     } catch (e) {
       notifications.push(t('settings.privacy.errorPeerIdRotate'), 'error');
     } finally {
@@ -276,7 +289,9 @@
   {/if}
   <SettingRow
     title={t('settings.privacy.autoRotationRow')}
-    description={t('settings.privacy.autoRotationDescription')}
+    description={ltcAtRisk
+      ? t('settings.privacy.autoRotationDescriptionLtc')
+      : t('settings.privacy.autoRotationDescription')}
   >
     <Segmented
       value={rotationInterval}

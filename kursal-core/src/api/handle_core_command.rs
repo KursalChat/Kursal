@@ -1,4 +1,5 @@
 use crate::MapKursalResult;
+use crate::first_contact::ltc::LtcState;
 use crate::{
     KursalError,
     api::{
@@ -25,7 +26,10 @@ use crate::{
             ReadReceipt, TextMessage,
         },
     },
-    network::{NetworkManager, swarm::FILE_CHUNK_SIZE},
+    network::{
+        NetworkManager,
+        swarm::{FILE_CHUNK_SIZE, SwarmHandle},
+    },
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS, file::KursalFile, filetransfer::hash_file,
         get_timestamp_secs,
@@ -38,6 +42,18 @@ use std::{
 };
 use tokio::sync::{Mutex, mpsc};
 
+fn spawn_pointer_publish(
+    db: SharedDatabase,
+    swarm: SwarmHandle,
+    app_event_tx: mpsc::Sender<AppEvent>,
+) {
+    tokio::task::spawn_local(async move {
+        if let Err(err) = LtcState::publish_pointer(db, swarm, app_event_tx).await {
+            log::warn!("[ltc] rendezvous publish failed: {err}");
+        }
+    });
+}
+
 pub async fn handle_core_command(
     cmd: CoreCommand,
     db: SharedDatabase,
@@ -46,30 +62,120 @@ pub async fn handle_core_command(
 ) {
     match cmd {
         CoreCommand::PublishOtp { otp, reply } => {
-            let net = network.lock().await;
-            let result = publish_otp(&otp, db, &net).await;
+            let swarm = network.lock().await.primary.clone();
+            let result = publish_otp(&otp, db, &swarm).await;
             reply.send(result).ok();
         }
 
         CoreCommand::FetchOtp { otp, reply } => {
-            let net = network.lock().await;
-            let result = fetch_otp(&otp, db, &net).await;
+            let swarm = network.lock().await.primary.clone();
+            let result = fetch_otp(&otp, db, &swarm).await;
+            reply.send(result).ok();
+        }
+
+        CoreCommand::GetLtcStatus { reply } => {
+            let db_lock = db.0.lock().await;
+            let result = LtcState::load(&db_lock)
+                .map(|opt| opt.and_then(|p| LtcState::dto_serialize(&p).ok()));
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::CreateLtc {
+            max_uses,
+            ttl_secs,
+            reply,
+        } => {
+            let swarm = network.lock().await.primary.clone();
+            let result = LtcState::create(db.clone(), &swarm.cmd_tx, max_uses, ttl_secs)
+                .await
+                .and_then(|p| LtcState::dto_serialize(&p));
+            let status = result.as_ref().ok().cloned();
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status })
+                .await
+                .ok();
+
+            if result.is_ok() {
+                spawn_pointer_publish(db, swarm, app_event_tx.clone());
+            }
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::UpdateLtcLimits {
+            max_uses,
+            ttl_secs,
+            reply,
+        } => {
+            let result = LtcState::update_limits(db, max_uses, ttl_secs).await;
+            let status = result.as_ref().ok().cloned();
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status })
+                .await
+                .ok();
+
             reply.send(result).ok();
         }
 
         CoreCommand::ExportLtc { reply } => {
-            let net = network.lock().await;
-            let result = LtcPayload::generate(db, &net)
+            let swarm = network.lock().await.primary.clone();
+            let result = LtcState::export_ltc(db, &swarm).await;
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::SetLtcFollowRotations { enabled, reply } => {
+            let swarm = network.lock().await.primary.clone();
+            let result = LtcState::set_follow_rotations(db.clone(), &swarm.cmd_tx, enabled).await;
+            let status = result.as_ref().ok().cloned();
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status })
                 .await
-                .and_then(|p| p.serialize())
-                .map(KursalFile::LtcPayload)
-                .and_then(|p| p.serialize());
+                .ok();
+
+            if enabled && result.is_ok() {
+                spawn_pointer_publish(db, swarm, app_event_tx.clone());
+            }
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::RepublishLtcPointer { reply } => {
+            let swarm = network.lock().await.primary.clone();
+            let result = {
+                let db_lock = db.0.lock().await;
+                match LtcState::load(&db_lock) {
+                    Ok(Some(state)) => state.dto_serialize(),
+                    Ok(None) => Err(KursalError::Storage("No LTC currently stored".to_string())),
+                    Err(err) => Err(err),
+                }
+            };
+
+            if result.is_ok() {
+                spawn_pointer_publish(db, swarm, app_event_tx.clone());
+            }
+
+            reply.send(result).ok();
+        }
+
+        CoreCommand::RevokeLtc { reply } => {
+            let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+            let result = LtcState::revoke_ltc(db, &cmd_tx).await;
+
+            app_event_tx
+                .send(AppEvent::LtcUpdated { status: None })
+                .await
+                .ok();
 
             reply.send(result).ok();
         }
 
         CoreCommand::ImportLtc { bytes, reply } => {
-            let net = network.lock().await;
+            let swarm = network.lock().await.primary.clone();
 
             let result = match KursalFile::deserialize(&bytes) {
                 Ok(KursalFile::LtcPayload(bytes)) => LtcPayload::deserialize(&bytes),
@@ -77,9 +183,10 @@ pub async fn handle_core_command(
             };
 
             let result = match result {
-                Ok(payload) => payload.import_ltc(db, &net).await,
+                Ok(payload) => LtcState::import_ltc(payload, db, &swarm).await,
                 Err(e) => Err(e),
             };
+
             reply.send(result).ok();
         }
 
@@ -235,7 +342,13 @@ pub async fn handle_core_command(
                 let net = network.lock().await;
                 net.announce_address_rotation(db.clone(), &net.primary.cmd_tx, &app_event_tx)
                     .await?;
+
+                let next = net.secondary.clone();
                 drop(net);
+
+                if let Some(next) = next {
+                    spawn_pointer_publish(db.clone(), next, app_event_tx.clone());
+                }
 
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 

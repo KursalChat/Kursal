@@ -4,8 +4,7 @@
   import WinstonCard from './WinstonCard.svelte';
 
   // Shown once ever, on the first window close that would silently leave Kursal
-  // running in the tray. Same corner placement as WinstonTip, but it is not part
-  // of the tips registry: the close is held open until one of the two answers.
+  // running in the tray. Stays open until the user picks Keep or Quit.
   let {
     open,
     onKeep,
@@ -69,10 +68,10 @@
 
   .tip {
     position: fixed;
-    right: 22px;
-    bottom: 22px;
+    right: calc(22px + var(--safe-right));
+    bottom: calc(22px + var(--safe-bottom));
     z-index: 8900;
-    max-width: min(400px, calc(100vw - 44px));
+    max-width: min(400px, calc(var(--safe-w) - 44px));
   }
 
   .title {
@@ -137,9 +136,9 @@
 
   @media (max-width: 768px) {
     .tip {
-      right: 12px;
-      bottom: 12px;
-      left: 12px;
+      right: max(12px, var(--safe-right));
+      bottom: calc(12px + var(--safe-bottom));
+      left: max(12px, var(--safe-left));
       max-width: none;
     }
   }

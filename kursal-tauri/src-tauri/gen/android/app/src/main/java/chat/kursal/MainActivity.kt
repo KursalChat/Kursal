@@ -3,26 +3,58 @@ package chat.kursal
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   private val startupPermsRequestCode = 4242
   private val insets = InsetsBridge()
+  private val bars = BarsBridge()
   private var webView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
     super.onCreate(savedInstanceState)
+    goEdgeToEdge()
     requestStartupPermissions()
     startConnectionService()
     takeShareIntent(intent)
+  }
+
+  // Android 15+ forces edge-to-edge and ignores all of this. Below it the
+  // window stops at the system bars instead, so the app renders inside opaque
+  // status/navigation bands and the inset listener only ever reports zeroes.
+  @Suppress("DEPRECATION")
+  private fun goEdgeToEdge() {
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    window.statusBarColor = Color.TRANSPARENT
+    window.navigationBarColor = Color.TRANSPARENT
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.isStatusBarContrastEnforced = false
+      window.isNavigationBarContrastEnforced = false
+    }
+
+    // ALWAYS matches what 15+ defaults to, so a side cutout in landscape is
+    // drawn into rather than letterboxed. The web layer pads around it.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      val mode =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        } else {
+          WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+      window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = mode }
+    }
   }
 
   override fun onNewIntent(intent: Intent) {
@@ -41,18 +73,19 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
     webView.addJavascriptInterface(insets, "__kursalInsets")
+    webView.addJavascriptInterface(bars, "__kursalBars")
 
     ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
-      val bars = windowInsets.getInsets(
+      val barInsets = windowInsets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
       )
       val ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
       val density = view.resources.displayMetrics.density
       insets.update(
-        bars.left / density,
-        bars.top / density,
-        bars.right / density,
-        bars.bottom / density,
+        barInsets.left / density,
+        barInsets.top / density,
+        barInsets.right / density,
+        barInsets.bottom / density,
         ime.bottom / density,
       )
       webView.evaluateJavascript(
@@ -62,6 +95,18 @@ class MainActivity : TauriActivity() {
       windowInsets
     }
     ViewCompat.requestApplyInsets(webView)
+  }
+
+  inner class BarsBridge {
+    @JavascriptInterface
+    fun setLightBackground(light: Boolean) {
+      runOnUiThread {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+          isAppearanceLightStatusBars = light
+          isAppearanceLightNavigationBars = light
+        }
+      }
+    }
   }
 
   class InsetsBridge {

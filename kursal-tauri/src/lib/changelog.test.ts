@@ -50,6 +50,14 @@ describe('parseChangelog', () => {
     expect(entries[1].date).toBeNull();
   });
 
+  it('drops noise sections and versions left empty by them', () => {
+    const noisy = parseChangelog(
+      '## [2.0.0] - 2026-08-02\n\n### Testing\n\n- A test\n\n### Styling\n\n- Formatting\n\n### Bug Fixes\n\n- A bug\n\n## [1.9.0] - 2026-08-01\n\n### CI\n\n- Pipeline\n\n### Revert\n\n- Undo\n'
+    );
+    expect(noisy.map((e) => e.version)).toEqual(['2.0.0']);
+    expect(noisy[0].groups).toEqual([{ kind: 'fixes', items: ['A bug'] }]);
+  });
+
   it('parses the real repo CHANGELOG shape', () => {
     const real = parseChangelog(
       '## [Unreleased]\n\n## [0.1.0-beta] - 2026-07-17\n\n### Features\n\n- Video calls\n\n### Bug Fixes\n\n- Audio jitter\n\n### Miscellaneous\n\n- Clippy\n'

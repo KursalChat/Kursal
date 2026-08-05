@@ -9,6 +9,8 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { isMobile } from '$lib/api/window';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import { acceptTerms, TERMS_URL } from '$lib/utils/terms';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
@@ -130,9 +132,19 @@
       log.error('Profile save failed', e);
       notifications.push(t('onboarding.screen5.errorBroadcastFailed'), 'error');
     }
+    acceptTerms();
     saving = false;
     exiting = true;
     setTimeout(onFinish, EXIT_MS);
+  }
+
+  async function openTerms() {
+    try {
+      await openUrl(TERMS_URL);
+    } catch (e) {
+      log.error('Failed to open terms', e);
+      notifications.push(t('terms.errorOpenLink'), 'error');
+    }
   }
 
   function handleKey(e: KeyboardEvent) {
@@ -269,6 +281,13 @@
         >
       {/if}
     </button>
+
+    <p class="consent">
+      {t('onboarding.screen5.consentPrefix')}
+      <button type="button" class="consent-link" onclick={openTerms} tabindex={showForm ? 0 : -1}>
+        {t('onboarding.screen5.consentLink')}
+      </button>
+    </p>
   </div>
 
   <div class="exit-flash"></div>
@@ -585,6 +604,10 @@
 
   .actions {
     z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
     opacity: 0;
     transform: translateY(10px);
     pointer-events: none;
@@ -636,6 +659,28 @@
     cursor: default;
     opacity: 0.55;
     animation: none;
+  }
+
+  .consent {
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(220, 230, 255, 0.45);
+    text-align: center;
+    max-width: 300px;
+  }
+  .consent-link {
+    font-size: inherit;
+    color: rgba(160, 190, 255, 0.85);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 150ms ease;
+  }
+  .consent-link:hover {
+    color: #d8e4ff;
   }
 
   .exit-flash {

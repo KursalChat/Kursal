@@ -6,6 +6,9 @@ const resolvePath = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
   plugins: [svelte()],
+  define: {
+    __TERMS_UPDATED__: JSON.stringify("2026-07-27"), // just a testing value
+  },
   server: {
     fs: {
       allow: [resolvePath("..")],

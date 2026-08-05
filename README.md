@@ -22,9 +22,6 @@ Kursal is a peer-to-peer, end-to-end encrypted messenger. Messages are encrypted
 
 For a full technical description, read the [Whitepaper](https://kursal.chat/kursal.pdf).
 
-> [!WARNING]
-> This software has not been independently audited. Use at your own risk.
-
 ## Features
 
 Curious about Kursal? We listed and compared our features on our [Comparison page](https://kursal.chat/compare).
@@ -45,9 +42,12 @@ powershell -c "irm kursal.chat | iex"
 
 Or [download manually](https://app.kursal.chat).
 
+> [!WARNING]
+> This software has not been independently audited. Use at your own risk.
+
 ## Roadmap
 
-We're a small team, but you can follow what we're building on the [progress page](https://kursal.chat/progress).
+We're a small team, but you can follow what features we're building on the [progress page](https://kursal.chat/progress), or check out what issues we're working on on our [TODO board](https://github.com/orgs/KursalChat/projects/1/).
 
 ## Contributing
 

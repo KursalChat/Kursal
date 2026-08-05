@@ -1,7 +1,7 @@
 import type { MessageResponse } from '$lib/types';
 
 export interface MessageGroup {
-  kind: 'msgs' | 'call';
+  kind: 'msgs' | 'call' | 'pin';
   direction: 'sent' | 'received';
   messages: MessageResponse[];
   timestamp: number;
@@ -10,10 +10,9 @@ export interface MessageGroup {
 
 const GROUP_MERGE_WINDOW_MS = 60_000;
 
-// While the peer is offline, undelivered sends sink below the chronological
-// messages in two tiers: 1 = stored in the DHT, 2 = still waiting to upload.
-// When the peer is reachable a brief "sending" is a normal direct delivery,
-// so everything stays tier 0.
+// While the peer is offline, undelivered sends sink below the chronological messages
+// in two tiers: 1 = stored in the DHT, 2 = still waiting to upload. A brief "sending"
+// while the peer is reachable is normal direct delivery, so it stays tier 0.
 export function offlineTier(status: string, peerOnline: boolean): number {
   if (peerOnline) return 0;
   if (status === 'queued_in_dht') return 1;
@@ -28,10 +27,9 @@ export function sortByOfflineTier(list: MessageResponse[], peerOnline: boolean):
   );
 }
 
-// Groups consecutive same-direction messages (within the merge window, same
-// tier, not split by the unread separator). A connected call emits two records
-// (started + terminal); the 'started' one is hidden once its terminal exists
-// so a call renders as a single line.
+// Groups consecutive same-direction messages (within the merge window, same tier,
+// not split by the unread separator). A connected call emits two records (started +
+// terminal); the 'started' one is hidden once its terminal exists, so it renders as one line.
 export function buildMessageGroups(
   visible: MessageResponse[],
   peerOnline: boolean,
@@ -49,10 +47,12 @@ export function buildMessageGroups(
   for (const msg of visible) {
     if (hiddenStarted.has(msg.id)) continue;
     const isCall = !!msg.callDetails;
+    const isPin = !!msg.pinDetails;
     const last = groups[groups.length - 1];
     const tier = offlineTier(msg.status, peerOnline);
     const canMerge =
       !isCall &&
+      !isPin &&
       msg.id !== firstUnreadId &&
       last &&
       last.kind === 'msgs' &&
@@ -63,7 +63,7 @@ export function buildMessageGroups(
       last.messages.push(msg);
     } else {
       groups.push({
-        kind: isCall ? 'call' : 'msgs',
+        kind: isCall ? 'call' : isPin ? 'pin' : 'msgs',
         direction: msg.direction,
         messages: [msg],
         timestamp: msg.timestamp,

@@ -1,4 +1,5 @@
 use crate::MapKursalResult;
+use crate::first_contact::ltc::LtcState;
 use crate::{
     KursalError, Result,
     api::AppEvent,
@@ -7,7 +8,7 @@ use crate::{
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::swarm::{SwarmCommand, str_to_multiaddr},
-    storage::{SharedDatabase, TABLE_LTC_CACHE, TABLE_SETTINGS, get_timestamp_secs},
+    storage::{SharedDatabase, TABLE_SETTINGS, get_timestamp_secs},
 };
 use libp2p::PeerId;
 use libsignal_protocol::{
@@ -161,7 +162,7 @@ pub async fn handle_fc_response(
 
     let now = get_timestamp_secs()?;
 
-    let (handshake, otp_expired) = {
+    let (handshake, otp_expired, ltc_reject) = {
         let db_lock = db.0.lock().await;
 
         let mut otp_expired = false;
@@ -178,12 +179,19 @@ pub async fn handle_fc_response(
             _ => false,
         };
 
-        let ltc_match = match db_lock.raw_read(TABLE_LTC_CACHE, "ltc_current_id")? {
-            Some(id) if id.as_slice() == response.payload_id.0.as_slice() => db_lock
-                .raw_read(TABLE_LTC_CACHE, "ltc_current_expiry")?
-                .and_then(|b| b.try_into().ok().map(u64::from_be_bytes))
-                .map(|expiry: u64| now <= expiry)
-                .unwrap_or(false),
+        let mut ltc_reject = None;
+        let ltc_match = match LtcState::load(&db_lock)? {
+            Some(state) if state.payload_id == response.payload_id => {
+                if now > state.expires_at {
+                    ltc_reject = Some(FcRejectReason::Expired);
+                    false
+                } else if state.max_uses.is_some_and(|max| state.uses >= max) {
+                    ltc_reject = Some(FcRejectReason::AlreadyUsed);
+                    false
+                } else {
+                    true
+                }
+            }
             _ => false,
         };
 
@@ -195,7 +203,7 @@ pub async fn handle_fc_response(
             None
         };
 
-        (kind, otp_expired)
+        (kind, otp_expired, ltc_reject)
     };
 
     let Some(handshake) = handshake else {
@@ -205,13 +213,13 @@ pub async fn handle_fc_response(
                 .raw_read(TABLE_SETTINGS, "otp_consumed_id")?
                 .is_some_and(|id| id.as_slice() == response.payload_id.0.as_slice());
 
-        let reason = if consumed {
+        let reason = ltc_reject.unwrap_or(if consumed {
             FcRejectReason::AlreadyUsed
         } else if otp_expired {
             FcRejectReason::Expired
         } else {
             FcRejectReason::Unknown
-        };
+        });
 
         log::warn!(
             "Rejected incoming ContactResponse: {} (payload matches no pending handshake)",
@@ -325,23 +333,56 @@ pub async fn handle_fc_response(
         offline: new_offline_state(&db, &identity_key_bytes, &classical_secret, &pq_secret).await?,
     };
 
-    let otp_dht_key = {
+    let (otp_dht_key, ltc_denied, ltc_status) = {
         let db_lock = db.0.lock().await;
-        contact.save(&db_lock)?;
-        crate::storage::set_contact_terminated(&db_lock, &hex::encode(user_id.0), false)?;
 
-        if matches!(handshake, HandshakeKind::Otp) {
+        let mut ltc_denied = false;
+        let mut ltc_status = None;
+        if matches!(handshake, HandshakeKind::Ltc) {
+            match LtcState::load(&db_lock)? {
+                Some(mut state)
+                    if state.payload_id == response.payload_id
+                        && now <= state.expires_at
+                        && state.max_uses.is_none_or(|max| state.uses < max) =>
+                {
+                    state.uses += 1;
+                    state.save(&db_lock)?;
+                    ltc_status = Some(state.dto_serialize()?);
+                }
+                _ => ltc_denied = true,
+            }
+        }
+
+        if ltc_denied {
+            (None, true, None)
+        } else {
+            contact.save(&db_lock)?;
+            crate::storage::set_contact_terminated(&db_lock, &hex::encode(user_id.0), false)?;
+
             let dht_key = db_lock.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
             db_lock.raw_write(TABLE_SETTINGS, "otp_consumed_id", &response.payload_id.0)?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
             db_lock.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
-            dht_key
-        } else {
-            None
+
+            (dht_key, false, ltc_status)
         }
     };
+
+    if ltc_denied {
+        let _ = send_wire(
+            WireMessage::ContactRejected {
+                payload_id: response.payload_id,
+                reason: FcRejectReason::AlreadyUsed,
+            },
+            &response.peer_id,
+            &response.relay_addresses,
+            cmd_tx,
+        )
+        .await;
+        return Ok(());
+    }
 
     let _ = send_wire(
         WireMessage::ContactAccepted(response.payload_id),
@@ -369,6 +410,14 @@ pub async fn handle_fc_response(
 
     if matches!(handshake, HandshakeKind::Otp) {
         let _ = event_tx.send(AppEvent::OtpConsumed).await;
+    }
+
+    if let Some(status) = ltc_status {
+        let _ = event_tx
+            .send(AppEvent::LtcUpdated {
+                status: Some(status),
+            })
+            .await;
     }
 
     fc_replay_remember(response_hash);

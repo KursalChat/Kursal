@@ -43,6 +43,14 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 
+  /* Anchors for viewport-centred overlays. The scrim still covers the whole
+   * display; the panel is centred on the reachable band instead, so a notch or
+   * a gesture bar never eats one of its edges. */
+  --safe-center-x: calc(50% + (var(--safe-left) - var(--safe-right)) / 2);
+  --safe-center-y: calc(50% + (var(--safe-top) - var(--safe-bottom)) / 2);
+  --safe-w: calc(100% - var(--safe-left) - var(--safe-right));
+  --safe-h: calc(100% - var(--safe-top) - var(--safe-bottom));
+
   --font-sans: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
 

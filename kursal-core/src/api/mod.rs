@@ -1,7 +1,7 @@
 use crate::{
     Result,
     contacts::Contact,
-    dto::NetworkStatusDto,
+    dto::{LtcStatusDto, NetworkStatusDto},
     identity::UserId,
     messaging::{StoredMessage, enums::MessageId},
 };
@@ -82,6 +82,9 @@ pub enum AppEvent {
     ContactAdded {
         contact: Contact,
     },
+    LtcUpdated {
+        status: Option<LtcStatusDto>,
+    },
     OtpConsumed,
     ContactUpdated {
         contact: Contact,
@@ -100,7 +103,7 @@ pub enum AppEvent {
     NearbyRequest {
         peer_id: String,
         session_name: String,
-        decision_tx: oneshot::Sender<bool>,
+        decision_tx: Reply<bool>,
     },
     FileOffered {
         contact_id: UserId,
@@ -187,188 +190,213 @@ pub enum AppEvent {
     },
 }
 
+type Reply<T> = oneshot::Sender<T>;
+
 pub enum CoreCommand {
     PublishOtp {
         otp: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     FetchOtp {
         otp: String,
-        reply: oneshot::Sender<Result<Contact>>,
+        reply: Reply<Result<Contact>>,
+    },
+    GetLtcStatus {
+        reply: Reply<Result<Option<LtcStatusDto>>>,
+    },
+    CreateLtc {
+        max_uses: Option<u32>,
+        ttl_secs: Option<u64>,
+        reply: Reply<Result<LtcStatusDto>>,
+    },
+    UpdateLtcLimits {
+        max_uses: Option<u32>,
+        ttl_secs: Option<u64>,
+        reply: Reply<Result<LtcStatusDto>>,
     },
     ExportLtc {
-        reply: oneshot::Sender<Result<Vec<u8>>>,
+        reply: Reply<Result<Vec<u8>>>,
+    },
+    SetLtcFollowRotations {
+        enabled: bool,
+        reply: Reply<Result<LtcStatusDto>>,
+    },
+    RepublishLtcPointer {
+        reply: Reply<Result<LtcStatusDto>>,
+    },
+    RevokeLtc {
+        reply: Reply<Result<()>>,
     },
     ImportLtc {
         bytes: Vec<u8>,
-        reply: oneshot::Sender<Result<Contact>>,
+        reply: Reply<Result<Contact>>,
     },
     ConnectNearby {
         peer_id: String,
         session_name: String,
         method: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     SendText {
         contact_id: String,
         text: String,
         reply_to: Option<MessageId>,
-        reply: oneshot::Sender<Result<MessageId>>,
+        reply: Reply<Result<MessageId>>,
     },
     SendTypingIndicator {
         contact_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     SendReadReceipts {
         contact_id: String,
         message_ids: Vec<String>,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     RotatePeerId {
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     AnnounceAddresses,
     RemoveContact {
         contact_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     DeleteMessage {
         contact_id: String,
         message_id: String,
-        reply: oneshot::Sender<Result<bool>>,
+        reply: Reply<Result<bool>>,
     },
     PinMessage {
         contact_id: String,
         message_id: String,
         pinned: bool,
-        reply: oneshot::Sender<Result<bool>>,
+        reply: Reply<Result<bool>>,
     },
     EditMessage {
         contact_id: String,
         message_id: String,
         new_content: String,
-        reply: oneshot::Sender<Result<bool>>,
+        reply: Reply<Result<bool>>,
     },
     ReactionAdd {
         contact_id: String,
         message_id: String,
         emoji: String,
-        reply: oneshot::Sender<Result<bool>>,
+        reply: Reply<Result<bool>>,
     },
     ReactionRemove {
         contact_id: String,
         message_id: String,
         emoji: String,
-        reply: oneshot::Sender<Result<bool>>,
+        reply: Reply<Result<bool>>,
     },
     DeleteLocalMessage {
         contact_id: String,
         message_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     RetryMessage {
         contact_id: String,
         message_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     ShareProfile {
         contact_id: String,
         display_name: String,
         avatar_bytes: Option<Vec<u8>>,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     BroadcastProfile {
         display_name: String,
         avatar_bytes: Option<Vec<u8>>,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     SendFileOffer {
         contact_id: String,
         file_path: String,
         app_data_dir: PathBuf,
-        reply: oneshot::Sender<Result<(MessageId, u64, String)>>,
+        reply: Reply<Result<(MessageId, u64, String)>>,
     },
     AcceptFileOffer {
         contact_id: String,
         offer_id: String,
         save_path: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     CancelFileTransfer {
         contact_id: String,
         offer_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     FlushOffline {
         contact_id: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     AddCustomNode {
         addr: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     RemoveCustomNode {
         addr: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     DialAddress {
         addr: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     NetworkStatus {
-        reply: oneshot::Sender<Result<NetworkStatusDto>>,
+        reply: Reply<Result<NetworkStatusDto>>,
     },
     #[cfg(feature = "calls")]
     StartCall {
         contact_id: String,
-        reply: oneshot::Sender<Result<MessageId>>,
+        reply: Reply<Result<MessageId>>,
     },
     #[cfg(feature = "calls")]
     AcceptCall {
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     DeclineCall {
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     HangupCall {
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     StartVideo {
         codec: String,
         width: u16,
         height: u16,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     StopVideo {
         reason: String,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     RequestVideoKeyframe {
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     SetMute {
         muted: bool,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     SetDeafen {
         deafened: bool,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     SetAudioDevice {
         kind: String,
         name: Option<String>,
-        reply: oneshot::Sender<Result<()>>,
+        reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]
     ListAudioDevices {
-        reply: oneshot::Sender<Result<crate::call::audio::AudioDevices>>,
+        reply: Reply<Result<crate::call::audio::AudioDevices>>,
     },
 }

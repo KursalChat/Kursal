@@ -6,17 +6,57 @@ use crate::{
     messaging::{
         StoredMessage, StoredReaction,
         enums::{
-            Direction, KursalMessage, MessageDelete, MessageEdit, MessagePin, ReactionAdd,
-            ReactionRemove,
+            Direction, KursalMessage, MessageDelete, MessageEdit, MessageId, MessagePin,
+            MessageStatus, ReactionAdd, ReactionRemove,
         },
         pin_index_set,
     },
-    storage::SharedDatabase,
+    storage::{SharedDatabase, get_timestamp_secs},
 };
 use tokio::sync::mpsc;
 
 // Message mutations that behave identically whether the message arrived over the
 // live connection (handle_incoming) or via the offline mailbox (poll_offline).
+
+pub async fn store_pin_record(
+    contact: &Contact,
+    pin: &MessagePin,
+    direction: Direction,
+    db: &SharedDatabase,
+    event_tx: &mpsc::Sender<AppEvent>,
+) {
+    let Ok(now) = get_timestamp_secs() else {
+        return;
+    };
+
+    let stored = StoredMessage {
+        id: MessageId::new(),
+        contact_id: contact.user_id.clone(),
+        payload: KursalMessage::MessagePin(MessagePin {
+            target_id: pin.target_id,
+            pinned: pin.pinned,
+        }),
+        timestamp: now,
+        direction,
+        status: MessageStatus::Delivered,
+        raw_ciphertext: None,
+        edited: false,
+        pinned: false,
+        reactions: Vec::new(),
+    };
+
+    if stored.save(&*db.0.lock().await).is_err() {
+        return;
+    }
+
+    let _ = event_tx
+        .send(AppEvent::MessageReceived {
+            contact_id: contact.user_id.clone(),
+            message: stored,
+            via_offline: false,
+        })
+        .await;
+}
 
 pub async fn apply_pin(
     contact: &Contact,
@@ -48,7 +88,11 @@ pub async fn apply_pin(
             pinned: pin.pinned,
         })
         .await
-        .ok_kursal(KursalError::Network)
+        .ok_kursal(KursalError::Network)?;
+
+    store_pin_record(contact, pin, Direction::Received, db, event_tx).await;
+
+    Ok(())
 }
 
 pub async fn apply_edit(

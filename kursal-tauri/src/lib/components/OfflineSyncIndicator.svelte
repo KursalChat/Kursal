@@ -13,7 +13,7 @@
   let { compact = false }: Props = $props();
 
   // The indicator only shows while a poll runs, then lingers a short "just now"
-  // confirmation before fading out entirely - no permanent between-polls text.
+  // confirmation before fading out entirely: no permanent between-polls text.
   const LINGER_MS = 30_000;
 
   let recentlyCompleted = $state(false);

@@ -21,8 +21,9 @@
     MicOff,
     Headphones,
     HeadphoneOff,
+    Mail,
   } from 'lucide-svelte';
-  import { lastSeenLabel } from '$lib/utils/lastSeen';
+  import { connectionLabel } from '$lib/utils/connectionLabel';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
@@ -42,7 +43,8 @@
   import CallDock from '$lib/components/CallDock.svelte';
   import { callState } from '$lib/state/call.svelte';
   import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
-  import type { ContactResponse } from '$lib/types';
+  import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
+  import { readInsets } from '$lib/utils/android-insets';
   import { t, dateLocale } from '$lib/i18n';
 
   interface Props {
@@ -119,26 +121,21 @@
     return d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' });
   }
 
-  function getStatusLabel(status: string | undefined, contactId?: string): string {
-    if (!status || status === 'disconnected') {
-      return contactId
-        ? lastSeenLabel(contactsState.lastSeenAt(contactId))
-        : t('layout.statusOffline');
-    }
-    if (status === 'direct') return t('layout.statusOnline');
-    if (status === 'holepunch') return t('layout.statusOnline');
-    if (status === 'relay') return t('layout.statusOnlineRelay');
-    if (status === 'connecting') return t('layout.statusConnecting');
-    return status.charAt(0).toUpperCase() + status.slice(1);
+  function getStatusLabel(
+    status: ConnectionChangedPayload['status'] | undefined,
+    contactId?: string
+  ): string {
+    return connectionLabel(status, contactId ? contactsState.lastSeenAt(contactId) : null);
   }
 
   let contactMenu = $state<{ userId: string; x: number; y: number } | null>(null);
   let contactLongPress: ReturnType<typeof setTimeout> | null = null;
   function openContactMenu(userId: string, x: number, y: number) {
+    const safe = readInsets();
     contactMenu = {
       userId,
-      x: Math.min(x, window.innerWidth - 200),
-      y: Math.min(y, window.innerHeight - 260),
+      x: Math.max(safe.left + 8, Math.min(x, window.innerWidth - safe.right - 200)),
+      y: Math.max(safe.top + 8, Math.min(y, window.innerHeight - safe.bottom - 260)),
     };
   }
   function startContactLongPress(e: TouchEvent, userId: string) {
@@ -427,16 +424,18 @@
 
   <div class="user-panel">
     <button class="user-identity" onclick={handleSettings} aria-label={t('layout.openSettings')}>
-      <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={36} />
+      <div class="user-avatar">
+        <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={36} />
+        {#if totalUnread > 0}
+          <span class="badge total">{totalUnread > 99 ? '99+' : totalUnread}</span>
+        {/if}
+      </div>
       <div class="user-info">
         <span class="user-name">{profileState.displayName}</span>
         <span class="user-id"
           >{profileState.peerId ? profileState.peerId.slice(0, 10) + '...' : '...'}</span
         >
       </div>
-      {#if totalUnread > 0}
-        <span class="badge total">{totalUnread > 99 ? '99+' : totalUnread}</span>
-      {/if}
     </button>
 
     <div class="self-controls">
@@ -545,12 +544,23 @@
       <button
         class="ctx-item"
         onclick={() => {
-          messagesState.markRead(menu.userId);
+          messagesState.markRead(menu.userId, true);
           contactMenu = null;
         }}
       >
         <Check size={14} />
         {t('layout.contactMenu.markRead')}
+      </button>
+    {:else}
+      <button
+        class="ctx-item"
+        onclick={() => {
+          messagesState.markUnread(menu.userId);
+          contactMenu = null;
+        }}
+      >
+        <Mail size={14} />
+        {t('layout.contactMenu.markUnread')}
       </button>
     {/if}
     <button class="ctx-item" onclick={() => startRename(menu.userId)}>
@@ -602,6 +612,8 @@
 <style>
   .sidebar {
     width: var(--sidebar-width);
+    padding-left: var(--safe-left);
+    padding-bottom: var(--safe-bottom);
     background: var(--panel);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);
@@ -992,10 +1004,14 @@
     justify-content: center;
   }
   .badge.total {
-    min-width: 22px;
-    height: 22px;
-    font-size: 11px;
-    margin-left: auto;
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    border: 2px solid var(--bg-secondary);
   }
 
   /* User panel */
@@ -1123,6 +1139,10 @@
     padding: 6px 8px;
     font-size: var(--text-2xs);
     color: var(--text-muted);
+  }
+  .user-avatar {
+    position: relative;
+    flex-shrink: 0;
   }
   .user-info {
     flex: 1;

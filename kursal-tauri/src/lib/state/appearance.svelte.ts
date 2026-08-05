@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import { setTimeFormatPref, type TimeFormat } from '$lib/utils/timeFormat';
+import { setSystemBarsLight } from '$lib/utils/system-bars';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ZoomMode = 'smaller' | 'normal' | 'larger';
@@ -20,7 +21,6 @@ export type PaletteId =
 export interface PalettePreset {
   id: PaletteId;
   label: string;
-  // Primary and secondary colors used in the picker preview tile
   previewFrom: string;
   previewTo: string;
   accent: string;
@@ -100,9 +100,11 @@ function createAppearanceState() {
 
   function applyImmediate() {
     const root = document.documentElement;
-    root.dataset.theme = effectiveDark() ? 'dark' : 'light';
+    const dark = effectiveDark();
+    root.dataset.theme = dark ? 'dark' : 'light';
     root.dataset.palette = palette;
     root.style.setProperty('--zoom', String(ZOOM_SCALE[zoom]));
+    setSystemBarsLight(!dark);
   }
 
   function apply() {

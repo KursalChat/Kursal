@@ -30,7 +30,7 @@
 <style>
   .scroll-to-bottom {
     position: absolute;
-    right: max(16px, calc((100% - var(--chat-max)) / 2 + 16px));
+    right: max(calc(16px + var(--safe-right)), calc((100% - var(--chat-max)) / 2 + 16px));
     bottom: calc(var(--composer-h, 76px) + var(--safe-bottom) + 16px);
     height: 36px;
     min-width: 36px;

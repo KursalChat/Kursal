@@ -7,7 +7,7 @@
   import { uiState } from '$lib/state/ui.svelte';
   import type { ContactResponse } from '$lib/types';
   import { t } from '$lib/i18n';
-  import { lastSeenLabel } from '$lib/utils/lastSeen';
+  import { connectionLabel } from '$lib/utils/connectionLabel';
 
   interface Props {
     contact: ContactResponse;
@@ -21,13 +21,7 @@
 
   const status = $derived(contactsState.connectionStatus[contact.userId] ?? 'disconnected');
 
-  const statusLabel = $derived.by(() => {
-    if (status === 'direct' || status === 'holepunch') return t('chat.header.statusOnline');
-    if (status === 'relay') return t('chat.header.statusRelay');
-    if (status === 'connecting') return t('chat.header.statusConnecting');
-    const seen = lastSeenLabel(contactsState.lastSeenAt(contact.userId));
-    return seen === t('layout.statusOffline') ? t('chat.header.statusOffline') : seen;
-  });
+  const statusLabel = $derived(connectionLabel(status, contactsState.lastSeenAt(contact.userId)));
 </script>
 
 <header class="chat-header" data-tauri-drag-region>
@@ -96,7 +90,7 @@
 <style>
   .chat-header {
     height: calc(var(--header-height) + var(--safe-top));
-    padding: var(--safe-top) 12px 0;
+    padding: var(--safe-top) max(12px, var(--safe-right)) 0 max(12px, var(--safe-left));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -206,11 +200,11 @@
     line-height: 1.2;
     transition: color var(--transition);
   }
-  .header-status[data-status='direct'] {
+  .header-status[data-status='direct'],
+  .header-status[data-status='holepunch'] {
     color: var(--success);
   }
-  .header-status[data-status='relay'],
-  .header-status[data-status='holepunch'] {
+  .header-status[data-status='relay'] {
     color: var(--info);
   }
   .header-status[data-status='connecting'] {

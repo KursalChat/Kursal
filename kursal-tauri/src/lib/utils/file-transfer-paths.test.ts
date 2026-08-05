@@ -47,7 +47,7 @@ describe('prepareOfferSourcePath', () => {
     writeFile.mockClear();
   });
 
-  // A drop must never be read or copied by the webview - a 1 GB file has to
+  // A drop must never be read or copied by the webview: a 1 GB file has to
   // cost nothing until the core streams it.
   it('offers a dropped file from its original path without touching the bytes', async () => {
     const prepared = await prepareOfferSourcePath('/home/user/holiday.png');
@@ -71,7 +71,7 @@ describe('pending staging', () => {
   });
 
   // The core offers the peer whatever the staged path's basename is, so the
-  // name must survive staging untouched - uniqueness lives in the directory.
+  // name must survive staging untouched; uniqueness lives in the directory.
   it('keeps the filename as the basename and makes the directory unique', async () => {
     const a = await prepareOfferFromBytes(new Uint8Array([1, 2, 3]), 'holiday.png');
     const b = await prepareOfferFromBytes(new Uint8Array([4, 5, 6]), 'holiday.png');

@@ -31,9 +31,13 @@ if [ -f "$BUILD/latest.json" ]; then
   mver="$(jq -r '.version' "$BUILD/latest.json")"
   [ "$mver" = "$VERSION" ] || err "latest.json version ($mver) != $VERSION (stale manifest? run: just gen-manifest)"
 
-  if jq -e '[.platforms[] | (.signature // "-"), .sha256] | any(. == "")' "$BUILD/latest.json" >/dev/null; then
-    err "latest.json has empty signature/sha256 fields"
-  fi
+  # TODO: do not allow empty sha when ios builds
+  bad="$(jq -r '
+    .platforms | del(.ios) | to_entries
+    | map(select(.value.sha256 == "" or (.key != "android" and (.value.signature // "") == "")))
+    | map(.key) | join(", ")
+  ' "$BUILD/latest.json")"
+  [ -z "$bad" ] || err "latest.json has empty signature/sha256: $bad"
 fi
 
 if [ "$fail" -ne 0 ]; then

@@ -32,10 +32,9 @@
   const hiddenCount = $derived(Math.max(0, msgs.length - 4));
   const last = $derived(msgs[msgs.length - 1]);
 
-  // "Is the file actually on disk" per image. autodownloadPath can point at a
-  // file that never finished downloading or was cleared by storage cleanup;
-  // without this a tile would render a broken <img>. Only an explicit `false`
-  // means missing - undefined (not yet checked) renders optimistically.
+  // "Is the file actually on disk" per image. autodownloadPath can point at a file
+  // that never finished downloading or was cleared, which would otherwise render a
+  // broken <img>. Only explicit `false` means missing; undefined renders optimistically.
   let fileStatus = $state<Record<string, boolean>>({});
   let lastSig = $state('');
   $effect(() => {

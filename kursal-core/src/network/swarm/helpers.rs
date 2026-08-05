@@ -1,8 +1,9 @@
-use super::{PeerStreams, STREAM_PROTOCOL, SwarmCommand};
+use super::{ConnectionKind, PeerStreams, STREAM_PROTOCOL, SwarmCommand};
 use crate::MapKursalResult;
 use crate::{KursalError, Result};
 use futures::io::AsyncWriteExt;
-use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
+use libp2p::{Multiaddr, PeerId, multiaddr::Protocol, swarm::DialError};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use tokio::sync::{mpsc, oneshot};
 
@@ -41,6 +42,20 @@ pub async fn get_connected_peers(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Vec<Pee
         .is_err()
     {
         return Vec::new();
+    }
+    rx.await.unwrap_or_default()
+}
+
+pub async fn get_peer_connection_kinds(
+    cmd_tx: &mpsc::Sender<SwarmCommand>,
+) -> HashMap<PeerId, ConnectionKind> {
+    let (tx, rx) = oneshot::channel();
+    if cmd_tx
+        .send(SwarmCommand::GetPeerConnectionKinds { reply_tx: tx })
+        .await
+        .is_err()
+    {
+        return HashMap::new();
     }
     rx.await.unwrap_or_default()
 }
@@ -163,6 +178,36 @@ pub async fn open_peer_stream(
 
     peer_streams.lock().unwrap().insert(peer_id, tx.clone());
     Some(tx)
+}
+
+pub fn dial_error_summary(error: &DialError) -> String {
+    match error {
+        DialError::Transport(attempts) => attempts
+            .iter()
+            .map(|(addr, err)| format!("{} ({})", without_peer_id(addr), innermost_cause(err)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => other.to_string(),
+    }
+}
+
+fn without_peer_id(addr: &Multiaddr) -> Multiaddr {
+    addr.iter()
+        .filter(|proto| !matches!(proto, Protocol::P2p(_)))
+        .collect()
+}
+
+fn innermost_cause(err: &impl std::fmt::Display) -> String {
+    let rendered = err.to_string();
+    let mut causes: Vec<&str> = rendered
+        .split(['\n', ':'])
+        .map(|part| part.trim().trim_start_matches('-').trim())
+        .filter(|part| !part.is_empty())
+        .collect();
+    causes.dedup();
+    causes
+        .last()
+        .map_or_else(|| rendered.clone(), |cause| (*cause).to_string())
 }
 
 pub fn is_routable_multiaddr(addr: &Multiaddr) -> bool {

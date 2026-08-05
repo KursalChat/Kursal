@@ -32,8 +32,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 24px max(24px, var(--safe-right)) calc(24px + var(--safe-bottom))
+      max(24px, var(--safe-left));
     background: transparent;
+  }
+  @media (min-width: 769px) {
+    .empty {
+      padding-top: calc(24px + var(--safe-top));
+    }
   }
 
   .empty-inner {

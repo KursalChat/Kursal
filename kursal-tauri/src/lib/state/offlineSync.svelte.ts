@@ -5,7 +5,7 @@ function createOfflineSyncState() {
   let lastCompletedAt = $state<number | null>(null);
 
   function setActive(value: boolean) {
-    // A poll that never reported a start still counts as completed - the core
+    // A poll that never reported a start still counts as completed: the core
     // can emit only the trailing edge if the UI mounted mid-poll.
     if (!value) lastCompletedAt = Date.now();
     active = value;

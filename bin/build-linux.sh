@@ -17,7 +17,7 @@ build_linux() {
       -v "kursal-cargo-registry-$name":/root/.cargo/registry \
       -v "kursal-cargo-target-$name":/root/kursal-target \
       -w /workspace/kursal-tauri \
-      ubuntu:26.04 bash -c '
+      ubuntu:22.04 bash -c '
         if [ ! -f /root/.setup-done ]; then
           echo "==> Running first-time setup..." &&
           apt-get update && apt-get install -y \
@@ -25,9 +25,10 @@ build_linux() {
             libssl-dev pkg-config libasound2-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev librsvg2-dev \
-            fuse libfuse2 squashfs-tools meson ninja-build \
+            fuse libfuse2 squashfs-tools ninja-build python3-pip \
             protobuf-compiler xdg-utils libclang-dev clang \
             autoconf automake libtool libopus-dev cmake &&
+          pip3 install --upgrade meson &&
           curl https://sh.rustup.rs -sSf | sh -s -- -y &&
           curl -fsSL https://bun.sh/install | bash &&
           touch /root/.setup-done &&

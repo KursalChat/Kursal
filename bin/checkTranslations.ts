@@ -92,18 +92,24 @@ for (const locale of LOCALES.map((l) => l.id).filter((id) => id != "en")) {
     (str) => !STRINGS_LANG.includes(str),
   ).length;
   untranslatedCount += untranslated_english;
-  console.warn(
-    `⚠️  ${untranslated_english} strings in EN but not in ${locale.toUpperCase()}`,
-  );
+
+  if (untranslated_english)
+    console.warn(
+      `⚠️  ${untranslated_english} strings in EN but not in ${locale.toUpperCase()}`,
+    );
 
   console.timeEnd(CHECK_2);
 }
 
 if (untranslatedCount > 0) {
-  console.warn(`\n⚠️  ${untranslatedCount} untranslated string(s) across locales.`);
+  console.warn(
+    `\n⚠️  ${untranslatedCount} untranslated string(s) across locales.`,
+  );
 }
 
 if (STRICT && errorCount > 0) {
-  console.error(`\n❌ ${errorCount} unused or orphaned translation key(s) found.`);
+  console.error(
+    `\n❌ ${errorCount} unused or orphaned translation key(s) found.`,
+  );
   process.exit(1);
 }

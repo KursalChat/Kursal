@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { confirmDialog, type ConfirmOptions, type ConfirmTone } from '$lib/state/confirm.svelte';
+import { updateDownloadState } from '$lib/state/updateDownload.svelte';
 import { groupLabel, parseReleaseNotes } from '$lib/changelog';
 import { t } from '$lib/i18n';
 
@@ -89,6 +90,11 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
 }
 
 export async function handleBackendDialog(p: BackendDialogPayload): Promise<void> {
+  if (p.kind === 'update_installed') updateDownloadState.reset();
   const confirmed = await confirmDialog(buildOptions(p));
+  if (p.kind === 'update_available') {
+    if (confirmed) updateDownloadState.start(p.params.version ? String(p.params.version) : null);
+    else updateDownloadState.reset();
+  }
   await dialogRespond(p.id, confirmed);
 }

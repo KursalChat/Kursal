@@ -27,8 +27,8 @@
   const isConnected = $derived(phase === 'connected');
   const ringing = $derived(phase !== 'connected');
 
-  // Incoming calls never take over the screen - they show in the compact
-  // CallIncoming banner. This overlay is only for outgoing / active calls.
+  // Incoming calls show in the compact CallIncoming banner instead; this
+  // overlay covers outgoing and active calls only.
   const open = $derived(
     callState.expanded &&
       (phase === 'ringing_out' || phase === 'connecting' || phase === 'connected')
@@ -284,7 +284,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+    padding: calc(24px + var(--safe-top)) max(20px, var(--safe-right))
+      calc(24px + var(--safe-bottom)) max(20px, var(--safe-left));
     animation: overlay-in 0.22s ease-out;
   }
   @keyframes overlay-in {
@@ -461,7 +462,7 @@
     transform: scale(calc(1 + var(--lvl, 0) * 1.15));
     opacity: calc(0.03 + var(--lvl, 0) * 0.25);
   }
-  /* ringing phases have no audio yet - breathe on a timer instead */
+  /* ringing phases have no audio yet: breathe on a timer instead */
   .avatar-wrap.ringing .ring {
     animation: ring-pulse 1.8s ease-out infinite;
   }

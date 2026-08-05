@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertTriangle, Check, Copy, Info, ShieldAlert } from 'lucide-svelte';
+  import { AlertTriangle, Check, Copy, ExternalLink, Info, ShieldAlert } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { confirmState } from '$lib/state/confirm.svelte';
   import { trapFocus } from '$lib/utils/focusTrap';
@@ -24,12 +24,13 @@
 
   const holdMs = $derived(confirmState.options?.holdMs ?? 0);
   const locked = $derived(holdMs > 0 && holdProgress < 1);
+  const dismissible = $derived(confirmState.options?.dismissible ?? true);
 
   function onKey(e: KeyboardEvent) {
     if (!confirmState.open) return;
     if (e.key === 'Escape') {
       e.preventDefault();
-      confirmState.cancel();
+      if (dismissible) confirmState.cancel();
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (!locked) confirmState.confirm();
@@ -69,7 +70,11 @@
 {#if confirmState.open && confirmState.options}
   {@const o = confirmState.options}
   {@const tone = o.tone ?? 'default'}
-  <div class="backdrop" onclick={() => confirmState.cancel()} role="presentation"></div>
+  <div
+    class="backdrop"
+    onclick={() => dismissible && confirmState.cancel()}
+    role="presentation"
+  ></div>
   <div
     class="dialog"
     class:wide={!!o.code}
@@ -126,6 +131,12 @@
           </button>
         </div>
       {/if}
+      {#if o.link}
+        <button class="body-link" type="button" onclick={o.link.onClick}>
+          {o.link.label}
+          <ExternalLink size={12} />
+        </button>
+      {/if}
       {#if o.checkbox}
         <label class="checkbox">
           <input
@@ -177,11 +188,14 @@
   }
   .dialog {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: var(--safe-center-y);
+    left: var(--safe-center-x);
     transform: translate(-50%, -50%);
-    width: calc(100% - 32px);
+    width: calc(var(--safe-w) - 32px);
     max-width: 420px;
+    max-height: calc(var(--safe-h) - 32px);
+    display: flex;
+    flex-direction: column;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -195,6 +209,7 @@
     align-items: center;
     gap: 12px;
     padding: 18px 20px 14px;
+    flex-shrink: 0;
   }
   .head h3 {
     margin: 0;
@@ -228,6 +243,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
   }
   .message {
     margin: 0;
@@ -316,6 +333,25 @@
   .copy:hover {
     color: var(--text-primary);
   }
+  .body-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    align-self: flex-start;
+    padding: 0;
+    background: none;
+    border: none;
+    font-size: 13px;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color var(--transition);
+  }
+  .body-link:hover {
+    color: var(--text-primary);
+  }
+
   .checkbox {
     display: flex;
     align-items: center;
@@ -340,6 +376,7 @@
     padding: 14px 20px 18px;
     border-top: 1px solid var(--border-light);
     background: var(--surface-soft);
+    flex-shrink: 0;
   }
   @keyframes fadein {
     from {

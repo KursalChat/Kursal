@@ -44,6 +44,7 @@ ship v:
 # bump version + changelog + commit + tag (run on a release/* or hotfix/* branch)
 release v: verify
     bun run bin/bump-version.ts {{ v }}
+    cargo update --workspace --offline
     git cliff --tag v{{ v }} -o CHANGELOG.md
     git add Cargo.toml Cargo.lock kursal-tauri/package.json CHANGELOG.md
     git commit -m "chore(release): v{{ v }}"
@@ -56,6 +57,9 @@ build: clean build-win build-mac build-linux build-android build-ios build-relay
 clean:
     rm -f build/Kursal*
     rm -f build/latest*.json
+    rm -f build/SHA256SUMS.txt
+
+    rm -f dist/kursal*
 
     mkdir -p build
 
@@ -102,6 +106,7 @@ publish-github:
 	for f in ./build/*; do echo "Uploading: $f"; gh release upload v{{ version }} "$f"; done
 
 publish-relay:
+    orb start || echo "orb start failed, continuing anyway"
     ./bin/build-relay.sh --push
     gh release upload v{{ version }} ./dist/kursal-relay-{{ version }}-linux-*.tar.gz ./dist/kursal-relay-{{ version }}-linux-*.tar.gz.sha256 --clobber
 

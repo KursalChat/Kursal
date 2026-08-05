@@ -36,7 +36,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 16px;
+    padding: 10px max(16px, var(--safe-right)) 10px max(16px, var(--safe-left));
     background: var(--accent-dim);
     font-size: 13px;
     color: var(--text-secondary);

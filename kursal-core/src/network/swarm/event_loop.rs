@@ -1,6 +1,6 @@
 use super::{
     ConnectionKind, KursalBehaviour, KursalBehaviourEvent, NetworkEvent,
-    helpers::is_routable_multiaddr,
+    helpers::{dial_error_summary, is_routable_multiaddr},
 };
 use crate::network::bootstrap::is_bootstrap_peer;
 use crate::network::kademlia::spawn_record_validation;
@@ -15,11 +15,23 @@ use libp2p::{
 use std::collections::{HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
 
+fn best_kind(
+    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_id: &PeerId,
+) -> Option<ConnectionKind> {
+    peer_conns
+        .values()
+        .filter(|(p, _)| p == peer_id)
+        .map(|(_, k)| *k)
+        .max_by_key(|k| k.rank())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_swarm_event(
     event: SwarmEvent<KursalBehaviourEvent>,
     event_tx: &mpsc::Sender<NetworkEvent>,
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
+    pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
     listen_addresses: &mut HashSet<Multiaddr>,
     swarm: &mut Swarm<KursalBehaviour>,
@@ -65,10 +77,16 @@ pub(super) async fn handle_swarm_event(
                 pending_queries.remove(&id);
             }
             libp2p::kad::QueryResult::PutRecord(Ok(_)) => {
-                log::info!("[kad] PUT record succeeded query={:?}", id);
+                log::debug!("[kad] PUT record succeeded query={:?}", id);
+                if let Some(tx) = pending_puts.remove(&id) {
+                    let _ = tx.send(true);
+                }
             }
             libp2p::kad::QueryResult::PutRecord(Err(e)) => {
                 log::warn!("[kad] PUT record failed query={:?} error={:?}", id, e);
+                if let Some(tx) = pending_puts.remove(&id) {
+                    let _ = tx.send(false);
+                }
             }
             _ => {}
         },
@@ -96,7 +114,7 @@ pub(super) async fn handle_swarm_event(
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(libp2p::mdns::Event::Discovered(
             peers,
         ))) => {
-            log::info!(
+            log::debug!(
                 "[mDNS] raw Discovered event, nearby_enabled={}, peers={}",
                 nearby_enabled,
                 peers.len()
@@ -127,7 +145,7 @@ pub(super) async fn handle_swarm_event(
         #[cfg(not(target_os = "ios"))]
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, addr) in &peers {
-                log::warn!("[mDNS] peer expired {} at {}", peer_id, addr);
+                log::debug!("[mDNS] peer expired {} at {}", peer_id, addr);
             }
         }
 
@@ -161,7 +179,7 @@ pub(super) async fn handle_swarm_event(
                     .await;
             }
             Err(err) => {
-                log::info!(
+                log::debug!(
                     "[dcutr] hole punch failed peer={} err={err:?}",
                     e.remote_peer_id
                 );
@@ -264,8 +282,9 @@ pub(super) async fn handle_swarm_event(
                 }
             }
 
+            let via = best_kind(peer_conns, &peer_id).unwrap_or(kind);
             let _ = event_tx
-                .send(NetworkEvent::ConnectionEstablished { peer_id, via: kind })
+                .send(NetworkEvent::ConnectionEstablished { peer_id, via })
                 .await;
         }
         SwarmEvent::ConnectionClosed {
@@ -283,15 +302,7 @@ pub(super) async fn handle_swarm_event(
                     .send(NetworkEvent::ConnectionLost { peer_id })
                     .await;
             } else {
-                let best = peer_conns
-                    .values()
-                    .filter(|(p, _)| *p == peer_id)
-                    .map(|(_, k)| *k)
-                    .max_by_key(|k| match k {
-                        ConnectionKind::HolePunch | ConnectionKind::Direct => 2,
-                        ConnectionKind::Relay => 1,
-                    });
-                if let Some(via) = best {
+                if let Some(via) = best_kind(peer_conns, &peer_id) {
                     log::info!("[conn] peer={peer_id} now via {via:?} after close");
                     let _ = event_tx
                         .send(NetworkEvent::ConnectionKindChanged { peer_id, via })
@@ -350,19 +361,44 @@ pub(super) async fn handle_swarm_event(
             log::info!("[swarm] listener closed ({} addrs)", addresses.len());
         }
 
+        SwarmEvent::Dialing {
+            peer_id: Some(peer_id),
+            ..
+        } => {
+            if best_kind(peer_conns, &peer_id).is_none() {
+                let _ = event_tx
+                    .send(NetworkEvent::ConnectionPending { peer_id })
+                    .await;
+            }
+        }
+
         SwarmEvent::OutgoingConnectionError {
             peer_id,
             error,
             connection_id,
             ..
         } => {
-            if let Some(tx) = pending_dials.remove(&connection_id) {
+            let requested = pending_dials.remove(&connection_id);
+            let peer = peer_id.map_or_else(|| "unknown".to_string(), |id| id.to_string());
+            let summary = dial_error_summary(&error);
+
+            if let Some(tx) = requested {
                 let _ = tx.send(Err(error.to_string()));
+                log::info!("[swarm] dial failed peer={peer} error={summary}");
+            } else {
+                log::debug!("[swarm] dial failed peer={peer} error={summary}");
             }
-            log::info!("[swarm] outgoing connection error peer={peer_id:?} error={error}");
+
+            if let Some(peer_id) = peer_id
+                && best_kind(peer_conns, &peer_id).is_none()
+            {
+                let _ = event_tx
+                    .send(NetworkEvent::ConnectionFailed { peer_id })
+                    .await;
+            }
         }
         SwarmEvent::IncomingConnectionError { error, .. } => {
-            log::info!("[swarm] incoming connection error: {error}");
+            log::debug!("[swarm] incoming connection error: {error}");
         }
 
         _ => {}

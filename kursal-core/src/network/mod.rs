@@ -32,7 +32,10 @@ pub mod rotation;
 pub mod swarm;
 
 use events::{handle_bt_event, handle_internal_network_event};
-use loops::{periodic_offline_poll, presence_dial_loop, presence_sync_loop, relay_reserve_loop};
+use loops::{
+    ltc_pointer_loop, periodic_offline_poll, presence_dial_loop, presence_sync_loop,
+    relay_reserve_loop,
+};
 
 pub struct NetworkManager {
     pub primary: SwarmHandle,
@@ -176,6 +179,12 @@ pub async fn dispatch_events(
     {
         let network = network.clone();
         tokio::task::spawn_local(relay_reserve_loop(network));
+    }
+    {
+        let network = network.clone();
+        let db = db.clone();
+        let event_tx = app_event_tx.clone();
+        tokio::task::spawn_local(ltc_pointer_loop(db, network, event_tx));
     }
     {
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();

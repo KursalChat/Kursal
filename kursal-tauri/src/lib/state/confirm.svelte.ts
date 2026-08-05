@@ -27,6 +27,12 @@ export interface ConfirmOptions {
   checkbox?: ConfirmCheckbox;
   // If true, only the confirm button is shown (acts as an alert / OK box).
   hideCancel?: boolean;
+  // If false, backdrop clicks and Escape are ignored and the user has to pick a
+  // button. For prompts where an accidental dismissal reads as an answer.
+  dismissible?: boolean;
+  // Link rendered in the body. Runs its action without resolving the dialog, so
+  // the user can go read something and come back to answer.
+  link?: { label: string; onClick: () => void };
 }
 
 export interface ConfirmResult {
