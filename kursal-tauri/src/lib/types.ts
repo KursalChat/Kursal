@@ -250,6 +250,8 @@ export interface SharePayload {
   text: string | null;
 }
 
+export type LtcPointerState = 'disabled' | 'pending' | 'published' | 'failed';
+
 export interface LtcStatus {
   payloadId: string;
   createdAt: number; // unix seconds, not ms
@@ -257,4 +259,6 @@ export interface LtcStatus {
   maxUses: number | null; // null = unlimited
   uses: number;
   sizeBytes: number;
+  followRotations: boolean;
+  pointerState: LtcPointerState;
 }

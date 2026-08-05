@@ -217,6 +217,13 @@ pub enum CoreCommand {
     ExportLtc {
         reply: Reply<Result<Vec<u8>>>,
     },
+    SetLtcFollowRotations {
+        enabled: bool,
+        reply: Reply<Result<LtcStatusDto>>,
+    },
+    RepublishLtcPointer {
+        reply: Reply<Result<LtcStatusDto>>,
+    },
     RevokeLtc {
         reply: Reply<Result<()>>,
     },

@@ -11,6 +11,11 @@ export const updateLtcLimits = (
   ttlSecs: number | null
 ): Promise<LtcStatus> => invoke('update_ltc_limits', { maxUses, ttlSecs });
 
+export const setLtcFollowRotations = (enabled: boolean): Promise<LtcStatus> =>
+  invoke('set_ltc_follow_rotations', { enabled });
+
+export const republishLtcPointer = (): Promise<LtcStatus> => invoke('republish_ltc_pointer');
+
 // Rust returns Vec<u8> which Tauri serializes as number[]
 export const exportLtc = (): Promise<number[]> => invoke('export_ltc');
 

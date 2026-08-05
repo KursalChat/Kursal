@@ -101,6 +101,8 @@ core_cmd!(get_ltc_status() -> Option<LtcStatusDto>);
 core_cmd!(create_ltc(max_uses: Option<u32>, ttl_secs: Option<u64>) -> LtcStatusDto);
 core_cmd!(update_ltc_limits(max_uses: Option<u32>, ttl_secs: Option<u64>) -> LtcStatusDto);
 core_cmd!(export_ltc() -> Vec<u8>);
+core_cmd!(set_ltc_follow_rotations(enabled: bool) -> LtcStatusDto);
+core_cmd!(republish_ltc_pointer() -> LtcStatusDto);
 core_cmd!(revoke_ltc() -> ());
 core_cmd!(import_ltc(bytes: Vec<u8>) -> ContactResponse);
 core_cmd!(start_nearby() -> String);

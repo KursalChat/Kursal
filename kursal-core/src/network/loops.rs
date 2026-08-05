@@ -5,6 +5,7 @@ use crate::{
         poll_contact_offline,
     },
     contacts::Contact,
+    first_contact::ltc::LtcState,
     identity::UserId,
     messaging::offline::{
         DIRECT_ACK_DEADLINE_SECS, deliver_queue_direct, expire_and_fail, list_pending_ack,
@@ -33,6 +34,8 @@ const PRESENCE_DIAL_INTERVAL_SECS: u64 = 3 * 60;
 const PRESENCE_DIAL_STAGGER_MS: u64 = 250;
 const RELAY_RESERVE_INTERVAL_SECS: u64 = 30;
 const PRESENCE_SYNC_INTERVAL_SECS: u64 = 10;
+const LTC_POINTER_STARTUP_DELAY_SECS: u64 = 10;
+const LTC_POINTER_REPUBLISH_SECS: u64 = 24 * 60 * 60;
 
 pub(super) async fn presence_sync_loop(
     db: SharedDatabase,
@@ -103,6 +106,27 @@ pub(super) async fn presence_sync_loop(
                     .await
                     .ok();
             }
+        }
+
+        interval.tick().await;
+    }
+}
+
+pub(super) async fn ltc_pointer_loop(
+    db: SharedDatabase,
+    network: Arc<Mutex<NetworkManager>>,
+    event_tx: mpsc::Sender<AppEvent>,
+) {
+    tokio::time::sleep(Duration::from_secs(LTC_POINTER_STARTUP_DELAY_SECS)).await;
+
+    let mut interval = tokio::time::interval(Duration::from_secs(LTC_POINTER_REPUBLISH_SECS));
+    interval.tick().await;
+
+    loop {
+        let swarm = network.lock().await.primary.clone();
+
+        if let Err(err) = LtcState::publish_pointer(db.clone(), swarm, event_tx.clone()).await {
+            log::warn!("[ltc] periodic rendezvous publish failed: {err}");
         }
 
         interval.tick().await;

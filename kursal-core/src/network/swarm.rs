@@ -82,6 +82,7 @@ pub enum SwarmCommand {
         key: Vec<u8>,
         value: Vec<u8>,
         expires: Option<u64>,
+        reply_tx: Option<oneshot::Sender<bool>>,
     },
     FetchDht {
         key: Vec<u8>,
@@ -371,6 +372,8 @@ impl SwarmHandle {
             log::info!("[swarm] event loop started");
             let mut pending_queries: HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>> =
                 HashMap::new();
+            let mut pending_puts: HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>> =
+                HashMap::new();
             let mut pending_dials: HashMap<
                 ConnectionId,
                 oneshot::Sender<std::result::Result<(), String>>,
@@ -401,7 +404,7 @@ impl SwarmHandle {
 
             loop {
                 tokio::select! {
-                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &validated_tx).await,
+                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &validated_tx).await,
                     Some(record) = validated_rx.recv() => {
                         if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
                             log::debug!("[kad] validated record not stored: {err:?}");
@@ -418,7 +421,7 @@ impl SwarmHandle {
 
                                 log::info!("Nearby enabled ({} known mdns peers)", mdns_peers.len());
                             },
-                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
+                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
                             None => break
                         }
                     }

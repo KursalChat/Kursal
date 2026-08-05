@@ -17,6 +17,7 @@ pub(super) async fn handle_swarm_command(
     cmd: SwarmCommand,
     swarm: &mut Swarm<KursalBehaviour>,
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
+    pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
     listen_addresses: &mut HashSet<Multiaddr>,
     nearby_enabled: &mut bool,
@@ -83,6 +84,7 @@ pub(super) async fn handle_swarm_command(
             key,
             value,
             expires,
+            reply_tx,
         } => {
             let key_dbg = hex::encode(&key[..key.len().min(8)]);
             let connected_peers = swarm.connected_peers().count();
@@ -115,9 +117,15 @@ pub(super) async fn handle_swarm_command(
             {
                 Ok(query_id) => {
                     log::info!("[kad] PutRecord started key={key_dbg} query_id={query_id:?}");
+                    if let Some(reply_tx) = reply_tx {
+                        pending_puts.insert(query_id, reply_tx);
+                    }
                 }
                 Err(err) => {
                     log::error!("[kad] PutRecord failed to start key={key_dbg}: {err:?}");
+                    if let Some(reply_tx) = reply_tx {
+                        let _ = reply_tx.send(false);
+                    }
                 }
             }
         }

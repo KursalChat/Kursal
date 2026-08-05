@@ -220,6 +220,15 @@ pub struct OtpResponse {
     pub otp: String,
 }
 
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum LtcPointerState {
+    Disabled,
+    Pending,
+    Published,
+    Failed,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LtcStatusDto {
@@ -229,6 +238,8 @@ pub struct LtcStatusDto {
     pub max_uses: Option<u32>,
     pub uses: u32,
     pub size_bytes: u32,
+    pub follow_rotations: bool,
+    pub pointer_state: LtcPointerState,
 }
 
 #[derive(Serialize, Clone, ToSchema)]

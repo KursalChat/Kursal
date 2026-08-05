@@ -67,6 +67,11 @@ pub fn get_dilithium_pub(db: &Database) -> Result<Vec<u8>> {
         .ok_or(KursalError::Storage("No dilithium public key".to_string()))
 }
 
+pub fn get_dilithium_secret(db: &Database) -> Result<Vec<u8>> {
+    db.raw_read(TABLE_SETTINGS, "dilithium_secret")?
+        .ok_or(KursalError::Storage("No dilithium secret key".to_string()))
+}
+
 //
 
 #[derive(Serialize, Deserialize)]

@@ -418,6 +418,7 @@ pub async fn republish_pending(
                 key: pending.tag.to_vec(),
                 value: pending.bytes.clone(),
                 expires: Some(KAD_LONG_MAX_AGE),
+                reply_tx: None,
             })
             .await
         {
@@ -944,6 +945,7 @@ async fn flush_now_locked(
                 key: tag.to_vec(),
                 value: bytes,
                 expires: Some(KAD_LONG_MAX_AGE),
+                reply_tx: None,
             })
             .await
         {

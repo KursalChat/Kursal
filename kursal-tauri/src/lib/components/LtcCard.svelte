@@ -7,6 +7,7 @@
   import Button from '$lib/components/Button.svelte';
   import LtcLimitsPicker from '$lib/components/LtcLimitsPicker.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
+  import Toggle from '$lib/components/settings/Toggle.svelte';
   import { canShareFiles, shareAnchor, shareFile } from '$lib/api/share';
   import { ltcState } from '$lib/state/ltc.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
@@ -48,6 +49,36 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function pointerLabel(): string {
+    if (!status.followRotations) return t('addContact.ltc.card.pointerDisabled');
+    switch (status.pointerState) {
+      case 'published':
+        return t('addContact.ltc.card.pointerPublished');
+      case 'failed':
+        return t('addContact.ltc.card.pointerFailed');
+      default:
+        return t('addContact.ltc.card.pointerPending');
+    }
+  }
+
+  async function handleFollowRotations(enabled: boolean) {
+    try {
+      await ltcState.setFollowRotations(enabled);
+    } catch (e) {
+      notifications.push(t('addContact.ltc.rotationError'), 'error');
+      log.error('Toggling LTC rotation follow failed:', e);
+    }
+  }
+
+  async function handleRepublish() {
+    try {
+      await ltcState.republishPointer();
+    } catch (e) {
+      notifications.push(t('addContact.ltc.republishError'), 'error');
+      log.error('Republishing the LTC pointer failed:', e);
+    }
   }
 
   function usesLabel(): string {
@@ -240,6 +271,31 @@
     <div class="bar"><div class="bar-fill" style="width: {usePercent}%"></div></div>
   {/if}
 
+  {#if !dead}
+    <div class="rotation">
+      <div class="rotation-row">
+        <span class="rotation-label">
+          <strong>{t('addContact.ltc.card.rotationRow')}</strong>
+          <span>{t('addContact.ltc.card.rotationDescription')}</span>
+        </span>
+        <Toggle
+          checked={status.followRotations}
+          disabled={ltcState.pointerBusy}
+          ariaLabel={t('addContact.ltc.card.rotationRow')}
+          onchange={handleFollowRotations}
+        />
+      </div>
+      <p class="pointer" data-state={status.followRotations ? status.pointerState : 'disabled'}>
+        {pointerLabel()}
+        {#if status.followRotations && status.pointerState === 'failed'}
+          <button type="button" disabled={ltcState.pointerBusy} onclick={handleRepublish}>
+            {t('addContact.ltc.card.pointerRetry')}
+          </button>
+        {/if}
+      </p>
+    </div>
+  {/if}
+
   {#if ltcState.reshareNeeded}
     <p class="hint">{t('addContact.ltc.card.reshareHint')}</p>
   {/if}
@@ -395,6 +451,87 @@
 
   .card.dead .bar-fill {
     background: var(--text-muted);
+  }
+
+  .rotation {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 10px;
+  }
+
+  .rotation-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .rotation-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    margin-right: auto;
+  }
+
+  .rotation-label strong {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .rotation-label span {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  .pointer {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .pointer::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .pointer[data-state='published']::before {
+    background: var(--success);
+  }
+
+  .pointer[data-state='failed'] {
+    color: var(--danger);
+  }
+
+  .pointer[data-state='failed']::before {
+    background: var(--danger);
+  }
+
+  .pointer button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .pointer button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .hint {

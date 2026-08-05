@@ -7,22 +7,28 @@ use crate::{
     },
     first_contact::{
         ContactResponse, FcRejectReason, WireMessage, handle_fc_response,
-        ltc::{LtcPayload, LtcState},
+        ltc::{LtcPayload, LtcPointer, LtcState, fetch_ltc_pointer, ltc_rendezvous_tag},
+        resolve_ack_waiter,
     },
     identity::{
         UserId,
         generators::{generate_dilithium_keypair, generate_identity_keypair},
     },
     messaging::enums::MessageId,
-    network::swarm::SwarmCommand,
+    network::{
+        dht::DHTRecord,
+        swarm::{SwarmCommand, SwarmHandle},
+    },
     storage::{
-        Database, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_dilithium_pub, get_timestamp_secs,
+        Database, RelayConfig, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_dilithium_pub,
+        get_dilithium_secret, get_timestamp_secs,
     },
     tests::TestEnv,
 };
 use libp2p::PeerId;
 use libsignal_protocol::{DeviceId, ProtocolAddress};
 use sha2::{Digest, Sha256};
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::mpsc;
 
 async fn make_peer(env: &TestEnv, name: &str) -> SharedDatabase {
@@ -105,6 +111,11 @@ fn wire_name(wire: Option<WireMessage>) -> &'static str {
     }
 }
 
+// The rendezvous sends are fire-and-forget, so a dead receiver is enough.
+fn no_swarm() -> mpsc::Sender<SwarmCommand> {
+    mpsc::channel(1).0
+}
+
 fn channels() -> (
     mpsc::Sender<SwarmCommand>,
     mpsc::Receiver<SwarmCommand>,
@@ -172,7 +183,7 @@ async fn ltc_state_is_expired() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_expired").await;
 
-    let mut state = LtcState::create(alice.clone(), None, Some(3600))
+    let mut state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
     assert!(!state.is_expired());
@@ -186,7 +197,9 @@ async fn ltc_never_expires_when_ttl_is_none() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_never").await;
 
-    let state = LtcState::create(alice.clone(), None, None).await.unwrap();
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(state.expires_at, u64::MAX);
     assert!(!state.is_expired());
@@ -198,7 +211,7 @@ async fn ltc_state_survives_a_storage_roundtrip() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_roundtrip").await;
 
-    let created = LtcState::create(alice.clone(), Some(5), Some(3600))
+    let created = LtcState::create(alice.clone(), &no_swarm(), Some(5), Some(3600))
         .await
         .unwrap();
     let loaded = load_state(&alice).await.unwrap();
@@ -221,10 +234,10 @@ async fn ltc_create_replaces_the_previous_code_and_prunes_its_kyber_prekey() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_replace").await;
 
-    let first = LtcState::create(alice.clone(), None, Some(3600))
+    let first = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
-    let second = LtcState::create(alice.clone(), None, Some(3600))
+    let second = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
 
@@ -254,10 +267,12 @@ async fn ltc_revoke_prunes_the_kyber_prekey() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_revoke_kyber").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
-    LtcState::revoke_ltc(alice.clone()).await.unwrap();
+    LtcState::revoke_ltc(alice.clone(), &no_swarm())
+        .await
+        .unwrap();
 
     let stored = alice
         .0
@@ -277,10 +292,12 @@ async fn ltc_revoke_clears_the_stored_code() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_revoke_state").await;
 
-    LtcState::create(alice.clone(), None, Some(3600))
+    LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
-    LtcState::revoke_ltc(alice.clone()).await.unwrap();
+    LtcState::revoke_ltc(alice.clone(), &no_swarm())
+        .await
+        .unwrap();
 
     assert!(load_state(&alice).await.is_none());
 }
@@ -291,7 +308,7 @@ async fn ltc_use_is_counted_on_accept() {
     let alice = make_peer(&env, "ltc_count_alice").await;
     let bob = make_peer(&env, "ltc_count_bob").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
     let response = contact_response(&bob, state.payload_id).await;
@@ -311,7 +328,7 @@ async fn ltc_unlimited_code_accepts_repeatedly() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_unlimited_alice").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -338,7 +355,7 @@ async fn ltc_rejects_once_max_uses_is_reached() {
     let bob = make_peer(&env, "ltc_max_bob").await;
     let carol = make_peer(&env, "ltc_max_carol").await;
 
-    let state = LtcState::create(alice.clone(), Some(1), Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), Some(1), Some(3600))
         .await
         .unwrap();
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -367,7 +384,7 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
     let bob = make_peer(&env, "ltc_lower_bob").await;
     let carol = make_peer(&env, "ltc_lower_carol").await;
 
-    let state = LtcState::create(alice.clone(), Some(5), Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), Some(5), Some(3600))
         .await
         .unwrap();
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -401,7 +418,7 @@ async fn ltc_raising_max_uses_revives_an_exhausted_code() {
     let bob = make_peer(&env, "ltc_raise_bob").await;
     let carol = make_peer(&env, "ltc_raise_carol").await;
 
-    let state = LtcState::create(alice.clone(), Some(1), Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), Some(1), Some(3600))
         .await
         .unwrap();
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -432,7 +449,7 @@ async fn ltc_expired_code_is_rejected() {
     let alice = make_peer(&env, "ltc_expiry_alice").await;
     let bob = make_peer(&env, "ltc_expiry_bob").await;
 
-    let mut state = LtcState::create(alice.clone(), None, Some(3600))
+    let mut state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
 
@@ -456,10 +473,12 @@ async fn ltc_revoked_code_is_rejected() {
     let alice = make_peer(&env, "ltc_revoked_alice").await;
     let bob = make_peer(&env, "ltc_revoked_bob").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
-    LtcState::revoke_ltc(alice.clone()).await.unwrap();
+    LtcState::revoke_ltc(alice.clone(), &no_swarm())
+        .await
+        .unwrap();
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -477,7 +496,7 @@ async fn ltc_unknown_payload_id_is_rejected() {
     let alice = make_peer(&env, "ltc_unknown_alice").await;
     let bob = make_peer(&env, "ltc_unknown_bob").await;
 
-    LtcState::create(alice.clone(), None, Some(3600))
+    LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
 
@@ -498,7 +517,7 @@ async fn ltc_existing_contact_does_not_burn_a_use() {
     let alice = make_peer(&env, "ltc_reimport_alice").await;
     let bob = make_peer(&env, "ltc_reimport_bob").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -560,7 +579,7 @@ async fn ltc_response_replay_ignored() {
     let alice = make_peer(&env, "ltc_replay_alice").await;
     let bob = make_peer(&env, "ltc_replay_bob").await;
 
-    let state = LtcState::create(alice.clone(), None, Some(3600))
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
         .await
         .unwrap();
     let response = contact_response(&bob, state.payload_id).await;
@@ -598,4 +617,363 @@ async fn ltc_response_replay_ignored() {
     assert_eq!(reloaded.peer_id, stored_peer_id);
     assert!(reloaded.known_addresses.is_empty());
     assert_eq!(uses(&alice).await, 1);
+}
+
+fn fake_swarm(peer_id: PeerId, cmd_tx: mpsc::Sender<SwarmCommand>) -> SwarmHandle {
+    SwarmHandle {
+        peer_id,
+        cmd_tx,
+        relay_config: RelayConfig {
+            enabled: false,
+            max_connections: 0,
+            max_connections_per_ip: 0,
+        },
+        mdns_enabled: false,
+        port: 0,
+    }
+}
+
+async fn signed_pointer(
+    signer: &SharedDatabase,
+    tag: &[u8; 32],
+    payload_id: MessageId,
+    peer_id: &str,
+    seq: u64,
+) -> LtcPointer {
+    let mut pointer = LtcPointer {
+        payload_id,
+        peer_id: peer_id.to_string(),
+        relay_addresses: vec![],
+        seq,
+        signature: vec![],
+    };
+
+    let secret = get_dilithium_secret(&*signer.0.lock().await).unwrap();
+    pointer.sign(tag, secret).unwrap();
+
+    pointer
+}
+
+async fn pointer_record(tag: &[u8; 32], pointer: &LtcPointer) -> Vec<u8> {
+    DHTRecord::new(
+        tag.to_vec(),
+        pointer.serialize().unwrap(),
+        get_timestamp_secs().unwrap(),
+        true,
+    )
+    .await
+    .unwrap()
+    .serialize()
+    .unwrap()
+}
+
+fn spawn_swarm_responder(
+    mut cmd_rx: mpsc::Receiver<SwarmCommand>,
+    records: Vec<Vec<u8>>,
+    payload_id: MessageId,
+    ack: Option<std::result::Result<(), FcRejectReason>>,
+    seen: Arc<StdMutex<Vec<String>>>,
+) {
+    tokio::spawn(async move {
+        while let Some(cmd) = cmd_rx.recv().await {
+            match cmd {
+                SwarmCommand::GetListenAddresses { reply_tx } => {
+                    let _ = reply_tx.send(vec![]);
+                }
+                SwarmCommand::FetchDht { reply_tx, .. } => {
+                    for record in &records {
+                        let _ = reply_tx.send(record.clone()).await;
+                    }
+                }
+                SwarmCommand::SendMessage { peer_id, .. } => {
+                    seen.lock().unwrap().push(peer_id.to_base58());
+                    if let Some(ack) = ack {
+                        resolve_ack_waiter(payload_id, ack);
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+async fn alice_ltc_payload(alice: &SharedDatabase, peer_id: &str) -> LtcPayload {
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+
+    LtcPayload {
+        payload_id: state.payload_id,
+        peer_id: peer_id.to_string(),
+        pre_key_bundle: state.pre_key_bundle,
+        dilithium_pub_key: state.dilithium_pub_key,
+        relay_addresses: vec![],
+        created_at: state.created_at,
+        expires_at: state.expires_at,
+    }
+}
+
+#[tokio::test]
+async fn ltc_rendezvous_tag_survives_edits_and_moves_on_replace() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_tag_stable").await;
+
+    let first = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    let tag = first.rendezvous_tag();
+
+    LtcState::update_limits(alice.clone(), Some(9), Some(7200))
+        .await
+        .unwrap();
+    assert_eq!(load_state(&alice).await.unwrap().rendezvous_tag(), tag);
+
+    let replaced = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    assert_ne!(replaced.rendezvous_tag(), tag);
+}
+
+#[tokio::test]
+async fn ltc_pointer_signature_roundtrip_and_tampering() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_sign").await;
+    let mallory = make_peer(&env, "ltc_ptr_mallory").await;
+
+    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let payload_id = MessageId::new();
+    let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
+    let peer = PeerId::random().to_base58();
+
+    let pointer = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    assert!(pointer.verify(&tag, &alice_pub));
+
+    let mut flipped = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    flipped.signature[0] ^= 0xFF;
+    assert!(!flipped.verify(&tag, &alice_pub));
+
+    let mut moved = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    moved.peer_id = PeerId::random().to_base58();
+    assert!(!moved.verify(&tag, &alice_pub));
+
+    let mut rolled = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    rolled.seq = 999;
+    assert!(!rolled.verify(&tag, &alice_pub));
+
+    let forged = signed_pointer(&mallory, &tag, payload_id, &peer, 100).await;
+    assert!(!forged.verify(&tag, &alice_pub));
+
+    let other_tag = ltc_rendezvous_tag(&MessageId::new(), &alice_pub);
+    assert!(!pointer.verify(&other_tag, &alice_pub));
+}
+
+#[tokio::test]
+async fn ltc_pointer_fetch_keeps_the_highest_seq() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_seq").await;
+
+    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let payload_id = MessageId::new();
+    let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
+
+    let stale = signed_pointer(&alice, &tag, payload_id, "stale-peer", 10).await;
+    let fresh = signed_pointer(&alice, &tag, payload_id, "fresh-peer", 20).await;
+
+    let records = vec![
+        pointer_record(&tag, &stale).await,
+        pointer_record(&tag, &fresh).await,
+    ];
+
+    let (cmd_tx, cmd_rx) = mpsc::channel(64);
+    spawn_swarm_responder(
+        cmd_rx,
+        records,
+        payload_id,
+        None,
+        Arc::new(StdMutex::new(vec![])),
+    );
+
+    let found = fetch_ltc_pointer(&tag, &alice_pub, payload_id, &cmd_tx)
+        .await
+        .unwrap()
+        .expect("a pointer");
+
+    assert_eq!(found.peer_id, "fresh-peer");
+}
+
+#[tokio::test]
+async fn ltc_pointer_fetch_discards_forged_and_foreign_records() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_forged").await;
+    let mallory = make_peer(&env, "ltc_ptr_forger").await;
+
+    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let payload_id = MessageId::new();
+    let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
+
+    let forged = signed_pointer(&mallory, &tag, payload_id, "attacker-peer", 50).await;
+    let foreign = signed_pointer(&alice, &tag, MessageId::new(), "other-code-peer", 60).await;
+
+    let records = vec![
+        pointer_record(&tag, &forged).await,
+        pointer_record(&tag, &foreign).await,
+    ];
+
+    let (cmd_tx, cmd_rx) = mpsc::channel(64);
+    spawn_swarm_responder(
+        cmd_rx,
+        records,
+        payload_id,
+        None,
+        Arc::new(StdMutex::new(vec![])),
+    );
+
+    let found = fetch_ltc_pointer(&tag, &alice_pub, payload_id, &cmd_tx)
+        .await
+        .unwrap();
+
+    assert!(found.is_none());
+}
+
+#[tokio::test]
+async fn ltc_revoke_removes_the_rendezvous_record() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_revoke").await;
+
+    let (cmd_tx, mut cmd_rx) = mpsc::channel(64);
+    let state = LtcState::create(alice.clone(), &cmd_tx, None, Some(3600))
+        .await
+        .unwrap();
+    let tag = state.rendezvous_tag();
+
+    while cmd_rx.try_recv().is_ok() {}
+
+    LtcState::revoke_ltc(alice.clone(), &cmd_tx).await.unwrap();
+
+    let mut removed = None;
+    while let Ok(cmd) = cmd_rx.try_recv() {
+        if let SwarmCommand::RemoveDht { key } = cmd {
+            removed = Some(key);
+        }
+    }
+
+    assert_eq!(removed, Some(tag.to_vec()));
+}
+
+#[tokio::test]
+async fn ltc_follow_rotations_off_publishes_nothing() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_off").await;
+
+    let (cmd_tx, mut cmd_rx) = mpsc::channel(64);
+    LtcState::create(alice.clone(), &cmd_tx, None, Some(3600))
+        .await
+        .unwrap();
+
+    let dto = LtcState::set_follow_rotations(alice.clone(), &cmd_tx, false)
+        .await
+        .unwrap();
+    assert!(!dto.follow_rotations);
+
+    while cmd_rx.try_recv().is_ok() {}
+
+    let (event_tx, _event_rx) = mpsc::channel(16);
+    LtcState::publish_pointer(
+        alice.clone(),
+        fake_swarm(PeerId::random(), cmd_tx.clone()),
+        event_tx,
+    )
+    .await
+    .unwrap();
+
+    let mut published = false;
+    while let Ok(cmd) = cmd_rx.try_recv() {
+        if matches!(cmd, SwarmCommand::PublishDht { .. }) {
+            published = true;
+        }
+    }
+
+    assert!(!published);
+    assert!(
+        load_state(&alice)
+            .await
+            .unwrap()
+            .pointer_published_at
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn ltc_import_falls_back_to_the_rendezvous_pointer() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_fallback_alice").await;
+    let bob = make_peer(&env, "ltc_fallback_bob").await;
+
+    // A peer id the importer cannot even parse stands in for a dead one, so the
+    // first attempt fails immediately instead of burning the ack timeout.
+    let payload = alice_ltc_payload(&alice, "dead-peer-id").await;
+    let tag = ltc_rendezvous_tag(&payload.payload_id, &payload.dilithium_pub_key);
+
+    let live = PeerId::random();
+    let pointer = signed_pointer(
+        &alice,
+        &tag,
+        payload.payload_id,
+        &live.to_base58(),
+        get_timestamp_secs().unwrap(),
+    )
+    .await;
+
+    let (cmd_tx, cmd_rx) = mpsc::channel(64);
+    let seen = Arc::new(StdMutex::new(vec![]));
+    spawn_swarm_responder(
+        cmd_rx,
+        vec![pointer_record(&tag, &pointer).await],
+        payload.payload_id,
+        Some(Ok(())),
+        seen.clone(),
+    );
+
+    let contact = LtcState::import_ltc(payload, bob.clone(), &fake_swarm(PeerId::random(), cmd_tx))
+        .await
+        .unwrap();
+
+    assert_eq!(contact.peer_id, live.to_base58());
+    assert_eq!(seen.lock().unwrap().as_slice(), &[live.to_base58()]);
+}
+
+#[tokio::test]
+async fn ltc_import_does_not_retry_after_a_rejection() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_reject_alice").await;
+    let bob = make_peer(&env, "ltc_reject_bob").await;
+
+    let publisher = PeerId::random();
+    let payload = alice_ltc_payload(&alice, &publisher.to_base58()).await;
+    let tag = ltc_rendezvous_tag(&payload.payload_id, &payload.dilithium_pub_key);
+
+    let elsewhere = signed_pointer(
+        &alice,
+        &tag,
+        payload.payload_id,
+        &PeerId::random().to_base58(),
+        get_timestamp_secs().unwrap(),
+    )
+    .await;
+
+    let (cmd_tx, cmd_rx) = mpsc::channel(64);
+    let seen = Arc::new(StdMutex::new(vec![]));
+    spawn_swarm_responder(
+        cmd_rx,
+        vec![pointer_record(&tag, &elsewhere).await],
+        payload.payload_id,
+        Some(Err(FcRejectReason::AlreadyUsed)),
+        seen.clone(),
+    );
+
+    let result =
+        LtcState::import_ltc(payload, bob.clone(), &fake_swarm(PeerId::random(), cmd_tx)).await;
+
+    assert!(result.is_err());
+    assert_eq!(seen.lock().unwrap().as_slice(), &[publisher.to_base58()]);
 }

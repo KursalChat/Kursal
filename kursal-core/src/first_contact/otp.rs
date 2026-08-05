@@ -148,6 +148,7 @@ pub async fn publish_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> 
             key: dht_key.to_vec(),
             value: dht_record.serialize()?,
             expires: Some(KAD_MAX_AGE),
+            reply_tx: None,
         })
         .await
         .ok_kursal(KursalError::Network)?;

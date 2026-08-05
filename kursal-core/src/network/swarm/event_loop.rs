@@ -31,6 +31,7 @@ pub(super) async fn handle_swarm_event(
     event: SwarmEvent<KursalBehaviourEvent>,
     event_tx: &mpsc::Sender<NetworkEvent>,
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
+    pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
     listen_addresses: &mut HashSet<Multiaddr>,
     swarm: &mut Swarm<KursalBehaviour>,
@@ -77,9 +78,15 @@ pub(super) async fn handle_swarm_event(
             }
             libp2p::kad::QueryResult::PutRecord(Ok(_)) => {
                 log::debug!("[kad] PUT record succeeded query={:?}", id);
+                if let Some(tx) = pending_puts.remove(&id) {
+                    let _ = tx.send(true);
+                }
             }
             libp2p::kad::QueryResult::PutRecord(Err(e)) => {
                 log::warn!("[kad] PUT record failed query={:?} error={:?}", id, e);
+                if let Some(tx) = pending_puts.remove(&id) {
+                    let _ = tx.send(false);
+                }
             }
             _ => {}
         },

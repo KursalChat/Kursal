@@ -511,6 +511,8 @@ pub fn run() {
             commands::create_ltc,
             commands::update_ltc_limits,
             commands::export_ltc,
+            commands::set_ltc_follow_rotations,
+            commands::republish_ltc_pointer,
             commands::revoke_ltc,
             commands::import_ltc,
             commands::start_nearby,
