@@ -408,7 +408,8 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionKindChanged { peer_id, via } => {
             let peer_id_str = peer_id.to_base58();
-            if let Ok(Some(contact)) = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str) {
+            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            if let Ok(Some(contact)) = found {
                 let status = match via {
                     ConnectionKind::Relay => ConnectionStatus::Relay,
                     ConnectionKind::Direct => ConnectionStatus::Direct,
@@ -429,7 +430,8 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionPending { peer_id } => {
             let peer_id_str = peer_id.to_base58();
-            if let Ok(Some(contact)) = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str) {
+            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            if let Ok(Some(contact)) = found {
                 let mut map = status_map.lock().await;
                 let settled = matches!(
                     map.get(&contact.user_id),
@@ -454,7 +456,8 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionFailed { peer_id } => {
             let peer_id_str = peer_id.to_base58();
-            if let Ok(Some(contact)) = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str) {
+            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            if let Ok(Some(contact)) = found {
                 let mut map = status_map.lock().await;
                 if map.get(&contact.user_id) != Some(&ConnectionStatus::Disconnected) {
                     map.insert(contact.user_id.clone(), ConnectionStatus::Disconnected);

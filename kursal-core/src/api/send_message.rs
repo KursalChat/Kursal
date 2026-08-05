@@ -200,9 +200,9 @@ pub async fn send_message_tracked(
     }
 
     if let KursalMessage::MessagePin(ref pin) = content {
-        if let Ok(Some(mut message)) =
-            StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id)
-        {
+        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id);
+
+        if let Ok(Some(mut message)) = loaded {
             message.pinned = pin.pinned;
             let ts = message.timestamp;
             let _ = message.save(&*db.0.lock().await);
