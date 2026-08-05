@@ -10,10 +10,7 @@ use crate::{
     },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
-    network::{
-        NetworkManager,
-        swarm::{SwarmCommand, get_listen_addrs, str_to_multiaddr},
-    },
+    network::swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, str_to_multiaddr},
     storage::{
         SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SESSIONS, TABLE_SETTINGS,
         file::KursalFile, get_dilithium_pub, get_timestamp_secs,
@@ -165,15 +162,15 @@ impl LtcState {
         Ok(())
     }
 
-    pub async fn export_ltc(db: SharedDatabase, network: &NetworkManager) -> Result<Vec<u8>> {
+    pub async fn export_ltc(db: SharedDatabase, swarm: &SwarmHandle) -> Result<Vec<u8>> {
         let state = {
             let db_lock = db.0.lock().await;
             Self::load(&db_lock)?
                 .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?
         };
 
-        let peer_id = network.primary.peer_id.to_base58();
-        let relay_addresses = get_listen_addrs(&network.primary.cmd_tx).await?;
+        let peer_id = swarm.peer_id.to_base58();
+        let relay_addresses = get_listen_addrs(&swarm.cmd_tx).await?;
 
         let payload = LtcPayload {
             payload_id: state.payload_id,
@@ -191,9 +188,9 @@ impl LtcState {
     pub async fn import_ltc(
         payload: LtcPayload,
         db: SharedDatabase,
-        network: &NetworkManager,
+        swarm: &SwarmHandle,
     ) -> Result<Contact> {
-        if payload.peer_id == network.primary.peer_id.to_base58() {
+        if payload.peer_id == swarm.peer_id.to_base58() {
             log::debug!("[ltc] Cannot add yourself as a contact");
             return Err(KursalError::Network(
                 "Cannot add yourself as a contact".to_string(),
@@ -253,9 +250,9 @@ impl LtcState {
         let response = ContactResponse {
             payload_id: payload.payload_id,
             pre_key_bundle: my_bundle.serialize()?,
-            peer_id: network.primary.peer_id.to_base58(),
+            peer_id: swarm.peer_id.to_base58(),
             dilithium_pub_key,
-            relay_addresses: get_listen_addrs(&network.primary.cmd_tx).await?,
+            relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
             mailbox_kem_ct,
             mailbox_kem_prekey_id,
             mailbox_ephemeral_pub: Vec::new(),
@@ -267,8 +264,7 @@ impl LtcState {
         let ack_rx = register_ack_waiter(payload.payload_id);
 
         // send off!
-        let sent = network
-            .primary
+        let sent = swarm
             .cmd_tx
             .send(SwarmCommand::SendMessage {
                 peer_id: PeerId::from_str(&payload.peer_id)

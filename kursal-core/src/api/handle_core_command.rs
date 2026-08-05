@@ -47,14 +47,14 @@ pub async fn handle_core_command(
 ) {
     match cmd {
         CoreCommand::PublishOtp { otp, reply } => {
-            let net = network.lock().await;
-            let result = publish_otp(&otp, db, &net).await;
+            let swarm = network.lock().await.primary.clone();
+            let result = publish_otp(&otp, db, &swarm).await;
             reply.send(result).ok();
         }
 
         CoreCommand::FetchOtp { otp, reply } => {
-            let net = network.lock().await;
-            let result = fetch_otp(&otp, db, &net).await;
+            let swarm = network.lock().await.primary.clone();
+            let result = fetch_otp(&otp, db, &swarm).await;
             reply.send(result).ok();
         }
 
@@ -101,8 +101,8 @@ pub async fn handle_core_command(
         }
 
         CoreCommand::ExportLtc { reply } => {
-            let net = network.lock().await;
-            let result = LtcState::export_ltc(db, &net).await;
+            let swarm = network.lock().await.primary.clone();
+            let result = LtcState::export_ltc(db, &swarm).await;
 
             reply.send(result).ok();
         }
@@ -119,7 +119,7 @@ pub async fn handle_core_command(
         }
 
         CoreCommand::ImportLtc { bytes, reply } => {
-            let net = network.lock().await;
+            let swarm = network.lock().await.primary.clone();
 
             let result = match KursalFile::deserialize(&bytes) {
                 Ok(KursalFile::LtcPayload(bytes)) => LtcPayload::deserialize(&bytes),
@@ -127,7 +127,7 @@ pub async fn handle_core_command(
             };
 
             let result = match result {
-                Ok(payload) => LtcState::import_ltc(payload, db, &net).await,
+                Ok(payload) => LtcState::import_ltc(payload, db, &swarm).await,
                 Err(e) => Err(e),
             };
 

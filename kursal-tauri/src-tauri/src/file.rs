@@ -20,15 +20,10 @@ impl FileLoader for KursalFile {
             KursalFile::LtcPayload(bytes) => {
                 let result = LtcPayload::deserialize(bytes);
 
+                let swarm = state.network.lock().await.primary.clone();
+
                 let _result = match result {
-                    Ok(payload) => {
-                        LtcState::import_ltc(
-                            payload,
-                            state.db.clone(),
-                            &*state.network.lock().await,
-                        )
-                        .await
-                    }
+                    Ok(payload) => LtcState::import_ltc(payload, state.db.clone(), &swarm).await,
                     Err(e) => Err(e),
                 }?;
             }

@@ -167,6 +167,7 @@ pub enum NetworkEvent {
     },
 }
 
+#[derive(Clone)]
 pub struct SwarmHandle {
     pub peer_id: PeerId,
     pub cmd_tx: mpsc::Sender<SwarmCommand>,

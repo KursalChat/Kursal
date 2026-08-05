@@ -1,6 +1,6 @@
 use super::{
     ConnectionKind, KursalBehaviour, KursalBehaviourEvent, NetworkEvent,
-    helpers::is_routable_multiaddr,
+    helpers::{dial_error_summary, is_routable_multiaddr},
 };
 use crate::network::bootstrap::is_bootstrap_peer;
 use crate::network::kademlia::spawn_record_validation;
@@ -76,7 +76,7 @@ pub(super) async fn handle_swarm_event(
                 pending_queries.remove(&id);
             }
             libp2p::kad::QueryResult::PutRecord(Ok(_)) => {
-                log::info!("[kad] PUT record succeeded query={:?}", id);
+                log::debug!("[kad] PUT record succeeded query={:?}", id);
             }
             libp2p::kad::QueryResult::PutRecord(Err(e)) => {
                 log::warn!("[kad] PUT record failed query={:?} error={:?}", id, e);
@@ -107,7 +107,7 @@ pub(super) async fn handle_swarm_event(
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(libp2p::mdns::Event::Discovered(
             peers,
         ))) => {
-            log::info!(
+            log::debug!(
                 "[mDNS] raw Discovered event, nearby_enabled={}, peers={}",
                 nearby_enabled,
                 peers.len()
@@ -138,7 +138,7 @@ pub(super) async fn handle_swarm_event(
         #[cfg(not(target_os = "ios"))]
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, addr) in &peers {
-                log::warn!("[mDNS] peer expired {} at {}", peer_id, addr);
+                log::debug!("[mDNS] peer expired {} at {}", peer_id, addr);
             }
         }
 
@@ -172,7 +172,7 @@ pub(super) async fn handle_swarm_event(
                     .await;
             }
             Err(err) => {
-                log::info!(
+                log::debug!(
                     "[dcutr] hole punch failed peer={} err={err:?}",
                     e.remote_peer_id
                 );
@@ -371,10 +371,16 @@ pub(super) async fn handle_swarm_event(
             connection_id,
             ..
         } => {
-            if let Some(tx) = pending_dials.remove(&connection_id) {
+            let requested = pending_dials.remove(&connection_id);
+            let peer = peer_id.map_or_else(|| "unknown".to_string(), |id| id.to_string());
+            let summary = dial_error_summary(&error);
+
+            if let Some(tx) = requested {
                 let _ = tx.send(Err(error.to_string()));
+                log::info!("[swarm] dial failed peer={peer} error={summary}");
+            } else {
+                log::debug!("[swarm] dial failed peer={peer} error={summary}");
             }
-            log::info!("[swarm] outgoing connection error peer={peer_id:?} error={error}");
 
             if let Some(peer_id) = peer_id
                 && best_kind(peer_conns, &peer_id).is_none()
@@ -385,7 +391,7 @@ pub(super) async fn handle_swarm_event(
             }
         }
         SwarmEvent::IncomingConnectionError { error, .. } => {
-            log::info!("[swarm] incoming connection error: {error}");
+            log::debug!("[swarm] incoming connection error: {error}");
         }
 
         _ => {}
