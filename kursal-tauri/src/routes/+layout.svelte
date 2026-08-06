@@ -386,9 +386,9 @@
         messagesState.append(payload);
         typingState.clear(payload.contactId);
         // Call records render as call lines in chat and must not raise
-        // unread/notifications.
-        const isCallRecord = !!payload.callDetails;
-        if (isCallRecord) return;
+        // unread/notifications. Neither can a record of my own action: pinning
+        // comes back through this event with direction 'sent'.
+        if (payload.callDetails || payload.direction === 'sent') return;
         messagesState.setFirstUnread(payload.contactId, payload.id);
         if (!payload.viaOffline) contactsState.touchLastSeen(payload.contactId);
         const name =

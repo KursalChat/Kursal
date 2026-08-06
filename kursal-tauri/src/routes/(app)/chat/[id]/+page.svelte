@@ -581,10 +581,11 @@
     return `${vertical}left:clamp(${minLeft}, ${pos.left}px, ${maxLeft});`;
   }
 
-  async function handlePickerSelect(emoji: string) {
+  async function handlePickerSelect(emoji: string, keepOpen: boolean) {
     if (!showEmojiPicker) return;
     const msg = messageIndex.get(showEmojiPicker);
     if (msg) await toggleReaction(msg, emoji);
+    if (keepOpen) return;
     showEmojiPicker = null;
     emojiPickerAnchor = null;
   }
@@ -1284,6 +1285,10 @@
       const tailChanged = lastId !== prevLastId;
       tick().then(() => {
         const lastMsg = messages[len - 1];
+        // Pinning appends a pin line with direction 'sent', but it is not a
+        // message the user just wrote. While reading history it must not pull
+        // the view down, nor count as unread.
+        if (lastMsg?.direction === 'sent' && lastMsg.pinDetails && !isScrolledToBottom) return;
         if ((tailChanged && lastMsg?.direction === 'sent') || isScrolledToBottom) {
           const behavior: ScrollBehavior = isScrolledToBottom ? 'auto' : 'smooth';
           scrollToBottom(behavior);
@@ -1385,6 +1390,7 @@
     }
 
     if (!contactId) return;
+    messagesState.markRead(contactId, true);
     const replyTo = replyingToMessageId;
     inputText = '';
     draftsState.clear(contactId);
@@ -1556,6 +1562,7 @@
       );
       return;
     }
+    messagesState.markRead(cid, true);
     sendingFile = true;
     try {
       for (const file of files) {

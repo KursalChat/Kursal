@@ -85,7 +85,8 @@
     "copied": "Copied",
     "saved": "Saved",
     "savedToDevice": "Saved to device",
-    "relayBadge": "Relay"
+    "relayBadge": "Relay",
+    "relayBadgeVia": "Relay · {transport}"
   },
 
   "errors": {
