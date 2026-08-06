@@ -479,9 +479,11 @@ impl ActiveReceive {
             return Ok(());
         }
         self.file.flush().await.map_err(KursalError::Io)?;
-        db.0.lock()
-            .await
-            .raw_write(TABLE_FILE_TRANSFERS, &self.prog_key, &self.entry.serialize()?)?;
+        db.0.lock().await.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &self.prog_key,
+            &self.entry.serialize()?,
+        )?;
         self.unsaved = 0;
         Ok(())
     }
@@ -529,7 +531,10 @@ async fn sweep_active(db: &SharedDatabase, active: &mut HashMap<[u8; 16], Active
         };
 
         if let Err(err) = state.persist(db).await {
-            log::warn!("[file] progress persist failed for {}: {err}", hex::encode(key));
+            log::warn!(
+                "[file] progress persist failed for {}: {err}",
+                hex::encode(key)
+            );
         }
         if state.last_touched.elapsed() >= ACTIVE_RECEIVE_IDLE {
             active.remove(&key);
@@ -556,7 +561,11 @@ async fn load_active(
         hex::encode(contact.user_id.0),
         hex::encode(transfer_id)
     );
-    let Some(entry_bytes) = db.0.lock().await.raw_read(TABLE_FILE_TRANSFERS, &prog_key)? else {
+    let Some(entry_bytes) =
+        db.0.lock()
+            .await
+            .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
+    else {
         return Ok(None);
     };
     let entry = FileReceiveEntry::deserialize(&entry_bytes)?;

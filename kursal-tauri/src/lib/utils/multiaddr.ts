@@ -82,9 +82,7 @@ function addressRank(raw: string): number {
 }
 
 export function sortAddresses(addresses: string[]): string[] {
-  return [...addresses].sort(
-    (a, b) => addressRank(a) - addressRank(b) || a.localeCompare(b)
-  );
+  return [...addresses].sort((a, b) => addressRank(a) - addressRank(b) || a.localeCompare(b));
 }
 
 export function shortPeerId(id: string | null): string | null {

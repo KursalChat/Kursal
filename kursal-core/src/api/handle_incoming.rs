@@ -17,9 +17,7 @@ use crate::{
     identity::UserId,
     messaging::{
         StoredMessage,
-        enums::{
-            DeliveryReceipt, Direction, FileCancel, KursalMessage, MessageId, MessageStatus,
-        },
+        enums::{DeliveryReceipt, Direction, FileCancel, KursalMessage, MessageId, MessageStatus},
     },
     network::swarm::{MAX_MESSAGE_SIZE, NetworkEvent, SwarmCommand},
     storage::{
@@ -333,7 +331,10 @@ pub async fn handle_incoming(
                 hex::encode(file.offer_id.0)
             );
 
-            let stored = db.0.lock().await.raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
+            let stored =
+                db.0.lock()
+                    .await
+                    .raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
 
             let Some(file_entry_bytes) = stored else {
                 log::info!(
@@ -357,9 +358,11 @@ pub async fn handle_incoming(
 
             let now = get_timestamp_secs()?;
             file_entry.last_accessed_at = Some(now);
-            db.0.lock()
-                .await
-                .raw_write(TABLE_FILE_TRANSFERS, &send_key, &file_entry.serialize()?)?;
+            db.0.lock().await.raw_write(
+                TABLE_FILE_TRANSFERS,
+                &send_key,
+                &file_entry.serialize()?,
+            )?;
 
             spawn_send_file_chunks(
                 contact,
