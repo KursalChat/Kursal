@@ -13,6 +13,7 @@ use kursal_core::dto::{
     ContactResponse, LtcStatusDto, MessageResponse, NearbyPeerResponse, NetworkStatusDto,
     NodesResponse, OtpResponse,
 };
+use kursal_core::messaging::StoredMessage;
 use kursal_core::messaging::enums::MessageId;
 use kursal_core::network::NetworkManager;
 use kursal_core::storage::backup::{generate_backup, load_backup};
@@ -486,6 +487,7 @@ pub struct ContactMetaDto {
     pub contact_id: String,
     pub muted: bool,
     pub last_seen_at: Option<u64>,
+    pub last_message_at: Option<u64>,
     pub alias: Option<String>,
     pub terminated: bool,
 }
@@ -518,9 +520,13 @@ pub async fn get_contact_meta(state: tauri::State<'_, AppState>) -> Result<Vec<C
         .into_iter()
         .map(|c| {
             let id = hex::encode(c.user_id.0);
+            let last_message_at = StoredMessage::load_recent(&db, &c.user_id, 1, None)
+                .ok()
+                .and_then(|msgs| msgs.first().map(|m| m.id.timestamp_secs()));
             ContactMetaDto {
                 muted: kursal_core::storage::get_contact_muted(&db, &id),
                 last_seen_at: kursal_core::storage::get_contact_last_seen(&db, &id),
+                last_message_at,
                 alias: kursal_core::storage::get_contact_alias(&db, &id),
                 terminated: kursal_core::storage::get_contact_terminated(&db, &id),
                 contact_id: id,

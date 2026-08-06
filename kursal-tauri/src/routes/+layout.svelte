@@ -382,6 +382,7 @@
         const payload = event.payload;
         payload.timestamp = payload.timestamp * 1000; // Rust gives seconds, UI expects ms
         payload.receivedTimestamp = payload.receivedTimestamp * 1000;
+        contactsState.touchLastMessage(payload.contactId, payload.timestamp);
         messagesState.append(payload);
         typingState.clear(payload.contactId);
         // Call records render as call lines in chat and must not raise

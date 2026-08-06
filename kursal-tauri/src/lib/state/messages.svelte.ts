@@ -304,6 +304,12 @@ function createMessagesState() {
     return pendingDelete.size > 0 ? list.filter((m) => !pendingDelete.has(m.id)) : list;
   }
 
+  // 0 when the conversation has never been opened
+  function lastTimestampFor(contactId: string): number {
+    const list = map[contactId];
+    return list?.length ? list[list.length - 1].timestamp : 0;
+  }
+
   function setPendingDelete(messageId: string, pending: boolean) {
     const next = new Set(pendingDelete);
     if (pending) next.add(messageId);
@@ -973,6 +979,7 @@ function createMessagesState() {
 
   return {
     forContact,
+    lastTimestampFor,
     loadFor,
     loadOlder,
     loadNewer,

@@ -103,8 +103,10 @@
   }
 
   function getLastMessageTs(contactId: string): number {
-    const msgs = messagesState.forContact(contactId);
-    return msgs.length ? msgs[msgs.length - 1].timestamp : 0;
+    return Math.max(
+      messagesState.lastTimestampFor(contactId),
+      contactsState.lastMessageAt(contactId)
+    );
   }
 
   function formatTimeShort(ts: number): string {

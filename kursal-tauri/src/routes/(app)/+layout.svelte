@@ -124,11 +124,7 @@
       const ap = pinnedConvosState.has(a.userId) ? 1 : 0;
       const bp = pinnedConvosState.has(b.userId) ? 1 : 0;
       if (ap !== bp) return bp - ap;
-      const aMsgs = messagesState.forContact(a.userId);
-      const bMsgs = messagesState.forContact(b.userId);
-      const aTs = aMsgs.length ? aMsgs[aMsgs.length - 1].timestamp : a.createdAt * 1000;
-      const bTs = bMsgs.length ? bMsgs[bMsgs.length - 1].timestamp : b.createdAt * 1000;
-      return bTs - aTs;
+      return contactsState.activityAt(b) - contactsState.activityAt(a);
     });
     return list;
   });

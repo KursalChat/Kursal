@@ -114,14 +114,9 @@
     goto(path);
   }
 
-  function lastActivity(userId: string, createdAt: number): number {
-    const msgs = messagesState.forContact(userId);
-    return msgs.length ? msgs[msgs.length - 1].timestamp : createdAt * 1000;
-  }
-
   const conversations = $derived<Cmd[]>(
     [...contactsState.contacts]
-      .sort((a, b) => lastActivity(b.userId, b.createdAt) - lastActivity(a.userId, a.createdAt))
+      .sort((a, b) => contactsState.activityAt(b) - contactsState.activityAt(a))
       .map((c) => ({
         id: 'contact:' + c.userId,
         label: c.displayName,

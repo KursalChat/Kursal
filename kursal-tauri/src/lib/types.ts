@@ -16,6 +16,7 @@ export interface ContactMeta {
   contactId: string;
   muted: boolean;
   lastSeenAt: number | null; // ms epoch, backend-stamped on connection events
+  lastMessageAt: number | null; // unix seconds of the newest stored message
   alias: string | null; // local nickname, overrides displayName in the UI
   // Peer removed us as a contact. History stays, but they can no longer be
   // reached, so the composer is closed until the contact is re-established.
