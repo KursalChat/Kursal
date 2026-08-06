@@ -1,6 +1,7 @@
 use super::{
-    ConnectionKind, KursalBehaviour, KursalBehaviourEvent, NetworkEvent,
+    ConnectionKind, KursalBehaviour, KursalBehaviourEvent, NetworkEvent, PeerStreams,
     helpers::{dial_error_summary, is_routable_multiaddr},
+    lock_peer_streams,
 };
 use crate::network::bootstrap::is_bootstrap_peer;
 use crate::network::kademlia::spawn_record_validation;
@@ -26,6 +27,32 @@ fn best_kind(
         .max_by_key(|k| k.rank())
 }
 
+fn drop_relayed_connections(
+    swarm: &mut Swarm<KursalBehaviour>,
+    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_streams: &PeerStreams,
+    peer_id: PeerId,
+    reason: &str,
+) {
+    let relayed: Vec<ConnectionId> = peer_conns
+        .iter()
+        .filter_map(|(cid, (p, kind))| {
+            (*p == peer_id && *kind == ConnectionKind::Relay).then_some(*cid)
+        })
+        .collect();
+
+    if relayed.is_empty() {
+        return;
+    }
+
+    for cid in relayed {
+        log::info!("[conn] {reason}: closing relayed conn {cid:?} to {peer_id}");
+        swarm.close_connection(cid);
+    }
+
+    lock_peer_streams(peer_streams).remove(&peer_id);
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_swarm_event(
     event: SwarmEvent<KursalBehaviourEvent>,
@@ -38,6 +65,7 @@ pub(super) async fn handle_swarm_event(
     #[allow(unused_variables)] nearby_enabled: bool,
     #[allow(unused_variables)] mdns_peers: &mut HashMap<PeerId, Multiaddr>,
     peer_conns: &mut HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_streams: &PeerStreams,
     validated_tx: &mpsc::Sender<libp2p::kad::Record>,
 ) {
     match event {
@@ -134,10 +162,17 @@ pub(super) async fn handle_swarm_event(
                     let _ = event_tx
                         .send(NetworkEvent::PeerDiscovered {
                             peer_id,
-                            addresses: vec![addr],
+                            addresses: vec![addr.clone()],
                         })
                         .await;
                 }
+
+                let _ = event_tx
+                    .send(NetworkEvent::LocalPeerDiscovered {
+                        peer_id,
+                        addresses: vec![addr],
+                    })
+                    .await;
             }
         }
 
@@ -157,19 +192,13 @@ pub(super) async fn handle_swarm_event(
                 );
                 peer_conns.insert(connection_id, (e.remote_peer_id, ConnectionKind::HolePunch));
 
-                let relayed: Vec<ConnectionId> = peer_conns
-                    .iter()
-                    .filter_map(|(cid, (p, kind))| {
-                        (*p == e.remote_peer_id && *kind == ConnectionKind::Relay).then_some(*cid)
-                    })
-                    .collect();
-                for cid in relayed {
-                    log::info!(
-                        "[dcutr] migrating to direct: closing relayed conn {cid:?} to {}",
-                        e.remote_peer_id
-                    );
-                    swarm.close_connection(cid);
-                }
+                drop_relayed_connections(
+                    swarm,
+                    peer_conns,
+                    peer_streams,
+                    e.remote_peer_id,
+                    "hole punched",
+                );
 
                 let _ = event_tx
                     .send(NetworkEvent::ConnectionEstablished {
@@ -279,6 +308,14 @@ pub(super) async fn handle_swarm_event(
 
                     log::info!("[kad] Bootstrapping Kademlia with relay");
                     let _ = swarm.behaviour_mut().kad.bootstrap();
+                } else {
+                    drop_relayed_connections(
+                        swarm,
+                        peer_conns,
+                        peer_streams,
+                        peer_id,
+                        "direct path available",
+                    );
                 }
             }
 
@@ -297,6 +334,8 @@ pub(super) async fn handle_swarm_event(
             log::info!(
                 "[conn] closed peer={peer_id} conn={connection_id:?} remaining={num_established}"
             );
+            lock_peer_streams(peer_streams).remove(&peer_id);
+
             if num_established == 0 {
                 let _ = event_tx
                     .send(NetworkEvent::ConnectionLost { peer_id })

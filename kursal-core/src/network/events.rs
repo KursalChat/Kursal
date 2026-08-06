@@ -24,7 +24,12 @@ use crate::{
 };
 use libp2p::PeerId;
 use libsignal_protocol::{DeviceId, ProtocolAddress};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::{Arc, LazyLock, Mutex as StdMutex},
+    time::Duration,
+};
 use tokio::sync::{Mutex, mpsc, oneshot};
 
 pub(super) async fn handle_bt_event(
@@ -98,6 +103,42 @@ pub(super) async fn handle_bt_event(
     }
 }
 
+const RESUME_DEBOUNCE: Duration = Duration::from_secs(1);
+
+static RESUME_PENDING: LazyLock<StdMutex<HashSet<UserId>>> =
+    LazyLock::new(|| StdMutex::new(HashSet::new()));
+
+fn spawn_transfer_resume(
+    contact_id: UserId,
+    db: SharedDatabase,
+    cmd_tx: mpsc::Sender<SwarmCommand>,
+    event_tx: mpsc::Sender<AppEvent>,
+) {
+    let claimed = RESUME_PENDING
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(contact_id.clone());
+
+    if !claimed {
+        return;
+    }
+
+    tokio::task::spawn_local(async move {
+        tokio::time::sleep(RESUME_DEBOUNCE).await;
+        RESUME_PENDING
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&contact_id);
+
+        let loaded = Contact::load(&*db.0.lock().await, &contact_id);
+        if let Ok(Some(contact)) = loaded
+            && let Err(err) = resume_incoming_transfers(contact, db.clone(), cmd_tx, event_tx).await
+        {
+            log::warn!("[file] connection-resume failed: {err}");
+        }
+    });
+}
+
 pub(super) async fn handle_internal_network_event(
     event: NetworkEvent,
     db: &SharedDatabase,
@@ -146,6 +187,20 @@ pub(super) async fn handle_internal_network_event(
             if let Err(err) = result {
                 log::warn!("failed to send beacon to {peer_id}: {err}");
             }
+        }
+
+        NetworkEvent::LocalPeerDiscovered { peer_id, addresses } => {
+            let peer_id_str = peer_id.to_base58();
+            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let Ok(Some(_)) = found else {
+                return;
+            };
+
+            log::info!("[mDNS] dialing contact {peer_id} on the local network");
+            let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+            let _ = cmd_tx
+                .send(SwarmCommand::DialLocal { peer_id, addresses })
+                .await;
         }
 
         NetworkEvent::MessageReceived { from, data } => {
@@ -382,21 +437,12 @@ pub(super) async fn handle_internal_network_event(
                         log::warn!("[offline] connection-flush failed: {err}");
                     }
                 });
-                tokio::task::spawn_local(async move {
-                    let loaded =
-                        Contact::load(&*db_for_resume.0.lock().await, &contact_id_for_resume);
-                    if let Ok(Some(contact)) = loaded
-                        && let Err(err) = resume_incoming_transfers(
-                            contact,
-                            db_for_resume.clone(),
-                            cmd_tx_for_resume,
-                            event_tx_for_resume,
-                        )
-                        .await
-                    {
-                        log::warn!("[file] connection-resume failed: {err}");
-                    }
-                });
+                spawn_transfer_resume(
+                    contact_id_for_resume,
+                    db_for_resume,
+                    cmd_tx_for_resume,
+                    event_tx_for_resume,
+                );
                 tokio::task::spawn_local(async move {
                     if let Err(err) =
                         poll_contact_offline(contact_id, cmd_tx, db_clone, event_tx_clone).await
@@ -421,11 +467,14 @@ pub(super) async fn handle_internal_network_event(
                     .insert(contact.user_id.clone(), status.clone());
                 app_event_tx
                     .send(AppEvent::ConnectionChange {
-                        contact_id: contact.user_id,
+                        contact_id: contact.user_id.clone(),
                         status,
                     })
                     .await
                     .ok();
+
+                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+                spawn_transfer_resume(contact.user_id, db.clone(), cmd_tx, app_event_tx.clone());
             }
         }
         NetworkEvent::ConnectionPending { peer_id } => {

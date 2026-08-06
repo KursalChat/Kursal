@@ -3,7 +3,9 @@ use crate::{
     KursalError, Result,
     api::{
         AppEvent, apply_address_announce,
-        file_transfers::{FileIncomingEntry, FileTransferEntry, apply_cancel, send_file_chunks},
+        file_transfers::{
+            FileIncomingEntry, FileTransferEntry, apply_cancel, spawn_send_file_chunks,
+        },
         message_apply::{
             apply_delete, apply_edit, apply_pin, apply_reaction_add, apply_reaction_remove,
         },
@@ -15,7 +17,9 @@ use crate::{
     identity::UserId,
     messaging::{
         StoredMessage,
-        enums::{DeliveryReceipt, Direction, KursalMessage, MessageId, MessageStatus},
+        enums::{
+            DeliveryReceipt, Direction, FileCancel, KursalMessage, MessageId, MessageStatus,
+        },
     },
     network::swarm::{MAX_MESSAGE_SIZE, NetworkEvent, SwarmCommand},
     storage::{
@@ -323,53 +327,50 @@ pub async fn handle_incoming(
         }
 
         KursalMessage::FileAccept(file) => {
-            let file_entry_bytes =
-                db.0.lock()
-                    .await
-                    .raw_read(
-                        TABLE_FILE_TRANSFERS,
-                        &format!(
-                            "send:{}:{}",
-                            hex::encode(contact.user_id.0),
-                            hex::encode(file.offer_id.0)
-                        ),
-                    )?
-                    .ok_or(KursalError::Storage(
-                        "Could not find file transfer (is it revoked?)".to_string(),
-                    ))?;
+            let send_key = format!(
+                "send:{}:{}",
+                hex::encode(contact.user_id.0),
+                hex::encode(file.offer_id.0)
+            );
+
+            let stored = db.0.lock().await.raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
+
+            let Some(file_entry_bytes) = stored else {
+                log::info!(
+                    "[file] accept for unknown offer {}, telling peer to drop it",
+                    hex::encode(file.offer_id.0)
+                );
+                send_message(
+                    KursalMessage::FileCancel(FileCancel {
+                        offer_id: file.offer_id,
+                    }),
+                    &contact,
+                    db.clone(),
+                    cmd_tx,
+                    Some(event_tx),
+                )
+                .await?;
+                return Ok(());
+            };
+
             let mut file_entry = FileTransferEntry::deserialize(&file_entry_bytes)?;
 
             let now = get_timestamp_secs()?;
             file_entry.last_accessed_at = Some(now);
-            db.0.lock().await.raw_write(
-                TABLE_FILE_TRANSFERS,
-                &format!(
-                    "send:{}:{}",
-                    hex::encode(contact.user_id.0),
-                    hex::encode(file.offer_id.0)
-                ),
-                &file_entry.serialize()?,
-            )?;
-
-            let cmd_tx_clone = cmd_tx.clone();
-            let event_tx_clone = event_tx.clone();
-
-            tokio::spawn(async move {
-                if let Err(err) = send_file_chunks(
-                    contact,
-                    file.offer_id,
-                    file_entry.path,
-                    file_entry.my_random,
-                    file.random,
-                    file.received_chunks,
-                    cmd_tx_clone,
-                    event_tx_clone,
-                )
+            db.0.lock()
                 .await
-                {
-                    log::warn!("file transfer failed: {err:?}");
-                }
-            });
+                .raw_write(TABLE_FILE_TRANSFERS, &send_key, &file_entry.serialize()?)?;
+
+            spawn_send_file_chunks(
+                contact,
+                file.offer_id,
+                file_entry.path,
+                file_entry.my_random,
+                file.random,
+                file.received_chunks,
+                cmd_tx.clone(),
+                event_tx.clone(),
+            );
         }
 
         KursalMessage::FileCancel(cancel) => {

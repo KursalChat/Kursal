@@ -37,8 +37,8 @@ pub use behaviour::{KursalBehaviour, KursalBehaviourEvent};
 pub use codec::KursalMsgCodec;
 pub use helpers::{
     get_all_listen_addrs, get_connected_peer_count, get_connected_peers, get_listen_addrs,
-    get_nearby_listen_addrs, get_peer_connection_kinds, is_peer_connected, is_routable_multiaddr,
-    open_peer_stream, str_to_multiaddr,
+    get_peer_connection_kinds, is_peer_connected, is_routable_multiaddr, open_peer_stream,
+    str_to_multiaddr,
 };
 
 use commands::handle_swarm_command;
@@ -48,13 +48,30 @@ pub const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/kursal/transfe
 pub const CALL_PROTOCOL: StreamProtocol = StreamProtocol::new("/kursal/call/1.0.0");
 pub const VIDEO_PROTOCOL: StreamProtocol = StreamProtocol::new("/kursal/call-video/1.0.0");
 pub const MAX_MESSAGE_SIZE: usize = 512 * 1024; // 512 KB, should LARGE be enough
-pub const FILE_CHUNK_SIZE: usize = 64 * 1024;
+pub const FILE_CHUNK_SIZE: usize = 256 * 1024;
 
-pub type PeerStreams = Arc<Mutex<HashMap<PeerId, mpsc::Sender<Vec<u8>>>>>;
+pub struct StreamWrite {
+    pub data: Vec<u8>,
+    pub written: Option<oneshot::Sender<()>>,
+}
+
+pub type PeerStreams = Arc<Mutex<HashMap<PeerId, mpsc::Sender<StreamWrite>>>>;
+
+pub fn lock_peer_streams(
+    peer_streams: &PeerStreams,
+) -> std::sync::MutexGuard<'_, HashMap<PeerId, mpsc::Sender<StreamWrite>>> {
+    peer_streams
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[allow(clippy::large_enum_variant)]
 pub enum SwarmCommand {
     Dial(Multiaddr),
+    DialLocal {
+        peer_id: PeerId,
+        addresses: Vec<Multiaddr>,
+    },
     AddNode(Multiaddr),
     DialOnce {
         addr: Multiaddr,
@@ -68,7 +85,7 @@ pub enum SwarmCommand {
     OpenStream {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
-        reply: oneshot::Sender<Option<mpsc::Sender<Vec<u8>>>>,
+        reply: oneshot::Sender<Option<mpsc::Sender<StreamWrite>>>,
     },
     OpenCallStream {
         peer_id: PeerId,
@@ -139,6 +156,10 @@ pub enum NetworkEvent {
         data: Vec<u8>,
     },
     PeerDiscovered {
+        peer_id: PeerId,
+        addresses: Vec<Multiaddr>,
+    },
+    LocalPeerDiscovered {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
     },
@@ -404,7 +425,7 @@ impl SwarmHandle {
 
             loop {
                 tokio::select! {
-                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &validated_tx).await,
+                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &peer_streams, &validated_tx).await,
                     Some(record) = validated_rx.recv() => {
                         if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
                             log::debug!("[kad] validated record not stored: {err:?}");

@@ -9,7 +9,7 @@ use crate::{
     first_contact::make_username,
     identity::UserId,
     messaging::offline::new_offline_state,
-    network::swarm::{SwarmCommand, get_nearby_listen_addrs},
+    network::swarm::{SwarmCommand, get_listen_addrs},
     storage::{SharedDatabase, get_dilithium_pub, get_timestamp_secs},
 };
 use libsignal_protocol::{
@@ -262,7 +262,7 @@ pub async fn handle_nearby_request(
             NearbyMessage::ConnectAccept {
                 bundle: my_bundle_serialized,
                 dilithium_pub: dilithium_pub_key.clone(),
-                relay_addresses: get_nearby_listen_addrs(cmd_tx).await?,
+                relay_addresses: get_listen_addrs(cmd_tx).await?,
             },
         )
         .await?;
@@ -430,7 +430,7 @@ pub async fn nearby_connect(
                     NearbyMessage::BundleReply {
                         bundle: our_bundle.serialize()?,
                         dilithium_pub: our_dilithium,
-                        relay_addresses: get_nearby_listen_addrs(cmd_tx).await?,
+                        relay_addresses: get_listen_addrs(cmd_tx).await?,
                         mailbox_kem_ct,
                         mailbox_ephemeral_pub,
                     },
