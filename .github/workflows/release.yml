@@ -3,6 +3,7 @@ name: release
 on:
   push:
     tags: ["v*"]
+    branches: ["ci/**"]
   workflow_dispatch:
     inputs:
       tag:
