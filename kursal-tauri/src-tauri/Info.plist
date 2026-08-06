@@ -49,20 +49,48 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Kursal needs this to turn "Open at login" on or off.</string>
 
+	<!-- .kursal files -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>chat.kursal.file</string>
+			<key>UTTypeDescription</key>
+			<string>Kursal data file</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeIconFile</key>
+			<string>icon.icns</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>kursal</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/octet-stream</string>
+			</dict>
+		</dict>
+	</array>
+
 	<!-- "Open with Kursal" in Finder -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Kursal</string>
+			<string>Kursal data file</string>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>kursal</string>
 			</array>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>kursal</string>
+				<string>chat.kursal.file</string>
 			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>icon.icns</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>

@@ -87,7 +87,7 @@
         "description": "Kursal data file",
         "exportedType": {
           "conformsTo": ["public.data"],
-          "identifier": "kursal"
+          "identifier": "chat.kursal.file"
         },
         "mimeType": "application/octet-stream",
         "name": "Kursal",
