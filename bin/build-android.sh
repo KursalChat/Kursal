@@ -9,7 +9,10 @@ echo "==> android (v$VERSION)"
 rm -rf src-tauri/gen/android/app/build/outputs/apk/universal/release/
 
 cargo clean -p audiopus_sys --release --target aarch64-linux-android
-JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home PATH=$JAVA_HOME/bin:$PATH cargo tauri android build --apk --target aarch64 --config '{"build":{"beforeBuildCommand":""}}'
+JAVA_HOME="${JAVA_HOME:-/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home}"
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+cargo tauri android build --apk --target aarch64 --config '{"build":{"beforeBuildCommand":""}}'
 cp -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk ../build/Kursal.apk
 
 echo "✓ android done"

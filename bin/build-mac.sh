@@ -25,6 +25,11 @@ cp ../target/aarch64-apple-darwin/release/bundle/dmg/Kursal_*.dmg            ../
 cp ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz     ../build/Kursal.app.tar.gz
 cp ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz.sig ../build/Kursal.app.tar.gz.sig
 
+# Both builds exceed the 14 GB CI runner disk. Clean up on CI
+if [ -n "${CI:-}" ]; then
+  rm -rf ../target/aarch64-apple-darwin
+fi
+
 echo "==> macos x86_64 (v$VERSION)"
 rm -rf ../target/x86_64-apple-darwin/release/bundle
 cargo clean -p audiopus_sys --release --target x86_64-apple-darwin

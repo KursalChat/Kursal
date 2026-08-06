@@ -30,7 +30,8 @@ done
 rm -rf dist/raw
 
 if [[ "${1:-}" == "--push" ]]; then
-  echo "==> pushing $IMAGE:{$VERSION,latest}"
+  case "$VERSION" in *-*) FLOATING=beta ;; *) FLOATING=latest ;; esac
+  echo "==> pushing $IMAGE:{$VERSION,$FLOATING}"
   docker buildx build --builder "$BUILDER" --platform "$PLATFORMS" -f docker/relay/Dockerfile \
-    -t "$IMAGE:$VERSION" -t "$IMAGE:latest" --push .
+    -t "$IMAGE:$VERSION" -t "$IMAGE:$FLOATING" --push .
 fi

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepare a stable or beta release: branch from dev, bump+tag, build.
+# Prepare a stable or beta release: branch from dev, bump+tag, push. CI builds it.
 
 source "$(dirname "$0")/release-lib.sh"
 
@@ -21,8 +21,11 @@ else
 fi
 
 just release "$V"  # verify (checks) + bump + changelog + commit + tag
-just build
+
+confirm "push $BRANCH (with tag v$V)? this starts the release build on CI"
+git push --follow-tags origin "$BRANCH"
 
 echo
-echo "✓ built v$V on $BRANCH"
-echo "  test the app, then:  just ship $V"
+echo "✓ pushed v$V on $BRANCH. CI is building every platform."
+echo "  watch it:  gh run watch"
+echo "  then test the draft release, and:  just ship $V"
