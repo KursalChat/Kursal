@@ -100,7 +100,7 @@ apple-native-keyring-store = { workspace = true, features = [
 # Echo cancellation / noise suppression (software AEC3 + NS). Its bundled
 # C++/meson build does NOT cross-compile, so we only enable it where the
 # build is native
-[target.'cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 webrtc-audio-processing = { workspace = true, features = ["bundled"], optional = true }
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]

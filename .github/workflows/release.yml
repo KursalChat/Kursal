@@ -44,7 +44,7 @@ jobs:
 
   deps:
     needs: verify-tag
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -86,11 +86,21 @@ jobs:
 
   macos:
     needs: [verify-tag, deps]
-    runs-on: macos-15
     permissions:
       contents: read
       id-token: write
       attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-26-intel
+            arch: x64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -103,10 +113,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: macos
+          key: macos-${{ matrix.arch }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - run: brew install meson ninja autoconf automake libtool protobuf
@@ -120,18 +130,14 @@ jobs:
           printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
 
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
-      - run: ./bin/build-mac.sh
+      - run: ./bin/build-mac.sh ${{ matrix.arch }}
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
-          subject-path: |
-            build/Kursal.dmg
-            build/Kursal_x64.dmg
-            build/Kursal.app.tar.gz
-            build/Kursal_x64.app.tar.gz
+          subject-path: build/Kursal*
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: artifacts-macos
+          name: artifacts-macos-${{ matrix.arch }}
           path: build/Kursal*
 
   windows:
