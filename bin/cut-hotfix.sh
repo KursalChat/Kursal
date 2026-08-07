@@ -18,5 +18,5 @@ echo
 echo "✓ on $BRANCH. now:"
 echo "  1. make the fix + commit it"
 echo "  2. just release $V     (verify + bump + tag)"
-echo "  3. just build"
+echo "  3. git push --follow-tags origin $BRANCH   (starts the CI build)"
 echo "  4. just ship $V"

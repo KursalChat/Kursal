@@ -27,7 +27,7 @@ if [ ! -f ./keys/android.jks ]; then
 
     keytool -genkey -v -keystore ./keys/android.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 
-    echo "storeFile=$PWD/keys/android.jks\npassword=\"$password\"\nkeyAlias=upload" > ./kursal-tauri/src-tauri/gen/android/keystore.properties
+    echo "storeFile=$PWD/keys/android.jks\npassword=$password\nkeyAlias=upload" > ./kursal-tauri/src-tauri/gen/android/keystore.properties
 fi
 
 echo "\n\n=> All good!"

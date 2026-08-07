@@ -283,7 +283,7 @@ overflow-checks = false
 panic = "unwind"
 codegen-units = 1       # LLVM better optimization
 lto = true              # Enable link time optimizations
-opt-level = 3           # Optimize for binary size
+opt-level = 3           # Optimize for binary speed
 strip = true            # Remove debug symbols
 
 [profile.release.package.curve25519-dalek]

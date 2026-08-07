@@ -10,7 +10,7 @@ rm -rf ../target/x86_64-pc-windows-msvc/release/bundle/
 
 cargo clean -p audiopus_sys --release --target x86_64-pc-windows-msvc
 OPUS_NO_PKG=1 OPUS_STATIC=1 OPUS_LIB_DIR="$ROOT/bin/deps/win" \
-  cargo tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --config '{"build":{"beforeBuildCommand":""}}'
+  tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --config '{"build":{"beforeBuildCommand":""}}'
 
 cp ../target/x86_64-pc-windows-msvc/release/kursal.exe                             ../build/Kursal_x64.exe
 cp ../target/x86_64-pc-windows-msvc/release/bundle/nsis/Kursal_*_x64-setup.exe     ../build/Kursal_x64-setup.exe

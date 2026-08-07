@@ -1,18 +1,18 @@
 use crate::{KursalError, Result};
 
-#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use webrtc_audio_processing::config::{
     EchoCanceller, HighPassFilter, NoiseSuppression, NoiseSuppressionLevel,
 };
-#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use webrtc_audio_processing::{Config, Processor};
 
-#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub struct Apm {
     processor: Processor,
 }
 
-#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 impl Apm {
     pub fn new(sample_rate: u32) -> Result<Self> {
         let processor = Processor::new(sample_rate)
@@ -38,10 +38,10 @@ impl Apm {
     }
 }
 
-#[cfg(not(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub struct Apm;
 
-#[cfg(not(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 impl Apm {
     pub fn new(_sample_rate: u32) -> Result<Self> {
         Err(KursalError::Network(
