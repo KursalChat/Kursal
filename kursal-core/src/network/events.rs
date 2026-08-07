@@ -2,8 +2,8 @@ use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
     api::{
-        AppEvent, ConnectionStatus, file_transfers::resume_incoming_transfers, handle_incoming,
-        poll_contact_offline,
+        AppEvent, ConnectionStatus, PollTrigger, file_transfers::resume_incoming_transfers,
+        handle_incoming, poll_contact_offline,
     },
     contacts::Contact,
     crypto::messages::message_send,
@@ -388,10 +388,17 @@ pub(super) async fn handle_internal_network_event(
                     ConnectionKind::HolePunch => ConnectionStatus::HolePunch,
                 };
 
-                status_map
+                let previous = status_map
                     .lock()
                     .await
                     .insert(contact_id.clone(), status.clone());
+
+                let was_connected = matches!(
+                    previous,
+                    Some(ConnectionStatus::Direct)
+                        | Some(ConnectionStatus::Relay)
+                        | Some(ConnectionStatus::HolePunch)
+                );
 
                 app_event_tx
                     .send(AppEvent::ConnectionChange {
@@ -443,13 +450,21 @@ pub(super) async fn handle_internal_network_event(
                     cmd_tx_for_resume,
                     event_tx_for_resume,
                 );
-                tokio::task::spawn_local(async move {
-                    if let Err(err) =
-                        poll_contact_offline(contact_id, cmd_tx, db_clone, event_tx_clone).await
-                    {
-                        log::warn!("[offline] connection-poll failed: {err}");
-                    }
-                });
+                if !was_connected {
+                    tokio::task::spawn_local(async move {
+                        if let Err(err) = poll_contact_offline(
+                            contact_id,
+                            cmd_tx,
+                            db_clone,
+                            event_tx_clone,
+                            PollTrigger::Event,
+                        )
+                        .await
+                        {
+                            log::warn!("[offline] connection-poll failed: {err}");
+                        }
+                    });
+                }
             }
         }
         NetworkEvent::ConnectionKindChanged { peer_id, via } => {
@@ -579,7 +594,10 @@ pub(super) async fn handle_internal_network_event(
                 let event_tx = app_event_tx.clone();
                 let cid = contact_id.clone();
                 tokio::task::spawn_local(async move {
-                    if let Err(err) = poll_contact_offline(cid, cmd_tx, db_clone, event_tx).await {
+                    if let Err(err) =
+                        poll_contact_offline(cid, cmd_tx, db_clone, event_tx, PollTrigger::Event)
+                            .await
+                    {
                         log::warn!("[offline] post-fail poll failed: {err}");
                     }
                 });

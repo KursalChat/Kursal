@@ -1,6 +1,6 @@
 use crate::{
     api::{
-        AppEvent, ConnectionStatus,
+        AppEvent, ConnectionStatus, PollTrigger,
         file_transfers::{STALE_TRANSFER_MAX_AGE_SECS, cleanup_stale_transfers},
         poll_contact_offline,
     },
@@ -256,6 +256,7 @@ pub(super) async fn periodic_offline_poll(
                 cmd_tx.clone(),
                 db.clone(),
                 event_tx.clone(),
+                PollTrigger::Periodic,
             )
             .await
             {

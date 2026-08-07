@@ -29,16 +29,23 @@ use crate::{
 use libp2p::Multiaddr;
 use libsignal_protocol::{DeviceId, ProtocolAddress};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::{LazyLock, Mutex as StdMutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::sync::mpsc::{self, Sender};
 use zeroize::Zeroizing;
 
-pub const POLL_WINDOW: u64 = 32;
+pub const POLL_WINDOW: u64 = 6;
 pub const POLL_TIMEOUT_SECS: u64 = 30;
 pub const GAP_SKIP_SECS: u64 = 48 * 3600;
+pub const POLL_COOLDOWN_SECS: u64 = 120;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PollTrigger {
+    Periodic,
+    Event,
+}
 
 async fn fetch_window(
     contact: &Contact,
@@ -95,12 +102,27 @@ async fn fetch_window(
 static POLLS_ACTIVE: LazyLock<StdMutex<HashSet<[u8; 32]>>> =
     LazyLock::new(|| StdMutex::new(HashSet::new()));
 
+static LAST_POLL: LazyLock<StdMutex<HashMap<[u8; 32], Instant>>> =
+    LazyLock::new(|| StdMutex::new(HashMap::new()));
+
 pub async fn poll_contact_offline(
     contact_id: UserId,
     cmd_tx: Sender<SwarmCommand>,
     db: SharedDatabase,
     event_tx: Sender<AppEvent>,
+    trigger: PollTrigger,
 ) -> Result<()> {
+    if trigger == PollTrigger::Event
+        && LAST_POLL
+            .lock()
+            .unwrap()
+            .get(&contact_id.0)
+            .is_some_and(|t| t.elapsed() < Duration::from_secs(POLL_COOLDOWN_SECS))
+    {
+        log::debug!("[offline] poll throttled for {}", hex::encode(contact_id.0));
+        return Ok(());
+    }
+
     if !POLLS_ACTIVE.lock().unwrap().insert(contact_id.0) {
         log::debug!(
             "[offline] poll already running for {}",
@@ -109,6 +131,10 @@ pub async fn poll_contact_offline(
         return Ok(());
     }
     let result = poll_contact_offline_inner(&contact_id, &cmd_tx, &db, &event_tx).await;
+    LAST_POLL
+        .lock()
+        .unwrap()
+        .insert(contact_id.0, Instant::now());
     POLLS_ACTIVE.lock().unwrap().remove(&contact_id.0);
     result
 }
