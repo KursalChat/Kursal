@@ -11,9 +11,8 @@ VERSION="$("$ROOT/bin/version.sh")"
 # @tauri-apps/cli ships a prebuilt binary and is pinned by the lockfile.
 # cargo-tauri is the fallback for anyone who has not run `bun install`.
 tauri() {
-  local tauri_cli="$ROOT/kursal-tauri/node_modules/.bin/tauri"
-  if [ -x "$tauri_cli" ]; then
-    "$tauri_cli" "$@"
+  if [ -x "$ROOT/kursal-tauri/node_modules/.bin/tauri" ]; then
+    bun run --cwd "$ROOT/kursal-tauri" tauri "$@"
   else
     cargo tauri "$@"
   fi

@@ -6,7 +6,7 @@ homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
 
 # @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
 tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" {
-    "kursal-tauri/node_modules/.bin/tauri"
+    "bun run --cwd kursal-tauri tauri"
 } else {
     "cargo tauri"
 }
