@@ -19,7 +19,7 @@ echo "==> macos aarch64 (v$VERSION)"
 rm -rf ../target/aarch64-apple-darwin/release/bundle/
 cargo clean -p webrtc-audio-processing-sys --release --target aarch64-apple-darwin
 PKG_CONFIG_PATH="$ROOT/bin/deps/mac-arm64/abseil/lib/pkgconfig" \
-  cargo tauri build --bundles app,dmg,updater --target aarch64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
+  tauri build --bundles app,dmg,updater --target aarch64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
 check_no_homebrew ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app/Contents/MacOS/kursal
 cp ../target/aarch64-apple-darwin/release/bundle/dmg/Kursal_*.dmg            ../build/Kursal.dmg
 cp ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz     ../build/Kursal.app.tar.gz
@@ -36,7 +36,7 @@ cargo clean -p audiopus_sys --release --target x86_64-apple-darwin
 cargo clean -p webrtc-audio-processing-sys --release --target x86_64-apple-darwin
 PKG_CONFIG_PATH="$ROOT/bin/deps/mac-x64/abseil/lib/pkgconfig" \
 OPUS_NO_PKG=1 OPUS_STATIC=1 OPUS_LIB_DIR="$ROOT/bin/deps/mac-x64" \
-  cargo tauri build --bundles app,dmg,updater --target x86_64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
+  tauri build --bundles app,dmg,updater --target x86_64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
 check_no_homebrew ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app/Contents/MacOS/kursal
 cp ../target/x86_64-apple-darwin/release/bundle/dmg/Kursal_*.dmg            ../build/Kursal_x64.dmg
 cp ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz     ../build/Kursal_x64.app.tar.gz

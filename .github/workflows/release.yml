@@ -110,7 +110,6 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - run: brew install meson ninja autoconf automake libtool protobuf
-      - run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Signing key
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -162,7 +161,6 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - run: choco install protoc -y --no-progress
-      - run: cargo install tauri-cli --version "^2.0.0" --locked
 
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
 
@@ -175,7 +173,7 @@ jobs:
           OPUS_STATIC: 1
         run: |
           export OPUS_LIB_DIR="$GITHUB_WORKSPACE/bin/deps/win"
-          cargo tauri build --bundles nsis,updater \
+          bun run tauri build --bundles nsis,updater \
             --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Collect
@@ -235,7 +233,6 @@ jobs:
             autoconf automake libtool libopus-dev cmake rpm
           sudo pip3 install --upgrade meson
 
-      - run: cargo install tauri-cli --version "^2.0.0" --locked
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
 
       - name: Build
@@ -245,7 +242,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          cargo tauri build --bundles deb,rpm,appimage,updater \
+          bun run tauri build --bundles deb,rpm,appimage,updater \
             --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Collect
@@ -302,7 +299,6 @@ jobs:
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
 
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Signing keys
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -336,18 +332,27 @@ jobs:
 
   relay:
     needs: verify-tag
-    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
       attestations: write
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-22.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
           submodules: recursive
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -357,9 +362,9 @@ jobs:
 
       - run: |
           if [ "$DRY_RUN" = "true" ]; then
-            ./bin/build-relay.sh
+            ./bin/build-relay.sh --platform ${{ matrix.platform }}
           else
-            ./bin/build-relay.sh --push
+            ./bin/build-relay.sh --platform ${{ matrix.platform }} --push
           fi
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
@@ -367,12 +372,32 @@ jobs:
           subject-path: "dist/kursal-relay-*.tar.gz"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: artifacts-relay
+          name: artifacts-relay-${{ matrix.arch }}
           path: dist/kursal-relay-*
+
+  # The per-arch images are pushed separately; this joins them under one tag.
+  relay-manifest:
+    needs: relay
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: env.DRY_RUN != 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: env.DRY_RUN != 'true'
+        run: ./bin/build-relay.sh --merge
 
   # Everything is built; now assemble latest.json + SHA256SUMS and publish.
   release:
-    needs: [verify-tag, macos, windows, linux, android, relay]
+    needs: [verify-tag, macos, windows, linux, android, relay, relay-manifest]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

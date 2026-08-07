@@ -4,6 +4,13 @@ version := `./bin/version.sh`
 website := "~/Code/Kursal-Website/static"
 homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
 
+# @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
+tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" {
+    "kursal-tauri/node_modules/.bin/tauri"
+} else {
+    "cargo tauri"
+}
+
 # list recipes
 default:
     @just --list
@@ -11,11 +18,10 @@ default:
 # --- dev tooling ---
 
 dev id="0":
-    RUST_LOG=info cargo tauri dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
+    RUST_LOG=info {{ tauri }} dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
 
 install-dev-tools:
     install-hooks
-    cargo install tauri-cli --version "^2.0.0" --locked
     cd kursal-tauri && bun install --frozen-lockfile && cd ..
 
 install-hooks:
