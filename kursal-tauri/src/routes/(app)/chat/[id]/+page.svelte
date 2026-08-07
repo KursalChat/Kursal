@@ -2,6 +2,8 @@
   // Persists per-contact scroll position across chat switches (module scope
   // survives route param changes). Absent entry => never opened => start at bottom.
   const scrollMemory = new Map<string, number>();
+
+  const UNREAD_TAIL_LIMIT = 5;
 </script>
 
 <script lang="ts">
@@ -1255,19 +1257,17 @@
       // Position synchronously (DOM is already updated when this effect runs),
       // so the chat is at its spot on first paint: no visible top→bottom scroll.
       const savedTop = scrollMemory.get(contactId);
-      if (savedTop != null) {
+      const sep = firstUnreadId ? listEl.querySelector<HTMLElement>('.unread-separator') : null;
+      if (sep && unreadRunCount > UNREAD_TAIL_LIMIT) {
+        sep.scrollIntoView({ block: 'center' });
+        isScrolledToBottom = false;
+        isAtMaxBottom = false;
+        farFromBottom = true;
+      } else if (savedTop != null && unreadRunCount === 0) {
         listEl.scrollTop = savedTop;
         updateScrollFlags();
       } else {
-        const sep = firstUnreadId ? listEl.querySelector<HTMLElement>('.unread-separator') : null;
-        if (sep) {
-          sep.scrollIntoView({ block: 'center' });
-          isScrolledToBottom = false;
-          isAtMaxBottom = false;
-          farFromBottom = true;
-        } else {
-          pinInitialBottom();
-        }
+        pinInitialBottom();
       }
       return;
     }

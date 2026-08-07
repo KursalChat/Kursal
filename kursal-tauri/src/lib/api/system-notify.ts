@@ -94,6 +94,36 @@ export async function notifyMessage({ contactId, senderName, body }: MessageNoti
   activeIds.set(contactId, [...(activeIds.get(contactId) ?? []), id]);
 }
 
+let activeCallId: number | null = null;
+
+export async function notifyCall(callerName: string) {
+  if (!(await getPermission())) return;
+
+  const preview = prefsState.notificationPreview;
+  const named = preview === 'content' || preview === 'sender';
+
+  const id = ++nextId;
+  activeCallId = id;
+  sendNotification({
+    ...ICON,
+    id,
+    title: named ? callerName : 'Kursal',
+    body: t('chat.call.incoming'),
+  });
+}
+
+// Android/iOS only
+export async function clearCallNotification() {
+  if (activeCallId === null) return;
+  const id = activeCallId;
+  activeCallId = null;
+  try {
+    await removeActive([{ id }]);
+  } catch {
+    /* not supported on this platform */
+  }
+}
+
 export async function sendTestNotification(): Promise<boolean> {
   if (!(await ensurePermission())) return false;
 

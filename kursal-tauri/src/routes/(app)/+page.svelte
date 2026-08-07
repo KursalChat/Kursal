@@ -57,6 +57,7 @@
 
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { slide } from 'svelte/transition';
   import { PhoneMissed, Pencil, Check, Sparkles, ChevronDown, UserPlus } from 'lucide-svelte';
   import Avatar from '$lib/components/Avatar.svelte';
   import StatusDot from '$lib/components/StatusDot.svelte';
@@ -254,7 +255,7 @@
     </section>
 
     {#if whatsNew}
-      <section class="whats-new" class:open={whatsNewOpen} aria-label={t('home.whatsNew')}>
+      <section class="whats-new" aria-label={t('home.whatsNew')}>
         <button class="whats-new-header" onclick={toggleWhatsNew} aria-expanded={whatsNewOpen}>
           <span class="whats-new-title">
             <Sparkles size={14} />
@@ -266,51 +267,53 @@
           </span>
         </button>
         {#if whatsNewOpen}
-          <div class="groups">
-            {#each whatsNew.groups as group (group.kind)}
-              <div class="group" data-kind={group.kind}>
-                <span class="group-title">{groupLabel(group.kind)}</span>
-                <ul>
-                  {#each group.items as item (item)}
-                    <li>{item}</li>
-                  {/each}
-                </ul>
-              </div>
-            {/each}
-          </div>
-          {#if history.length > 0}
-            <button
-              class="history-toggle"
-              onclick={() => (historyOpen = !historyOpen)}
-              aria-expanded={historyOpen}
-            >
-              <span class="chevron" class:up={historyOpen}>
-                <ChevronDown size={13} />
-              </span>
-              {t('home.olderVersions')}
-            </button>
-            {#if historyOpen}
-              <div class="history">
-                {#each history as entry (entry.version)}
-                  <div class="history-entry">
-                    <span class="version-tag">v{entry.version}</span>
-                    <div class="groups">
-                      {#each entry.groups as group (group.kind)}
-                        <div class="group" data-kind={group.kind}>
-                          <span class="group-title">{groupLabel(group.kind)}</span>
-                          <ul>
-                            {#each group.items as item (item)}
-                              <li>{item}</li>
-                            {/each}
-                          </ul>
-                        </div>
-                      {/each}
+          <div class="whats-new-body" transition:slide={{ duration: 220 }}>
+            <div class="groups">
+              {#each whatsNew.groups as group (group.kind)}
+                <div class="group" data-kind={group.kind}>
+                  <span class="group-title">{groupLabel(group.kind)}</span>
+                  <ul>
+                    {#each group.items as item (item)}
+                      <li>{item}</li>
+                    {/each}
+                  </ul>
+                </div>
+              {/each}
+            </div>
+            {#if history.length > 0}
+              <button
+                class="history-toggle"
+                onclick={() => (historyOpen = !historyOpen)}
+                aria-expanded={historyOpen}
+              >
+                <span class="chevron" class:up={historyOpen}>
+                  <ChevronDown size={13} />
+                </span>
+                {t('home.olderVersions')}
+              </button>
+              {#if historyOpen}
+                <div class="history" transition:slide={{ duration: 200 }}>
+                  {#each history as entry (entry.version)}
+                    <div class="history-entry">
+                      <span class="version-tag">v{entry.version}</span>
+                      <div class="groups">
+                        {#each entry.groups as group (group.kind)}
+                          <div class="group" data-kind={group.kind}>
+                            <span class="group-title">{groupLabel(group.kind)}</span>
+                            <ul>
+                              {#each group.items as item (item)}
+                                <li>{item}</li>
+                              {/each}
+                            </ul>
+                          </div>
+                        {/each}
+                      </div>
                     </div>
-                  </div>
-                {/each}
-              </div>
+                  {/each}
+                </div>
+              {/if}
             {/if}
-          {/if}
+          </div>
         {/if}
       </section>
     {/if}
@@ -592,10 +595,9 @@
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
     padding: 6px 8px;
-    transition: padding var(--transition);
   }
-  .whats-new.open {
-    padding: 6px 8px 12px;
+  .whats-new-body {
+    padding-bottom: 6px;
   }
   .whats-new-header {
     display: flex;

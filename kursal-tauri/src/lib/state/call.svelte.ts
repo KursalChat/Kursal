@@ -21,6 +21,10 @@ import {
   stopVideo as apiStopVideo,
 } from '$lib/api/call';
 import { VideoReceiver, VideoSender, videoSupported } from '$lib/call/video';
+import { playSound, stopSound } from '$lib/audio/sounds';
+import { clearCallNotification, notifyCall } from '$lib/api/system-notify';
+import { requestAttention } from '$lib/api/window';
+import { contactsState } from '$lib/state/contacts.svelte';
 import type {
   AudioDevices,
   CallEndedPayload,
@@ -235,7 +239,14 @@ function createCallState() {
     }
   }
 
+  function endRinging() {
+    stopSound('ringtone');
+    void clearCallNotification();
+    void requestAttention(false);
+  }
+
   function reset() {
+    endRinging();
     status = 'idle';
     callId = null;
     contactId = null;
@@ -265,6 +276,11 @@ function createCallState() {
     status = 'ringing_in';
     expanded = true;
     wasCaller = false;
+    playSound('ringtone', { loop: true });
+    void notifyCall(
+      contactsState.getById(p.contactId)?.displayName ?? t('notifications.unknownSender')
+    );
+    void requestAttention(true);
     sampleRate = p.sampleRate;
     qualityOverridden = false;
     void apiGetSampleRate()
@@ -276,6 +292,7 @@ function createCallState() {
 
   function applyState(p: CallStatePayload) {
     if (callId && p.callId !== callId) return;
+    if (p.state !== 'ringing_in') endRinging();
     status = p.state;
     if (p.state === 'connected' && startedAt === null) startedAt = Date.now();
     if (p.state === 'ended') reset();

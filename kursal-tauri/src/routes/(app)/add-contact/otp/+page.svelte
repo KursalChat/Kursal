@@ -153,6 +153,12 @@
     return errorText(e, 'addContact.otp.fetchError');
   }
 
+  function handleInputKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (fetchStatus !== 'loading' && inputOtp.trim()) void handleFetchOtp();
+  }
+
   async function copyCode() {
     if (otp) {
       try {
@@ -376,6 +382,7 @@
         placeholder={t('addContact.otp.inputPlaceholder')}
         rows="3"
         disabled={fetchStatus === 'loading'}
+        onkeydown={handleInputKeydown}
         autocapitalize="off"
         autocomplete="off"
         spellcheck="false"></textarea>
