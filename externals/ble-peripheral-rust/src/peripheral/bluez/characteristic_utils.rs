@@ -235,10 +235,7 @@ fn get_descriptor_read(descriptor: descriptor::Descriptor) -> Option<DescriptorR
         fun: Box::new(move |_: DescriptorReadRequest| {
             let value_clone = value.clone();
             async move {
-                if value_clone.is_none() {
-                    return Err(ReqError::Failed);
-                }
-                return Ok(value_clone.unwrap());
+                return value_clone.ok_or(ReqError::Failed);
             }
             .boxed()
         }),
@@ -300,7 +297,7 @@ async fn on_read_request(
         })
         .await
     {
-        eprintln!("Error sending read request event: {:?}", err);
+        log::error!("Error sending read request event: {:?}", err);
     }
 
     if let Ok(res) = res_rx.await {
@@ -333,7 +330,7 @@ async fn on_write_request(
         })
         .await
     {
-        eprintln!("Error sending read request event: {:?}", err);
+        log::error!("Error sending write request event: {:?}", err);
     }
 
     if let Ok(res) = res_rx.await {
