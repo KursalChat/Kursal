@@ -310,7 +310,7 @@ jobs:
           printf '%s' "$KEY" > keys/publishing.key
           printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
           echo "$JKS" | base64 -d > keys/android.jks
-          printf 'storeFile=%s/keys/android.jks\npassword="%s"\nkeyAlias=upload\n' \
+          printf 'storeFile=%s/keys/android.jks\npassword=%s\nkeyAlias=upload\n' \
             "$GITHUB_WORKSPACE" "$JKS_PWD" \
             > kursal-tauri/src-tauri/gen/android/keystore.properties
 
