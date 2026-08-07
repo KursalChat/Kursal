@@ -3,7 +3,6 @@ name: release
 on:
   push:
     tags: ["v*"]
-    branches: ["ci/**"]
   workflow_dispatch:
     inputs:
       tag:
@@ -20,7 +19,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  DRY_RUN: "true"
 
 jobs:
   verify-tag:
@@ -36,7 +34,7 @@ jobs:
         run: |
           version="$(./bin/version.sh)"
           tag="${{ github.event.inputs.tag || github.ref_name }}"
-          if [ "$DRY_RUN" != "true" ] && [ "v$version" != "$tag" ]; then
+          if [ "v$version" != "$tag" ]; then
             echo "::error::tag $tag does not match Cargo.toml version v$version"
             exit 1
           fi
@@ -366,12 +364,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            ./bin/build-relay.sh --platform ${{ matrix.platform }}
-          else
-            ./bin/build-relay.sh --platform ${{ matrix.platform }} --push
-          fi
+      - run: ./bin/build-relay.sh --platform ${{ matrix.platform }} --push
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
@@ -393,13 +386,11 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        if: env.DRY_RUN != 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: env.DRY_RUN != 'true'
-        run: ./bin/build-relay.sh --merge
+      - run: ./bin/build-relay.sh --merge
 
   # Everything is built; now assemble latest.json + SHA256SUMS and publish.
   release:
@@ -438,15 +429,7 @@ jobs:
       - run: ./bin/gen-manifest.sh
       - run: ./bin/preflight.sh
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: manifest
-          path: |
-            build/latest.json
-            build/SHA256SUMS.txt
-
       - name: Publish
-        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
