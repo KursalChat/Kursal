@@ -10,7 +10,7 @@
 <div class="empty" data-tauri-drag-region>
   <div class="empty-inner">
     <div class="icon-wrap">
-      <img src="/winston.png" alt={t('chat.empty.mascotAlt')} width="88" height="88" />
+      <img src="/winston.webp" alt={t('chat.empty.mascotAlt')} width="88" height="88" />
     </div>
     {#if hasContacts}
       <h2>{t('chat.empty.hasContactsHeading')}</h2>

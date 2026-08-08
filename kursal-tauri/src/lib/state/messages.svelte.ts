@@ -133,6 +133,9 @@ function createMessagesState() {
   // the media URL forces a refetch once the bytes are actually on disk.
   let mediaVersions = $state<Record<string, number>>({});
   let loadedContacts = $state<Set<string>>(new Set());
+  // Tail timestamp of a window that has been evicted, so sidebar ordering
+  // doesn't reset to 0 for conversations dropped from memory.
+  let lastTs = $state<Record<string, number>>({});
   // `message_queued_offline` events can beat the id swap (replaceId/append);
   // buffered here until the id exists.
   const pendingQueued: Set<string> = new Set();
@@ -171,10 +174,26 @@ function createMessagesState() {
   }
 
   const PAGE_SIZE = 50;
+  // Upper bound on a contact's loaded window.
+  const WINDOW_MAX = 300;
   // A contact is "at live tail" when its loaded window includes the newest
   // message. After a jump (loadAround) it isn't, until scrolled/loaded back.
   const oldestReached: Set<string> = new Set();
   const newestReached: Set<string> = new Set();
+
+  function trimTail(contactId: string) {
+    const list = map[contactId];
+    if (!list || list.length <= WINDOW_MAX) return;
+    list.splice(WINDOW_MAX);
+    newestReached.delete(contactId);
+  }
+
+  function trimHead(contactId: string) {
+    const list = map[contactId];
+    if (!list || list.length <= WINDOW_MAX) return;
+    list.splice(0, list.length - WINDOW_MAX);
+    oldestReached.delete(contactId);
+  }
 
   function processMessage(m: MessageResponse) {
     if (m.fileDetails) {
@@ -246,7 +265,10 @@ function createMessagesState() {
       older.forEach(processMessage);
       const existing = new Set(list.map((m) => m.id));
       const toPrepend = older.filter((m) => hasRenderableBody(m) && !existing.has(m.id));
-      if (toPrepend.length > 0) map[contactId] = [...toPrepend, ...list];
+      if (toPrepend.length > 0) {
+        map[contactId] = [...toPrepend, ...list];
+        trimTail(contactId);
+      }
       return toPrepend.length;
     } catch (e) {
       log.error('Failed to load older messages for', contactId, e);
@@ -265,7 +287,10 @@ function createMessagesState() {
       newer.forEach(processMessage);
       const existing = new Set(list.map((m) => m.id));
       const toAppend = newer.filter((m) => hasRenderableBody(m) && !existing.has(m.id));
-      if (toAppend.length > 0) map[contactId] = [...list, ...toAppend];
+      if (toAppend.length > 0) {
+        map[contactId] = [...list, ...toAppend];
+        trimHead(contactId);
+      }
       return toAppend.length;
     } catch (e) {
       log.error('Failed to load newer messages for', contactId, e);
@@ -304,10 +329,29 @@ function createMessagesState() {
     return pendingDelete.size > 0 ? list.filter((m) => !pendingDelete.has(m.id)) : list;
   }
 
-  // 0 when the conversation has never been opened
+  // 0 when the conversation has never been opened.
   function lastTimestampFor(contactId: string): number {
     const list = map[contactId];
-    return list?.length ? list[list.length - 1].timestamp : 0;
+    if (list?.length) return list[list.length - 1].timestamp;
+    return lastTs[contactId] ?? 0;
+  }
+
+  function noteLastTs(contactId: string) {
+    const list = map[contactId];
+    const ts = list?.length ? list[list.length - 1].timestamp : 0;
+    if (ts > (lastTs[contactId] ?? 0)) lastTs[contactId] = ts;
+  }
+
+  function evictOthers(keepId: string) {
+    const drop = Object.keys(map).filter((cid) => cid !== keepId);
+    if (drop.length === 0) return;
+    for (const cid of drop) {
+      noteLastTs(cid);
+      delete map[cid];
+      oldestReached.delete(cid);
+      newestReached.delete(cid);
+    }
+    loadedContacts = new Set([...loadedContacts].filter((id) => !drop.includes(id)));
   }
 
   function setPendingDelete(messageId: string, pending: boolean) {
@@ -399,7 +443,6 @@ function createMessagesState() {
       // Insert by sent-time so a delayed offline message lands at its true
       // position, and live order matches reloaded order.
       const idx = insertInSentOrder(list, msg);
-      map[cid] = [...list];
       persistAutodownloadFromMessage(msg);
       if (msg.direction === 'received') {
         unreadByContact[cid] = (unreadByContact[cid] ?? 0) + 1;
@@ -416,7 +459,6 @@ function createMessagesState() {
   function appendOptimistic(msg: MessageResponse) {
     if (!map[msg.contactId]) map[msg.contactId] = [];
     map[msg.contactId].push(msg);
-    map[msg.contactId] = [...map[msg.contactId]];
     persistAutodownloadFromMessage(msg);
     // Replying is proof of presence: drop the hand-set unread so the normal
     // at-bottom auto-read can take over again.
@@ -439,15 +481,12 @@ function createMessagesState() {
   function expireSendingAt(contactId: string, beforeTs: number) {
     const list = map[contactId];
     if (!list) return;
-    let changed = false;
     for (const m of list) {
       if (m.status === 'sending' && m.timestamp <= beforeTs) {
         m.status = 'queued';
         viaOffline.add(pendingQueuedKey(contactId, m.id));
-        changed = true;
       }
     }
-    if (changed) map[contactId] = [...list];
   }
 
   function queuedFor(contactId: string): MessageResponse[] {
@@ -492,7 +531,6 @@ function createMessagesState() {
       if (promoted === 'delivered' || promoted === 'offline_delivered') {
         viaOffline.delete(pendingQueuedKey(contactId, messageId));
       }
-      map[contactId] = [...list];
     }
   }
 
@@ -508,7 +546,6 @@ function createMessagesState() {
       if (status === 'queued') {
         viaOffline.add(pendingQueuedKey(contactId, messageId));
       }
-      map[contactId] = [...list!];
       return true;
     }
     // Couldn't apply now (message not loaded yet, or its id is still the
@@ -523,23 +560,19 @@ function createMessagesState() {
   function markBundlePublished(contactId: string, messageIds: string[]) {
     const list = map[contactId];
     if (!list) return;
-    let changed = false;
     for (const id of messageIds) {
       const msg = list.find((m) => m.id === id);
       if (msg && (msg.status === 'queued' || msg.status === 'sending')) {
         msg.status = 'queued_in_dht';
         viaOffline.add(pendingQueuedKey(contactId, id));
-        changed = true;
       }
     }
-    if (changed) map[contactId] = [...list];
   }
 
   // The backend gave up on these after the offline retry window (3 weeks).
   function markFailed(contactId: string, messageIds: string[]) {
     const list = map[contactId];
     if (!list) return;
-    let changed = false;
     for (const id of messageIds) {
       const msg = list.find((m) => m.id === id);
       if (
@@ -547,10 +580,8 @@ function createMessagesState() {
         (msg.status === 'queued' || msg.status === 'queued_in_dht' || msg.status === 'sending')
       ) {
         msg.status = 'failed';
-        changed = true;
       }
     }
-    if (changed) map[contactId] = [...list];
   }
 
   // Re-runs the full send lifecycle for a failed message. The backend reuses the
@@ -558,20 +589,13 @@ function createMessagesState() {
   async function retryMessage(contactId: string, messageId: string) {
     const list = map[contactId];
     const msg = list?.find((m) => m.id === messageId);
-    if (msg) {
-      msg.status = 'sending';
-      map[contactId] = [...list!];
-    }
+    if (msg) msg.status = 'sending';
     try {
       await retryMessageApi(contactId, messageId);
     } catch (e) {
       log.error('retry failed', e);
-      const cur = map[contactId];
-      const failed = cur?.find((m) => m.id === messageId);
-      if (failed) {
-        failed.status = 'failed';
-        map[contactId] = [...cur!];
-      }
+      const failed = map[contactId]?.find((m) => m.id === messageId);
+      if (failed) failed.status = 'failed';
     }
   }
 
@@ -584,7 +608,6 @@ function createMessagesState() {
     if (msg && msg.status === 'sending') {
       msg.status = 'queued';
       viaOffline.add(key);
-      map[contactId] = [...list];
     }
   }
 
@@ -594,7 +617,6 @@ function createMessagesState() {
     const msg = list.find((m) => m.id === oldId);
     if (!msg) return;
     msg.id = newId;
-    map[contactId] = [...list];
     const oldKey = reactionKey(contactId, oldId);
     if (reactions[oldKey]) {
       const newKey = reactionKey(contactId, newId);
@@ -621,7 +643,6 @@ function createMessagesState() {
     if (msg) {
       msg.content = content;
       msg.edited = true;
-      map[contactId] = [...list];
     }
   }
 
@@ -654,7 +675,6 @@ function createMessagesState() {
     const msg = list.find((m) => m.id === messageId);
     if (!msg || !msg.fileDetails) return;
     msg.fileDetails = { ...msg.fileDetails, autodownloadPath: path };
-    map[contactId] = [...list];
   }
 
   function removeMessage(messageId: string, contactId: string) {
@@ -755,6 +775,7 @@ function createMessagesState() {
   // always what reads it. Leaving keeps the separator the user just placed.
   function enterChat(contactId: string) {
     clearMarkedUnread(contactId);
+    evictOthers(contactId);
   }
 
   function leaveChat(contactId: string) {
@@ -766,14 +787,11 @@ function createMessagesState() {
     const list = map[contactId];
     if (!list) return;
     const ids = new Set(messageIds);
-    let changed = false;
     for (const m of list) {
       if (ids.has(m.id) && m.direction === 'sent' && m.status !== 'read') {
         m.status = 'read';
-        changed = true;
       }
     }
-    if (changed) map[contactId] = [...list];
   }
 
   function firstUnreadFor(contactId: string): string | null {
@@ -848,10 +866,7 @@ function createMessagesState() {
     const list = map[contactId];
     if (list) {
       const msg = list.find((m) => m.id === messageId);
-      if (msg && msg.pinned !== pinned) {
-        msg.pinned = pinned;
-        map[contactId] = [...list];
-      }
+      if (msg && msg.pinned !== pinned) msg.pinned = pinned;
     }
     void loadPinned(contactId);
   }
@@ -862,10 +877,7 @@ function createMessagesState() {
   function setPinnedOptimistic(contactId: string, messageId: string, pinned: boolean) {
     const list = map[contactId];
     const msg = list?.find((m) => m.id === messageId);
-    if (msg) {
-      msg.pinned = pinned;
-      map[contactId] = [...list!];
-    }
+    if (msg) msg.pinned = pinned;
     const pins = pinnedByContact[contactId] ? [...pinnedByContact[contactId]] : [];
     const idx = pins.findIndex((m) => m.id === messageId);
     if (pinned) {
@@ -905,6 +917,7 @@ function createMessagesState() {
 
   function clearForContact(contactId: string) {
     delete map[contactId];
+    delete lastTs[contactId];
     delete unreadByContact[contactId];
     delete firstUnreadByContact[contactId];
     markedUnread = new Set([...markedUnread].filter((id) => id !== contactId));
@@ -954,6 +967,7 @@ function createMessagesState() {
 
   function clearAll() {
     Object.keys(map).forEach((k) => delete map[k]);
+    Object.keys(lastTs).forEach((k) => delete lastTs[k]);
     Object.keys(unreadByContact).forEach((k) => delete unreadByContact[k]);
     Object.keys(firstUnreadByContact).forEach((k) => delete firstUnreadByContact[k]);
     markedUnread = new Set();

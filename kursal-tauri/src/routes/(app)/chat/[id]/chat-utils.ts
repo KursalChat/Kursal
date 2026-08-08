@@ -323,11 +323,11 @@ export function formatDaySeparator(ts: number): string {
 }
 
 const EMOJI_RE = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})(‍|️|\p{Emoji_Modifier})*$/u;
+const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export function isEmojiOnly(content: string): { jumbo: boolean; count: number } {
   const trimmed = content.trim();
   if (!trimmed) return { jumbo: false, count: 0 };
-  const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   let count = 0;
   for (const { segment } of seg.segment(trimmed)) {
     if (segment.trim() === '') continue;

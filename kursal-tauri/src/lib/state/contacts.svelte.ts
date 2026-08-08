@@ -1,7 +1,6 @@
 import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
 import { log } from '$lib/utils/log';
 import { getContacts, getContactMeta, setContactMuted, setContactAlias } from '$lib/api/contacts';
-import { bytesToBase64 } from '$lib/utils/base64';
 import { shouldStampLastSeen } from '$lib/utils/presence';
 import { messagesState } from './messages.svelte';
 
@@ -29,13 +28,7 @@ function createContactsState() {
   async function load() {
     loading = true;
     try {
-      const result = await getContacts();
-      contacts = result.map((c) => {
-        if (c.avatarBytes && !c.avatarBase64) {
-          c.avatarBase64 = bytesToBase64(c.avatarBytes);
-        }
-        return c;
-      });
+      contacts = await getContacts();
     } catch (e) {
       log.error('Failed to load contacts:', e);
     } finally {
@@ -133,9 +126,6 @@ function createContactsState() {
   }
 
   function upsert(contact: ContactResponse) {
-    if (contact.avatarBytes && !contact.avatarBase64) {
-      contact.avatarBase64 = bytesToBase64(contact.avatarBytes);
-    }
     applyAlias(contact);
 
     const idx = contacts.findIndex((c) => c.userId === contact.userId);

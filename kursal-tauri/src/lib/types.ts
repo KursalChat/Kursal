@@ -8,7 +8,6 @@ export interface ContactResponse {
   blocked: boolean;
   createdAt: number;
   avatarBase64?: string | null; // base64 encoded webp string
-  avatarBytes?: number[] | null; // Raw byte array from Rust
   profileName?: string; // peer-chosen name; displayName may be a local alias
 }
 

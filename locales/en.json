@@ -355,8 +355,6 @@
       "newCodeButton": "Make a new one",
       "shareButton": "Send invite",
       "copyLinkButton": "Copy link",
-      "wordsToggle": "Read it out instead",
-      "wordsHint": "Eight words. Say them out loud if scanning is not an option.",
       "verifiedToast": "Added and verified. You scanned it in person.",
       "unverifiedToast": "Contact added. Verify the security code when you can."
     },

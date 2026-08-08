@@ -14,7 +14,7 @@
     interactive = true,
     visible = true,
     floatDelay = 0,
-    src = '/winston.png',
+    src = '/winston.webp',
   }: Props = $props();
 
   let wrap = $state<HTMLDivElement>();

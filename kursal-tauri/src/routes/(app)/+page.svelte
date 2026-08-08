@@ -26,12 +26,14 @@
   function pushSample(key: SeriesKey, raw: number) {
     const s = series[key];
     const v = Number.isFinite(raw) ? Math.max(raw, 0) : 0;
-    const next = [...s.hist, v];
-    s.hist = next.length > SPARK_LEN ? next.slice(next.length - SPARK_LEN) : next;
+    const hist = s.hist;
+    hist.push(v);
+    if (hist.length > SPARK_LEN) hist.splice(0, hist.length - SPARK_LEN);
+    let max = 0;
+    for (const n of hist) if (n > max) max = n;
     // Grow onto a new peak at once, but shrink only once the window falls to a
     // quarter of the domain, and then only to half-height. Rescaling to the window
     // max on every scroll-off drew a rising line for what was really a falling value.
-    const max = Math.max(...s.hist);
     const target = niceCeil(max);
     if (target > s.ceil) s.ceil = target;
     else if (max <= s.ceil / 4) s.ceil = niceCeil(max * 2);
@@ -65,6 +67,7 @@
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
+  import { appFocusState } from '$lib/state/appFocus.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
   import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
   import { getNodeStats } from '$lib/api/settings';
@@ -73,6 +76,7 @@
   import { t } from '$lib/i18n';
 
   $effect(() => {
+    if (!appFocusState.focused) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -158,7 +162,7 @@
 <div class="home" data-tauri-drag-region>
   <div class="home-inner">
     <header class="hero">
-      <img class="mascot" src="/winston.png" alt={t('home.mascotAlt')} width="92" height="92" />
+      <img class="mascot" src="/winston.webp" alt={t('home.mascotAlt')} width="92" height="92" />
       <div class="hero-text">
         <h2>{t(greetingKey, { name: profileState.displayName })}</h2>
         <p class="status-line">

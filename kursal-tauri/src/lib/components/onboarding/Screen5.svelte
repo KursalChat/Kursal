@@ -179,7 +179,7 @@
       <div class="aura aura-2"></div>
       <div class="aura aura-3"></div>
       {#if winstonIn}
-        <Winston size={180} src="/winston.png" />
+        <Winston size={180} src="/winston.webp" />
       {/if}
     </div>
 

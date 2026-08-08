@@ -571,6 +571,7 @@ pub fn run() {
             commands::send_file_offer,
             commands::create_outgoing_pending_path,
             commands::cancel_file_transfer,
+            commands::paths_exist,
             commands::take_pending_shares,
             commands::discard_pending_share,
             commands::flush_offline,

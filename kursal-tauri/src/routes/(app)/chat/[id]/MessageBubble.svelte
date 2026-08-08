@@ -26,7 +26,8 @@
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
-  import { exists, readTextFile } from '@tauri-apps/plugin-fs';
+  import { readTextFile } from '@tauri-apps/plugin-fs';
+  import { pathExists } from '$lib/api/fs';
   import { isMobile } from '$lib/api/window';
   import { t } from '$lib/i18n';
   import Spinner from '$lib/components/Spinner.svelte';
@@ -184,7 +185,7 @@
       return;
     }
     let cancelled = false;
-    exists(path)
+    pathExists(path)
       .then((ok) => {
         if (!cancelled) pathMissing = !ok;
       })

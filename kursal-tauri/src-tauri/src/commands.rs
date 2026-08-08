@@ -779,3 +779,16 @@ pub async fn frontend_ready(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn paths_exist(paths: Vec<String>) -> Vec<bool> {
+    let len = paths.len();
+    tokio::task::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|p| std::path::Path::new(p).try_exists().unwrap_or(false))
+            .collect()
+    })
+    .await
+    .unwrap_or_else(|_| vec![true; len])
+}

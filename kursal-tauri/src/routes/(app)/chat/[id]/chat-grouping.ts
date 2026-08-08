@@ -22,9 +22,11 @@ export function offlineTier(status: string, peerOnline: boolean): number {
 
 export function sortByOfflineTier(list: MessageResponse[], peerOnline: boolean): MessageResponse[] {
   if (!list.some((m) => offlineTier(m.status, peerOnline) > 0)) return list;
-  return [...list].sort(
-    (a, b) => offlineTier(a.status, peerOnline) - offlineTier(b.status, peerOnline)
-  );
+  // Three known buckets, so partitioning beats a comparison sort and keeps
+  // each tier in its original order without needing a stable-sort guarantee.
+  const tiers: MessageResponse[][] = [[], [], []];
+  for (const m of list) tiers[offlineTier(m.status, peerOnline)].push(m);
+  return tiers[0].concat(tiers[1], tiers[2]);
 }
 
 // Groups consecutive same-direction messages (within the merge window, same tier,

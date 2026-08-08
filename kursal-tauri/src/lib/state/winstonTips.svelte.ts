@@ -12,26 +12,26 @@ export interface WinstonTipDef {
 
 const TIPS: Record<WinstonTipId, WinstonTipDef> = {
   autostart: {
-    img: '/winston.png',
+    img: '/winston.webp',
     titleKey: 'tips.autostart.title',
     bodyKey: 'tips.autostart.body',
     ctaKey: 'tips.autostart.cta',
     dismissKey: 'tips.notNow',
   },
   fileOffer: {
-    img: '/winston.png',
+    img: '/winston.webp',
     titleKey: 'tips.fileOffer.title',
     bodyKey: 'tips.fileOffer.body',
     dismissKey: 'tips.dismiss',
   },
   offlineMessages: {
-    img: '/winston.png',
+    img: '/winston.webp',
     titleKey: 'tips.offlineMessages.title',
     bodyKey: 'tips.offlineMessages.body',
     dismissKey: 'tips.dismiss',
   },
   verifyContact: {
-    img: '/winston-key.png',
+    img: '/winston-key.webp',
     titleKey: 'tips.verifyContact.title',
     bodyKey: 'tips.verifyContact.body',
     ctaKey: 'tips.verifyContact.cta',

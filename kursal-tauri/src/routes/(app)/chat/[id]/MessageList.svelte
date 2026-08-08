@@ -75,7 +75,7 @@
     key: string;
     tier: number;
     day: number | null;
-    items: { group: MessageGroup; gi: number }[];
+    items: { group: MessageGroup; gi: number; runs: ImageRun[] }[];
   }
 
   // A sticky pill is only pushed out by the box it lives in, so each day (and
@@ -88,13 +88,14 @@
         last &&
         last.tier === group.tier &&
         (group.tier > 0 || isSameDay(group.timestamp, last.items[0].group.timestamp));
-      if (continues) last.items.push({ group, gi });
+      const item = { group, gi, runs: imageRuns(group.messages) };
+      if (continues) last.items.push(item);
       else
         out.push({
           key: `${group.tier}:${gi}`,
           tier: group.tier,
           day: group.tier === 0 ? group.timestamp : null,
-          items: [{ group, gi }],
+          items: [item],
         });
     });
     return out;
@@ -145,7 +146,7 @@
         {#if section.day !== null}
           <ChatSeparator variant="day" label={formatDaySeparator(section.day)} />
         {/if}
-        {#each section.items as { group, gi } (gi)}
+        {#each section.items as { group, gi, runs } (gi)}
           {#if firstUnreadId && groupFirstId(group) === firstUnreadId}
             <ChatSeparator
               variant="unread"
@@ -179,7 +180,7 @@
               {/if}
 
               {#if appearanceState.layout === 'flat'}
-                {#each imageRuns(group.messages) as run (run.msgs[0].id)}
+                {#each runs as run (run.msgs[0].id)}
                   {@const msg = run.msgs[0]}
                   {@const mi = run.startIdx}
                   <div
@@ -249,7 +250,7 @@
                     </div>
                   {/if}
                   <div class="group-messages" class:sent={group.direction === 'sent'}>
-                    {#each imageRuns(group.messages) as run (run.msgs[0].id)}
+                    {#each runs as run (run.msgs[0].id)}
                       {#if run.msgs.length > 1}
                         <ImageStackBubble
                           msgs={run.msgs}
@@ -318,6 +319,10 @@
 
   .msg-group {
     margin-top: 6px;
+  }
+  .msg-group:not(:has(:global(.msg-actions))) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
   }
   .msg-group + .msg-group {
     margin-top: 10px;

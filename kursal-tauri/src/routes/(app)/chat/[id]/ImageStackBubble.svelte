@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Check, CheckCheck, CloudUpload, Download, ImageOff } from 'lucide-svelte';
-  import { exists } from '@tauri-apps/plugin-fs';
+  import { pathExists } from '$lib/api/fs';
   import Spinner from '$lib/components/Spinner.svelte';
   import type { MessageResponse } from '$lib/types';
   import { t } from '$lib/i18n';
@@ -48,18 +48,11 @@
     lastSig = sig;
     let cancelled = false;
     (async () => {
+      const present = await Promise.all(
+        snap.map((s) => (s.path ? pathExists(s.path) : Promise.resolve(false)))
+      );
       const next: Record<string, boolean> = {};
-      for (const s of snap) {
-        if (!s.path) {
-          next[s.id] = false;
-          continue;
-        }
-        try {
-          next[s.id] = await exists(s.path);
-        } catch {
-          next[s.id] = true;
-        }
-      }
+      snap.forEach((s, i) => (next[s.id] = present[i]));
       if (!cancelled) fileStatus = next;
     })();
     return () => {

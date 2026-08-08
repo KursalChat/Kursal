@@ -368,7 +368,7 @@
 
     {#if winstonIn}
       <div class="winston-here">
-        <img src="/winston-key.png" alt="" draggable="false" />
+        <img src="/winston-key.webp" alt="" draggable="false" />
       </div>
     {/if}
   </div>
