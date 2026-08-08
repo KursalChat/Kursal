@@ -276,7 +276,6 @@
       <div class="rotation-row">
         <span class="rotation-label">
           <strong>{t('addContact.ltc.card.rotationRow')}</strong>
-          <span>{t('addContact.ltc.card.rotationDescription')}</span>
         </span>
         <Toggle
           checked={status.followRotations}
@@ -479,12 +478,6 @@
     font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-primary);
-  }
-
-  .rotation-label span {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: 1.45;
   }
 
   .pointer {

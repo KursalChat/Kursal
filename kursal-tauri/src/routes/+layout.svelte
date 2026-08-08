@@ -365,7 +365,7 @@
       } else if (signal == 'new_contact') {
         goto('/add-contact');
       } else if (signal == 'open_otp') {
-        goto(`/add-contact/otp?receive=${encodeURIComponent(payload)}`);
+        goto(`/add-contact?receive=${encodeURIComponent(payload)}`);
       } else if (signal == 'add_node') {
         void handleAddNodeLink(payload);
       } else if (signal == 'handle_incoming_error') {

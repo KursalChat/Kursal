@@ -37,7 +37,7 @@
 {#if open}
   <div class="backdrop" transition:fade|global={{ duration: 500 }}></div>
   <div class="tip" role="dialog" aria-label={t('layout.closeExplainer.title')}>
-    <WinstonCard img="/winston.png" alt={t('tour.winstonAlt')} size={84}>
+    <WinstonCard img="/winston.png" alt="Winston" size={84}>
       <div class="title">{t('layout.closeExplainer.title')}</div>
       <div class="body">{t('layout.closeExplainer.body')}</div>
 

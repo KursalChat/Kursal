@@ -507,6 +507,7 @@ pub fn run() {
             commands::generate_otp,
             commands::publish_otp,
             commands::fetch_otp,
+            commands::check_otp_words,
             commands::get_ltc_status,
             commands::create_ltc,
             commands::update_ltc_limits,

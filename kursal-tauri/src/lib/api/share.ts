@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   shareFile as sharekitShareFile,
+  shareText as sharekitShareText,
   type SharePosition,
 } from '@choochmeque/tauri-plugin-sharekit-api';
 import { OS, isMobile } from '$lib/api/window';
@@ -13,6 +14,7 @@ export const discardPendingShare = (id: string): Promise<void> =>
   invoke('discard_pending_share', { id });
 
 export const canShareFiles = isMobile || OS === 'macos';
+export const canShareText = isMobile || OS === 'macos';
 
 export function shareAnchor(el: HTMLElement): SharePosition {
   const rect = el.getBoundingClientRect();
@@ -21,6 +23,16 @@ export function shareAnchor(el: HTMLElement): SharePosition {
     y: rect.top + rect.height / 2,
     preferredEdge: 'bottom',
   };
+}
+
+export async function shareText(text: string, position?: SharePosition): Promise<boolean> {
+  try {
+    await sharekitShareText(text, { position });
+    return true;
+  } catch (e) {
+    if (parseError(e).message.toLowerCase().includes('cancel')) return false;
+    throw e;
+  }
 }
 
 export async function shareFile(

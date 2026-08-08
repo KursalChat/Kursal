@@ -2,7 +2,6 @@ import { browser } from '$app/environment';
 
 export type PersistedOtpState = {
   otp: string;
-  shareView: 'words' | 'qr';
   expiresAt: number;
 };
 

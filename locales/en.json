@@ -88,7 +88,6 @@
     "relayBadge": "Relay",
     "relayBadgeVia": "Relay · {transport}"
   },
-
   "errors": {
     "storage": "Couldn't access local storage. Please try again.",
     "crypto": "A security operation failed. Please try again.",
@@ -97,7 +96,6 @@
     "io": "Couldn't read or write a file. Please try again.",
     "unknown": "Something went wrong. Please try again."
   },
-
   "avatar": {
     "errorOpenImage": "Failed to open image",
     "errorTooLarge": "Image too large after compression",
@@ -108,7 +106,6 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out"
   },
-
   "emojiPicker": {
     "searchPlaceholder": "Search emoji…",
     "noResults": "No emoji found",
@@ -127,12 +124,10 @@
       "flags": "Flags"
     }
   },
-
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
     "transferFailed": "File transfer failed integrity check and was discarded"
   },
-
   "backendDialog": {
     "crashReportTitle": "Crash detected",
     "crashReportMessage": "Kursal crashed last time. Send an anonymous crash report to help fix it?",
@@ -156,7 +151,6 @@
     "fileOpenCancel": "Cancel",
     "fileBlockedConfirm": "Close"
   },
-
   "biometricLock": {
     "heading": "Kursal is locked",
     "subtitle": "Authenticate to continue.",
@@ -170,25 +164,21 @@
     "androidTitle": "Unlock Kursal",
     "androidSubtitle": "Authenticate to access your messages"
   },
-
   "offlineSync": {
     "checking": "Checking for offline messages",
     "checkingTitle": "Fetching anything your contacts left in the offline mailbox while you were away",
     "justNow": "Offline checked just now",
     "idleTitle": "Kursal checks the offline mailbox every 15 minutes while you're connected"
   },
-
   "updateDownload": {
     "titleVersion": "Downloading {version}",
     "installing": "Installing…"
   },
-
   "changelog": {
     "features": "New features",
     "fixes": "Fixes",
     "other": "Other changes"
   },
-
   "home": {
     "greetingMorning": "Good morning, {name}",
     "greetingAfternoon": "Good afternoon, {name}",
@@ -212,7 +202,6 @@
     "whatsNew": "What's new",
     "olderVersions": "Older versions"
   },
-
   "layout": {
     "appName": "Kursal",
     "contactAdded": "Contact added!",
@@ -278,7 +267,6 @@
     "contactRenamed": "{oldName} changed their name to {newName}",
     "contactAvatarUpdated": "{name} updated their profile picture"
   },
-
   "onboarding": {
     "stepProgress": "Step {current} of {total}",
     "skip": "Skip",
@@ -328,7 +316,6 @@
       "consentLink": "Terms of Service"
     }
   },
-
   "terms": {
     "updatedTitle": "Terms of Service updated",
     "updatedMessage": "The Terms of Service changed on {date}.",
@@ -338,54 +325,60 @@
     "reviewButton": "Read the terms",
     "errorOpenLink": "Couldn't open the terms. Visit kursal.chat/terms in your browser."
   },
-
   "addContact": {
     "methodSelection": {
-      "heading": "Add Contact",
-      "otpLabel": "One-Time Code",
-      "nearbyLabel": "Nearby",
-      "ltcLabel": "Long-Term Code"
+      "heading": "Add Contact"
+    },
+    "connect": {
+      "theirCodeTitle": "Their code",
+      "receivePlaceholder": "Paste their words or a kursal:// link, or drop their .kursal card…",
+      "browseCard": "Open a card file",
+      "scanCta": "Scan their code",
+      "connectButton": "Connect",
+      "dropOverlay": "Release to add this contact",
+      "rowNearby": "Nearby",
+      "rowMakeCode": "Make a code for them",
+      "rowCard": "Reusable card",
+      "rowCardHint": "One file, any number of people, no expiry",
+      "cardActive": "Active",
+      "yourCodeTitle": "Your code",
+      "orDivider": "or",
+      "rowMakeCodeHint": "They scan it, or type in the eight words",
+      "makeCodeButton": "Make a code",
+      "readyHint": "Let them scan this, or send it over. It works once.",
+      "creatingHint": "Hashing it and publishing it to the network…",
+      "createFailed": "Could not create your code.",
+      "retryButton": "Try again",
+      "expiresIn": "Expires in {time}",
+      "codeExpired": "That code expired.",
+      "codeUsed": "Someone used that code. Each one works once.",
+      "newCodeButton": "Make a new one",
+      "shareButton": "Send invite",
+      "copyLinkButton": "Copy link",
+      "wordsToggle": "Read it out instead",
+      "wordsHint": "Eight words. Say them out loud if scanning is not an option.",
+      "verifiedToast": "Added and verified. You scanned it in person.",
+      "unverifiedToast": "Contact added. Verify the security code when you can."
     },
     "otp": {
-      "shareTitle": "Share code",
-      "shareSubtitle": "This one-time code expires automatically after 10 minutes.",
-      "expiringIn": "Expiring in {time}",
-      "codeExpired": "That code expired. Generate a new one to share.",
-      "codeUsed": "That code was used to add a contact. Generate a new one to add someone else.",
       "alreadyUsedError": "This code was already used to add a contact. Ask for a new one.",
       "noAnswerError": "The other device never confirmed. Make sure it is online and try again.",
-      "sendInstructions": "Send this to your contact through a secure channel.",
-      "wordsLabel": "Words",
-      "qrLabel": "QR",
       "passphraseAriaLabel": "One-time passphrase words",
       "qrCodeAlt": "QR code containing the one-time contact phrase",
-      "qrUnavailable": "QR preview unavailable, use the words view.",
-      "copyButton": "Copy Code",
-      "copyLinkButton": "Copy link",
-      "regenerateButton": "Regenerate",
-      "generateButton": "Generate Code",
-      "helpText": "After generation, you can switch between words and QR.",
-      "recommendedMethod": "Recommended method for adding a contact. If you are on the same network on in Bluetooth-range, consider using the Nearby tab.",
-      "receiveTitle": "Enter code",
-      "receiveSubtitle": "Paste or type the 8 words from your contact.",
-      "inputPlaceholder": "example: maple echo ribbon solar …",
-      "scanButton": "Scan",
-      "scanLabel": "Scan QR code",
-      "pasteButton": "Paste",
       "pasteLabel": "Paste",
       "expiredError": "This contact code has expired. Ask for a new one.",
       "invalidError": "Invalid code. Make sure you copied it correctly.",
-      "connectButton": "Connect Contact",
-      "generateError": "Failed to generate code",
       "cameraPermissionDenied": "Camera permission denied",
       "qrScanError": "QR scan failed",
-      "contactAdded": "Contact added!",
       "fetchError": "Couldn't find that code. It may be wrong or expired.",
-      "orDivider": "Or"
+      "wordCheckError": "Some of these words aren't in the code list. Pick a fix below, or edit them yourself.",
+      "wordCountError": "A code is eight words. This one has {count}.",
+      "noSuggestion": "No close match",
+      "replaceWith": "Replace with {word}",
+      "enteredWordsAriaLabel": "Words you entered, with spelling problems marked",
+      "wordAriaLabel": "Word {n}"
     },
     "ltc": {
-      "createTitle": "Create long-term code",
-      "createDescription": "Generate a .kursal file for long term, multi-contact sharing.",
       "createButton": "Create code",
       "created": "Long-term code created",
       "createError": "Could not create the code",
@@ -435,23 +428,13 @@
         "reshareHint": "You pushed the expiry date back. Copies you already handed out still carry the old one, so share the file again.",
         "staleHint": "This code never expires and has been active for {n} months. Replacing it now and then is good hygiene.",
         "rotationRow": "Survive peer ID rotation",
-        "rotationDescription": "Publishes a signed pointer so people holding this file still reach you after a rotation.",
         "pointerPublished": "Published. Copies you shared survive a rotation.",
         "pointerPending": "Publishing to the network…",
         "pointerFailed": "Could not publish. Copies you shared will stop working after a rotation.",
         "pointerDisabled": "Off. Copies you shared stop working after a rotation.",
         "pointerRetry": "Try again"
       },
-      "warningTitle": "Keep this file private.",
       "warningDescription": "Anyone holding it can request a secure session until it expires, runs out of uses, or you revoke it.",
-      "securityNoteTitle": "A small trade-off",
-      "securityNoteDescription": "Reusable codes are slightly less private than one-time codes, but fine for everyday use. Pick a one-time code if you want the strongest protection.",
-      "importTitle": "Import long-term code",
-      "importSubtitle": "Drop a file here or browse for one.",
-      "dropZoneAriaLabel": "Drop file or click to browse",
-      "releaseToImport": "Release to import",
-      "dropFile": "Drop file here",
-      "orBrowse": "or click to browse",
       "invalidFileType": "Invalid file type. Please select a .kursal file.",
       "expiredError": "This long-term code has expired. Ask your contact to generate a new one.",
       "alreadyUsedError": "This long-term code has run out of uses. Ask your contact for a new one.",
@@ -468,22 +451,14 @@
       "pickerUnavailable": "File picker unavailable"
     },
     "nearby": {
-      "wifiDisabled": "Wi-Fi discovery off",
       "wifiDisabledDescription": "Nearby Share is disabled in Settings, so mDNS over Wi-Fi is off. Only Bluetooth discovery is active, and only while this page is open.",
-      "yourName": "Your Nearby Name",
+      "yourName": "You appear as {name}",
       "startingDiscovery": "Starting discovery…",
+      "found": "{count} found",
       "scanning": "Scanning",
-      "stopped": "Stopped",
-      "incomingRequests": "Incoming Requests",
-      "wantsToConnect": "{peerId} wants to connect",
+      "wantsToConnectShort": "wants to connect",
       "declineButton": "Decline",
       "acceptButton": "Accept",
-      "devicesNearby": "Devices Nearby",
-      "found": "{count} found",
-      "scanningNetwork": "Scanning local network…",
-      "noDevices": "No devices found yet. Keep this page open on both devices.",
-      "bluetooth": "Bluetooth",
-      "wifi": "Wi-Fi",
       "connectButton": "Connect",
       "discoveryFailed": "Failed to start nearby discovery",
       "connectionSent": "Connection request sent",
@@ -494,7 +469,6 @@
       "connectionDeclined": "Connection declined"
     }
   },
-
   "chat": {
     "empty": {
       "mascotAlt": "Kursal Mascot",
@@ -769,7 +743,6 @@
       "you": "You"
     }
   },
-
   "settings": {
     "heading": "Settings",
     "categoriesAriaLabel": "Settings categories",
@@ -1187,7 +1160,6 @@
       "errorCopyFailed": "Copy failed."
     }
   },
-
   "profile": {
     "nicknameEdit": "Set nickname",
     "errorNickname": "Couldn't save nickname.",
@@ -1214,7 +1186,6 @@
     "removeConfirmMessage": "This will delete all messages on your side.",
     "removeConfirmLabel": "Remove"
   },
-
   "securityCode": {
     "heading": "Security Code Verification",
     "loading": "Loading security code…",
@@ -1225,7 +1196,6 @@
     "doLaterButton": "Do this later",
     "successVerified": "Contact verified!"
   },
-
   "connectionInfo": {
     "heading": "Connection",
     "transportDirect": "Connected directly",
@@ -1241,57 +1211,12 @@
     "reconnectFailed": "Could not reach this contact",
     "closeButton": "Close"
   },
-
   "share": {
     "copyLink": "Copy link",
     "close": "Close",
     "qrAlt": "QR code",
     "qrUnavailable": "Couldn't render QR code"
   },
-
-  "tour": {
-    "skipButton": "Skip tour",
-    "dialogAriaLabel": "Kursal tour",
-    "winstonAlt": "Winston",
-    "steps": {
-      "intro": {
-        "title": "Hey! I'm Winston",
-        "body": "I see… it's your first time on Kursal! Let me show you how adding contacts works.",
-        "cta": "Show me"
-      },
-      "clickAdd": {
-        "body": "First, hit the **Add Contact** button. There are three ways to add a friend, and I'll walk you through each one.",
-        "bodyOpenMenu": "Open the **menu** up there. Your contacts and the Add Contact button live in there."
-      },
-      "otpDetail": {
-        "title": "One-Time Code",
-        "body": "You or your friend generates a one-off password: eight random words. The other types it in. Single-use, great for sharing via voice or text.",
-        "cta": "Got it"
-      },
-      "clickLtc": {
-        "body": "Now check out **Long-Term Codes**. Click that tab."
-      },
-      "ltcDetail": {
-        "title": "Long-Term Code",
-        "body": "You generate a file that multiple people can import to add you. Only one is valid at a time. Auto-expires after 7 days, or revoke it whenever you want.",
-        "cta": "Next"
-      },
-      "clickNearby": {
-        "body": "Last one. **Nearby**. This one feels magical. Click it!"
-      },
-      "nearbyDetail": {
-        "title": "Nearby Share",
-        "body": "If you and your friend are on the same Wi-Fi, or close enough for Bluetooth, you'll just *appear* on each other's screens. As long as you're both on this page.",
-        "cta": "Great"
-      },
-      "outro": {
-        "title": "You're all set!",
-        "body": "Pick whichever method fits the moment. Welcome to Kursal, hope you stick around.",
-        "cta": "Let's go"
-      }
-    }
-  },
-
   "tips": {
     "dismiss": "Got it",
     "notNow": "Not now",

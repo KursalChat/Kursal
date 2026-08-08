@@ -78,11 +78,11 @@
   role="button"
   tabindex="0"
   onkeydown={(e) => e.key === 'Enter' && onPoke()}
-  aria-label={t('tour.winstonAlt')}
+  aria-label="Winston"
 >
   <div class="glow"></div>
   <div class="inner">
-    <img {src} alt={t('tour.winstonAlt')} draggable="false" />
+    <img {src} alt="Winston" draggable="false" />
   </div>
 
   {#if speech}

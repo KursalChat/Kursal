@@ -11,7 +11,6 @@
   import { networkState } from '$lib/state/network.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
-  import WinstonContactsTour from '$lib/components/WinstonContactsTour.svelte';
   import AutostartPrompt from '$lib/components/AutostartPrompt.svelte';
   import WinstonTip from '$lib/components/WinstonTip.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
@@ -222,7 +221,6 @@
   </main>
 </div>
 
-<WinstonContactsTour />
 <WinstonTip />
 <AutostartPrompt />
 <CommandPalette bind:open={commandOpen} onClose={() => (commandOpen = false)} />

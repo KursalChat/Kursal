@@ -96,6 +96,11 @@ pub async fn generate_otp() -> Result<OtpResponse> {
     cmd_wrapper::generate_otp().await.map_err(Into::into)
 }
 
+#[tauri::command]
+pub async fn check_otp_words(words: Vec<String>) -> Vec<Option<Vec<String>>> {
+    kursal_core::first_contact::otp::check_words(&words)
+}
+
 core_cmd!(publish_otp(otp: String) -> ());
 core_cmd!(fetch_otp(otp: String) -> ContactResponse);
 core_cmd!(get_ltc_status() -> Option<LtcStatusDto>);
