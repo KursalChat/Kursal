@@ -31,7 +31,7 @@ install-hooks:
 
 # --- release ---
 
-# ORCHESTRATION: `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
+# `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
 # See RELEASING.md
 
 # prepare a stable/beta release: branch from dev, bump+tag, build
@@ -121,7 +121,7 @@ publish-beta-manifest:
     gh release upload beta ./build/latest.json --clobber
 
 publish-api-docs:
-    cargo run -p kursal-core --bin gen_api_docs -- --out {{ website }}/api/openapi.json
+    ./bin/publish-api-docs.sh {{ version }} {{ website }}/api/openapi.json
 
 publish-homebrew:
     ./bin/publish-homebrew.sh {{ version }} {{ homebrew }}
