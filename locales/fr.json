@@ -1,5 +1,34 @@
 {
   "addContact": {
+    "connect": {
+      "browseCard": "Ouvrir un fichier carte",
+      "cardActive": "Actif",
+      "codeExpired": "Ce code a expiré.",
+      "codeUsed": "Quelqu'un a déjà utilisé ce code. Chaque code est à usage unique.",
+      "connectButton": "Se connecter",
+      "copyLinkButton": "Copier le lien",
+      "createFailed": "Impossible de créer votre code.",
+      "creatingHint": "Hachage et publication sur le réseau…",
+      "dropOverlay": "Déposez pour ajouter ce contact",
+      "expiresIn": "Expire dans {time}",
+      "makeCodeButton": "Créer un code",
+      "newCodeButton": "En créer un nouveau",
+      "orDivider": "ou",
+      "readyHint": "À scanner ou à envoyer. Valable une seule fois.",
+      "receivePlaceholder": "Collez leurs mots ou le lien kursal://, ou déposez leur carte .kursal…",
+      "retryButton": "Veuillez réessayer",
+      "rowCard": "Carte réutilisable",
+      "rowCardHint": "Un fichier, autant d'utilisations que vous voulez, pas d'expiration",
+      "rowMakeCode": "Créer un code pour eux",
+      "rowMakeCodeHint": "Ils le scannent, ou saisissent les huit mots",
+      "rowNearby": "À proximité",
+      "scanCta": "Scanner leur code",
+      "shareButton": "Envoyer une invitation",
+      "theirCodeTitle": "Leur code",
+      "unverifiedToast": "Contact ajouté. Vérifiez le code de sécurité dés que vous pouvez.",
+      "verifiedToast": "Ajouté et vérifié. Vous l'avez scanné en personne.",
+      "yourCodeTitle": "Votre code"
+    },
     "ltc": {
       "alreadyUsedError": "Ce code longue durée n'a plus d'utilisations disponibles. Demandez-en un nouveau à votre contact.",
       "card": {
@@ -11,9 +40,15 @@
         "hoursLeft": "{n} h restantes",
         "minutesLeft": "{n} min restantes",
         "noExpiry": "Sans expiration",
+        "pointerDisabled": "Désactivé. Les copies partagés ne fonctionneront plus après une rotation.",
+        "pointerFailed": "Impossible de publier. Les copies partagées arrêteront de fonctionner après une rotation.",
+        "pointerPending": "Publication sur le réseau…",
+        "pointerPublished": "Publié. Les copies partagés survivent aux rotations.",
+        "pointerRetry": "Veuillez réessayer",
         "regenerate": "Remplacer",
         "reshareHint": "Vous avez repoussé la date d'expiration. Les copies déjà distribuées portent encore l'ancienne : partagez le fichier à nouveau.",
         "revoke": "Révoquer",
+        "rotationRow": "Survivre aux rotations d'identifiant de pair",
         "saveLimits": "Enregistrer",
         "share": "Partager",
         "staleHint": "Ce code n'expire jamais et est actif depuis {n} mois. Le remplacer de temps en temps est une bonne pratique.",
@@ -52,11 +87,13 @@
       "regenerateConfirmMessage": "Toutes les copies du fichier actuel cessent immédiatement de fonctionner. Les personnes qui en détiennent une ne pourront plus vous joindre.",
       "regenerateConfirmTitle": "Remplacer ce code ?",
       "regenerated": "Nouveau code longue durée créé",
+      "republishError": "Impossible de publier sur le réseau",
       "revokeConfirmButton": "Révoquer",
       "revokeConfirmMessage": "Toutes les copies du fichier cessent immédiatement de fonctionner. Vous pouvez créer un nouveau code quand vous voulez.",
       "revokeConfirmTitle": "Révoquer ce code ?",
       "revokeError": "Impossible de révoquer le code",
       "revoked": "Code longue durée révoqué",
+      "rotationError": "Impossible de modifier ce réglage",
       "saveCancelled": "Enregistrement annulé",
       "saveDialog": "Enregistrer le code à long terme",
       "selfError": "C'est votre propre code de contact, vous ne pouvez pas vous ajouter.",
@@ -81,20 +118,27 @@
       "found": "{count} trouvé(s)",
       "scanning": "Recherche en cours",
       "startingDiscovery": "Démarrage de la découverte…",
+      "wantsToConnectShort": "souhaite se connecter",
       "wifiDisabledDescription": "Le partage à proximité est désactivé, donc mDNS Wi-Fi est éteint. Seule la découverte Bluetooth est active tant que cette page est ouverte.",
-      "yourName": "Votre nom à proximité"
+      "yourName": "Vous apparaissez comme {name}"
     },
     "otp": {
       "alreadyUsedError": "Ce code a déjà été utilisé pour ajouter un contact. Demandez en un nouveau.",
       "cameraPermissionDenied": "Accès caméra refusé",
+      "enteredWordsAriaLabel": "Les mots saisis, avec les fautes signalées",
       "expiredError": "Ce code a expiré. Demandez-en un nouveau.",
       "fetchError": "Code introuvable. Il peut être erroné ou expiré.",
       "invalidError": "Code invalide. Vérifiez que vous l'avez copié correctement.",
       "noAnswerError": "L'autre appareil n'a jamais confirmé. Assurez-vous qu'il soit en ligne et réessayez.",
+      "noSuggestion": "Aucune correspondance proche",
       "passphraseAriaLabel": "Mots de la phrase secrète",
       "pasteLabel": "Coller",
       "qrCodeAlt": "Code QR du contact à usage unique",
-      "qrScanError": "Échec du scan QR"
+      "qrScanError": "Échec du scan QR",
+      "replaceWith": "Remplacer avec {word}",
+      "wordAriaLabel": "Mot {n}",
+      "wordCheckError": "Certains de ces mots ne figurent pas dans la liste de mots. Choisissez une correction ou modifiez-les vous-même.",
+      "wordCountError": "Un code est composé de huit mots. Celui-ci en a {count}."
     }
   },
   "avatar": {
@@ -987,6 +1031,7 @@
       "appLockBiometricRow": "Demander une biométrie au lancement",
       "appLockCard": "Verrouillage de l'application",
       "autoRotationDescription": "Fréquence de rotation de votre identité de transport. Appliqué au prochain redémarrage.",
+      "autoRotationDescriptionLtc": "À quel fréquence votre identité de transport change. Appliqué au prochain redémarrage de l'application. Votre code long-terme ne sera plus accessible après une rotation actuellement. Chaque changement empêche les copies déjà partagés de fonctionner.",
       "autoRotationRow": "Renouvellement auto",
       "blockedCard": "Contacts bloqués",
       "blockedDescription": "Les contacts bloqués ne peuvent pas se connecter à vous ni vous écrire.",
@@ -1030,6 +1075,7 @@
       "rotateButton": "Renouveler",
       "rotatePeerIdConfirm": "Renouveler maintenant",
       "rotatePeerIdDetail": "Faites cela uniquement si votre ID est compromis ou pour réinitialiser votre découverte réseau. Les conversations existantes sont conservées.",
+      "rotatePeerIdDetailLtc": "Faites cela uniquement si vous pensez que votre identifiant de pair actuel est compromis, ou pour réinitialiser la façon dont le réseau vous trouve. Les conversations existantes sont conservées, mais toutes les copies de votre fichier de code à long terme cessent de fonctionner jusqu'à ce que vous en partagiez un nouveau.",
       "rotatePeerIdMessage": "Une nouvelle identité de transport sera générée et diffusée à vos contacts.",
       "rotatePeerIdTitle": "Renouveler l'ID de pair ?",
       "thisContact": "ce contact",
@@ -1179,6 +1225,10 @@
       "cta": "Afficher les codes de sécurité",
       "title": "Un petit contrôle de sécurité ?"
     }
+  },
+  "updateDownload": {
+    "installing": "Installation…",
+    "titleVersion": "Téléchargement de {version}"
   },
   "winston": {
     "poke0": "salut",
