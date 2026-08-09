@@ -750,17 +750,13 @@
   }
   .file-cell {
     max-width: 280px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .file-name {
     color: var(--text-primary);
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .nowrap {
     white-space: nowrap;

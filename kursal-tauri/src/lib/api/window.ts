@@ -1,4 +1,4 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import { log } from '$lib/utils/log';
@@ -24,6 +24,15 @@ export async function setTrayUnread(count: number) {
     await invoke('set_tray_unread', { count });
   } catch (err) {
     log.error('Could not set tray unread:', err);
+  }
+}
+
+export async function requestAttention(on: boolean) {
+  if (isMobile) return;
+  try {
+    await getCurrentWindow().requestUserAttention(on ? UserAttentionType.Critical : null);
+  } catch (err) {
+    log.error('Could not request user attention:', err);
   }
 }
 

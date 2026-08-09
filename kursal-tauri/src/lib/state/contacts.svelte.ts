@@ -1,8 +1,8 @@
 import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
 import { log } from '$lib/utils/log';
 import { getContacts, getContactMeta, setContactMuted, setContactAlias } from '$lib/api/contacts';
-import { bytesToBase64 } from '$lib/utils/base64';
 import { shouldStampLastSeen } from '$lib/utils/presence';
+import { messagesState } from './messages.svelte';
 
 function createContactsState() {
   let contacts = $state<ContactResponse[]>([]);
@@ -10,6 +10,7 @@ function createContactsState() {
   let connectionStatus = $state<Record<string, ConnectionChangedPayload['status']>>({});
   let muted = $state<Record<string, boolean>>({});
   let lastSeen = $state<Record<string, number>>({});
+  let lastMessage = $state<Record<string, number>>({});
   let aliases = $state<Record<string, string>>({});
   let terminated = $state<Record<string, boolean>>({});
 
@@ -27,13 +28,7 @@ function createContactsState() {
   async function load() {
     loading = true;
     try {
-      const result = await getContacts();
-      contacts = result.map((c) => {
-        if (c.avatarBytes && !c.avatarBase64) {
-          c.avatarBase64 = bytesToBase64(c.avatarBytes);
-        }
-        return c;
-      });
+      contacts = await getContacts();
     } catch (e) {
       log.error('Failed to load contacts:', e);
     } finally {
@@ -43,16 +38,19 @@ function createContactsState() {
       const meta = await getContactMeta();
       const m: Record<string, boolean> = {};
       const seen: Record<string, number> = {};
+      const lastMsg: Record<string, number> = {};
       const al: Record<string, string> = {};
       const term: Record<string, boolean> = {};
       for (const entry of meta) {
         if (entry.muted) m[entry.contactId] = true;
         if (entry.lastSeenAt) seen[entry.contactId] = entry.lastSeenAt;
+        if (entry.lastMessageAt) lastMsg[entry.contactId] = entry.lastMessageAt * 1000;
         if (entry.alias) al[entry.contactId] = entry.alias;
         if (entry.terminated) term[entry.contactId] = true;
       }
       muted = m;
       lastSeen = seen;
+      lastMessage = lastMsg;
       aliases = al;
       terminated = term;
       contacts = contacts.map(applyAlias);
@@ -111,10 +109,23 @@ function createContactsState() {
     lastSeen[contactId] = Date.now();
   }
 
+  function touchLastMessage(contactId: string, timestamp: number) {
+    if (timestamp > (lastMessage[contactId] ?? 0)) lastMessage[contactId] = timestamp;
+  }
+
+  function lastMessageAt(contactId: string): number {
+    return lastMessage[contactId] ?? 0;
+  }
+
+  function activityAt(contact: ContactResponse): number {
+    return Math.max(
+      messagesState.lastTimestampFor(contact.userId),
+      lastMessage[contact.userId] ?? 0,
+      contact.createdAt * 1000
+    );
+  }
+
   function upsert(contact: ContactResponse) {
-    if (contact.avatarBytes && !contact.avatarBase64) {
-      contact.avatarBase64 = bytesToBase64(contact.avatarBytes);
-    }
     applyAlias(contact);
 
     const idx = contacts.findIndex((c) => c.userId === contact.userId);
@@ -128,6 +139,7 @@ function createContactsState() {
     delete connectionStatus[contactId];
     delete muted[contactId];
     delete lastSeen[contactId];
+    delete lastMessage[contactId];
     delete aliases[contactId];
     delete terminated[contactId];
   }
@@ -171,6 +183,9 @@ function createContactsState() {
     setTerminated,
     lastSeenAt,
     touchLastSeen,
+    touchLastMessage,
+    lastMessageAt,
+    activityAt,
     aliasFor,
     setAlias,
   };

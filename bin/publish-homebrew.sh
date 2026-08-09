@@ -9,20 +9,19 @@ if [ -z "$VERSION" ] || [ -z "$CASK_FILE" ]; then
   exit 1
 fi
 
-echo "→ Computing checksums..."
+echo "→ Fetching checksums from release v${VERSION}..."
 
-if [ ! -f "./build/Kursal.dmg" ]; then
-  echo "Error: ./build/Kursal.dmg not found"
-  exit 1
-fi
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
-if [ ! -f "./build/Kursal_x64.dmg" ]; then
-  echo "Error: ./build/Kursal_x64.dmg not found"
-  exit 1
-fi
+gh release download "v${VERSION}" -p SHA256SUMS.txt -D "$TMP" --clobber \
+  || { echo "Error: no SHA256SUMS.txt on release v${VERSION}"; exit 1; }
 
-ARM_SHA=$(shasum -a 256 "./build/Kursal.dmg"       | awk '{print $1}')
-INTEL_SHA=$(shasum -a 256 "./build/Kursal_x64.dmg" | awk '{print $1}')
+ARM_SHA=$(awk '$2 == "Kursal.dmg"       { print $1 }' "$TMP/SHA256SUMS.txt")
+INTEL_SHA=$(awk '$2 == "Kursal_x64.dmg" { print $1 }' "$TMP/SHA256SUMS.txt")
+
+[ -n "$ARM_SHA" ]   || { echo "Error: Kursal.dmg missing from SHA256SUMS.txt";     exit 1; }
+[ -n "$INTEL_SHA" ] || { echo "Error: Kursal_x64.dmg missing from SHA256SUMS.txt"; exit 1; }
 
 echo "  ARM:   ${ARM_SHA}"
 echo "  Intel: ${INTEL_SHA}"

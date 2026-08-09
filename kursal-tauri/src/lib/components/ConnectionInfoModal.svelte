@@ -8,6 +8,7 @@
   import { notifyError } from '$lib/utils/errors';
   import { flashSet } from '$lib/utils/flash.svelte';
   import { dialAddress } from '$lib/api/settings';
+  import { sortAddresses } from '$lib/utils/multiaddr';
   import Button from './Button.svelte';
   import AddressChip from './AddressChip.svelte';
   import { t } from '$lib/i18n';
@@ -18,6 +19,7 @@
   let reconnecting = $state(false);
   const copied = flashSet();
 
+  const addresses = $derived(sortAddresses(contact.knownAddresses));
   const status = $derived(contactsState.connectionStatus[contact.userId] ?? 'disconnected');
   const statusLabel = $derived.by(() => {
     if (status === 'direct') return t('connectionInfo.transportDirect');
@@ -37,10 +39,10 @@
   }
 
   async function reconnect() {
-    if (contact.knownAddresses.length === 0) return;
+    if (addresses.length === 0) return;
     reconnecting = true;
     try {
-      const results = await Promise.allSettled(contact.knownAddresses.map((a) => dialAddress(a)));
+      const results = await Promise.allSettled(addresses.map((a) => dialAddress(a)));
       const ok = results.some((r) => r.status === 'fulfilled');
       notifications.push(
         ok ? t('connectionInfo.reconnectSuccess') : t('connectionInfo.reconnectFailed'),
@@ -83,11 +85,11 @@
 
     <div class="addr-section">
       <span class="addr-label">{t('connectionInfo.knownAddresses')}</span>
-      {#if contact.knownAddresses.length === 0}
+      {#if addresses.length === 0}
         <p class="addr-empty">{t('connectionInfo.noAddresses')}</p>
       {:else}
         <ul class="addr-list">
-          {#each contact.knownAddresses as addr (addr)}
+          {#each addresses as addr (addr)}
             <li class="addr-row">
               <AddressChip {addr} />
               <button
@@ -113,7 +115,7 @@
     <Button
       variant="secondary"
       loading={reconnecting}
-      disabled={contact.knownAddresses.length === 0}
+      disabled={addresses.length === 0}
       onclick={reconnect}
     >
       <RotateCw size={14} />

@@ -1,46 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  flushContact,
-  parsePendingSync,
-  pendingSyncKey,
-  serializePendingSync,
-  type PendingSyncState,
-} from './pendingSync';
+import { flushContact, pendingSyncKey, type PendingSyncState } from './pendingSync';
 
 const state = (sync: string[], deleted: string[] = []): PendingSyncState => ({
   sync: new Set(sync),
   deleted: new Set(deleted),
-});
-
-describe('parsePendingSync', () => {
-  it('returns empty state for missing or malformed input', () => {
-    for (const raw of [null, '', 'not json', '[]', 'null', '"str"']) {
-      const parsed = parsePendingSync(raw);
-      expect(parsed.sync.size).toBe(0);
-      expect(parsed.deleted.size).toBe(0);
-    }
-  });
-
-  it('ignores non-string entries rather than trusting stored data', () => {
-    const parsed = parsePendingSync(JSON.stringify({ sync: ['a:1', 42, null], deleted: 'nope' }));
-    expect([...parsed.sync]).toEqual(['a:1']);
-    expect(parsed.deleted.size).toBe(0);
-  });
-});
-
-describe('serialize/parse round-trip', () => {
-  it('survives a restart with markers pending', () => {
-    const before = state(['alice:1', 'bob:2'], ['bob:2']);
-    const after = parsePendingSync(serializePendingSync(before));
-    expect([...after.sync].sort()).toEqual(['alice:1', 'bob:2']);
-    expect([...after.deleted]).toEqual(['bob:2']);
-  });
-
-  it('round-trips an empty state', () => {
-    const after = parsePendingSync(serializePendingSync(state([])));
-    expect(after.sync.size).toBe(0);
-    expect(after.deleted.size).toBe(0);
-  });
 });
 
 describe('flushContact', () => {

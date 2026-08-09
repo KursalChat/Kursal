@@ -13,7 +13,6 @@ use axum::{Json, extract::State};
     tag = "Self",
     responses(
         (status = 200, description = "Peer ID rotated"),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

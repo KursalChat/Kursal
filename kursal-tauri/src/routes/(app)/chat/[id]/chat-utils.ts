@@ -121,48 +121,6 @@ export function midTruncate(name: string, maxLen = 30): string {
   return stem.slice(0, head) + '…' + stem.slice(stem.length - tail) + ext;
 }
 
-export function fileTypeColor(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  if (dot < 0) return 'var(--text-muted)';
-  const ext = filename.slice(dot + 1).toLowerCase();
-  if (ext === 'pdf') return '#ef4444';
-  if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return '#3b82f6';
-  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return '#22c55e';
-  if (['ppt', 'pptx', 'odp', 'key'].includes(ext)) return '#f97316';
-  if (['zip', 'tar', 'gz', '7z', 'rar', 'bz2', 'xz'].includes(ext)) return '#a855f7';
-  if (AUDIO_EXT.has(ext)) return '#ec4899';
-  if (VIDEO_EXT.has(ext)) return '#14b8a6';
-  if (IMAGE_EXT.has(ext)) return '#6366f1';
-  if (['txt', 'md', 'log'].includes(ext)) return '#94a3b8';
-  if (['json', 'xml', 'yaml', 'yml', 'toml'].includes(ext)) return '#eab308';
-  if (
-    [
-      'js',
-      'ts',
-      'tsx',
-      'jsx',
-      'rs',
-      'py',
-      'go',
-      'rb',
-      'java',
-      'c',
-      'cpp',
-      'h',
-      'hpp',
-      'cs',
-      'swift',
-      'kt',
-      'php',
-      'html',
-      'css',
-      'scss',
-    ].includes(ext)
-  )
-    return '#0ea5e9';
-  return 'var(--text-muted)';
-}
-
 export function formatFileSize(bytes: number): string {
   if (bytes <= 0) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -323,11 +281,11 @@ export function formatDaySeparator(ts: number): string {
 }
 
 const EMOJI_RE = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})(‍|️|\p{Emoji_Modifier})*$/u;
+const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export function isEmojiOnly(content: string): { jumbo: boolean; count: number } {
   const trimmed = content.trim();
   if (!trimmed) return { jumbo: false, count: 0 };
-  const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   let count = 0;
   for (const { segment } of seg.segment(trimmed)) {
     if (segment.trim() === '') continue;

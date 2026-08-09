@@ -4,16 +4,17 @@ use crate::{
     KursalError, Result,
     api::AppEvent,
     contacts::Contact,
-    crypto::{PreKeyBundleData, mailbox_kem_decapsulate, session_initiate},
+    crypto::{DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, session_initiate},
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::swarm::{SwarmCommand, str_to_multiaddr},
     storage::{SharedDatabase, TABLE_SETTINGS, get_timestamp_secs},
+    sync::LockExt,
 };
 use libp2p::PeerId;
 use libsignal_protocol::{
-    DeviceId, IdentityKeyStore, KyberPreKeyId, KyberPreKeyStore, PreKeyId, PreKeyStore,
-    ProtocolAddress, PublicKey,
+    IdentityKeyStore, KyberPreKeyId, KyberPreKeyStore, PreKeyId, PreKeyStore, ProtocolAddress,
+    PublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -33,11 +34,11 @@ static FC_REPLAY_CACHE: LazyLock<StdMutex<VecDeque<[u8; 32]>>> =
     LazyLock::new(|| StdMutex::new(VecDeque::with_capacity(FC_REPLAY_CACHE_MAX)));
 
 fn fc_replay_contains(hash: &[u8; 32]) -> bool {
-    FC_REPLAY_CACHE.lock().unwrap().contains(hash)
+    FC_REPLAY_CACHE.lock_recover().contains(hash)
 }
 
 fn fc_replay_remember(hash: [u8; 32]) {
-    let mut cache = FC_REPLAY_CACHE.lock().unwrap();
+    let mut cache = FC_REPLAY_CACHE.lock_recover();
     if cache.contains(&hash) {
         return;
     }
@@ -108,16 +109,16 @@ static FC_ACK_WAITERS: LazyLock<StdMutex<HashMap<[u8; 16], oneshot::Sender<FcAck
 
 pub fn register_ack_waiter(payload_id: MessageId) -> oneshot::Receiver<FcAck> {
     let (tx, rx) = oneshot::channel();
-    FC_ACK_WAITERS.lock().unwrap().insert(payload_id.0, tx);
+    FC_ACK_WAITERS.lock_recover().insert(payload_id.0, tx);
     rx
 }
 
 pub fn forget_ack_waiter(payload_id: MessageId) {
-    FC_ACK_WAITERS.lock().unwrap().remove(&payload_id.0);
+    FC_ACK_WAITERS.lock_recover().remove(&payload_id.0);
 }
 
 pub fn resolve_ack_waiter(payload_id: MessageId, ack: FcAck) {
-    let waiter = FC_ACK_WAITERS.lock().unwrap().remove(&payload_id.0);
+    let waiter = FC_ACK_WAITERS.lock_recover().remove(&payload_id.0);
     if let Some(tx) = waiter {
         let _ = tx.send(ack);
     }
@@ -262,7 +263,7 @@ pub async fn handle_fc_response(
         return Ok(());
     }
 
-    let bob_address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+    let bob_address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
     session_initiate(db.clone(), bundle, &bob_address).await?;
 
     let pq_secret = if response.mailbox_kem_ct.is_empty() {

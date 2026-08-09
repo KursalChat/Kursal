@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     api::{AppEvent, message_apply::store_pin_record},
     contacts::Contact,
-    crypto::messages::message_send,
+    crypto::{DEVICE_ID, messages::message_send},
     first_contact::WireMessage,
     identity::UserId,
     messaging::{
@@ -15,7 +15,7 @@ use crate::{
     storage::{SharedDatabase, get_local_user_id, get_timestamp_secs},
 };
 use libp2p::{Multiaddr, PeerId};
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -70,7 +70,7 @@ pub async fn send_message_tracked(
     );
 
     let serialized = content.serialize()?;
-    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
 
     let now = get_timestamp_secs()?;
 
@@ -147,6 +147,24 @@ pub async fn send_message_tracked(
 
     let queued_offline = !deliver_direct;
 
+    if queued_offline
+        && matches!(
+            content,
+            KursalMessage::MessageEdit(_)
+                | KursalMessage::MessageDelete(_)
+                | KursalMessage::ReactionAdd(_)
+                | KursalMessage::ReactionRemove(_)
+        )
+        && let Some(target) = content.target_message_id()
+    {
+        crate::storage::conversation::set_pending_sync(
+            &*db.0.lock().await,
+            &hex::encode(contact.user_id.0),
+            &hex::encode(target.0),
+            matches!(content, KursalMessage::MessageDelete(_)),
+        )?;
+    }
+
     if let KursalMessage::MessageDelete(msg) = content {
         let _ = crate::messaging::pin_index_set(
             &*db.0.lock().await,
@@ -200,9 +218,9 @@ pub async fn send_message_tracked(
     }
 
     if let KursalMessage::MessagePin(ref pin) = content {
-        if let Ok(Some(mut message)) =
-            StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id)
-        {
+        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id);
+
+        if let Ok(Some(mut message)) = loaded {
             message.pinned = pin.pinned;
             let ts = message.timestamp;
             let _ = message.save(&*db.0.lock().await);

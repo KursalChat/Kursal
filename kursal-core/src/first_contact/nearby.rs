@@ -4,16 +4,17 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate, session_initiate,
+        DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate,
+        session_initiate,
     },
     first_contact::make_username,
     identity::UserId,
     messaging::offline::new_offline_state,
-    network::swarm::{SwarmCommand, get_nearby_listen_addrs},
+    network::swarm::{SwarmCommand, get_listen_addrs},
     storage::{SharedDatabase, get_dilithium_pub, get_timestamp_secs},
 };
 use libsignal_protocol::{
-    DeviceId, KeyPair, KyberPreKeyId, KyberPreKeyStore, PreKeyStore, ProtocolAddress, PublicKey,
+    KeyPair, KyberPreKeyId, KyberPreKeyStore, PreKeyStore, ProtocolAddress, PublicKey,
 };
 use rand::{Rng, TryRngCore, distr::Uniform, rngs::OsRng};
 use serde::{Deserialize, Serialize};
@@ -262,7 +263,7 @@ pub async fn handle_nearby_request(
             NearbyMessage::ConnectAccept {
                 bundle: my_bundle_serialized,
                 dilithium_pub: dilithium_pub_key.clone(),
-                relay_addresses: get_nearby_listen_addrs(cmd_tx).await?,
+                relay_addresses: get_listen_addrs(cmd_tx).await?,
             },
         )
         .await?;
@@ -279,7 +280,7 @@ pub async fn handle_nearby_request(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+            let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             session_initiate(db.clone(), bundle, &address).await?;
 
@@ -385,7 +386,7 @@ pub async fn nearby_connect(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+            let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
             let mailbox_opk_pub = bundle.pre_key_public.ok_or_else(|| {
@@ -430,7 +431,7 @@ pub async fn nearby_connect(
                     NearbyMessage::BundleReply {
                         bundle: our_bundle.serialize()?,
                         dilithium_pub: our_dilithium,
-                        relay_addresses: get_nearby_listen_addrs(cmd_tx).await?,
+                        relay_addresses: get_listen_addrs(cmd_tx).await?,
                         mailbox_kem_ct,
                         mailbox_ephemeral_pub,
                     },

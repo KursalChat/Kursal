@@ -11,8 +11,9 @@ use kursal_core::api::{CoreCommand, cmd_wrapper};
 use kursal_core::apiserver::LocalApiConfig;
 use kursal_core::dto::{
     ContactResponse, LtcStatusDto, MessageResponse, NearbyPeerResponse, NetworkStatusDto,
-    NodesResponse, OtpResponse,
+    NodesResponse, OtpResponse, PendingSyncDto, UnreadDto,
 };
+use kursal_core::messaging::StoredMessage;
 use kursal_core::messaging::enums::MessageId;
 use kursal_core::network::NetworkManager;
 use kursal_core::storage::backup::{generate_backup, load_backup};
@@ -27,6 +28,7 @@ use kursal_core::storage::{
     get_swarm_mdns_enabled, reset_full_app, set_api_server_config, set_new_api_server_password,
     set_swarm_listening_port, set_swarm_mdns_enabled,
 };
+use kursal_core::sync::LockExt;
 use std::collections::HashMap;
 use tauri_plugin_opener::OpenerExt;
 use tokio::fs::remove_dir_all;
@@ -93,6 +95,11 @@ macro_rules! setting_cmd {
 #[tauri::command]
 pub async fn generate_otp() -> Result<OtpResponse> {
     cmd_wrapper::generate_otp().await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn check_otp_words(words: Vec<String>) -> Vec<Option<Vec<String>>> {
+    kursal_core::first_contact::otp::check_words(&words)
 }
 
 core_cmd!(publish_otp(otp: String) -> ());
@@ -225,6 +232,13 @@ core_cmd!(get_messages_after(contact_id: String, after: String, limit: usize) ->
 core_cmd!(get_messages_around(contact_id: String, message_id: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(search_messages(contact_id: String, query: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(search_messages_global(query: String, limit: usize) -> Vec<MessageResponse>);
+core_cmd!(get_unread_summary() -> Vec<UnreadDto>);
+core_cmd!(mark_contact_read(contact_id: String) -> Vec<String>);
+core_cmd!(mark_contact_unread(contact_id: String, from_message_id: Option<String>) -> UnreadDto);
+core_cmd!(set_contact_marked_unread(contact_id: String, value: bool) -> ());
+core_cmd!(get_delayed_unseen() -> HashMap<String, Vec<String>>);
+core_cmd!(set_delayed_unseen(contact_id: String, message_ids: Vec<String>) -> ());
+core_cmd!(get_pending_sync() -> PendingSyncDto);
 core_cmd!(get_security_code(contact_id: String) -> String);
 core_cmd!(confirm_security_code(contact_id: String) -> ());
 core_cmd!(set_contact_blocked(contact_id: String, value: bool) -> ());
@@ -486,6 +500,7 @@ pub struct ContactMetaDto {
     pub contact_id: String,
     pub muted: bool,
     pub last_seen_at: Option<u64>,
+    pub last_message_at: Option<u64>,
     pub alias: Option<String>,
     pub terminated: bool,
 }
@@ -518,9 +533,13 @@ pub async fn get_contact_meta(state: tauri::State<'_, AppState>) -> Result<Vec<C
         .into_iter()
         .map(|c| {
             let id = hex::encode(c.user_id.0);
+            let last_message_at = StoredMessage::load_recent(&db, &c.user_id, 1, None)
+                .ok()
+                .and_then(|msgs| msgs.first().map(|m| m.id.timestamp_secs()));
             ContactMetaDto {
                 muted: kursal_core::storage::get_contact_muted(&db, &id),
                 last_seen_at: kursal_core::storage::get_contact_last_seen(&db, &id),
+                last_message_at,
                 alias: kursal_core::storage::get_contact_alias(&db, &id),
                 terminated: kursal_core::storage::get_contact_terminated(&db, &id),
                 contact_id: id,
@@ -751,7 +770,7 @@ pub async fn frontend_ready(
     state: tauri::State<'_, AppState>,
 ) -> Result<()> {
     let urls = {
-        let mut queue = state.deep_links.lock().unwrap();
+        let mut queue = state.deep_links.lock_recover();
         queue.frontend_ready = true;
         std::mem::take(&mut queue.pending)
     };
@@ -767,4 +786,17 @@ pub async fn frontend_ready(
     crate::background::drain_pending_signal(&_app);
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn paths_exist(paths: Vec<String>) -> Vec<bool> {
+    let len = paths.len();
+    tokio::task::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|p| std::path::Path::new(p).try_exists().unwrap_or(false))
+            .collect()
+    })
+    .await
+    .unwrap_or_else(|_| vec![true; len])
 }

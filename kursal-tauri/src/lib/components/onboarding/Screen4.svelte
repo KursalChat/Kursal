@@ -170,7 +170,7 @@
 
       {#if winstonIn}
         <div class="winston-shrug">
-          <img src="/winston.png" alt="" draggable="false" />
+          <img src="/winston.webp" alt="" draggable="false" />
         </div>
       {/if}
     </div>

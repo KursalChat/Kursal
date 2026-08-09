@@ -24,7 +24,7 @@
     compact = false,
     autoFocus = true,
   }: {
-    onSelect: (emoji: string) => void;
+    onSelect: (emoji: string, keepOpen: boolean) => void;
     onClose: () => void;
     compact?: boolean;
     autoFocus?: boolean;
@@ -125,9 +125,9 @@
     index && searchQuery.trim() ? searchEmojis(index.flat, searchQuery) : null
   );
 
-  function pick(unicode: string) {
+  function pick(unicode: string, keepOpen: boolean) {
     bumpRecent(unicode);
-    onSelect(unicode);
+    onSelect(unicode, keepOpen);
   }
 
   function chooseTone(tn: ToneId) {
@@ -252,7 +252,8 @@
               <button
                 class="emoji-btn"
                 title={emoji.label}
-                onclick={() => pick(applyTone(emoji, tone))}>{applyTone(emoji, tone)}</button
+                onclick={(e) => pick(applyTone(emoji, tone), e.shiftKey)}
+                >{applyTone(emoji, tone)}</button
               >
             {/each}
           </div>
@@ -263,7 +264,7 @@
             <div class="category-label">{t('emojiPicker.recent')}</div>
             <div class="emoji-grid">
               {#each recents as u (u)}
-                <button class="emoji-btn" onclick={() => pick(u)}>{u}</button>
+                <button class="emoji-btn" onclick={(e) => pick(u, e.shiftKey)}>{u}</button>
               {/each}
             </div>
           </div>
@@ -277,7 +278,8 @@
                 <button
                   class="emoji-btn"
                   title={emoji.label}
-                  onclick={() => pick(applyTone(emoji, tone))}>{applyTone(emoji, tone)}</button
+                  onclick={(e) => pick(applyTone(emoji, tone), e.shiftKey)}
+                  >{applyTone(emoji, tone)}</button
                 >
               {/each}
             </div>

@@ -26,12 +26,14 @@
   function pushSample(key: SeriesKey, raw: number) {
     const s = series[key];
     const v = Number.isFinite(raw) ? Math.max(raw, 0) : 0;
-    const next = [...s.hist, v];
-    s.hist = next.length > SPARK_LEN ? next.slice(next.length - SPARK_LEN) : next;
+    const hist = s.hist;
+    hist.push(v);
+    if (hist.length > SPARK_LEN) hist.splice(0, hist.length - SPARK_LEN);
+    let max = 0;
+    for (const n of hist) if (n > max) max = n;
     // Grow onto a new peak at once, but shrink only once the window falls to a
     // quarter of the domain, and then only to half-height. Rescaling to the window
     // max on every scroll-off drew a rising line for what was really a falling value.
-    const max = Math.max(...s.hist);
     const target = niceCeil(max);
     if (target > s.ceil) s.ceil = target;
     else if (max <= s.ceil / 4) s.ceil = niceCeil(max * 2);
@@ -57,6 +59,7 @@
 
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { slide } from 'svelte/transition';
   import { PhoneMissed, Pencil, Check, Sparkles, ChevronDown, UserPlus } from 'lucide-svelte';
   import Avatar from '$lib/components/Avatar.svelte';
   import StatusDot from '$lib/components/StatusDot.svelte';
@@ -64,6 +67,7 @@
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { networkState } from '$lib/state/network.svelte';
+  import { appFocusState } from '$lib/state/appFocus.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
   import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
   import { getNodeStats } from '$lib/api/settings';
@@ -72,6 +76,7 @@
   import { t } from '$lib/i18n';
 
   $effect(() => {
+    if (!appFocusState.focused) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -105,6 +110,7 @@
   interface AttentionRow {
     contact: ContactResponse;
     unread: number;
+    unreadCapped: boolean;
     missedCall: boolean;
     hasDraft: boolean;
     ts: number;
@@ -125,6 +131,7 @@
         rows.push({
           contact,
           unread,
+          unreadCapped: messagesState.unreadCappedFor(contact.userId),
           missedCall,
           hasDraft,
           ts: last?.timestamp ?? contact.createdAt * 1000,
@@ -157,7 +164,7 @@
 <div class="home" data-tauri-drag-region>
   <div class="home-inner">
     <header class="hero">
-      <img class="mascot" src="/winston.png" alt={t('home.mascotAlt')} width="92" height="92" />
+      <img class="mascot" src="/winston.webp" alt={t('home.mascotAlt')} width="92" height="92" />
       <div class="hero-text">
         <h2>{t(greetingKey, { name: profileState.displayName })}</h2>
         <p class="status-line">
@@ -244,7 +251,9 @@
                   </span>
                 {/if}
                 {#if row.unread > 0}
-                  <span class="badge">{row.unread > 99 ? '99+' : row.unread}</span>
+                  <span class="badge"
+                    >{row.unread > 99 || row.unreadCapped ? '99+' : row.unread}</span
+                  >
                 {/if}
               </span>
             </button>
@@ -254,7 +263,7 @@
     </section>
 
     {#if whatsNew}
-      <section class="whats-new" class:open={whatsNewOpen} aria-label={t('home.whatsNew')}>
+      <section class="whats-new" aria-label={t('home.whatsNew')}>
         <button class="whats-new-header" onclick={toggleWhatsNew} aria-expanded={whatsNewOpen}>
           <span class="whats-new-title">
             <Sparkles size={14} />
@@ -266,51 +275,53 @@
           </span>
         </button>
         {#if whatsNewOpen}
-          <div class="groups">
-            {#each whatsNew.groups as group (group.kind)}
-              <div class="group" data-kind={group.kind}>
-                <span class="group-title">{groupLabel(group.kind)}</span>
-                <ul>
-                  {#each group.items as item (item)}
-                    <li>{item}</li>
-                  {/each}
-                </ul>
-              </div>
-            {/each}
-          </div>
-          {#if history.length > 0}
-            <button
-              class="history-toggle"
-              onclick={() => (historyOpen = !historyOpen)}
-              aria-expanded={historyOpen}
-            >
-              <span class="chevron" class:up={historyOpen}>
-                <ChevronDown size={13} />
-              </span>
-              {t('home.olderVersions')}
-            </button>
-            {#if historyOpen}
-              <div class="history">
-                {#each history as entry (entry.version)}
-                  <div class="history-entry">
-                    <span class="version-tag">v{entry.version}</span>
-                    <div class="groups">
-                      {#each entry.groups as group (group.kind)}
-                        <div class="group" data-kind={group.kind}>
-                          <span class="group-title">{groupLabel(group.kind)}</span>
-                          <ul>
-                            {#each group.items as item (item)}
-                              <li>{item}</li>
-                            {/each}
-                          </ul>
-                        </div>
-                      {/each}
+          <div class="whats-new-body" transition:slide={{ duration: 220 }}>
+            <div class="groups">
+              {#each whatsNew.groups as group (group.kind)}
+                <div class="group" data-kind={group.kind}>
+                  <span class="group-title">{groupLabel(group.kind)}</span>
+                  <ul>
+                    {#each group.items as item (item)}
+                      <li>{item}</li>
+                    {/each}
+                  </ul>
+                </div>
+              {/each}
+            </div>
+            {#if history.length > 0}
+              <button
+                class="history-toggle"
+                onclick={() => (historyOpen = !historyOpen)}
+                aria-expanded={historyOpen}
+              >
+                <span class="chevron" class:up={historyOpen}>
+                  <ChevronDown size={13} />
+                </span>
+                {t('home.olderVersions')}
+              </button>
+              {#if historyOpen}
+                <div class="history" transition:slide={{ duration: 200 }}>
+                  {#each history as entry (entry.version)}
+                    <div class="history-entry">
+                      <span class="version-tag">v{entry.version}</span>
+                      <div class="groups">
+                        {#each entry.groups as group (group.kind)}
+                          <div class="group" data-kind={group.kind}>
+                            <span class="group-title">{groupLabel(group.kind)}</span>
+                            <ul>
+                              {#each group.items as item (item)}
+                                <li>{item}</li>
+                              {/each}
+                            </ul>
+                          </div>
+                        {/each}
+                      </div>
                     </div>
-                  </div>
-                {/each}
-              </div>
+                  {/each}
+                </div>
+              {/if}
             {/if}
-          {/if}
+          </div>
         {/if}
       </section>
     {/if}
@@ -592,10 +603,9 @@
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
     padding: 6px 8px;
-    transition: padding var(--transition);
   }
-  .whats-new.open {
-    padding: 6px 8px 12px;
+  .whats-new-body {
+    padding-bottom: 6px;
   }
   .whats-new-header {
     display: flex;

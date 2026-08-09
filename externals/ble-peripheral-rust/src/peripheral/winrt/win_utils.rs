@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use uuid::Uuid;
 use windows::{
@@ -30,23 +30,22 @@ pub(crate) fn to_guid(uuid: &Uuid) -> GUID {
 }
 
 pub(crate) fn to_uuid(uuid: &GUID) -> Uuid {
-    let guid_s = format!("{:?}", uuid);
-    Uuid::from_str(&guid_s).unwrap()
+    Uuid::from_fields(uuid.data1, uuid.data2, uuid.data3, &uuid.data4)
 }
 
-pub(crate) fn buffer_to_vec(buffer: &IBuffer) -> Vec<u8> {
-    let reader = DataReader::FromBuffer(buffer).unwrap();
-    let len = reader.UnconsumedBufferLength().unwrap() as usize;
+pub(crate) fn buffer_to_vec(buffer: &IBuffer) -> Result<Vec<u8>, Error> {
+    let reader = DataReader::FromBuffer(buffer)?;
+    let len = reader.UnconsumedBufferLength()? as usize;
     let mut data = vec![0u8; len];
-    reader.ReadBytes(&mut data).unwrap();
-    data
+    reader.ReadBytes(&mut data)?;
+    Ok(data)
 }
 
-pub(crate) fn vec_to_buffer(vector: Vec<u8>) -> IBuffer {
-    let stream = InMemoryRandomAccessStream::new().unwrap();
-    let data_writer = DataWriter::CreateDataWriter(&stream).unwrap();
-    data_writer.WriteBytes(&vector).unwrap();
-    data_writer.DetachBuffer().unwrap()
+pub(crate) fn vec_to_buffer(vector: Vec<u8>) -> Result<IBuffer, Error> {
+    let stream = InMemoryRandomAccessStream::new()?;
+    let data_writer = DataWriter::CreateDataWriter(&stream)?;
+    data_writer.WriteBytes(&vector)?;
+    data_writer.DetachBuffer()
 }
 
 pub(crate) fn device_id_from_session(session: GattSession) -> String {

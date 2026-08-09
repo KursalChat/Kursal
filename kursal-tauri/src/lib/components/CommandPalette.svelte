@@ -11,9 +11,7 @@
     Wifi,
     HardDrive,
     Zap,
-    KeyRound,
     Archive,
-    Radar,
     CheckCheck,
     MessageSquare,
     ChevronLeft,
@@ -114,14 +112,9 @@
     goto(path);
   }
 
-  function lastActivity(userId: string, createdAt: number): number {
-    const msgs = messagesState.forContact(userId);
-    return msgs.length ? msgs[msgs.length - 1].timestamp : createdAt * 1000;
-  }
-
   const conversations = $derived<Cmd[]>(
     [...contactsState.contacts]
-      .sort((a, b) => lastActivity(b.userId, b.createdAt) - lastActivity(a.userId, a.createdAt))
+      .sort((a, b) => contactsState.activityAt(b) - contactsState.activityAt(a))
       .map((c) => ({
         id: 'contact:' + c.userId,
         label: c.displayName,
@@ -169,31 +162,18 @@
       run: () => nav('/add-contact'),
     },
     {
-      id: 'add:otp',
-      label: t('commandPalette.addContactMethod', {
-        name: t('commandPalette.methodOtp'),
-      }),
-      keywords: [t('commandPalette.methodOtp'), t('commandPalette.openAddContact')],
-      icon: KeyRound,
-      run: () => nav('/add-contact/otp'),
-    },
-    {
       id: 'add:ltc',
       label: t('commandPalette.addContactMethod', {
         name: t('commandPalette.methodLtc'),
       }),
-      keywords: [t('commandPalette.methodLtc'), t('commandPalette.openAddContact')],
+      keywords: [
+        t('commandPalette.methodLtc'),
+        t('commandPalette.methodOtp'),
+        t('commandPalette.methodNearby'),
+        t('commandPalette.openAddContact'),
+      ],
       icon: Archive,
-      run: () => nav('/add-contact/ltc'),
-    },
-    {
-      id: 'add:nearby',
-      label: t('commandPalette.addContactMethod', {
-        name: t('commandPalette.methodNearby'),
-      }),
-      keywords: [t('commandPalette.methodNearby'), t('commandPalette.openAddContact')],
-      icon: Radar,
-      run: () => nav('/add-contact/nearby'),
+      run: () => nav('/add-contact'),
     },
   ]);
 

@@ -8,7 +8,6 @@ export interface ContactResponse {
   blocked: boolean;
   createdAt: number;
   avatarBase64?: string | null; // base64 encoded webp string
-  avatarBytes?: number[] | null; // Raw byte array from Rust
   profileName?: string; // peer-chosen name; displayName may be a local alias
 }
 
@@ -16,6 +15,7 @@ export interface ContactMeta {
   contactId: string;
   muted: boolean;
   lastSeenAt: number | null; // ms epoch, backend-stamped on connection events
+  lastMessageAt: number | null; // unix seconds of the newest stored message
   alias: string | null; // local nickname, overrides displayName in the UI
   // Peer removed us as a contact. History stays, but they can no longer be
   // reached, so the composer is closed until the contact is re-established.
@@ -60,6 +60,21 @@ export interface MessageResponse {
     targetId: string;
     pinned: boolean;
   } | null;
+}
+
+export interface UnreadEntry {
+  contactId: string;
+  count: number;
+  // `count` stopped at the scan cap; the real total is higher.
+  capped: boolean;
+  firstUnread: string | null;
+  markedUnread: boolean;
+}
+
+export interface PendingSyncSnapshot {
+  // `contactId:messageId` pairs.
+  sync: string[];
+  deleted: string[];
 }
 
 export interface OtpResponse {
@@ -113,6 +128,7 @@ export interface OfflineGapSkippedPayload {
 
 export interface OfflineQueueDrainedPayload {
   contactId: string;
+  finalizedDeletes: string[];
 }
 
 export interface OfflineSyncPayload {

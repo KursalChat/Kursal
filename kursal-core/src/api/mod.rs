@@ -22,7 +22,7 @@ pub mod state;
 pub use address_announce::apply_address_announce;
 pub use handle_core_command::handle_core_command;
 pub use handle_incoming::handle_incoming;
-pub use poll_offline::poll_contact_offline;
+pub use poll_offline::{PollTrigger, poll_contact_offline};
 pub use send_message::{send_message, send_message_tracked};
 
 #[derive(Clone, PartialEq, Eq)]
@@ -149,6 +149,7 @@ pub enum AppEvent {
     },
     OfflineQueueDrained {
         contact_id: UserId,
+        finalized_deletes: Vec<MessageId>,
     },
     OfflineSync {
         active: bool,

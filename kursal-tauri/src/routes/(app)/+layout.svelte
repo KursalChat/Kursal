@@ -11,7 +11,6 @@
   import { networkState } from '$lib/state/network.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
-  import WinstonContactsTour from '$lib/components/WinstonContactsTour.svelte';
   import AutostartPrompt from '$lib/components/AutostartPrompt.svelte';
   import WinstonTip from '$lib/components/WinstonTip.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
@@ -22,7 +21,6 @@
   import { callState } from '$lib/state/call.svelte';
   import { setBadgeCount, setTrayUnread } from '$lib/api/window';
   import { uiState } from '$lib/state/ui.svelte';
-  import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import type { PeerIdHolderPayload } from '$lib/types';
   import { t, dateLocale } from '$lib/i18n';
   import { openUrl } from '@tauri-apps/plugin-opener';
@@ -66,7 +64,6 @@
     void callState.init();
     void promptTermsIfChanged();
     let unlisten: (() => void) | null = null;
-    let unlistenDrop: (() => void) | null = null;
     let disposed = false;
     (async () => {
       await profileState.load();
@@ -84,35 +81,10 @@
       } catch (e) {
         log.error('Failed to set up listeners:', e);
       }
-
-      try {
-        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-        const fn = await getCurrentWebview().onDragDropEvent((event) => {
-          const p = event.payload;
-          if (p.type === 'enter' || p.type === 'over') {
-            pendingDropState.setHover(contactDropTargetAt(p.position));
-          } else if (p.type === 'leave') {
-            pendingDropState.setHover(null);
-          } else if (p.type === 'drop') {
-            pendingDropState.setHover(null);
-            const target = contactDropTargetAt(p.position);
-            const paths = (p as { paths?: string[] }).paths ?? [];
-            if (target && paths.length) {
-              pendingDropState.set(target, paths);
-              goto('/chat/' + target);
-            }
-          }
-        });
-        if (disposed) fn();
-        else unlistenDrop = fn;
-      } catch (e) {
-        log.warn('Sidebar drop routing unavailable:', e);
-      }
     })();
     return () => {
       disposed = true;
       unlisten?.();
-      unlistenDrop?.();
     };
   });
 
@@ -124,11 +96,7 @@
       const ap = pinnedConvosState.has(a.userId) ? 1 : 0;
       const bp = pinnedConvosState.has(b.userId) ? 1 : 0;
       if (ap !== bp) return bp - ap;
-      const aMsgs = messagesState.forContact(a.userId);
-      const bMsgs = messagesState.forContact(b.userId);
-      const aTs = aMsgs.length ? aMsgs[aMsgs.length - 1].timestamp : a.createdAt * 1000;
-      const bTs = bMsgs.length ? bMsgs[bMsgs.length - 1].timestamp : b.createdAt * 1000;
-      return bTs - aTs;
+      return contactsState.activityAt(b) - contactsState.activityAt(a);
     });
     return list;
   });
@@ -226,7 +194,6 @@
   </main>
 </div>
 
-<WinstonContactsTour />
 <WinstonTip />
 <AutostartPrompt />
 <CommandPalette bind:open={commandOpen} onClose={() => (commandOpen = false)} />
@@ -314,6 +281,7 @@
     flex-direction: column;
     background: transparent;
     position: relative;
+    z-index: 1;
   }
   /* Offline banner is absolutely positioned at the top; reserve space so it
    * never overlaps the page header beneath it. ~30px banner body. */

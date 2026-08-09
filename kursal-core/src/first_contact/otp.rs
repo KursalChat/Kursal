@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     contacts::Contact,
     crypto::{
-        PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
+        DEVICE_ID, PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
         stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
@@ -22,20 +22,26 @@ use crate::{
 };
 use argon2::{Argon2, ParamsBuilder};
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, KeyPair, ProtocolAddress};
+use libsignal_protocol::{KeyPair, ProtocolAddress};
 use rand::{Rng, TryRngCore, distr::Uniform, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::LazyLock, time::Duration};
 use tokio::sync::mpsc;
 use zeroize::Zeroizing;
 
 const SALT: &[u8; 16] = b"kursal-otp-salt1";
 const WORDS: &str = include_str!("otp_wordlist.txt");
 const ACK_TIMEOUT_SECS: u64 = 20;
+const MAX_EDITS: usize = 2;
+const MAX_SUGGESTIONS: usize = 3;
+const DP_ROW: usize = 16;
+
+static WORDLIST: LazyLock<Vec<&'static str>> =
+    LazyLock::new(|| WORDS.lines().filter(|s| !s.is_empty()).collect());
 
 pub fn generate_otp() -> Result<String> {
-    let wordlist: Vec<&str> = WORDS.lines().filter(|s| !s.is_empty()).collect();
+    let wordlist = &*WORDLIST;
 
     let dist = Uniform::new(0, wordlist.len()).ok_kursal(KursalError::Crypto)?;
     let mut os_rng = OsRng;
@@ -244,7 +250,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
     let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
     let user_id: [u8; 32] = Sha256::digest(&identity_pub_key).into();
 
-    let remote_address = ProtocolAddress::new(hex::encode(user_id), DeviceId::new(1u8).unwrap());
+    let remote_address = ProtocolAddress::new(hex::encode(user_id), DEVICE_ID);
     let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
     let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
     let mailbox_opk_pub = bundle
@@ -361,4 +367,88 @@ async fn rollback_handshake(db: &SharedDatabase, remote_address: &ProtocolAddres
     if let Err(err) = db_lock.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
         log::warn!("[otp] could not drop the half-open session: {err}");
     }
+}
+
+// None = is in wordlist
+// Some(Vec) = not in + 3 closest matches
+pub fn check_words(words: &[String]) -> Vec<Option<Vec<String>>> {
+    words
+        .iter()
+        .map(|word| {
+            let word = word.trim().to_lowercase();
+            if word.is_empty() {
+                return Some(Vec::new());
+            }
+            if WORDLIST.binary_search(&word.as_str()).is_ok() {
+                return None;
+            }
+            Some(suggest(&word))
+        })
+        .collect()
+}
+
+fn suggest(word: &str) -> Vec<String> {
+    let typed = word.as_bytes();
+    let mut scored: Vec<(usize, usize, &'static str)> = Vec::new();
+
+    for candidate in WORDLIST.iter() {
+        if candidate.len().abs_diff(word.len()) > MAX_EDITS {
+            continue;
+        }
+        let bytes = candidate.as_bytes();
+        let distance = osa_distance(typed, bytes, MAX_EDITS);
+        if distance <= MAX_EDITS {
+            scored.push((distance, shared_prefix(typed, bytes), candidate));
+        }
+    }
+
+    scored.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then(a.2.cmp(b.2)));
+    scored.truncate(MAX_SUGGESTIONS);
+    scored.into_iter().map(|(_, _, w)| w.to_string()).collect()
+}
+
+fn shared_prefix(a: &[u8], b: &[u8]) -> usize {
+    a.iter().zip(b).take_while(|(x, y)| x == y).count()
+}
+
+fn osa_distance(a: &[u8], b: &[u8], max: usize) -> usize {
+    let n = a.len();
+    let m = b.len();
+    if n.abs_diff(m) > max || m + 1 > DP_ROW {
+        return max + 1;
+    }
+
+    let mut rows = [[0usize; DP_ROW]; 3];
+    for (j, cell) in rows[0].iter_mut().enumerate().take(m + 1) {
+        *cell = j;
+    }
+
+    for i in 1..=n {
+        let cur = i % 3;
+        let prev = (i + 2) % 3;
+        let prev2 = (i + 1) % 3;
+
+        rows[cur][0] = i;
+        let mut row_min = i;
+
+        for j in 1..=m {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            let mut best = (rows[prev][j] + 1)
+                .min(rows[cur][j - 1] + 1)
+                .min(rows[prev][j - 1] + cost);
+
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                best = best.min(rows[prev2][j - 2] + 1);
+            }
+
+            rows[cur][j] = best;
+            row_min = row_min.min(best);
+        }
+
+        if row_min > max {
+            return max + 1;
+        }
+    }
+
+    rows[n % 3][m]
 }

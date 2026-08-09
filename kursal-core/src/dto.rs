@@ -6,6 +6,7 @@ use crate::{
         enums::{CallOutcome, Direction, KursalMessage, MessageStatus},
     },
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -14,7 +15,7 @@ use utoipa::ToSchema;
 pub struct ContactResponse {
     pub user_id: String,
     pub display_name: String,
-    pub avatar_bytes: Option<Vec<u8>>,
+    pub avatar_base64: Option<String>,
     pub peer_id: String,
     pub known_addresses: Vec<String>,
     pub verified: bool,
@@ -28,7 +29,7 @@ impl From<Contact> for ContactResponse {
         Self {
             user_id: hex::encode(value.user_id.0),
             display_name: value.display_name,
-            avatar_bytes: value.avatar_bytes,
+            avatar_base64: value.avatar_bytes.map(|b| BASE64.encode(b)),
             peer_id: value.peer_id,
             known_addresses: value.known_addresses,
             verified: value.verified,
@@ -50,6 +51,7 @@ pub struct ReactionResponse {
 pub struct FileDetailsDto {
     pub filename: String,
     pub size_bytes: u64,
+    pub autodownload_path: Option<String>,
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -106,6 +108,7 @@ impl From<StoredMessage> for MessageResponse {
             KursalMessage::FileOffer(f) => Some(FileDetailsDto {
                 filename: f.filename.clone(),
                 size_bytes: f.size_bytes,
+                autodownload_path: None,
             }),
             _ => None,
         };
@@ -212,6 +215,23 @@ pub fn apply_offline_overlay(
             row.status = "queued_in_dht".to_string();
         }
     }
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadDto {
+    pub contact_id: String,
+    pub count: usize,
+    pub capped: bool,
+    pub first_unread: Option<String>,
+    pub marked_unread: bool,
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSyncDto {
+    pub sync: Vec<String>,
+    pub deleted: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]

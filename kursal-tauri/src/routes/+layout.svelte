@@ -347,6 +347,7 @@
     document.addEventListener('touchend', blockDoubleTap, { passive: false });
 
     void contactsState.load();
+    void messagesState.hydrate();
 
     // Seed from a direct query: the network_online event only fires on
     // changes, so a webview (re)load would otherwise show stale defaults.
@@ -365,7 +366,7 @@
       } else if (signal == 'new_contact') {
         goto('/add-contact');
       } else if (signal == 'open_otp') {
-        goto(`/add-contact/otp?receive=${encodeURIComponent(payload)}`);
+        goto(`/add-contact?receive=${encodeURIComponent(payload)}`);
       } else if (signal == 'add_node') {
         void handleAddNodeLink(payload);
       } else if (signal == 'handle_incoming_error') {
@@ -382,12 +383,13 @@
         const payload = event.payload;
         payload.timestamp = payload.timestamp * 1000; // Rust gives seconds, UI expects ms
         payload.receivedTimestamp = payload.receivedTimestamp * 1000;
+        contactsState.touchLastMessage(payload.contactId, payload.timestamp);
         messagesState.append(payload);
         typingState.clear(payload.contactId);
         // Call records render as call lines in chat and must not raise
-        // unread/notifications.
-        const isCallRecord = !!payload.callDetails;
-        if (isCallRecord) return;
+        // unread/notifications. Neither can a record of my own action: pinning
+        // comes back through this event with direction 'sent'.
+        if (payload.callDetails || payload.direction === 'sent') return;
         messagesState.setFirstUnread(payload.contactId, payload.id);
         if (!payload.viaOffline) contactsState.touchLastSeen(payload.contactId);
         const name =
@@ -433,7 +435,10 @@
 
     unlistenPromises.push(
       listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
-        messagesState.flushPendingSync(event.payload.contactId);
+        messagesState.flushPendingSync(
+          event.payload.contactId,
+          event.payload.finalizedDeletes ?? []
+        );
       })
     );
 

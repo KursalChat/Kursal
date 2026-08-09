@@ -1,8 +1,3 @@
-// "Waiting to sync" markers for edits/reactions/deletes on a contact's offline queue,
-// persisted because the backend's own queue survives a restart. Keyed
-// `contactId:messageId`, cleared per-contact once that queue drains.
-export const PENDING_SYNC_STORAGE_KEY = 'kursal:pendingSync';
-
 export interface PendingSyncState {
   sync: Set<string>;
   deleted: Set<string>;
@@ -10,32 +5,6 @@ export interface PendingSyncState {
 
 export function pendingSyncKey(contactId: string, messageId: string): string {
   return `${contactId}:${messageId}`;
-}
-
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-export function parsePendingSync(raw: string | null): PendingSyncState {
-  const empty: PendingSyncState = { sync: new Set(), deleted: new Set() };
-  if (!raw) return empty;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return empty;
-    return {
-      sync: new Set(toStringArray(parsed.sync)),
-      deleted: new Set(toStringArray(parsed.deleted)),
-    };
-  } catch {
-    return empty;
-  }
-}
-
-export function serializePendingSync(state: PendingSyncState): string {
-  return JSON.stringify({
-    sync: [...state.sync],
-    deleted: [...state.deleted],
-  });
 }
 
 export interface PendingSyncFlush {

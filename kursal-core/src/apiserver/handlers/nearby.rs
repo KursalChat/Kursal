@@ -63,7 +63,6 @@ pub(crate) async fn api_nearby_get(
     responses(
         (status = 200, description = "Connected"),
         (status = 400, description = "Invalid request", body = APIError),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

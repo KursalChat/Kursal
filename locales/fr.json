@@ -501,6 +501,7 @@
     "copied": "Copié",
     "copy": "Copier",
     "relayBadge": "Relai",
+    "relayBadgeVia": "Relai · {transport}",
     "save": "Enregistrer",
     "saved": "Sauvegardé",
     "savedToDevice": "Sauvegardé sur l'appareil"

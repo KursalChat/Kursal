@@ -3,19 +3,21 @@ use crate::{
     KursalError, Result,
     api::{
         AppEvent, apply_address_announce,
-        file_transfers::{FileIncomingEntry, FileTransferEntry, apply_cancel, send_file_chunks},
+        file_transfers::{
+            FileIncomingEntry, FileTransferEntry, apply_cancel, spawn_send_file_chunks,
+        },
         message_apply::{
             apply_delete, apply_edit, apply_pin, apply_reaction_add, apply_reaction_remove,
         },
         send_message,
     },
     contacts::Contact,
-    crypto::messages::message_receive,
+    crypto::{DEVICE_ID, messages::message_receive},
     first_contact::{FileTransferMessage, WireMessage, handle_fc_response, resolve_ack_waiter},
     identity::UserId,
     messaging::{
         StoredMessage,
-        enums::{DeliveryReceipt, Direction, KursalMessage, MessageId, MessageStatus},
+        enums::{DeliveryReceipt, Direction, FileCancel, KursalMessage, MessageId, MessageStatus},
     },
     network::swarm::{MAX_MESSAGE_SIZE, NetworkEvent, SwarmCommand},
     storage::{
@@ -27,10 +29,11 @@ use crate::{
         get_auto_accept_config, get_auto_download_config, get_contact_terminated,
         get_timestamp_secs, set_contact_terminated,
     },
+    sync::LockExt,
 };
 use futures::AsyncReadExt;
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 use tokio::{fs::create_dir_all, sync::mpsc};
@@ -87,8 +90,7 @@ pub async fn handle_incoming(
         return Ok(()); // ignore
     }
 
-    let remote_address =
-        ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let remote_address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
     let now = get_timestamp_secs()?;
 
     let received = message_receive(db.clone(), &remote_address, &encrypted_payload).await?;
@@ -132,10 +134,8 @@ pub async fn handle_incoming(
             apply_reaction_add(&contact, r, &db, event_tx, now).await?;
         }
 
-        KursalMessage::Text(_) => {
-            let msg_id = kmessage
-                .message_id()
-                .expect("storable message always has an id");
+        KursalMessage::Text(ref text) => {
+            let msg_id = text.id;
 
             let stored = StoredMessage {
                 id: msg_id,
@@ -323,53 +323,55 @@ pub async fn handle_incoming(
         }
 
         KursalMessage::FileAccept(file) => {
-            let file_entry_bytes =
+            let send_key = format!(
+                "send:{}:{}",
+                hex::encode(contact.user_id.0),
+                hex::encode(file.offer_id.0)
+            );
+
+            let stored =
                 db.0.lock()
                     .await
-                    .raw_read(
-                        TABLE_FILE_TRANSFERS,
-                        &format!(
-                            "send:{}:{}",
-                            hex::encode(contact.user_id.0),
-                            hex::encode(file.offer_id.0)
-                        ),
-                    )?
-                    .ok_or(KursalError::Storage(
-                        "Could not find file transfer (is it revoked?)".to_string(),
-                    ))?;
+                    .raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
+
+            let Some(file_entry_bytes) = stored else {
+                log::info!(
+                    "[file] accept for unknown offer {}, telling peer to drop it",
+                    hex::encode(file.offer_id.0)
+                );
+                send_message(
+                    KursalMessage::FileCancel(FileCancel {
+                        offer_id: file.offer_id,
+                    }),
+                    &contact,
+                    db.clone(),
+                    cmd_tx,
+                    Some(event_tx),
+                )
+                .await?;
+                return Ok(());
+            };
+
             let mut file_entry = FileTransferEntry::deserialize(&file_entry_bytes)?;
 
             let now = get_timestamp_secs()?;
             file_entry.last_accessed_at = Some(now);
             db.0.lock().await.raw_write(
                 TABLE_FILE_TRANSFERS,
-                &format!(
-                    "send:{}:{}",
-                    hex::encode(contact.user_id.0),
-                    hex::encode(file.offer_id.0)
-                ),
+                &send_key,
                 &file_entry.serialize()?,
             )?;
 
-            let cmd_tx_clone = cmd_tx.clone();
-            let event_tx_clone = event_tx.clone();
-
-            tokio::spawn(async move {
-                if let Err(err) = send_file_chunks(
-                    contact,
-                    file.offer_id,
-                    file_entry.path,
-                    file_entry.my_random,
-                    file.random,
-                    file.received_chunks,
-                    cmd_tx_clone,
-                    event_tx_clone,
-                )
-                .await
-                {
-                    log::warn!("file transfer failed: {err:?}");
-                }
-            });
+            spawn_send_file_chunks(
+                contact,
+                file.offer_id,
+                file_entry.path,
+                file_entry.my_random,
+                file.random,
+                file.received_chunks,
+                cmd_tx.clone(),
+                event_tx.clone(),
+            );
         }
 
         KursalMessage::FileCancel(cancel) => {
@@ -436,7 +438,7 @@ const TERMINATE_REPLY_CAP: usize = 512;
 
 async fn reply_terminate_once(peer: PeerId, cmd_tx: &mpsc::Sender<SwarmCommand>) {
     {
-        let mut seen = TERMINATE_REPLIED.lock().unwrap();
+        let mut seen = TERMINATE_REPLIED.lock_recover();
         if seen.len() >= TERMINATE_REPLY_CAP || !seen.insert(peer) {
             return;
         }

@@ -1,7 +1,9 @@
 use crate::MapKursalResult;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry as HashMapEntry};
 use std::str::FromStr;
-use std::sync::{LazyLock, Mutex as StdMutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{LazyLock, Mutex as StdMutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use crate::{
     KursalError, Result,
@@ -11,10 +13,12 @@ use crate::{
     first_contact::{FileTransferMessage, WireMessage},
     identity::UserId,
     messaging::enums::{FileAccept, KursalMessage, MessageId},
-    network::swarm::{FILE_CHUNK_SIZE, SwarmCommand, str_to_multiaddr},
+    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, str_to_multiaddr},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
-        filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
+        filetransfer::{
+            hash_file, incoming_root, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename,
+        },
         get_timestamp_secs, image_metadata,
     },
 };
@@ -29,8 +33,53 @@ use tokio::{
 
 pub const MAX_FILE_TRANSFER_BYTES: u64 = 100 * 1024 * 1024 * 1024;
 pub const STALE_TRANSFER_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
-const SEND_PROGRESS_THROTTLE: u64 = 16;
-const FILE_PROGRESS_THROTTLE: u64 = 16;
+const PROGRESS_LOG_EVERY: u64 = 1000;
+const PROGRESS_EVENTS_PER_TRANSFER: u64 = 2000;
+const MAX_CANCELLED_TRACKED: usize = 512;
+const PERSIST_EVERY_CHUNKS: u64 = 32;
+const PERSIST_INTERVAL: Duration = Duration::from_millis(500);
+const ACTIVE_RECEIVE_IDLE: Duration = Duration::from_secs(30);
+
+fn progress_event_step(chunk_count: u64) -> u64 {
+    chunk_count.div_ceil(PROGRESS_EVENTS_PER_TRANSFER).max(1)
+}
+
+fn received_path_key(contact_hex: &str, offer_hex: &str) -> String {
+    format!("recvpath:{contact_hex}:{offer_hex}")
+}
+
+pub fn attach_file_paths(
+    db: &crate::storage::Database,
+    rows: &mut [crate::dto::MessageResponse],
+) -> Result<()> {
+    for row in rows.iter_mut() {
+        let Some(details) = row.file_details.as_mut() else {
+            continue;
+        };
+        let pair = format!("{}:{}", row.contact_id, row.id);
+
+        if let Some(bytes) = db.raw_read(TABLE_FILE_TRANSFERS, &format!("recvpath:{pair}"))?
+            && let Ok(path) = String::from_utf8(bytes)
+        {
+            details.autodownload_path = Some(path);
+            continue;
+        }
+
+        if let Some(bytes) = db.raw_read(TABLE_FILE_TRANSFERS, &format!("send:{pair}"))?
+            && let Ok(entry) = FileTransferEntry::deserialize(&bytes)
+        {
+            details.autodownload_path = Some(entry.path);
+        }
+    }
+
+    Ok(())
+}
+
+fn lock_or_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 fn move_into_place(source: &Path, dest: &Path) -> Result<()> {
     if std::fs::rename(source, dest).is_ok() {
@@ -96,6 +145,86 @@ pub fn remove_outgoing_offer(app_data_dir: &Path, contact_hex: &str, offer_hex: 
     let _ = std::fs::remove_dir_all(dir);
 }
 
+// TODO: remove migration in next version
+const BACKFILL_FLAG: &str = "!recvpath_backfilled";
+
+fn scan_completed_downloads(root: &Path) -> Vec<(String, String, String)> {
+    let Ok(contacts) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+
+    let mut found = Vec::new();
+    for contact in contacts.flatten() {
+        let contact_hex = contact.file_name().to_string_lossy().into_owned();
+        let Ok(offers) = std::fs::read_dir(contact.path()) else {
+            continue;
+        };
+
+        for offer in offers.flatten() {
+            let offer_hex = offer.file_name().to_string_lossy().into_owned();
+            let Some(file) = std::fs::read_dir(offer.path())
+                .ok()
+                .and_then(|mut entries| {
+                    entries.find_map(|e| e.ok().filter(|e| e.path().is_file()))
+                })
+            else {
+                continue;
+            };
+
+            found.push((
+                contact_hex.clone(),
+                offer_hex,
+                file.path().to_string_lossy().into_owned(),
+            ));
+        }
+    }
+
+    found
+}
+
+pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) -> Result<()> {
+    if db
+        .0
+        .lock()
+        .await
+        .raw_read(TABLE_FILE_TRANSFERS, BACKFILL_FLAG)?
+        .is_some()
+    {
+        return Ok(());
+    }
+
+    let root = incoming_root(app_data_dir);
+    let found = tokio::task::spawn_blocking(move || scan_completed_downloads(&root))
+        .await
+        .unwrap_or_default();
+
+    let db_lock = db.0.lock().await;
+    let mut recovered = 0usize;
+    for (contact_hex, offer_hex, path) in found {
+        if db_lock
+            .raw_read(
+                TABLE_FILE_TRANSFERS,
+                &format!("recvprog:{contact_hex}:{offer_hex}"),
+            )?
+            .is_some()
+        {
+            continue;
+        }
+
+        db_lock.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+            path.as_bytes(),
+        )?;
+        recovered += 1;
+    }
+
+    log::info!("[file] backfilled {recovered} completed download paths");
+    db_lock.raw_write(TABLE_FILE_TRANSFERS, BACKFILL_FLAG, &[1u8])?;
+
+    Ok(())
+}
+
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {
     let now = get_timestamp_secs()?;
     let db_lock = db.0.lock().await;
@@ -126,7 +255,7 @@ pub async fn remove_contact_transfers(db: SharedDatabase, contact_id: &UserId) -
     let contact_hex = hex::encode(contact_id.0);
     let db_lock = db.0.lock().await;
 
-    for prefix in ["send", "recv", "recvprog"] {
+    for prefix in ["send", "recv", "recvprog", "recvpath"] {
         let start = format!("{prefix}:{contact_hex}:");
         let end = format!("{prefix}:{contact_hex};");
         let entries = db_lock.raw_range(TABLE_FILE_TRANSFERS, &start, &end, None)?;
@@ -204,19 +333,121 @@ impl FileReceiveEntry {
     }
 }
 
-static CANCELLED_TRANSFERS: LazyLock<StdMutex<HashSet<[u8; 16]>>> =
+#[derive(Default)]
+struct CancelledSet {
+    ids: HashSet<[u8; 16]>,
+    order: VecDeque<[u8; 16]>,
+}
+
+impl CancelledSet {
+    fn insert(&mut self, offer_id: [u8; 16]) {
+        if !self.ids.insert(offer_id) {
+            return;
+        }
+        self.order.push_back(offer_id);
+        if self.order.len() > MAX_CANCELLED_TRACKED
+            && let Some(oldest) = self.order.pop_front()
+        {
+            self.ids.remove(&oldest);
+        }
+    }
+
+    fn remove(&mut self, offer_id: &[u8; 16]) -> bool {
+        if !self.ids.remove(offer_id) {
+            return false;
+        }
+        self.order.retain(|id| id != offer_id);
+        true
+    }
+
+    fn contains(&self, offer_id: &[u8; 16]) -> bool {
+        self.ids.contains(offer_id)
+    }
+}
+
+static CANCELLED_TRANSFERS: LazyLock<StdMutex<CancelledSet>> =
+    LazyLock::new(|| StdMutex::new(CancelledSet::default()));
+
+static FINALIZING: LazyLock<StdMutex<HashSet<[u8; 16]>>> =
     LazyLock::new(|| StdMutex::new(HashSet::new()));
 
+struct FinalizeGuard([u8; 16]);
+
+impl FinalizeGuard {
+    fn acquire(offer_id: [u8; 16]) -> Option<Self> {
+        lock_or_recover(&FINALIZING)
+            .insert(offer_id)
+            .then_some(Self(offer_id))
+    }
+}
+
+impl Drop for FinalizeGuard {
+    fn drop(&mut self) {
+        lock_or_recover(&FINALIZING).remove(&self.0);
+    }
+}
+
+type SendTask = (u64, tokio::task::AbortHandle);
+static SEND_TASKS: LazyLock<StdMutex<HashMap<[u8; 16], SendTask>>> =
+    LazyLock::new(|| StdMutex::new(HashMap::new()));
+static SEND_TASK_SEQ: AtomicU64 = AtomicU64::new(0);
+
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_send_file_chunks(
+    contact: Contact,
+    offer_id: MessageId,
+    file_path: String,
+    my_random: [u8; 32],
+    their_random: [u8; 32],
+    received_chunks: Vec<u8>,
+    cmd_tx: mpsc::Sender<SwarmCommand>,
+    event_tx: mpsc::Sender<AppEvent>,
+) {
+    let key = offer_id.0;
+    let seq = SEND_TASK_SEQ.fetch_add(1, Ordering::Relaxed);
+
+    let mut tasks = lock_or_recover(&SEND_TASKS);
+    if let Some((_, previous)) = tasks.remove(&key) {
+        previous.abort();
+    }
+
+    let handle = tokio::spawn(async move {
+        if let Err(err) = send_file_chunks(
+            contact,
+            offer_id,
+            file_path,
+            my_random,
+            their_random,
+            received_chunks,
+            cmd_tx,
+            event_tx,
+        )
+        .await
+        {
+            log::warn!("file transfer failed: {err:?}");
+        }
+        let mut tasks = lock_or_recover(&SEND_TASKS);
+        if tasks.get(&key).is_some_and(|(current, _)| *current == seq) {
+            tasks.remove(&key);
+        }
+    });
+
+    tasks.insert(key, (seq, handle.abort_handle()));
+}
+
 pub fn mark_transfer_cancelled(offer_id: [u8; 16]) {
-    CANCELLED_TRANSFERS.lock().unwrap().insert(offer_id);
+    lock_or_recover(&CANCELLED_TRANSFERS).insert(offer_id);
+    if let Some((_, handle)) = lock_or_recover(&SEND_TASKS).remove(&offer_id) {
+        handle.abort();
+    }
 }
 
 pub fn take_transfer_cancelled(offer_id: &[u8; 16]) -> bool {
-    CANCELLED_TRANSFERS.lock().unwrap().remove(offer_id)
+    lock_or_recover(&CANCELLED_TRANSFERS).remove(offer_id)
 }
 
 fn is_transfer_cancelled(offer_id: &[u8; 16]) -> bool {
-    CANCELLED_TRANSFERS.lock().unwrap().contains(offer_id)
+    lock_or_recover(&CANCELLED_TRANSFERS).contains(offer_id)
 }
 
 pub async fn apply_cancel(
@@ -231,7 +462,6 @@ pub async fn apply_cancel(
     let offer_hex = hex::encode(offer_id);
     let prog_key = format!("recvprog:{contact_hex}:{offer_hex}");
     let recv_key = format!("recv:{contact_hex}:{offer_hex}");
-    let send_key = format!("send:{contact_hex}:{offer_hex}");
 
     {
         let db_lock = db.0.lock().await;
@@ -242,7 +472,10 @@ pub async fn apply_cancel(
         }
         let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &prog_key);
         let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &recv_key);
-        let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &send_key);
+        let _ = db_lock.raw_delete(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+        );
     }
 
     event_tx
@@ -296,6 +529,20 @@ pub async fn finalize_transfer(
     let prog_key = format!("recvprog:{contact_hex}:{offer_hex}");
     let recv_key = format!("recv:{contact_hex}:{offer_hex}");
 
+    let Some(_guard) = FinalizeGuard::acquire(offer_id) else {
+        return Ok(());
+    };
+
+    if db
+        .0
+        .lock()
+        .await
+        .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
+        .is_none()
+    {
+        return Ok(());
+    }
+
     let hash_path = entry.save_path.clone();
     let actual_hash = tokio::task::spawn_blocking(move || hash_file(&hash_path))
         .await
@@ -309,6 +556,11 @@ pub async fn finalize_transfer(
 
     if actual_hash == entry.expected_hash {
         log::info!("[file] transfer {offer_hex} complete, hash ok");
+        db.0.lock().await.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+            entry.save_path.as_bytes(),
+        )?;
         event_tx
             .send(AppEvent::FileReceived {
                 contact_id: contact_id.clone(),
@@ -333,16 +585,134 @@ pub async fn finalize_transfer(
     Ok(())
 }
 
+struct ActiveReceive {
+    entry: FileReceiveEntry,
+    file: File,
+    contact_id: UserId,
+    prog_key: String,
+    chunks_received: u64,
+    unsaved: u64,
+    last_touched: Instant,
+}
+
+impl ActiveReceive {
+    async fn persist(&mut self, db: &SharedDatabase) -> Result<()> {
+        if self.unsaved == 0 {
+            return Ok(());
+        }
+        self.file.flush().await.map_err(KursalError::Io)?;
+        db.0.lock().await.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &self.prog_key,
+            &self.entry.serialize()?,
+        )?;
+        self.unsaved = 0;
+        Ok(())
+    }
+
+    fn persist_due(&self) -> bool {
+        self.unsaved >= PERSIST_EVERY_CHUNKS || self.last_touched.elapsed() >= PERSIST_INTERVAL
+    }
+}
+
 pub async fn file_chunk_loop(
     mut chunk_rx: mpsc::Receiver<(PeerId, FileTransferMessage)>,
     db: SharedDatabase,
     event_tx: mpsc::Sender<AppEvent>,
 ) {
-    while let Some((from, chunk)) = chunk_rx.recv().await {
-        if let Err(err) = handle_file_chunk(from, chunk, &db, &event_tx).await {
-            log::warn!("[file] chunk handling failed: {err}");
+    let mut active: HashMap<[u8; 16], ActiveReceive> = HashMap::new();
+    let mut ticker = tokio::time::interval(PERSIST_INTERVAL);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        tokio::select! {
+            received = chunk_rx.recv() => {
+                let Some((from, chunk)) = received else { break };
+                if let Err(err) = handle_file_chunk(from, chunk, &db, &event_tx, &mut active).await {
+                    log::warn!("[file] chunk handling failed: {err}");
+                }
+            }
+            _ = ticker.tick() => sweep_active(&db, &mut active).await,
         }
     }
+
+    sweep_active(&db, &mut active).await;
+}
+
+async fn sweep_active(db: &SharedDatabase, active: &mut HashMap<[u8; 16], ActiveReceive>) {
+    let keys: Vec<[u8; 16]> = active.keys().copied().collect();
+
+    for key in keys {
+        if is_transfer_cancelled(&key) {
+            active.remove(&key);
+            continue;
+        }
+
+        let Some(state) = active.get_mut(&key) else {
+            continue;
+        };
+
+        if let Err(err) = state.persist(db).await {
+            log::warn!(
+                "[file] progress persist failed for {}: {err}",
+                hex::encode(key)
+            );
+        }
+        if state.last_touched.elapsed() >= ACTIVE_RECEIVE_IDLE {
+            active.remove(&key);
+        }
+    }
+}
+
+async fn load_active(
+    from: PeerId,
+    transfer_id: [u8; 16],
+    db: &SharedDatabase,
+) -> Result<Option<ActiveReceive>> {
+    let peer_id_str = from.to_base58();
+    let known = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str)?;
+    let Some(contact) = known else {
+        return Ok(None);
+    };
+    if contact.blocked {
+        return Ok(None);
+    }
+
+    let prog_key = format!(
+        "recvprog:{}:{}",
+        hex::encode(contact.user_id.0),
+        hex::encode(transfer_id)
+    );
+    let Some(entry_bytes) =
+        db.0.lock()
+            .await
+            .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
+    else {
+        return Ok(None);
+    };
+    let entry = FileReceiveEntry::deserialize(&entry_bytes)?;
+
+    let file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .open(&entry.save_path)
+        .await
+        .map_err(KursalError::Io)?;
+
+    let chunks_received = entry
+        .received_chunks
+        .iter()
+        .map(|byte| byte.count_ones() as u64)
+        .sum::<u64>();
+
+    Ok(Some(ActiveReceive {
+        entry,
+        file,
+        contact_id: contact.user_id,
+        prog_key,
+        chunks_received,
+        unsaved: 0,
+        last_touched: Instant::now(),
+    }))
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -351,101 +721,93 @@ async fn handle_file_chunk(
     chunk: FileTransferMessage,
     db: &SharedDatabase,
     event_tx: &mpsc::Sender<AppEvent>,
+    active: &mut HashMap<[u8; 16], ActiveReceive>,
 ) -> Result<()> {
     if is_transfer_cancelled(&chunk.transfer_id) {
+        active.remove(&chunk.transfer_id);
         return Ok(());
     }
 
-    let peer_id_str = from.to_base58();
-    let known = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str)?;
-    let Some(contact) = known else {
-        return Ok(());
+    let state = match active.entry(chunk.transfer_id) {
+        HashMapEntry::Occupied(existing) => existing.into_mut(),
+        HashMapEntry::Vacant(slot) => {
+            let Some(loaded) = load_active(from, chunk.transfer_id, db).await? else {
+                return Ok(());
+            };
+            slot.insert(loaded)
+        }
     };
 
-    if contact.blocked {
-        return Ok(());
-    }
-
-    let contact_hex = hex::encode(contact.user_id.0);
     let offer_hex = hex::encode(chunk.transfer_id);
-    let prog_key = format!("recvprog:{contact_hex}:{offer_hex}");
-
-    let entry_bytes = match db
-        .0
-        .lock()
-        .await
-        .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
-    {
-        Some(bytes) => bytes,
-        None => return Ok(()),
-    };
-    let mut entry = FileReceiveEntry::deserialize(&entry_bytes)?;
-
     let idx = chunk.index as usize;
-    let chunk_count = entry.file_size.div_ceil(FILE_CHUNK_SIZE as u64) as usize;
+    let chunk_count = state.entry.file_size.div_ceil(FILE_CHUNK_SIZE as u64) as usize;
     if idx >= chunk_count {
         log::warn!("[file] dropping out-of-range chunk {idx} for {offer_hex}");
         return Ok(());
     }
-    if chunk_received(&entry.received_chunks, idx) {
+    if chunk_received(&state.entry.received_chunks, idx) {
         return Ok(());
     }
 
     let mut chunk_aad = [0u8; 20];
     chunk_aad[..16].copy_from_slice(&chunk.transfer_id);
     chunk_aad[16..].copy_from_slice(&chunk.index.to_be_bytes());
-    let decrypted = stream_decrypt_aad(&entry.key, &chunk.data, &chunk_aad)?;
+    let decrypted = stream_decrypt_aad(&state.entry.key, &chunk.data, &chunk_aad)?;
 
     let offset = chunk.index as u64 * FILE_CHUNK_SIZE as u64;
-    if offset + decrypted.len() as u64 > entry.file_size {
+    if offset + decrypted.len() as u64 > state.entry.file_size {
         log::warn!("[file] dropping chunk {idx} exceeding file size for {offer_hex}");
         return Ok(());
     }
 
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .open(&entry.save_path)
+    state
+        .file
+        .seek(std::io::SeekFrom::Start(offset))
         .await
         .map_err(KursalError::Io)?;
-    file.seek(std::io::SeekFrom::Start(offset))
+    state
+        .file
+        .write_all(&decrypted)
         .await
         .map_err(KursalError::Io)?;
-    file.write_all(&decrypted).await.map_err(KursalError::Io)?;
 
-    entry.received_chunks[idx / 8] |= 1 << (idx % 8);
+    state.entry.received_chunks[idx / 8] |= 1 << (idx % 8);
+    state.chunks_received += 1;
+    state.unsaved += 1;
+    state.last_touched = Instant::now();
 
-    let all_received = all_chunks_received(&entry.received_chunks, entry.file_size);
-    let chunks_received = entry
-        .received_chunks
-        .iter()
-        .map(|byte| byte.count_ones() as u64)
-        .sum::<u64>();
+    let all_received = all_chunks_received(&state.entry.received_chunks, state.entry.file_size);
+    let chunks_received = state.chunks_received;
 
-    db.0.lock()
-        .await
-        .raw_write(TABLE_FILE_TRANSFERS, &prog_key, &entry.serialize()?)?;
+    if all_received || state.persist_due() {
+        state.persist(db).await?;
+    }
 
-    if chunks_received == 1 || all_received || chunks_received % FILE_PROGRESS_THROTTLE == 0 {
+    if chunks_received == 1 || all_received || chunks_received.is_multiple_of(PROGRESS_LOG_EVERY) {
         log::info!("[file] recv progress transfer={offer_hex} {chunks_received}/{chunk_count}");
     }
 
-    if all_received || chunks_received % FILE_PROGRESS_THROTTLE == 0 {
+    if all_received || chunks_received.is_multiple_of(progress_event_step(chunk_count as u64)) {
         event_tx
             .send(AppEvent::FileTransferProgress {
                 transfer_id: MessageId(chunk.transfer_id),
-                bytes_transferred: (chunks_received * FILE_CHUNK_SIZE as u64).min(entry.file_size),
-                total_bytes: entry.file_size,
+                bytes_transferred: (chunks_received * FILE_CHUNK_SIZE as u64)
+                    .min(state.entry.file_size),
+                total_bytes: state.entry.file_size,
             })
             .await
             .ok();
     }
 
     if all_received {
+        let Some(state) = active.remove(&chunk.transfer_id) else {
+            return Ok(());
+        };
         finalize_transfer(
             db.clone(),
-            &contact.user_id,
+            &state.contact_id,
             chunk.transfer_id,
-            &entry,
+            &state.entry,
             event_tx,
         )
         .await?;
@@ -504,6 +866,12 @@ pub async fn send_file_chunks(
         })
         .await;
 
+    let last_pending =
+        (0..chunk_count).rfind(|index| !chunk_received(&received_chunks, *index as usize));
+    let mut flushed: Option<oneshot::Receiver<()>> = None;
+    let event_step = progress_event_step(chunk_count);
+    let mut position: Option<u64> = None;
+
     let mut done: u64 = 0;
     for index in 0..chunk_count {
         if is_transfer_cancelled(&offer_id.0) {
@@ -521,19 +889,25 @@ pub async fn send_file_chunks(
         }
 
         let offset = index * FILE_CHUNK_SIZE as u64;
-        file.seek(std::io::SeekFrom::Start(offset))
-            .await
-            .map_err(KursalError::Io)?;
-
-        let bytes_read = file.read(&mut buffer).await.map_err(KursalError::Io)?;
-        if bytes_read == 0 {
-            break;
+        if position != Some(offset) {
+            file.seek(std::io::SeekFrom::Start(offset))
+                .await
+                .map_err(KursalError::Io)?;
         }
+
+        let want = (file_size - offset).min(FILE_CHUNK_SIZE as u64) as usize;
+        file.read_exact(&mut buffer[..want]).await.map_err(|_| {
+            KursalError::Storage(format!(
+                "file shrank during transfer {}, chunk {index}/{chunk_count} unreadable",
+                hex::encode(offer_id.0)
+            ))
+        })?;
+        position = Some(offset + want as u64);
 
         let mut chunk_aad = [0u8; 20];
         chunk_aad[..16].copy_from_slice(&offer_id.0);
         chunk_aad[16..].copy_from_slice(&(index as u32).to_be_bytes());
-        let content = stream_encrypt_aad(&key, &buffer[..bytes_read], &chunk_aad)?;
+        let content = stream_encrypt_aad(&key, &buffer[..want], &chunk_aad)?;
 
         let wire = WireMessage::FileTransfer(FileTransferMessage {
             transfer_id: offer_id.0,
@@ -543,7 +917,13 @@ pub async fn send_file_chunks(
 
         let data = bincode::serialize(&wire)?;
 
-        if stream_tx.send(data).await.is_err() {
+        let written = (Some(index) == last_pending).then(|| {
+            let (ack_tx, ack_rx) = oneshot::channel();
+            flushed = Some(ack_rx);
+            ack_tx
+        });
+
+        if stream_tx.send(StreamWrite { data, written }).await.is_err() {
             log::warn!(
                 "[file] stream send failed at chunk {index}/{chunk_count} for transfer {}, will resume on reconnect",
                 hex::encode(offer_id.0)
@@ -552,11 +932,13 @@ pub async fn send_file_chunks(
         }
 
         done += 1;
-        if done.is_multiple_of(SEND_PROGRESS_THROTTLE) {
+        if done.is_multiple_of(PROGRESS_LOG_EVERY) {
             log::info!(
                 "[file] send progress transfer={} {done}/{chunk_count}",
                 hex::encode(offer_id.0)
             );
+        }
+        if done.is_multiple_of(event_step) {
             let _ = event_tx
                 .send(AppEvent::FileTransferProgress {
                     transfer_id: offer_id,
@@ -565,6 +947,16 @@ pub async fn send_file_chunks(
                 })
                 .await;
         }
+    }
+
+    if let Some(flushed) = flushed
+        && flushed.await.is_err()
+    {
+        log::warn!(
+            "[file] stream closed before transfer {} flushed, will resume on reconnect",
+            hex::encode(offer_id.0)
+        );
+        return Ok(());
     }
 
     log::info!(

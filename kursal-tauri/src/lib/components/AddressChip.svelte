@@ -10,7 +10,11 @@
     info.host ? (info.port ? `${info.host}:${info.port}` : info.host) : (peer ?? addr)
   );
   const showPeerSecondary = $derived(Boolean(info.host && peer));
-  const badge = $derived(info.relay ? t('common.relayBadge') : info.transport);
+  const badge = $derived.by(() => {
+    if (!info.relay) return info.transport;
+    if (!info.transport) return t('common.relayBadge');
+    return t('common.relayBadgeVia', { transport: info.transport });
+  });
 </script>
 
 <div class="addr" title={addr}>

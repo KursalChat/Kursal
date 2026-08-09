@@ -255,7 +255,9 @@ pub async fn handle_core_command(
 
                 let msg_id = send_message(msg, &contact, db, &cmd_tx, Some(&app_event_tx))
                     .await?
-                    .expect("Text message always has an id");
+                    .ok_or_else(|| {
+                        KursalError::Storage("text message was sent without an id".to_string())
+                    })?;
 
                 Ok(msg_id)
             }
@@ -822,7 +824,9 @@ pub async fn handle_core_command(
 
                 let msg_id = send_message(msg, &contact, db, &cmd_tx, Some(&app_event_tx))
                     .await?
-                    .expect("Text message always has an id");
+                    .ok_or_else(|| {
+                        KursalError::Storage("file offer was sent without an id".to_string())
+                    })?;
 
                 Ok((msg_id, size_bytes, stored_path))
             }

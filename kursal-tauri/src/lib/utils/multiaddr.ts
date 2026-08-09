@@ -73,6 +73,18 @@ export function parseMultiaddr(raw: string): ParsedAddress {
   return result;
 }
 
+const TRANSPORT_ORDER = ['QUIC', 'TCP'];
+
+function addressRank(raw: string): number {
+  const info = parseMultiaddr(raw);
+  const transport = TRANSPORT_ORDER.indexOf(info.transport ?? '');
+  return (info.relay ? 100 : 0) + (transport === -1 ? TRANSPORT_ORDER.length : transport);
+}
+
+export function sortAddresses(addresses: string[]): string[] {
+  return [...addresses].sort((a, b) => addressRank(a) - addressRank(b) || a.localeCompare(b));
+}
+
 export function shortPeerId(id: string | null): string | null {
   if (!id) return null;
   if (id.length <= 12) return id;

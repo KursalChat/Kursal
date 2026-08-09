@@ -116,7 +116,7 @@ impl PeripheralManager {
             parameters.SetWriteProtectionLevel(write_protection_level)?;
             parameters.SetReadProtectionLevel(read_protection_level)?;
             if let Some(value) = &characteristic.value {
-                parameters.SetStaticValue(&vec_to_buffer(value.clone()))?;
+                parameters.SetStaticValue(&vec_to_buffer(value.clone())?)?;
             }
 
             // Add characteristic to Service provider
@@ -142,7 +142,7 @@ impl PeripheralManager {
                 parameters.SetReadProtectionLevel(read_protection_level)?;
 
                 if let Some(value) = &descriptor.value {
-                    parameters.SetStaticValue(&vec_to_buffer(value.clone()))?;
+                    parameters.SetStaticValue(&vec_to_buffer(value.clone())?)?;
                 }
 
                 let descriptor_result = win_characteristic
@@ -201,12 +201,14 @@ impl PeripheralManager {
         characteristic: Uuid,
         value: Vec<u8>,
     ) -> Result<(), Error> {
-        let char = self
+        let Some(char) = self
             .services
             .values()
             .find_map(|service| service.characteristics.get(&characteristic).map(|c| &c.obj))
-            .expect("Characteristic not found");
-        let notify_async = char.NotifyValueAsync(&vec_to_buffer(value))?;
+        else {
+            return Err(Error::new(HRESULT(1), "Characteristic not found"));
+        };
+        let notify_async = char.NotifyValueAsync(&vec_to_buffer(value)?)?;
         notify_async.await?;
         return Ok(());
     }

@@ -484,8 +484,9 @@
     composerEl?.focus();
   }
 
-  function handleEmojiSelect(emoji: string) {
+  function handleEmojiSelect(emoji: string, keepOpen: boolean) {
     inputText += emoji;
+    if (keepOpen) return;
     showEmoji = false;
     tick().then(() => composerEl?.focus());
   }

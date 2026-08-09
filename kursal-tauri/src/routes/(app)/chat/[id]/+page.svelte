@@ -2,6 +2,8 @@
   // Persists per-contact scroll position across chat switches (module scope
   // survives route param changes). Absent entry => never opened => start at bottom.
   const scrollMemory = new Map<string, number>();
+
+  const UNREAD_TAIL_LIMIT = 5;
 </script>
 
 <script lang="ts">
@@ -21,7 +23,6 @@
   import { draftsState } from '$lib/state/drafts.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
-  import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import { shareIntentState } from '$lib/state/shareIntent.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
@@ -130,21 +131,6 @@
   $effect(() => {
     if (!contact || contact.verified || messages.length < 10) return;
     winstonTips.show('verifyContact', openSecurityCodeModal);
-  });
-
-  // Files dropped on this contact's sidebar row while another view was open.
-  $effect(() => {
-    if (!contactId) return;
-    const paths = pendingDropState.consume(contactId);
-    if (!paths) return;
-    void (async () => {
-      try {
-        const prepared = await Promise.all(paths.map((p) => prepareOfferSourcePath(p)));
-        await stageFilesForSend(prepared);
-      } catch (e) {
-        notifyError(e, 'chat.conversation.errorPrepareFile');
-      }
-    })();
   });
 
   // Only messages created after the chat was opened get the entrance animation;
@@ -581,10 +567,11 @@
     return `${vertical}left:clamp(${minLeft}, ${pos.left}px, ${maxLeft});`;
   }
 
-  async function handlePickerSelect(emoji: string) {
+  async function handlePickerSelect(emoji: string, keepOpen: boolean) {
     if (!showEmojiPicker) return;
     const msg = messageIndex.get(showEmojiPicker);
     if (msg) await toggleReaction(msg, emoji);
+    if (keepOpen) return;
     showEmojiPicker = null;
     emojiPickerAnchor = null;
   }
@@ -1006,13 +993,11 @@
         unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
           const p = event.payload;
           if (p.type === 'enter' || p.type === 'over') {
-            isDraggingFile = !contactDropTargetAt(p.position);
+            isDraggingFile = true;
           } else if (p.type === 'leave') {
             isDraggingFile = false;
           } else if (p.type === 'drop') {
             isDraggingFile = false;
-            // A drop on a sidebar contact row belongs to the layout router.
-            if (contactDropTargetAt(p.position)) return;
             const paths = (p as { paths?: string[] }).paths ?? [];
             void handleDroppedPaths(paths);
           }
@@ -1254,19 +1239,17 @@
       // Position synchronously (DOM is already updated when this effect runs),
       // so the chat is at its spot on first paint: no visible top→bottom scroll.
       const savedTop = scrollMemory.get(contactId);
-      if (savedTop != null) {
+      const sep = firstUnreadId ? listEl.querySelector<HTMLElement>('.unread-separator') : null;
+      if (sep && unreadRunCount > UNREAD_TAIL_LIMIT) {
+        sep.scrollIntoView({ block: 'center' });
+        isScrolledToBottom = false;
+        isAtMaxBottom = false;
+        farFromBottom = true;
+      } else if (savedTop != null && unreadRunCount === 0) {
         listEl.scrollTop = savedTop;
         updateScrollFlags();
       } else {
-        const sep = firstUnreadId ? listEl.querySelector<HTMLElement>('.unread-separator') : null;
-        if (sep) {
-          sep.scrollIntoView({ block: 'center' });
-          isScrolledToBottom = false;
-          isAtMaxBottom = false;
-          farFromBottom = true;
-        } else {
-          pinInitialBottom();
-        }
+        pinInitialBottom();
       }
       return;
     }
@@ -1284,6 +1267,10 @@
       const tailChanged = lastId !== prevLastId;
       tick().then(() => {
         const lastMsg = messages[len - 1];
+        // Pinning appends a pin line with direction 'sent', but it is not a
+        // message the user just wrote. While reading history it must not pull
+        // the view down, nor count as unread.
+        if (lastMsg?.direction === 'sent' && lastMsg.pinDetails && !isScrolledToBottom) return;
         if ((tailChanged && lastMsg?.direction === 'sent') || isScrolledToBottom) {
           const behavior: ScrollBehavior = isScrolledToBottom ? 'auto' : 'smooth';
           scrollToBottom(behavior);
@@ -1385,6 +1372,7 @@
     }
 
     if (!contactId) return;
+    messagesState.markRead(contactId, true);
     const replyTo = replyingToMessageId;
     inputText = '';
     draftsState.clear(contactId);
@@ -1556,6 +1544,7 @@
       );
       return;
     }
+    messagesState.markRead(cid, true);
     sendingFile = true;
     try {
       for (const file of files) {
@@ -1978,6 +1967,9 @@
               showEmojiPicker = msg.id;
               emojiPickerAnchor = rect;
             }
+          }}
+          onMediaResize={() => {
+            if (isScrolledToBottom) pinBottomFrames(2);
           }}
           onOpenMedia={(path, kind, filename) => {
             mediaViewer = {

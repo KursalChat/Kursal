@@ -1,7 +1,5 @@
 import type { MessageResponse } from '$lib/types';
 
-const KEY = 'kursal:delayedUnseen';
-
 // Inserts msg into list keeping ascending (timestamp, id) order. Returns the
 // index it landed at, so callers can tell whether it appended at the tail.
 export function insertInSentOrder(list: MessageResponse[], msg: MessageResponse): number {
@@ -16,24 +14,4 @@ export function insertInSentOrder(list: MessageResponse[], msg: MessageResponse)
   }
   list.splice(lo, 0, msg);
   return lo;
-}
-
-export function loadDelayed(): Record<string, string[]> {
-  if (typeof localStorage === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-export function saveDelayed(store: Record<string, string[]>) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(store));
-  } catch {
-    // Non-fatal: quota exceeded or storage unavailable.
-  }
 }

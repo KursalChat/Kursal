@@ -9,27 +9,27 @@ pub fn setup(app: &mut tauri::App) -> Result<(), tauri::Error> {
     let root_menu = root_menu.services().separator();
 
     let root_menu = root_menu
-        .item(
-            &MenuItem::with_id(
-                app,
-                "dev_tools",
-                "Developer tools",
-                true,
-                Some("CmdOrControl+Alt+I"),
-            )
-            .unwrap(),
-        )
-        .item(&MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrControl+R")).unwrap())
-        .item(
-            &MenuItem::with_id(
-                app,
-                "restart",
-                "Restart",
-                true,
-                Some("CmdOrControl+Shift+R"),
-            )
-            .unwrap(),
-        )
+        .item(&MenuItem::with_id(
+            app,
+            "dev_tools",
+            "Developer tools",
+            true,
+            Some("CmdOrControl+Alt+I"),
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            "reload",
+            "Reload",
+            true,
+            Some("CmdOrControl+R"),
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            "restart",
+            "Restart",
+            true,
+            Some("CmdOrControl+Shift+R"),
+        )?)
         .hide()
         .show_all()
         .separator()
@@ -47,26 +47,20 @@ pub fn setup(app: &mut tauri::App) -> Result<(), tauri::Error> {
         .build()?;
 
     let window_menu = SubmenuBuilder::new(app, "Window")
-        .item(
-            &MenuItem::with_id(
-                app,
-                "new_contact",
-                "New contact",
-                true,
-                Some("CmdOrControl+N"),
-            )
-            .unwrap(),
-        )
-        .item(
-            &MenuItem::with_id(
-                app,
-                "settings",
-                "Open settings",
-                true,
-                Some("CmdOrControl+,"),
-            )
-            .unwrap(),
-        )
+        .item(&MenuItem::with_id(
+            app,
+            "new_contact",
+            "New contact",
+            true,
+            Some("CmdOrControl+N"),
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            "settings",
+            "Open settings",
+            true,
+            Some("CmdOrControl+,"),
+        )?)
         .minimize()
         .fullscreen()
         .close_window()

@@ -20,7 +20,7 @@
   <div class="backdrop" transition:fade|global={{ duration: 500 }}></div>
   {#key winstonTips.activeId}
     <div class="tip" role="dialog" aria-label={t(def.titleKey)}>
-      <WinstonCard img={def.img} alt={t('tour.winstonAlt')} size={84}>
+      <WinstonCard img={def.img} alt="Winston" size={84}>
         <div class="title">{t(def.titleKey)}</div>
         <div class="body">{@html formatBody(t(def.bodyKey))}</div>
 

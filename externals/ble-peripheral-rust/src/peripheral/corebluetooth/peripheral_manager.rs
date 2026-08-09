@@ -14,7 +14,7 @@ use objc2_core_bluetooth::{
 use objc2_foundation::{NSArray, NSData, NSDictionary, NSString};
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::CStr;
 use std::thread;
 use tokio::runtime;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -53,12 +53,14 @@ static PERIPHERAL_THREAD: OnceCell<()> = OnceCell::new();
 pub fn run_peripheral_thread(sender: Sender<PeripheralEvent>, listener: Receiver<ManagerEvent>) {
     PERIPHERAL_THREAD.get_or_init(|| {
         thread::spawn(move || {
-            let runtime = runtime::Builder::new_current_thread().enable_time().build();
-            if runtime.is_err() {
-                log::error!("Failed to create runtime");
-                return;
-            }
-            runtime.unwrap().block_on(async move {
+            let runtime = match runtime::Builder::new_current_thread().enable_time().build() {
+                Ok(runtime) => runtime,
+                Err(err) => {
+                    log::error!("Failed to create runtime: {}", err);
+                    return;
+                }
+            };
+            runtime.block_on(async move {
                 let mut peripheral_manager = PeripheralManager::new(sender, listener);
                 loop {
                     peripheral_manager.handle_event().await;
@@ -79,7 +81,7 @@ struct PeripheralManager {
 impl PeripheralManager {
     fn new(sender_tx: mpsc::Sender<PeripheralEvent>, listener: Receiver<ManagerEvent>) -> Self {
         let delegate: Retained<PeripheralDelegate> = PeripheralDelegate::new(sender_tx);
-        let label: CString = CString::new("CBqueue").unwrap();
+        let label: &CStr = c"CBqueue";
         let queue: *mut std::ffi::c_void = unsafe {
             mac_utils::dispatch_queue_create(label.as_ptr(), mac_utils::DISPATCH_QUEUE_SERIAL)
         };

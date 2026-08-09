@@ -55,10 +55,15 @@ pub struct CallEngine {
     pub their_random: Option<[u8; 32]>,
 }
 
-fn gen_random() -> [u8; 32] {
+fn gen_random() -> Option<[u8; 32]> {
     let mut r = [0u8; 32];
-    OsRng.try_fill_bytes(&mut r).expect("OsRng fill failed");
-    r
+    match OsRng.try_fill_bytes(&mut r) {
+        Ok(()) => Some(r),
+        Err(err) => {
+            log::error!("[call] no system randomness available: {err}");
+            None
+        }
+    }
 }
 
 impl CallEngine {
@@ -91,7 +96,10 @@ impl CallEngine {
     pub fn step(&mut self, input: CallInput) -> Vec<CallAction> {
         match (self.state, input) {
             (CallState::Idle, CallInput::StartCall) => {
-                let r = gen_random();
+                let Some(r) = gen_random() else {
+                    self.state = CallState::Ended;
+                    return vec![CallAction::Emit(self.state)];
+                };
                 self.is_caller = true;
                 self.my_random = Some(r);
                 self.state = CallState::RingingOut;
@@ -117,7 +125,15 @@ impl CallEngine {
                 vec![CallAction::OpenMedia, CallAction::Emit(self.state)]
             }
             (CallState::RingingIn, CallInput::Accept) => {
-                let r = gen_random();
+                let Some(r) = gen_random() else {
+                    self.state = CallState::Ended;
+                    return vec![
+                        CallAction::SendHangup {
+                            reason: HangupReason::Error,
+                        },
+                        CallAction::Emit(self.state),
+                    ];
+                };
                 self.my_random = Some(r);
                 self.state = CallState::Connecting;
                 vec![

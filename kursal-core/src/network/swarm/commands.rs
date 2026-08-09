@@ -1,12 +1,15 @@
 use super::{
     CALL_PROTOCOL, ConnectionKind, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
-    helpers::open_peer_stream,
+    helpers::open_peer_stream, lock_peer_streams,
 };
 use crate::network::bootstrap::bootstrap_peers;
 use libp2p::{
     Multiaddr, PeerId, Swarm,
     multiaddr::Protocol,
-    swarm::{ConnectionId, dial_opts::DialOpts},
+    swarm::{
+        ConnectionId,
+        dial_opts::{DialOpts, PeerCondition},
+    },
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -29,6 +32,21 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::Shutdown | SwarmCommand::EnableNearby => {} // handled in the loop itself
         SwarmCommand::Dial(addr) => {
             let _ = swarm.dial(addr);
+        }
+        SwarmCommand::DialLocal { peer_id, addresses } => {
+            let has_direct = peer_conns
+                .values()
+                .any(|(p, kind)| *p == peer_id && *kind != ConnectionKind::Relay);
+
+            if !has_direct {
+                let opts = DialOpts::peer_id(peer_id)
+                    .addresses(addresses)
+                    .condition(PeerCondition::NotDialing)
+                    .build();
+                if let Err(err) = swarm.dial(opts) {
+                    log::debug!("[mDNS] local dial to {peer_id} failed: {err:?}");
+                }
+            }
         }
         SwarmCommand::AddNode(addr) => {
             if let Some(Protocol::P2p(peer_id)) = addr.iter().last() {
@@ -211,16 +229,17 @@ pub(super) async fn handle_swarm_command(
             addresses,
             reply,
         } => {
-            if !swarm.is_connected(&peer_id) {
+            let connected = swarm.is_connected(&peer_id);
+            if !connected {
                 for addr in addresses {
                     let _ = swarm.dial(addr);
                 }
             }
 
             let cached = {
-                let mut map = peer_streams.lock().unwrap();
+                let mut map = lock_peer_streams(peer_streams);
                 match map.get(&peer_id) {
-                    Some(tx) if !tx.is_closed() => Some(tx.clone()),
+                    Some(tx) if connected && !tx.is_closed() => Some(tx.clone()),
                     Some(_) => {
                         map.remove(&peer_id);
                         None

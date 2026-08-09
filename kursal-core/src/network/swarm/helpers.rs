@@ -1,4 +1,6 @@
-use super::{ConnectionKind, PeerStreams, STREAM_PROTOCOL, SwarmCommand};
+use super::{
+    ConnectionKind, PeerStreams, STREAM_PROTOCOL, StreamWrite, SwarmCommand, lock_peer_streams,
+};
 use crate::MapKursalResult;
 use crate::{KursalError, Result};
 use futures::io::AsyncWriteExt;
@@ -81,57 +83,15 @@ pub async fn get_listen_addrs(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Result<Vec
 
     let all_addresses = rx.await.ok_kursal(KursalError::Network)?;
 
-    let relay_addresses: Vec<String> = all_addresses
+    Ok(all_addresses
         .iter()
-        .map(|a| a.to_string())
-        .filter(|a| a.contains("/p2p-circuit"))
-        .collect();
-
-    Ok(relay_addresses)
+        .filter(|addr| is_circuit(addr) || is_routable_multiaddr(addr))
+        .map(|addr| addr.to_string())
+        .collect())
 }
 
-pub async fn get_nearby_listen_addrs(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Result<Vec<String>> {
-    let (tx, rx) = oneshot::channel();
-    cmd_tx
-        .send(SwarmCommand::GetListenAddresses { reply_tx: tx })
-        .await
-        .ok_kursal(KursalError::Network)?;
-
-    let all_addresses = rx.await.ok_kursal(KursalError::Network)?;
-
-    let mut out: Vec<String> = Vec::new();
-    for addr in all_addresses.iter() {
-        let s = addr.to_string();
-        if s.contains("/p2p-circuit") {
-            out.push(s);
-            continue;
-        }
-        if is_routable_lan(addr) {
-            out.push(s);
-        }
-    }
-    Ok(out)
-}
-
-fn is_routable_lan(addr: &Multiaddr) -> bool {
-    for proto in addr.iter() {
-        match proto {
-            Protocol::Ip4(ip) => {
-                if ip.is_loopback() || ip.is_unspecified() {
-                    return false;
-                }
-                return true;
-            }
-            Protocol::Ip6(ip) => {
-                if ip.is_loopback() || ip.is_unspecified() {
-                    return false;
-                }
-                return true;
-            }
-            _ => continue,
-        }
-    }
-    false
+fn is_circuit(addr: &Multiaddr) -> bool {
+    addr.iter().any(|proto| proto == Protocol::P2pCircuit)
 }
 
 pub fn str_to_multiaddr(addresses: &[String]) -> Result<Vec<Multiaddr>> {
@@ -145,7 +105,7 @@ pub async fn open_peer_stream(
     mut control: libp2p_stream::Control,
     peer_id: PeerId,
     peer_streams: &PeerStreams,
-) -> Option<mpsc::Sender<Vec<u8>>> {
+) -> Option<mpsc::Sender<StreamWrite>> {
     let mut stream = match control.open_stream(peer_id, STREAM_PROTOCOL).await {
         Ok(s) => s,
         Err(e) => {
@@ -154,10 +114,10 @@ pub async fn open_peer_stream(
         }
     };
 
-    let (tx, mut rx) = mpsc::channel::<Vec<u8>>(32);
+    let (tx, mut rx) = mpsc::channel::<StreamWrite>(32);
 
     tokio::spawn(async move {
-        while let Some(data) = rx.recv().await {
+        while let Some(StreamWrite { data, written }) = rx.recv().await {
             let Ok(len) = u32::try_from(data.len()).ok_kursal(KursalError::Storage) else {
                 break;
             };
@@ -170,13 +130,21 @@ pub async fn open_peer_stream(
                 log::warn!("[stream] write to {peer_id} failed, closing writer");
                 break;
             }
+
+            if let Some(ack) = written {
+                if stream.flush().await.is_err() {
+                    log::warn!("[stream] flush to {peer_id} failed, closing writer");
+                    break;
+                }
+                let _ = ack.send(());
+            }
         }
 
         stream.close().await.ok();
         log::info!("[stream] writer to {peer_id} closed");
     });
 
-    peer_streams.lock().unwrap().insert(peer_id, tx.clone());
+    lock_peer_streams(peer_streams).insert(peer_id, tx.clone());
     Some(tx)
 }
 

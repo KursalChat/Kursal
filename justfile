@@ -1,9 +1,15 @@
 set shell := ["bash", "-uc"]
 
 version := `./bin/version.sh`
-prerelease := if version =~ "-" { "--prerelease" } else { "" }
 website := "~/Code/Kursal-Website/static"
 homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
+
+# @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
+tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" {
+    "bun run --cwd kursal-tauri tauri"
+} else {
+    "cargo tauri"
+}
 
 # list recipes
 default:
@@ -12,11 +18,10 @@ default:
 # --- dev tooling ---
 
 dev id="0":
-    RUST_LOG=info cargo tauri dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
+    RUST_LOG=info {{ tauri }} dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
 
 install-dev-tools:
     install-hooks
-    cargo install tauri-cli --version "^2.0.0" --locked
     cd kursal-tauri && bun install --frozen-lockfile && cd ..
 
 install-hooks:
@@ -26,7 +31,7 @@ install-hooks:
 
 # --- release ---
 
-# ORCHESTRATION: `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
+# `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
 # See RELEASING.md
 
 # prepare a stable/beta release: branch from dev, bump+tag, build
@@ -49,7 +54,7 @@ release v: verify
     git add Cargo.toml Cargo.lock kursal-tauri/package.json CHANGELOG.md
     git commit -m "chore(release): v{{ v }}"
     git tag -a v{{ v }} -m "v{{ v }}"
-    @echo "Tagged v{{ v }}. Next: merge into main + dev, then 'just build' and 'just publish'."
+    @echo "Tagged v{{ v }}. Next: push the tag to start the CI build, then 'just ship {{ v }}'."
 
 # --- build & publish ---
 build: clean build-win build-mac build-linux build-android build-ios build-relay gen-manifest
@@ -97,13 +102,13 @@ preflight:
 build-relay:
     ./bin/build-relay.sh
 
-publish: preflight publish-github publish-relay publish-beta-manifest publish-api-docs publish-homebrew
+# CI builds, preflights and uploads everything as a draft; these publish it.
+publish: publish-release publish-beta-manifest publish-api-docs publish-homebrew
 
-publish-beta: preflight publish-github publish-relay publish-beta-manifest
+publish-beta: publish-release publish-beta-manifest
 
-publish-github:
-	gh release create v{{ version }} --verify-tag {{ prerelease }} --title "v{{ version }}" --notes "$(git cliff --latest --strip all)"
-	for f in ./build/*; do echo "Uploading: $f"; gh release upload v{{ version }} "$f"; done
+publish-release:
+    gh release edit v{{ version }} --draft=false
 
 publish-relay:
     orb start || echo "orb start failed, continuing anyway"
@@ -111,10 +116,12 @@ publish-relay:
     gh release upload v{{ version }} ./dist/kursal-relay-{{ version }}-linux-*.tar.gz ./dist/kursal-relay-{{ version }}-linux-*.tar.gz.sha256 --clobber
 
 publish-beta-manifest:
+    mkdir -p build
+    gh release download v{{ version }} -p latest.json -D build --clobber
     gh release upload beta ./build/latest.json --clobber
 
 publish-api-docs:
-    cargo run -p kursal-core --bin gen_api_docs -- --out {{ website }}/api/openapi.json
+    ./bin/publish-api-docs.sh {{ version }} {{ website }}/api/openapi.json
 
 publish-homebrew:
     ./bin/publish-homebrew.sh {{ version }} {{ homebrew }}

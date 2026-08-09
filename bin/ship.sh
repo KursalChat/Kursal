@@ -1,5 +1,5 @@
 #!/bin/bash
-# Publish a prepared release. Runs from the release/* or hotfix/* branch you cut.
+# Publish the draft release CI built. Runs from the release/* or hotfix/* branch you cut.
 source "$(dirname "$0")/release-lib.sh"
 
 V="${1:?usage: ship.sh <version>}"
@@ -15,17 +15,18 @@ CARGO_V="$("$ROOT/bin/version.sh")"
   || die "version mismatch: asked to ship $V but Cargo.toml is $CARGO_V (run 'just release $V' first?)"
 
 git rev-parse -q --verify "refs/tags/v$V" >/dev/null \
-  || die "tag v$V not found (run 'just release $V' first?)"
+  || die "tag v$V not found (run 'just cut $V' first?)"
 
 require_clean
-just preflight
+git push origin "$BRANCH"  # no-op after cut; picks up hotfix commits
+
+gh release view "v$V" --json isDraft --jq .isDraft >/dev/null 2>&1 \
+  || die "no release v$V on origin (CI still building? 'gh run list --workflow release.yml')"
 
 # ── beta / prerelease: publish from the branch, main is untouched ─────────────
 if [[ "$V" == *-* ]]; then
   echo "==> ship beta v$V from $BRANCH"
-  confirm "push $BRANCH (with tag v$V) to origin?"
-  git push --follow-tags origin "$BRANCH"
-  confirm "publish-beta v$V (github pre-release + beta manifest slot)?"
+  confirm "publish-beta v$V (un-draft the pre-release + beta manifest slot)?"
   just publish-beta
   echo
   echo "✓ beta v$V shipped. cut more betas on $BRANCH, or finalize with 'just cut $BASE && just ship $BASE'."
@@ -35,9 +36,6 @@ fi
 # ── stable: PR into main, publish, back-merge PR into dev, clean up ───────────
 echo "==> ship stable v$V ($BRANCH -> main)"
 
-confirm "push $BRANCH (with tag v$V) to origin?"
-git push --follow-tags origin "$BRANCH"
-
 RELEASE_PR="$(open_pr main "$BRANCH" "release: v$V" "Release v$V. Opened by \`just ship\`.")"
 echo "  release PR: $RELEASE_PR"
 
@@ -45,7 +43,7 @@ confirm "merge that PR into main? (N leaves it open, nothing published)"
 gh pr merge "$RELEASE_PR" --merge
 
 echo "  main updated."
-confirm "publish v$V now (github + homebrew + ghcr relay + api docs)? (N = main is public but unpublished; run 'just publish' later)"
+confirm "publish v$V now (un-draft + manifest + homebrew + api docs)? (N = main is public but unpublished; run 'just publish' later)"
 just publish
 
 echo "==> back-merge main -> dev"

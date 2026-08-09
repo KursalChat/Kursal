@@ -4409,6 +4409,7 @@ dependencies = [
  "async-trait",
  "audiopus",
  "axum",
+ "base64 0.22.1",
  "bincode",
  "blake2",
  "ble-peripheral-rust",

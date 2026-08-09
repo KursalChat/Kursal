@@ -213,9 +213,7 @@ impl NearbyTransport for BTTransport {
         })?;
         let msg_id: u64 = rand::random();
 
-        for (i, chunk) in bytes.chunks(chunk_size).enumerate() {
-            // Safe: i < total_chunks <= u16::MAX (verified by try_from above).
-            let seq = u16::try_from(i).expect("seq fits in u16");
+        for (seq, chunk) in (0..total).zip(bytes.chunks(chunk_size)) {
             let mut frame = Vec::with_capacity(FRAG_HEADER_LEN + chunk.len());
             frame.extend_from_slice(&msg_id.to_be_bytes());
             frame.extend_from_slice(&seq.to_be_bytes());
@@ -376,7 +374,9 @@ async fn start_scanner(
         });
     }
 
-    let state = guard.as_mut().unwrap();
+    let Some(state) = guard.as_mut() else {
+        return Err(err("bt scanner state missing".into()));
+    };
 
     if state.scanning {
         let _ = state.central.stop_scan().await;
@@ -540,7 +540,9 @@ async fn start_advertiser(
         });
     }
 
-    let state = guard.as_mut().unwrap();
+    let Some(state) = guard.as_mut() else {
+        return Err(err("bt advertiser state missing".into()));
+    };
 
     if !state.service_added {
         let service = kursal_service();

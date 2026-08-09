@@ -464,7 +464,7 @@
 
     {#if showWinston}
       <div class="winston-corner">
-        <img src="/winston.png" alt="" draggable="false" />
+        <img src="/winston.webp" alt="" draggable="false" />
         <div class="winston-glow"></div>
       </div>
     {/if}

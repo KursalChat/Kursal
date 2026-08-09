@@ -90,14 +90,13 @@ declare_class!(
             characteristic: &CBCharacteristic,
         ){
             unsafe{
-                let service: Option<Retained<CBService>> = characteristic.service();
-                if service.is_none() {
+                let Some(service) = characteristic.service() else {
                     return;
-                }
+                };
                 self.send_event(PeripheralEvent::CharacteristicSubscriptionUpdate {
                     request: PeripheralRequest {
                         client: central.identifier().to_string(),
-                        service: characteristic.service().unwrap().get_uuid(),
+                        service: service.get_uuid(),
                         characteristic: characteristic.get_uuid(),
                     },
                     subscribed: true,
@@ -112,15 +111,14 @@ declare_class!(
             central: &CBCentral,
             characteristic: &CBCharacteristic,
         ){  unsafe{
-            let service: Option<Retained<CBService>> = characteristic.service();
-            if service.is_none() {
+            let Some(service) = characteristic.service() else {
                 return;
-            }
+            };
 
             self.send_event(PeripheralEvent::CharacteristicSubscriptionUpdate {
                request: PeripheralRequest {
                     client: central.identifier().to_string(),
-                    service: characteristic.service().unwrap().get_uuid(),
+                    service: service.get_uuid(),
                     characteristic: characteristic.get_uuid(),
                 },
                 subscribed: false,
@@ -134,17 +132,16 @@ declare_class!(
             request: &CBATTRequest,
         ){
             unsafe{
-                let service = request.characteristic().service();
-                if service.is_none() {
-                    return;
-                }
-                let central = request.central();
                 let characteristic = request.characteristic();
+                let Some(service) = characteristic.service() else {
+                    return;
+                };
+                let central = request.central();
 
                 self.send_read_request(
                     PeripheralRequest{
                         client: central.identifier().to_string(),
-                        service: characteristic.service().unwrap().get_uuid(),
+                        service: service.get_uuid(),
                         characteristic: characteristic.get_uuid(),
                     },
                     manager,
@@ -161,21 +158,20 @@ declare_class!(
         ){
             for request in requests {
                 unsafe{
-                    let service = request.characteristic().service();
-                    if service.is_none() {
-                        return;
-                    }
+                    let characteristic = request.characteristic();
+                    let Some(service) = characteristic.service() else {
+                        continue;
+                    };
                     let mut value: Vec<u8> = Vec::new();
                     if let Some(ns_data) = request.value() {
                        value = ns_data.bytes().to_vec();
                     }
                     let central = request.central();
-                    let characteristic = request.characteristic();
 
                     self.send_write_request(
                         PeripheralRequest{
                              client: central.identifier().to_string(),
-                            service: characteristic.service().unwrap().get_uuid(),
+                            service: service.get_uuid(),
                             characteristic: characteristic.get_uuid(),
                         },
                         manager,

@@ -35,7 +35,15 @@ pub async fn start_health_server(state: SharedHealth, addr: SocketAddr) {
         .route("/health", axum::routing::get(health))
         .with_state(state);
 
-    axum::serve(TcpListener::bind(addr).await.unwrap(), app)
-        .await
-        .unwrap()
+    let listener = match TcpListener::bind(addr).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            log::error!("[health] could not bind {addr}: {err}");
+            return;
+        }
+    };
+
+    if let Err(err) = axum::serve(listener, app).await {
+        log::error!("[health] server stopped: {err}");
+    }
 }

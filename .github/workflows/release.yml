@@ -1,0 +1,450 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - id: v
+        run: |
+          version="$(./bin/version.sh)"
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::tag $tag does not match Cargo.toml version v$version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  deps:
+    needs: verify-tag
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: cache
+        with:
+          path: bin/deps
+          key: deps-${{ runner.os }}-${{ hashFiles('bin/build-opus.sh', 'bin/build-abseil.sh') }}
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
+        id: ndk
+        with:
+          ndk-version: r26d
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: brew install ninja llvm
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install xwin --locked
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          export PATH="$(brew --prefix llvm)/bin:$PATH"
+          ./bin/build-opus.sh
+          ./bin/build-abseil.sh
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deps
+          path: bin/deps
+          retention-days: 1
+
+  macos:
+    needs: [verify-tag, deps]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-26-intel
+            arch: x64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: macos-${{ matrix.arch }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - run: brew install meson ninja autoconf automake libtool protobuf
+      - name: Signing key
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          mkdir -p keys
+          printf '%s' "$KEY" > keys/publishing.key
+          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+      - run: ./bin/build-mac.sh ${{ matrix.arch }}
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: build/Kursal*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifacts-macos-${{ matrix.arch }}
+          path: build/Kursal*
+
+  windows:
+    needs: [verify-tag, deps]
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: windows
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - run: choco install protoc -y --no-progress
+
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        working-directory: kursal-tauri
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          OPUS_NO_PKG: 1
+          OPUS_STATIC: 1
+        run: |
+          export OPUS_LIB_DIR="$GITHUB_WORKSPACE/bin/deps/win"
+          bun run tauri build --bundles nsis,updater \
+            --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Collect
+        run: |
+          mkdir -p build
+          cp target/release/kursal.exe                             build/Kursal_x64.exe
+          cp target/release/bundle/nsis/Kursal_*_x64-setup.exe     build/Kursal_x64-setup.exe
+          cp target/release/bundle/nsis/Kursal_*_x64-setup.exe.sig build/Kursal_x64-setup.exe.sig
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: |
+            build/Kursal_x64.exe
+            build/Kursal_x64-setup.exe
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifacts-windows
+          path: build/Kursal*
+
+  linux:
+    needs: verify-tag
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            suffix: x64
+          - runner: ubuntu-22.04-arm
+            suffix: arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: linux-${{ matrix.suffix }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file unzip \
+            libssl-dev pkg-config libasound2-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            fuse libfuse2 squashfs-tools ninja-build python3-pip \
+            protobuf-compiler xdg-utils libclang-dev clang \
+            autoconf automake libtool libopus-dev cmake rpm
+          sudo pip3 install --upgrade meson
+
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        working-directory: kursal-tauri
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          bun run tauri build --bundles deb,rpm,appimage,updater \
+            --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Collect
+        env:
+          S: ${{ matrix.suffix }}
+        run: |
+          mkdir -p build
+          cp target/release/bundle/deb/*.deb               "build/Kursal_$S.deb"
+          cp target/release/bundle/deb/*.deb.sig           "build/Kursal_$S.deb.sig"
+          cp target/release/bundle/rpm/*.rpm               "build/Kursal_$S.rpm"
+          cp target/release/bundle/rpm/*.rpm.sig           "build/Kursal_$S.rpm.sig"
+          cp target/release/bundle/appimage/*.AppImage     "build/Kursal_$S.AppImage"
+          cp target/release/bundle/appimage/*.AppImage.sig "build/Kursal_$S.AppImage.sig"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: |
+            build/Kursal_${{ matrix.suffix }}.deb
+            build/Kursal_${{ matrix.suffix }}.rpm
+            build/Kursal_${{ matrix.suffix }}.AppImage
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifacts-linux-${{ matrix.suffix }}
+          path: build/Kursal*
+
+  android:
+    needs: [verify-tag, deps]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: android
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Signing keys
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          JKS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          JKS_PWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p keys
+          printf '%s' "$KEY" > keys/publishing.key
+          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+          echo "$JKS" | base64 -d > keys/android.jks
+          printf 'storeFile=%s/keys/android.jks\npassword=%s\nkeyAlias=upload\n' \
+            "$GITHUB_WORKSPACE" "$JKS_PWD" \
+            > kursal-tauri/src-tauri/gen/android/keystore.properties
+
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        run: |
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          ./bin/build-android.sh
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: build/Kursal.apk
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifacts-android
+          path: build/Kursal*
+
+  relay:
+    needs: verify-tag
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-22.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: ./bin/build-relay.sh --platform ${{ matrix.platform }} --push
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: "dist/kursal-relay-*.tar.gz"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifacts-relay-${{ matrix.arch }}
+          path: dist/kursal-relay-*
+
+  # The per-arch images are pushed separately; this joins them under one tag.
+  relay-manifest:
+    needs: relay
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: ./bin/build-relay.sh --merge
+
+  # Everything is built; now assemble latest.json + SHA256SUMS and publish.
+  release:
+    needs: [verify-tag, macos, windows, linux, android, relay, relay-manifest]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.verify-tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+          fetch-depth: 0 # git-cliff needs full history for release notes
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: build
+          pattern: artifacts-*
+          merge-multiple: true
+
+      - uses: taiki-e/install-action@91ddec75689c4c78665b598d188dc821c5a43e5c # v2
+        with:
+          tool: git-cliff
+
+      - name: Signing key
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          mkdir -p keys
+          printf '%s' "$KEY" > keys/publishing.key
+          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+
+      - run: ./bin/gen-manifest.sh
+      - run: ./bin/preflight.sh
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
+            echo "::error::release $TAG is already published; refusing to overwrite its assets"
+            exit 1
+          fi
+
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --verify-tag $prerelease \
+              --title "$TAG" --notes "$(git cliff --latest --strip all)" --draft
+          for f in build/*; do
+            echo "Uploading: $f"
+            gh release upload "$TAG" "$f" --clobber
+          done

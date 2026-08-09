@@ -11,7 +11,6 @@ use axum::{Json, body::Bytes, extract::State};
     tag = "OTP",
     responses(
         (status = 200, description = "Generated OTP", body = OtpResponse),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -31,7 +30,6 @@ pub(crate) async fn api_otp_generate(
     request_body = OtpResponse,
     responses(
         (status = 200, description = "Fetched OTP", body = ContactResponse),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -51,7 +49,6 @@ pub(crate) async fn api_otp_fetch(
     tag = "LTC",
     responses(
         (status = 200, description = "Exported LTC", body = Vec<u8>, content_type = "application/octet-stream"),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -70,7 +67,6 @@ pub(crate) async fn api_ltc_export(State(state): State<APIAppState>) -> Result<V
     responses(
         (status = 200, description = "Imported LTC", body = ContactResponse),
         (status = 400, description = "Invalid LTC payload", body = APIError),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

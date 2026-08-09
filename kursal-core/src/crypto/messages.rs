@@ -3,6 +3,7 @@ use crate::{
     KursalError, Result,
     crypto::PreKeyBundleData,
     storage::{SharedDatabase, get_local_address},
+    sync::LockExt,
 };
 use libsignal_protocol::{
     PreKeySignalMessage, ProtocolAddress, PublicKey as SignalPublicKey, SignalMessage,
@@ -18,7 +19,7 @@ static SESSION_LOCKS: LazyLock<StdMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 
 fn session_lock(address: &ProtocolAddress) -> Arc<AsyncMutex<()>> {
-    let mut map = SESSION_LOCKS.lock().unwrap();
+    let mut map = SESSION_LOCKS.lock_recover();
     map.entry(address.to_string())
         .or_insert_with(|| Arc::new(AsyncMutex::new(())))
         .clone()
