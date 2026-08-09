@@ -347,6 +347,7 @@
     document.addEventListener('touchend', blockDoubleTap, { passive: false });
 
     void contactsState.load();
+    void messagesState.hydrate();
 
     // Seed from a direct query: the network_online event only fires on
     // changes, so a webview (re)load would otherwise show stale defaults.
@@ -434,7 +435,10 @@
 
     unlistenPromises.push(
       listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
-        messagesState.flushPendingSync(event.payload.contactId);
+        messagesState.flushPendingSync(
+          event.payload.contactId,
+          event.payload.finalizedDeletes ?? []
+        );
       })
     );
 

@@ -51,6 +51,7 @@ pub struct ReactionResponse {
 pub struct FileDetailsDto {
     pub filename: String,
     pub size_bytes: u64,
+    pub autodownload_path: Option<String>,
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -107,6 +108,7 @@ impl From<StoredMessage> for MessageResponse {
             KursalMessage::FileOffer(f) => Some(FileDetailsDto {
                 filename: f.filename.clone(),
                 size_bytes: f.size_bytes,
+                autodownload_path: None,
             }),
             _ => None,
         };
@@ -213,6 +215,23 @@ pub fn apply_offline_overlay(
             row.status = "queued_in_dht".to_string();
         }
     }
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadDto {
+    pub contact_id: String,
+    pub count: usize,
+    pub capped: bool,
+    pub first_unread: Option<String>,
+    pub marked_unread: bool,
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSyncDto {
+    pub sync: Vec<String>,
+    pub deleted: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]

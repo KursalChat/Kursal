@@ -22,7 +22,10 @@ use tokio::sync::{Mutex, MutexGuard, broadcast, mpsc, oneshot};
 use tower_http::cors::CorsLayer;
 use utoipa::{
     Modify, OpenApi,
-    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    openapi::{
+        ContentBuilder, Ref, RefOr, ResponseBuilder,
+        security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    },
 };
 use utoipa_scalar::{Scalar, Servable};
 
@@ -34,9 +37,11 @@ mod ws;
 
 use handlers::*;
 use types::*;
-use ws::ws_handler;
+use ws::*;
 
-pub(crate) type Result<T> = std::result::Result<T, String>;
+pub use types::APIError;
+
+pub(crate) type Result<T> = std::result::Result<T, APIError>;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,13 +120,56 @@ impl Modify for BearerAuth {
     }
 }
 
+struct AuthResponses;
+impl Modify for AuthResponses {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let response = |description: &str| {
+            RefOr::T(
+                ResponseBuilder::new()
+                    .description(description)
+                    .content(
+                        "application/json",
+                        ContentBuilder::new()
+                            .schema(Some(Ref::from_schema_name("APIError")))
+                            .build(),
+                    )
+                    .build(),
+            )
+        };
+
+        for path in openapi.paths.paths.values_mut() {
+            let operations = [
+                path.get.as_mut(),
+                path.put.as_mut(),
+                path.post.as_mut(),
+                path.delete.as_mut(),
+                path.options.as_mut(),
+                path.head.as_mut(),
+                path.patch.as_mut(),
+                path.trace.as_mut(),
+            ];
+
+            for operation in operations.into_iter().flatten() {
+                operation
+                    .responses
+                    .responses
+                    .insert("401".to_string(), response("Unauthorized"));
+                operation
+                    .responses
+                    .responses
+                    .insert("429".to_string(), response("Too many failed attempts"));
+            }
+        }
+    }
+}
+
 #[derive(utoipa::OpenApi)]
 #[openapi(
     info(
         title = "Kursal API",
         description = "An API for interacting with Kursal. You can enable the API Server in your app in \"Settings > Advanced > Local API Server > Enable.\""
     ),
-    modifiers(&BearerAuth),
+    modifiers(&BearerAuth, &AuthResponses),
     security(("bearerAuth" = [])),
     tags(
         (name = "Self",       description = "Current user identity & profile"),
@@ -130,17 +178,19 @@ impl Modify for BearerAuth {
         (name = "Nearby",     description = "Nearby peer discovery & connection"),
         (name = "Contacts",   description = "Contact management & blocking"),
         (name = "Messages",   description = "Manage messages"),
+        (name = "Events",     description = "Real-time core event stream"),
     ),
     paths(
+        ws_handler,
         api_self_get_user_id, api_self_get_profile, api_self_post_profile, api_self_get_peer_id, api_self_rotate_peer_id,
         api_otp_generate, api_otp_fetch,
         api_ltc_export, api_ltc_import,
         api_nearby_start, api_nearby_stop, api_nearby_get, api_nearby_connect, api_nearby_accept, api_nearby_decline,
         api_contacts, api_contact_security_code, api_contact_security_code_confirm, api_contact_share_profile, api_contact_get, api_contact_remove, api_contact_blocked_list, api_contact_block, api_contact_unblock,
-        api_typing, api_messages_send, api_messages_get, api_message_delete_local, api_message_delete, api_message_edit, api_message_reaction_add, api_message_reaction_remove, api_files_send, api_files_accept,
+        api_typing, api_messages_send, api_messages_get, api_message_delete_local, api_message_delete, api_message_pin, api_message_unpin, api_message_edit, api_message_reaction_add, api_message_reaction_remove, api_files_send, api_files_accept,
     ),
     components(schemas(
-        APIError, APINearbyConnectMethod, APIMessageSend, APIMessageEdit, APISelfProfile, OtpResponse, ContactResponse, NearbyPeerResponse, MessageResponse, APIFile, APIFileDetails,
+        APIError, APIEvent, APINearbyConnectMethod, APIMessageSend, APIMessageEdit, APISelfProfile, OtpResponse, ContactResponse, NearbyPeerResponse, MessageResponse, APIFile, APIFileDetails,
     )),
 )]
 pub struct ApiDoc;

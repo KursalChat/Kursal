@@ -1,13 +1,10 @@
 import type { MessageResponse } from '$lib/types';
 import { log } from '$lib/utils/log';
+import { flushContact, pendingSyncKey } from '$lib/utils/pendingSync';
 import {
-  PENDING_SYNC_STORAGE_KEY,
-  flushContact,
-  parsePendingSync,
-  pendingSyncKey,
-  serializePendingSync,
-  type PendingSyncState,
-} from '$lib/utils/pendingSync';
+  clearLegacyConversationState,
+  readLegacyConversationState,
+} from '$lib/utils/legacyConversationStore';
 import {
   getMessages,
   getMessagesAfter,
@@ -16,110 +13,43 @@ import {
   retryMessage as retryMessageApi,
   sendReadReceipts,
 } from '$lib/api/messages';
+import {
+  getDelayedUnseen,
+  getPendingSync,
+  getUnreadSummary,
+  markContactRead,
+  markContactUnread,
+  setContactMarkedUnread,
+  setDelayedUnseen,
+} from '$lib/api/conversation';
 import { clearNotificationsFor } from '$lib/api/system-notify';
-import { insertInSentOrder, loadDelayed, saveDelayed } from './delayedStore';
+import { insertInSentOrder } from './delayedStore';
 
-const AUTODOWNLOAD_STORAGE_KEY = 'kursal:autodownloadPaths';
-const UNREAD_STORAGE_KEY = 'kursal:unread';
 const SEND_TIMEOUT_MS = 15_000;
+const READ_COMMIT_DEBOUNCE_MS = 400;
+const DELAYED_PERSIST_DEBOUNCE_MS = 300;
 
 // Renderable messages have text content or are structured events (call and pin
 // records) whose body lives in a typed field rather than `content`.
 const hasRenderableBody = (m: MessageResponse) =>
   m.content !== '' || !!m.callDetails || !!m.pinDetails;
 
-function loadAutodownloadStore(): Record<string, string> {
-  if (typeof localStorage === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(AUTODOWNLOAD_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveAutodownloadStore(store: Record<string, string>) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(AUTODOWNLOAD_STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // Non-fatal: quota exceeded or storage unavailable.
-  }
-}
-
-function autodownloadKey(contactId: string, messageId: string) {
-  return `${contactId}:${messageId}`;
-}
-
-function loadPendingSyncStore(): PendingSyncState {
-  if (typeof localStorage === 'undefined') return { sync: new Set(), deleted: new Set() };
-  return parsePendingSync(localStorage.getItem(PENDING_SYNC_STORAGE_KEY));
-}
-
-function savePendingSyncStore(state: PendingSyncState) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(PENDING_SYNC_STORAGE_KEY, serializePendingSync(state));
-  } catch {
-    // Non-fatal: quota exceeded or storage unavailable.
-  }
-}
-
-type UnreadStore = {
-  counts: Record<string, number>;
-  first: Record<string, string>;
-  marked: string[];
-};
-
-function loadUnreadStore(): UnreadStore {
-  const empty: UnreadStore = { counts: {}, first: {}, marked: [] };
-  if (typeof localStorage === 'undefined') return empty;
-  try {
-    const raw = localStorage.getItem(UNREAD_STORAGE_KEY);
-    if (!raw) return empty;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return empty;
-    return {
-      counts: typeof parsed.counts === 'object' && parsed.counts ? parsed.counts : {},
-      first: typeof parsed.first === 'object' && parsed.first ? parsed.first : {},
-      marked: Array.isArray(parsed.marked) ? parsed.marked : [],
-    };
-  } catch {
-    return empty;
-  }
-}
-
-function saveUnreadStore(store: UnreadStore) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(UNREAD_STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // Non-fatal: quota exceeded or storage unavailable.
-  }
-}
-
 function createMessagesState() {
-  const autodownloadPaths: Record<string, string> = loadAutodownloadStore();
-  const persistedUnread = loadUnreadStore();
   let map = $state<Record<string, MessageResponse[]>>({});
-  let unreadByContact = $state<Record<string, number>>(persistedUnread.counts);
+  // Counts are a live mirror of what the core derives from each contact's read
+  // cursor: seeded by `hydrate`, then kept in step as messages arrive. Nothing
+  // is written back per message; only the user's own read/unread actions move
+  // the cursor.
+  let unreadByContact = $state<Record<string, number>>({});
+  // Contacts whose count stopped at the core's scan cap, rendered as "99+".
+  let unreadCapped = $state<Record<string, boolean>>({});
   // The id of the first message that arrived while the chat wasn't
   // actively viewed. Used to draw a "New messages" separator.
-  let firstUnreadByContact = $state<Record<string, string>>(persistedUnread.first);
+  let firstUnreadByContact = $state<Record<string, string>>({});
   // Conversations the user put back to unread by hand. Reading actions are
   // suppressed for these until the chat is left and reopened, otherwise the
   // at-bottom auto-read would undo the click in the same frame.
-  let markedUnread = $state<Set<string>>(new Set(persistedUnread.marked));
-
-  function persistUnread() {
-    saveUnreadStore({
-      counts: unreadByContact,
-      first: firstUnreadByContact,
-      marked: [...markedUnread],
-    });
-  }
+  let markedUnread = $state<Set<string>>(new Set());
   let reactions = $state<Record<string, Array<{ emoji: string; userIds: string[] }>>>({});
   // Pinned messages, sourced from the backend pinned index.
   let pinnedByContact = $state<Record<string, MessageResponse[]>>({});
@@ -151,13 +81,49 @@ function createMessagesState() {
   // Received messages whose sent-time placed them above the live tail (delayed
   // offline delivery), so they'd be easy to miss. Persisted per contact,
   // cleared once the message is scrolled into view.
-  let delayedUnseen = $state<Record<string, string[]>>(loadDelayed());
+  let delayedUnseen = $state<Record<string, string[]>>({});
 
+  type TimerMap = Map<string, ReturnType<typeof setTimeout>>;
+  const readTimers: TimerMap = new Map();
+  const delayedTimers: TimerMap = new Map();
+
+  function debounceFor(timers: TimerMap, contactId: string, ms: number, run: () => void) {
+    clearTimeout(timers.get(contactId));
+    timers.set(
+      contactId,
+      setTimeout(() => {
+        timers.delete(contactId);
+        run();
+      }, ms)
+    );
+  }
+
+  // A pending timer outlives the contact it belongs to and would write state
+  // back after the core already dropped it.
+  function cancelTimers(contactId?: string) {
+    for (const timers of [readTimers, delayedTimers]) {
+      if (contactId === undefined) {
+        timers.forEach(clearTimeout);
+        timers.clear();
+        continue;
+      }
+      clearTimeout(timers.get(contactId));
+      timers.delete(contactId);
+    }
+  }
+
+  function persistDelayed(contactId: string) {
+    debounceFor(delayedTimers, contactId, DELAYED_PERSIST_DEBOUNCE_MS, () => {
+      void setDelayedUnseen(contactId, delayedUnseen[contactId] ?? []).catch((e) =>
+        log.error('Failed to persist delayed-unseen for', contactId, e)
+      );
+    });
+  }
   function addDelayed(contactId: string, id: string) {
     const cur = delayedUnseen[contactId] ?? [];
     if (cur.includes(id)) return;
     delayedUnseen = { ...delayedUnseen, [contactId]: [...cur, id] };
-    saveDelayed(delayedUnseen);
+    persistDelayed(contactId);
   }
   function delayedUnseenFor(contactId: string): string[] {
     return delayedUnseen[contactId] ?? [];
@@ -166,7 +132,7 @@ function createMessagesState() {
     const cur = delayedUnseen[contactId];
     if (!cur || !cur.includes(id)) return;
     delayedUnseen = { ...delayedUnseen, [contactId]: cur.filter((x) => x !== id) };
-    saveDelayed(delayedUnseen);
+    persistDelayed(contactId);
   }
 
   function reactionKey(contactId: string, messageId: string) {
@@ -196,12 +162,6 @@ function createMessagesState() {
   }
 
   function processMessage(m: MessageResponse) {
-    if (m.fileDetails) {
-      const stored = autodownloadPaths[autodownloadKey(m.contactId, m.id)];
-      if (stored) {
-        m.fileDetails = { ...m.fileDetails, autodownloadPath: stored };
-      }
-    }
     if (m.reactions && m.reactions.length > 0) {
       const key = reactionKey(m.contactId, m.id);
       const grouped: Record<string, { emoji: string; userIds: string[] }> = {};
@@ -372,14 +332,10 @@ function createMessagesState() {
 
   // Edits/reactions/deletes made while the peer is offline, shown with a "waiting
   // to sync" clock until `offline_queue_drained`. `pendingSyncDelete` tracks the
-  // delete subset as a tombstone; persisted since the backend queue outlives a restart.
-  const persistedPendingSync = loadPendingSyncStore();
-  let pendingSync = $state<Set<string>>(persistedPendingSync.sync);
-  let pendingSyncDelete = $state<Set<string>>(persistedPendingSync.deleted);
-
-  function persistPendingSync() {
-    savePendingSyncStore({ sync: pendingSync, deleted: pendingSyncDelete });
-  }
+  // delete subset as a tombstone. The core records both when it queues the
+  // change; these mirror it so the clock appears without a round trip.
+  let pendingSync = $state<Set<string>>(new Set());
+  let pendingSyncDelete = $state<Set<string>>(new Set());
 
   function markPendingSync(contactId: string, messageId: string, isDelete = false) {
     const key = pendingSyncKey(contactId, messageId);
@@ -391,7 +347,6 @@ function createMessagesState() {
       nd.add(key);
       pendingSyncDelete = nd;
     }
-    persistPendingSync();
   }
   function isPendingSync(contactId: string, messageId: string): boolean {
     return pendingSync.has(pendingSyncKey(contactId, messageId));
@@ -407,22 +362,15 @@ function createMessagesState() {
   function isPendingSyncDelete(contactId: string, messageId: string): boolean {
     return pendingSyncDelete.has(pendingSyncKey(contactId, messageId));
   }
-  function flushPendingSync(contactId: string) {
+  function flushPendingSync(contactId: string, finalizedDeletes: string[] = []) {
     const result = flushContact({ sync: pendingSync, deleted: pendingSyncDelete }, contactId);
-    if (!result.changed) return;
-    pendingSync = result.state.sync;
-    pendingSyncDelete = result.state.deleted;
-    for (const messageId of result.finalizedDeletes) {
+    if (result.changed) {
+      pendingSync = result.state.sync;
+      pendingSyncDelete = result.state.deleted;
+    }
+    for (const messageId of finalizedDeletes) {
       removeMessage(messageId, contactId);
     }
-    persistPendingSync();
-  }
-
-  function persistAutodownloadFromMessage(msg: MessageResponse) {
-    const path = msg.fileDetails?.autodownloadPath;
-    if (!path) return;
-    autodownloadPaths[autodownloadKey(msg.contactId, msg.id)] = path;
-    saveAutodownloadStore(autodownloadPaths);
   }
 
   function append(msg: MessageResponse) {
@@ -433,7 +381,6 @@ function createMessagesState() {
     if (loadedContacts.has(cid) && !newestReached.has(cid)) {
       if (msg.direction === 'received') {
         unreadByContact[cid] = (unreadByContact[cid] ?? 0) + 1;
-        persistUnread();
       }
       return;
     }
@@ -443,10 +390,8 @@ function createMessagesState() {
       // Insert by sent-time so a delayed offline message lands at its true
       // position, and live order matches reloaded order.
       const idx = insertInSentOrder(list, msg);
-      persistAutodownloadFromMessage(msg);
       if (msg.direction === 'received') {
         unreadByContact[cid] = (unreadByContact[cid] ?? 0) + 1;
-        persistUnread();
         // Not at the tail => it slotted into history and is easy to miss.
         if (idx < list.length - 1) addDelayed(cid, msg.id);
       }
@@ -459,7 +404,6 @@ function createMessagesState() {
   function appendOptimistic(msg: MessageResponse) {
     if (!map[msg.contactId]) map[msg.contactId] = [];
     map[msg.contactId].push(msg);
-    persistAutodownloadFromMessage(msg);
     // Replying is proof of presence: drop the hand-set unread so the normal
     // at-bottom auto-read can take over again.
     if (msg.direction === 'sent') {
@@ -625,12 +569,6 @@ function createMessagesState() {
       delete copy[oldKey];
       reactions = copy;
     }
-    const oldAutoKey = autodownloadKey(contactId, oldId);
-    if (autodownloadPaths[oldAutoKey]) {
-      autodownloadPaths[autodownloadKey(contactId, newId)] = autodownloadPaths[oldAutoKey];
-      delete autodownloadPaths[oldAutoKey];
-      saveAutodownloadStore(autodownloadPaths);
-    }
     // If a `message_queued_offline` event landed before this swap, apply it
     // now that the id matches.
     consumePendingQueued(contactId, newId);
@@ -646,14 +584,6 @@ function createMessagesState() {
     }
   }
 
-  function clearAutodownloadEntry(contactId: string, messageId: string) {
-    const key = autodownloadKey(contactId, messageId);
-    if (autodownloadPaths[key]) {
-      delete autodownloadPaths[key];
-      saveAutodownloadStore(autodownloadPaths);
-    }
-  }
-
   function removePinnedEntry(contactId: string, messageId: string) {
     const pins = pinnedByContact[contactId];
     if (pins && pins.some((m) => m.id === messageId)) {
@@ -662,14 +592,6 @@ function createMessagesState() {
   }
 
   function setAutodownloadPath(messageId: string, contactId: string, path: string | null) {
-    const key = autodownloadKey(contactId, messageId);
-    if (path) {
-      autodownloadPaths[key] = path;
-    } else {
-      delete autodownloadPaths[key];
-    }
-    saveAutodownloadStore(autodownloadPaths);
-
     const list = map[contactId];
     if (!list) return;
     const msg = list.find((m) => m.id === messageId);
@@ -682,26 +604,28 @@ function createMessagesState() {
     const list = map[contactId];
     if (!list) return;
     map[contactId] = list.filter((m) => m.id !== messageId);
-    clearAutodownloadEntry(contactId, messageId);
   }
 
   function unreadFor(contactId: string): number {
     return unreadByContact[contactId] ?? 0;
   }
 
+  function unreadCappedFor(contactId: string): boolean {
+    return unreadCapped[contactId] === true;
+  }
+
   function totalUnread(): number {
     return Object.values(unreadByContact).reduce((acc, n) => acc + n, 0);
   }
 
-  // Backend drops these silently unless the user opted into read receipts.
-  function dispatchReadReceipts(contactId: string, count: number) {
-    const list = map[contactId];
-    if (!list || count <= 0) return;
-    const ids: string[] = [];
-    for (let i = list.length - 1; i >= 0 && ids.length < count; i--) {
-      if (list[i].direction === 'received') ids.push(list[i].id);
-    }
-    if (ids.length) void sendReadReceipts(contactId, ids).catch(() => {});
+  function commitRead(contactId: string) {
+    debounceFor(readTimers, contactId, READ_COMMIT_DEBOUNCE_MS, () => {
+      void markContactRead(contactId)
+        .then((ids) => {
+          if (ids.length) return sendReadReceipts(contactId, ids);
+        })
+        .catch((e) => log.error('Failed to mark read', contactId, e));
+    });
   }
 
   function markRead(contactId: string, force = false) {
@@ -709,24 +633,36 @@ function createMessagesState() {
     void clearNotificationsFor(contactId);
     clearMarkedUnread(contactId);
     if (!unreadByContact[contactId]) return;
-    dispatchReadReceipts(contactId, unreadByContact[contactId]);
     unreadByContact[contactId] = 0;
-    persistUnread();
+    delete unreadCapped[contactId];
+    commitRead(contactId);
   }
 
   function markAllRead() {
     for (const cid of Object.keys(unreadByContact)) {
+      if (!unreadByContact[cid]) continue;
       void clearNotificationsFor(cid);
-      dispatchReadReceipts(cid, unreadByContact[cid]);
       unreadByContact[cid] = 0;
+      delete unreadCapped[cid];
+      commitRead(cid);
     }
+    for (const cid of markedUnread) void setContactMarkedUnread(cid, false).catch(() => {});
     markedUnread = new Set();
-    persistUnread();
   }
 
-  // Everything from `messageId` down goes back to unread. The count is the
-  // received messages at or after it, so the badge matches what the separator
-  // is about to sit on top of.
+  // Everything from `messageId` down goes back to unread.
+  function applyUnread(contactId: string, fromMessageId: string | null) {
+    clearTimeout(readTimers.get(contactId));
+    readTimers.delete(contactId);
+    void markContactUnread(contactId, fromMessageId)
+      .then((entry) => {
+        unreadByContact[contactId] = entry.count;
+        unreadCapped[contactId] = entry.capped;
+        if (entry.firstUnread) firstUnreadByContact[contactId] = entry.firstUnread;
+      })
+      .catch((e) => log.error('Failed to mark unread', contactId, e));
+  }
+
   function markUnreadFrom(contactId: string, messageId: string) {
     const list = map[contactId];
     if (!list) return;
@@ -741,7 +677,7 @@ function createMessagesState() {
         ? messageId
         : (list.slice(idx).find((m) => m.direction === 'received')?.id ?? messageId);
     markedUnread = new Set(markedUnread).add(contactId);
-    persistUnread();
+    applyUnread(contactId, firstUnreadByContact[contactId]);
   }
 
   function markUnread(contactId: string) {
@@ -752,11 +688,9 @@ function createMessagesState() {
       return;
     }
     if (loadedContacts.has(contactId)) return;
-    // Never opened this session, so there is no list to anchor a separator to.
-    // The count alone is enough for the badge; opening derives the separator.
-    unreadByContact[contactId] = Math.max(1, unreadByContact[contactId] ?? 0);
+    // Nothing loaded to anchor a separator to; the core picks the newest received message.
     markedUnread = new Set(markedUnread).add(contactId);
-    persistUnread();
+    applyUnread(contactId, null);
   }
 
   function isMarkedUnread(contactId: string): boolean {
@@ -768,7 +702,9 @@ function createMessagesState() {
     const next = new Set(markedUnread);
     next.delete(contactId);
     markedUnread = next;
-    persistUnread();
+    void setContactMarkedUnread(contactId, false).catch((e) =>
+      log.error('Failed to clear marked-unread', contactId, e)
+    );
   }
 
   // Suppression is scoped to the visit that set it, so opening the chat is
@@ -801,7 +737,6 @@ function createMessagesState() {
   function setFirstUnread(contactId: string, messageId: string) {
     if (firstUnreadByContact[contactId]) return;
     firstUnreadByContact[contactId] = messageId;
-    persistUnread();
   }
 
   function clearFirstUnread(contactId: string) {
@@ -810,7 +745,6 @@ function createMessagesState() {
     const next = { ...firstUnreadByContact };
     delete next[contactId];
     firstUnreadByContact = next;
-    persistUnread();
   }
 
   function addReaction(messageId: string, contactId: string, emoji: string, userId: string) {
@@ -915,23 +849,22 @@ function createMessagesState() {
     );
   }
 
+  // Both clears run after the core has already dropped its own copy, so they
+  // only have to catch the in-memory state up.
   function clearForContact(contactId: string) {
+    cancelTimers(contactId);
     delete map[contactId];
     delete lastTs[contactId];
     delete unreadByContact[contactId];
+    delete unreadCapped[contactId];
     delete firstUnreadByContact[contactId];
+    delete delayedUnseen[contactId];
     markedUnread = new Set([...markedUnread].filter((id) => id !== contactId));
-    persistUnread();
     delete pinnedByContact[contactId];
     const prefix = `${contactId}:`;
     Object.keys(reactions)
       .filter((k) => k.startsWith(prefix))
       .forEach((k) => delete reactions[k]);
-    const autoKeys = Object.keys(autodownloadPaths).filter((k) => k.startsWith(prefix));
-    if (autoKeys.length > 0) {
-      autoKeys.forEach((k) => delete autodownloadPaths[k]);
-      saveAutodownloadStore(autodownloadPaths);
-    }
     for (const key of Array.from(pendingQueued)) {
       if (key.startsWith(prefix)) pendingQueued.delete(key);
     }
@@ -941,13 +874,10 @@ function createMessagesState() {
     Object.keys(mediaVersions)
       .filter((k) => k.startsWith(prefix))
       .forEach((k) => delete mediaVersions[k]);
-    // Drop markers outright: the whole contact is going away, so there are no
-    // tombstoned deletes left to finalize.
     const flushed = flushContact({ sync: pendingSync, deleted: pendingSyncDelete }, contactId);
     if (flushed.changed) {
       pendingSync = flushed.state.sync;
       pendingSyncDelete = flushed.state.deleted;
-      persistPendingSync();
     }
     loadedContacts = new Set([...loadedContacts].filter((id) => id !== contactId));
     oldestReached.delete(contactId);
@@ -966,12 +896,13 @@ function createMessagesState() {
   }
 
   function clearAll() {
+    cancelTimers();
     Object.keys(map).forEach((k) => delete map[k]);
     Object.keys(lastTs).forEach((k) => delete lastTs[k]);
     Object.keys(unreadByContact).forEach((k) => delete unreadByContact[k]);
+    Object.keys(unreadCapped).forEach((k) => delete unreadCapped[k]);
     Object.keys(firstUnreadByContact).forEach((k) => delete firstUnreadByContact[k]);
     markedUnread = new Set();
-    persistUnread();
     Object.keys(reactions).forEach((k) => delete reactions[k]);
     Object.keys(pinnedByContact).forEach((k) => delete pinnedByContact[k]);
     Object.keys(transferProgress).forEach((k) => delete transferProgress[k]);
@@ -982,16 +913,69 @@ function createMessagesState() {
     loadedContacts = new Set();
     oldestReached.clear();
     newestReached.clear();
-    Object.keys(autodownloadPaths).forEach((k) => delete autodownloadPaths[k]);
-    saveAutodownloadStore(autodownloadPaths);
     pendingSync = new Set();
     pendingSyncDelete = new Set();
-    persistPendingSync();
     delayedUnseen = {};
-    saveDelayed(delayedUnseen);
+  }
+
+  async function migrateLegacy() {
+    const legacy = readLegacyConversationState();
+    if (!legacy) return;
+
+    for (const [contactId, ids] of Object.entries(legacy.delayedUnseen)) {
+      delayedUnseen = { ...delayedUnseen, [contactId]: ids };
+      await setDelayedUnseen(contactId, ids);
+    }
+
+    const anchors: [string, string | null][] = [
+      ...Object.entries(legacy.firstUnread),
+      ...legacy.unreadOnly.map((contactId): [string, null] => [contactId, null]),
+    ];
+    for (const [contactId, anchor] of anchors) {
+      const entry = await markContactUnread(contactId, anchor);
+      unreadByContact[contactId] = entry.count;
+      unreadCapped[contactId] = entry.capped;
+      if (entry.firstUnread) firstUnreadByContact[contactId] = entry.firstUnread;
+      await setContactMarkedUnread(contactId, false);
+    }
+
+    clearLegacyConversationState();
+  }
+
+  // Seeds unread, delayed-unseen and pending-sync from the core on startup.
+  async function hydrate() {
+    const [unread, delayed, pending] = await Promise.allSettled([
+      getUnreadSummary(),
+      getDelayedUnseen(),
+      getPendingSync(),
+    ]);
+
+    if (unread.status === 'fulfilled') {
+      for (const entry of unread.value) {
+        unreadByContact[entry.contactId] = entry.count;
+        unreadCapped[entry.contactId] = entry.capped;
+        if (entry.firstUnread) firstUnreadByContact[entry.contactId] = entry.firstUnread;
+        if (entry.markedUnread) markedUnread = new Set(markedUnread).add(entry.contactId);
+      }
+    } else {
+      log.error('Failed to load unread summary', unread.reason);
+    }
+
+    if (delayed.status === 'fulfilled') delayedUnseen = delayed.value;
+    else log.error('Failed to load delayed-unseen', delayed.reason);
+
+    if (pending.status === 'fulfilled') {
+      pendingSync = new Set(pending.value.sync);
+      pendingSyncDelete = new Set(pending.value.deleted);
+    } else {
+      log.error('Failed to load pending-sync', pending.reason);
+    }
+
+    await migrateLegacy().catch((e) => log.error('Legacy conversation migration failed', e));
   }
 
   return {
+    hydrate,
     forContact,
     lastTimestampFor,
     loadFor,
@@ -1020,6 +1004,7 @@ function createMessagesState() {
     setAutodownloadPath,
     removeLocally: removeMessage,
     unreadFor,
+    unreadCappedFor,
     totalUnread,
     markRead,
     markAllRead,

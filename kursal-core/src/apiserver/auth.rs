@@ -1,4 +1,4 @@
-use crate::apiserver::APIAppState;
+use crate::apiserver::{APIAppState, types::APIError};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     extract::{ConnectInfo, Request, State},
@@ -13,7 +13,7 @@ pub async fn auth_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<axum::body::Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, APIError> {
     let ip = addr.ip();
     let now = Instant::now();
 
@@ -23,7 +23,10 @@ pub async fn auth_middleware(
         if let Some(record) = map.get_mut(&ip)
             && record.is_limited(now)
         {
-            return Err(StatusCode::TOO_MANY_REQUESTS);
+            return Err(APIError::new(
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many failed attempts",
+            ));
         }
     }
 
@@ -54,6 +57,9 @@ pub async fn auth_middleware(
             .or_default()
             .record_failure(now);
 
-        Err(StatusCode::UNAUTHORIZED)
+        Err(APIError::new(
+            StatusCode::UNAUTHORIZED,
+            "Missing or invalid bearer token",
+        ))
     }
 }

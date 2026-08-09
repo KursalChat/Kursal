@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     identity::UserId,
     messaging::enums::{Direction, KursalMessage, MessageId, MessageStatus},
-    storage::{Database, TABLE_MESSAGES, TABLE_PINNED},
+    storage::{Database, TABLE_FILE_TRANSFERS, TABLE_MESSAGES, TABLE_PINNED},
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +66,10 @@ impl StoredMessage {
         let message_id = hex::encode(id.0);
 
         db.raw_delete(TABLE_MESSAGES, &format!("{contact_id}:{message_id}"))?;
+        db.raw_delete(
+            TABLE_FILE_TRANSFERS,
+            &format!("recvpath:{contact_id}:{message_id}"),
+        )?;
 
         Ok(())
     }
@@ -197,6 +201,144 @@ impl StoredMessage {
         out.truncate(limit);
         Ok(out)
     }
+}
+
+pub const UNREAD_BADGE_CAP: usize = 99;
+
+pub struct UnreadSummary {
+    pub count: usize,
+    pub capped: bool,
+    pub first: Option<MessageId>,
+}
+
+fn is_unread_candidate(m: &StoredMessage) -> bool {
+    if !matches!(m.direction, Direction::Received) {
+        return false;
+    }
+    match &m.payload {
+        KursalMessage::Text(t) => !t.content.is_empty(),
+        KursalMessage::FileOffer(_)
+        | KursalMessage::CallRecord(_)
+        | KursalMessage::MessagePin(_) => true,
+        _ => false,
+    }
+}
+
+fn contact_bounds(contact_id: &UserId, cursor: Option<&MessageId>) -> (String, String) {
+    let prefix = hex::encode(contact_id.0);
+    let after = match cursor {
+        Some(id) => format!("{prefix}:{}", hex::encode(id.0)),
+        None => format!("{prefix}:"),
+    };
+
+    (after, format!("{prefix};"))
+}
+
+pub fn unread_after(
+    db: &Database,
+    contact_id: &UserId,
+    cursor: Option<&MessageId>,
+    cap: usize,
+) -> Result<UnreadSummary> {
+    let (after, before) = contact_bounds(contact_id, cursor);
+
+    let mut summary = UnreadSummary {
+        count: 0,
+        capped: false,
+        first: None,
+    };
+
+    db.raw_scan(TABLE_MESSAGES, &after, &before, |key, bytes| {
+        match bincode::deserialize::<StoredMessage>(&bytes) {
+            Ok(m) if is_unread_candidate(&m) => {
+                if summary.count == cap {
+                    summary.capped = true;
+                    return false;
+                }
+                summary.first.get_or_insert(m.id);
+                summary.count += 1;
+            }
+            Ok(_) => {}
+            Err(err) => log::warn!("[messages] skipping undeserializable row key={key}: {err}"),
+        }
+        true
+    })?;
+
+    Ok(summary)
+}
+
+pub fn received_since_rev(
+    db: &Database,
+    contact_id: &UserId,
+    cursor: Option<&MessageId>,
+    cap: usize,
+) -> Result<Vec<MessageId>> {
+    let (after, before) = contact_bounds(contact_id, cursor);
+
+    let mut ids = Vec::new();
+    db.raw_scan_rev(TABLE_MESSAGES, &after, &before, |key, bytes| {
+        match bincode::deserialize::<StoredMessage>(&bytes) {
+            Ok(m) if is_unread_candidate(&m) => ids.push(m.id),
+            Ok(_) => {}
+            Err(err) => log::warn!("[messages] skipping undeserializable row key={key}: {err}"),
+        }
+        ids.len() < cap
+    })?;
+
+    ids.reverse();
+    Ok(ids)
+}
+
+fn message_id_from_key(key: &str) -> Option<MessageId> {
+    let hex_id = key.rsplit(':').next()?;
+    let bytes = hex::decode(hex_id).ok()?;
+    <[u8; 16]>::try_from(bytes.as_slice()).ok().map(MessageId)
+}
+
+pub fn newest_received(db: &Database, contact_id: &UserId) -> Result<Option<MessageId>> {
+    let (after, before) = contact_bounds(contact_id, None);
+
+    let mut found = None;
+    db.raw_scan_rev(
+        TABLE_MESSAGES,
+        &after,
+        &before,
+        |_, bytes| match bincode::deserialize::<StoredMessage>(&bytes) {
+            Ok(m) if is_unread_candidate(&m) => {
+                found = Some(m.id);
+                false
+            }
+            _ => true,
+        },
+    )?;
+
+    Ok(found)
+}
+
+pub fn newest_message(db: &Database, contact_id: &UserId) -> Result<Option<MessageId>> {
+    let (after, before) = contact_bounds(contact_id, None);
+
+    Ok(db
+        .raw_last_key(TABLE_MESSAGES, &after, &before)?
+        .as_deref()
+        .and_then(message_id_from_key))
+}
+
+pub fn message_before(
+    db: &Database,
+    contact_id: &UserId,
+    before: &MessageId,
+) -> Result<Option<MessageId>> {
+    let prefix = hex::encode(contact_id.0);
+
+    Ok(db
+        .raw_last_key(
+            TABLE_MESSAGES,
+            &format!("{prefix}:"),
+            &format!("{prefix}:{}", hex::encode(before.0)),
+        )?
+        .as_deref()
+        .and_then(message_id_from_key))
 }
 
 fn message_matches(m: &StoredMessage, q: &str) -> bool {

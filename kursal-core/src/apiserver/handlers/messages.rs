@@ -26,7 +26,6 @@ pub(crate) struct APIMessageSend {
     ),
     responses(
         (status = 200, description = "Sent message", body = String),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -134,7 +133,7 @@ pub(crate) async fn api_message_pin(
         ("message_id" = String, Path, description = "Message ID"),
     ),
     responses(
-        (status = 200, description = "Pinned message")
+        (status = 200, description = "Unpinned message")
     )
 )]
 pub(crate) async fn api_message_unpin(
@@ -193,7 +192,6 @@ pub(crate) struct APIMessagesGet {
     ),
     responses(
         (status = 200, description = "Got messages", body = Vec<MessageResponse>),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

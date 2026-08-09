@@ -30,7 +30,6 @@ pub(crate) struct APIFileDetails {
     responses(
         (status = 200, description = "Sent file", body = APIFileDetails),
         (status = 400, description = "Invalid file path", body = APIError),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -58,7 +57,6 @@ pub(crate) async fn api_files_send(
     responses(
         (status = 200, description = "Accepted file"),
         (status = 400, description = "Invalid request", body = APIError),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

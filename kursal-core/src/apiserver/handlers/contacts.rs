@@ -77,7 +77,7 @@ pub(crate) async fn api_contact_remove(
         ("contact_id" = String, Path, description = "Contact ID"),
     ),
     responses(
-        (status = 200, description = "Got security code")
+        (status = 200, description = "Got security code", body = String)
     )
 )]
 pub(crate) async fn api_contact_security_code(
@@ -118,7 +118,6 @@ pub(crate) async fn api_contact_security_code_confirm(
     ),
     responses(
         (status = 200, description = "Blocked contact"),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]
@@ -140,7 +139,6 @@ pub(crate) async fn api_contact_block(
     ),
     responses(
         (status = 200, description = "Unblocked contact"),
-        (status = 401, description = "Unauthorized", body = APIError),
         (status = 500, description = "Internal server error", body = APIError)
     )
 )]

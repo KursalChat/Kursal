@@ -1,4 +1,4 @@
-use super::APIAppState;
+use super::{APIAppState, types::APIEvent};
 use axum::{
     extract::{
         State, WebSocketUpgrade,
@@ -9,6 +9,15 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 
+#[utoipa::path(
+    get,
+    path = "/ws",
+    tag = "Events",
+    description = "Upgrades to a WebSocket streaming core events as JSON text frames. Frames sent by the client are ignored; close the socket to unsubscribe.",
+    responses(
+        (status = 101, description = "Switching protocols, then one frame per event", body = APIEvent)
+    )
+)]
 pub(crate) async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<APIAppState>,
@@ -24,16 +33,14 @@ async fn handle_socket(socket: WebSocket, state: APIAppState) {
         loop {
             match event_rx.recv().await {
                 Ok(event) => {
-                    let msg = serde_json::json!({
-                        "event": event.event,
-                        "payload": event.payload,
-                    });
+                    let Ok(msg) = serde_json::to_string(&APIEvent {
+                        event: event.event,
+                        payload: event.payload,
+                    }) else {
+                        continue;
+                    };
 
-                    if sink
-                        .send(Message::Text(msg.to_string().into()))
-                        .await
-                        .is_err()
-                    {
+                    if sink.send(Message::Text(msg.into())).await.is_err() {
                         break;
                     }
                 }

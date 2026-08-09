@@ -149,6 +149,7 @@ pub enum AppEvent {
     },
     OfflineQueueDrained {
         contact_id: UserId,
+        finalized_deletes: Vec<MessageId>,
     },
     OfflineSync {
         active: bool,

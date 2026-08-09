@@ -11,7 +11,7 @@ use kursal_core::api::{CoreCommand, cmd_wrapper};
 use kursal_core::apiserver::LocalApiConfig;
 use kursal_core::dto::{
     ContactResponse, LtcStatusDto, MessageResponse, NearbyPeerResponse, NetworkStatusDto,
-    NodesResponse, OtpResponse,
+    NodesResponse, OtpResponse, PendingSyncDto, UnreadDto,
 };
 use kursal_core::messaging::StoredMessage;
 use kursal_core::messaging::enums::MessageId;
@@ -231,6 +231,13 @@ core_cmd!(get_messages_after(contact_id: String, after: String, limit: usize) ->
 core_cmd!(get_messages_around(contact_id: String, message_id: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(search_messages(contact_id: String, query: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(search_messages_global(query: String, limit: usize) -> Vec<MessageResponse>);
+core_cmd!(get_unread_summary() -> Vec<UnreadDto>);
+core_cmd!(mark_contact_read(contact_id: String) -> Vec<String>);
+core_cmd!(mark_contact_unread(contact_id: String, from_message_id: Option<String>) -> UnreadDto);
+core_cmd!(set_contact_marked_unread(contact_id: String, value: bool) -> ());
+core_cmd!(get_delayed_unseen() -> HashMap<String, Vec<String>>);
+core_cmd!(set_delayed_unseen(contact_id: String, message_ids: Vec<String>) -> ());
+core_cmd!(get_pending_sync() -> PendingSyncDto);
 core_cmd!(get_security_code(contact_id: String) -> String);
 core_cmd!(confirm_security_code(contact_id: String) -> ());
 core_cmd!(set_contact_blocked(contact_id: String, value: bool) -> ());

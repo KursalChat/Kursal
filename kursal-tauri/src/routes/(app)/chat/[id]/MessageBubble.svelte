@@ -45,7 +45,6 @@
     renderMarkdown,
     highlightTerm,
     midTruncate,
-    fileTypeColor,
     mediaUrl,
     isMessageActionable,
   } from './chat-utils';
@@ -110,6 +109,7 @@
     onRetry: () => void;
     onToggleEmojiPicker: (rect: DOMRect | null) => void;
     onOpenMedia: (path: string, kind: 'image' | 'video', filename: string) => void;
+    onMediaResize: () => void;
   }
 
   let {
@@ -159,6 +159,7 @@
     onRetry,
     onToggleEmojiPicker,
     onOpenMedia,
+    onMediaResize,
   }: Props = $props();
 
   // Long messages render clamped so a wall of text can't blow up the list.
@@ -519,7 +520,10 @@
                   src={mediaSrc}
                   alt={msg.fileDetails.filename}
                   loading="lazy"
-                  onload={() => (mediaLoaded = true)}
+                  onload={() => {
+                    mediaLoaded = true;
+                    onMediaResize();
+                  }}
                   onerror={() => (mediaLoaded = true)}
                 />
               </button>
@@ -530,6 +534,7 @@
                 src={mediaSrc}
                 controls
                 preload="metadata"
+                onloadedmetadata={onMediaResize}
                 ondblclick={() =>
                   msg.fileDetails && onOpenMedia(autoPath, 'video', msg.fileDetails.filename)}
               ></video>
@@ -559,7 +564,6 @@
             <div
               class="file-bubble"
               class:embedded={!!autoPath && (mediaKind !== 'other' || textPreview !== null)}
-              style="--file-color: {fileTypeColor(msg.fileDetails.filename)};"
             >
               <div class="file-icon"><FileText size={22} /></div>
               <div class="file-info">
@@ -1830,7 +1834,7 @@
     padding: 6px 8px 6px 4px;
     min-width: 240px;
     max-width: 340px;
-    border-left: 3px solid var(--file-color, var(--text-muted));
+    border-left: 3px solid var(--text-muted);
     padding-left: 10px;
     border-radius: 2px;
   }
@@ -1852,9 +1856,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--file-color, var(--text-muted)) 18%, transparent);
+    background: color-mix(in srgb, var(--text-muted) 18%, transparent);
     border-radius: var(--radius-md);
-    color: var(--file-color, currentColor);
     flex-shrink: 0;
   }
   .bubble.sent .file-icon {

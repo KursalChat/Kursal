@@ -149,6 +149,7 @@ impl Contact {
         db.raw_delete_prefix(TABLE_MESSAGES, &format!("{contact_id}:"))?;
         db.raw_delete(TABLE_SESSIONS, &address.to_string())?;
         crate::storage::delete_contact_meta(db, &contact_id)?;
+        crate::storage::conversation::delete_for_contact(db, &contact_id)?;
 
         Ok(())
     }

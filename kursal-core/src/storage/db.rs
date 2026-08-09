@@ -3,7 +3,7 @@ use crate::{
     crypto::stream::{stream_decrypt, stream_encrypt},
 };
 use redb::{ReadableDatabase, ReadableTable, TableDefinition};
-use std::path::Path;
+use std::{ops::Bound, path::Path};
 use zeroize::Zeroizing;
 
 pub const TABLE_SESSIONS: TableDefinition<&str, &[u8]> = TableDefinition::new("sessions");
@@ -21,6 +21,7 @@ pub const TABLE_PINNED: TableDefinition<&str, &[u8]> = TableDefinition::new("pin
 pub const TABLE_FILE_TRANSFERS: TableDefinition<&str, &[u8]> =
     TableDefinition::new("file_transfers");
 pub const TABLE_PENDING_ACK: TableDefinition<&str, &[u8]> = TableDefinition::new("pending_ack");
+pub const TABLE_CONVERSATION: TableDefinition<&str, &[u8]> = TableDefinition::new("conversation");
 
 pub struct Database {
     pub(crate) inner: redb::Database,
@@ -187,6 +188,116 @@ impl Database {
                 }
             })
             .collect())
+    }
+
+    pub(crate) fn raw_write_many(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        entries: &[(String, Vec<u8>)],
+    ) -> Result<()> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        let write_txn = self.inner.begin_write()?;
+        {
+            let mut table = write_txn.open_table(table)?;
+            for (key, value) in entries {
+                let enc_value = stream_encrypt(&self.key, value)?;
+                table.insert(key.as_str(), enc_value.as_slice())?;
+            }
+        }
+        write_txn.commit()?;
+
+        Ok(())
+    }
+
+    pub(crate) fn raw_last_key(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        after: &str,
+        before: &str,
+    ) -> Result<Option<String>> {
+        let read_txn = self.inner.begin_read()?;
+
+        let table = match read_txn.open_table(table) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+
+        let mut range = table.range::<&str>((Bound::Excluded(after), Bound::Excluded(before)))?;
+
+        match range.next_back() {
+            Some(entry) => Ok(Some(entry?.0.value().to_string())),
+            None => Ok(None),
+        }
+    }
+
+    pub(crate) fn raw_scan(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        after: &str,
+        before: &str,
+        mut visit: impl FnMut(&str, Vec<u8>) -> bool,
+    ) -> Result<()> {
+        self.scan_bounded(table, after, before, false, &mut visit)
+    }
+
+    pub(crate) fn raw_scan_rev(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        after: &str,
+        before: &str,
+        mut visit: impl FnMut(&str, Vec<u8>) -> bool,
+    ) -> Result<()> {
+        self.scan_bounded(table, after, before, true, &mut visit)
+    }
+
+    fn scan_bounded(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        after: &str,
+        before: &str,
+        reverse: bool,
+        visit: &mut impl FnMut(&str, Vec<u8>) -> bool,
+    ) -> Result<()> {
+        let read_txn = self.inner.begin_read()?;
+
+        let table = match read_txn.open_table(table) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(()),
+            Err(err) => return Err(err.into()),
+        };
+
+        let range = table.range::<&str>((Bound::Excluded(after), Bound::Excluded(before)))?;
+        let range: Box<dyn Iterator<Item = _>> = if reverse {
+            Box::new(range.rev())
+        } else {
+            Box::new(range)
+        };
+
+        for entry in range {
+            let (k, v) = match entry {
+                Ok(kv) => kv,
+                Err(err) => {
+                    log::warn!("[storage] range entry error: {err}");
+                    continue;
+                }
+            };
+
+            let key = k.value();
+            match stream_decrypt(&self.key, v.value()) {
+                Ok(decrypted) => {
+                    if !visit(key, decrypted) {
+                        break;
+                    }
+                }
+                Err(err) => log::warn!("[storage] skipping undecryptable row key={key}: {err}"),
+            }
+        }
+
+        Ok(())
     }
 
     pub(crate) fn raw_readall(

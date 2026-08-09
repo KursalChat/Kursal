@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 use std::{path::PathBuf, time::SystemTime};
 
 pub mod backup;
+pub mod conversation;
 mod db;
 pub mod file;
 pub mod filetransfer;
@@ -26,11 +27,15 @@ pub use settings::*;
 pub use signal_stores::*;
 
 pub fn delete_message_history_for(db: &Database, contact_id: String) -> Result<()> {
+    conversation::delete_for_contact(db, &contact_id)?;
+    db.raw_delete_prefix(TABLE_FILE_TRANSFERS, &format!("recvpath:{contact_id}:"))?;
     db.raw_delete_prefix(TABLE_PINNED, &format!("{contact_id}:"))?;
     db.raw_delete_prefix(TABLE_MESSAGES, &format!("{contact_id}:"))
 }
 
 pub fn delete_message_history_all(db: &Database) -> Result<()> {
+    conversation::delete_all(db)?;
+    db.raw_delete_prefix(TABLE_FILE_TRANSFERS, "recvpath:")?;
     db.raw_delete_all(TABLE_PINNED)?;
     db.raw_delete_all(TABLE_MESSAGES)
 }

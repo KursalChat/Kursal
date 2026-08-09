@@ -16,7 +16,9 @@ use crate::{
     network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, str_to_multiaddr},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
-        filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
+        filetransfer::{
+            hash_file, incoming_root, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename,
+        },
         get_timestamp_secs, image_metadata,
     },
 };
@@ -40,6 +42,37 @@ const ACTIVE_RECEIVE_IDLE: Duration = Duration::from_secs(30);
 
 fn progress_event_step(chunk_count: u64) -> u64 {
     chunk_count.div_ceil(PROGRESS_EVENTS_PER_TRANSFER).max(1)
+}
+
+fn received_path_key(contact_hex: &str, offer_hex: &str) -> String {
+    format!("recvpath:{contact_hex}:{offer_hex}")
+}
+
+pub fn attach_file_paths(
+    db: &crate::storage::Database,
+    rows: &mut [crate::dto::MessageResponse],
+) -> Result<()> {
+    for row in rows.iter_mut() {
+        let Some(details) = row.file_details.as_mut() else {
+            continue;
+        };
+        let pair = format!("{}:{}", row.contact_id, row.id);
+
+        if let Some(bytes) = db.raw_read(TABLE_FILE_TRANSFERS, &format!("recvpath:{pair}"))?
+            && let Ok(path) = String::from_utf8(bytes)
+        {
+            details.autodownload_path = Some(path);
+            continue;
+        }
+
+        if let Some(bytes) = db.raw_read(TABLE_FILE_TRANSFERS, &format!("send:{pair}"))?
+            && let Ok(entry) = FileTransferEntry::deserialize(&bytes)
+        {
+            details.autodownload_path = Some(entry.path);
+        }
+    }
+
+    Ok(())
 }
 
 fn lock_or_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T> {
@@ -112,6 +145,86 @@ pub fn remove_outgoing_offer(app_data_dir: &Path, contact_hex: &str, offer_hex: 
     let _ = std::fs::remove_dir_all(dir);
 }
 
+// TODO: remove migration in next version
+const BACKFILL_FLAG: &str = "!recvpath_backfilled";
+
+fn scan_completed_downloads(root: &Path) -> Vec<(String, String, String)> {
+    let Ok(contacts) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+
+    let mut found = Vec::new();
+    for contact in contacts.flatten() {
+        let contact_hex = contact.file_name().to_string_lossy().into_owned();
+        let Ok(offers) = std::fs::read_dir(contact.path()) else {
+            continue;
+        };
+
+        for offer in offers.flatten() {
+            let offer_hex = offer.file_name().to_string_lossy().into_owned();
+            let Some(file) = std::fs::read_dir(offer.path())
+                .ok()
+                .and_then(|mut entries| {
+                    entries.find_map(|e| e.ok().filter(|e| e.path().is_file()))
+                })
+            else {
+                continue;
+            };
+
+            found.push((
+                contact_hex.clone(),
+                offer_hex,
+                file.path().to_string_lossy().into_owned(),
+            ));
+        }
+    }
+
+    found
+}
+
+pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) -> Result<()> {
+    if db
+        .0
+        .lock()
+        .await
+        .raw_read(TABLE_FILE_TRANSFERS, BACKFILL_FLAG)?
+        .is_some()
+    {
+        return Ok(());
+    }
+
+    let root = incoming_root(app_data_dir);
+    let found = tokio::task::spawn_blocking(move || scan_completed_downloads(&root))
+        .await
+        .unwrap_or_default();
+
+    let db_lock = db.0.lock().await;
+    let mut recovered = 0usize;
+    for (contact_hex, offer_hex, path) in found {
+        if db_lock
+            .raw_read(
+                TABLE_FILE_TRANSFERS,
+                &format!("recvprog:{contact_hex}:{offer_hex}"),
+            )?
+            .is_some()
+        {
+            continue;
+        }
+
+        db_lock.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+            path.as_bytes(),
+        )?;
+        recovered += 1;
+    }
+
+    log::info!("[file] backfilled {recovered} completed download paths");
+    db_lock.raw_write(TABLE_FILE_TRANSFERS, BACKFILL_FLAG, &[1u8])?;
+
+    Ok(())
+}
+
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {
     let now = get_timestamp_secs()?;
     let db_lock = db.0.lock().await;
@@ -142,7 +255,7 @@ pub async fn remove_contact_transfers(db: SharedDatabase, contact_id: &UserId) -
     let contact_hex = hex::encode(contact_id.0);
     let db_lock = db.0.lock().await;
 
-    for prefix in ["send", "recv", "recvprog"] {
+    for prefix in ["send", "recv", "recvprog", "recvpath"] {
         let start = format!("{prefix}:{contact_hex}:");
         let end = format!("{prefix}:{contact_hex};");
         let entries = db_lock.raw_range(TABLE_FILE_TRANSFERS, &start, &end, None)?;
@@ -359,6 +472,10 @@ pub async fn apply_cancel(
         }
         let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &prog_key);
         let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &recv_key);
+        let _ = db_lock.raw_delete(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+        );
     }
 
     event_tx
@@ -439,6 +556,11 @@ pub async fn finalize_transfer(
 
     if actual_hash == entry.expected_hash {
         log::info!("[file] transfer {offer_hex} complete, hash ok");
+        db.0.lock().await.raw_write(
+            TABLE_FILE_TRANSFERS,
+            &received_path_key(&contact_hex, &offer_hex),
+            entry.save_path.as_bytes(),
+        )?;
         event_tx
             .send(AppEvent::FileReceived {
                 contact_id: contact_id.clone(),

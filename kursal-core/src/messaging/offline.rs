@@ -518,12 +518,27 @@ pub async fn deliver_queue_direct(
     if drained && let Some(tx) = event_tx {
         tx.send(AppEvent::OfflineQueueDrained {
             contact_id: contact.user_id.clone(),
+            finalized_deletes: take_finalized_deletes(&db, &contact.user_id).await,
         })
         .await
         .ok();
     }
 
     Ok(sent)
+}
+
+async fn take_finalized_deletes(db: &SharedDatabase, user_id: &UserId) -> Vec<MessageId> {
+    let contact_hex = hex::encode(user_id.0);
+    let cleared =
+        crate::storage::conversation::clear_pending_sync_for(&*db.0.lock().await, &contact_hex)
+            .unwrap_or_default();
+
+    cleared
+        .iter()
+        .filter_map(|id| hex::decode(id).ok())
+        .filter_map(|bytes| <[u8; 16]>::try_from(bytes.as_slice()).ok())
+        .map(MessageId)
+        .collect()
 }
 
 pub fn drop_acked_bundles(state: &mut OfflineState, message_id: &MessageId) -> bool {
@@ -968,6 +983,7 @@ async fn flush_now_locked(
         let _ = tx
             .send(AppEvent::OfflineQueueDrained {
                 contact_id: contact.user_id.clone(),
+                finalized_deletes: take_finalized_deletes(&db, &contact.user_id).await,
             })
             .await;
     }

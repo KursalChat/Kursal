@@ -62,6 +62,21 @@ export interface MessageResponse {
   } | null;
 }
 
+export interface UnreadEntry {
+  contactId: string;
+  count: number;
+  // `count` stopped at the scan cap; the real total is higher.
+  capped: boolean;
+  firstUnread: string | null;
+  markedUnread: boolean;
+}
+
+export interface PendingSyncSnapshot {
+  // `contactId:messageId` pairs.
+  sync: string[];
+  deleted: string[];
+}
+
 export interface OtpResponse {
   otp: string;
 }
@@ -113,6 +128,7 @@ export interface OfflineGapSkippedPayload {
 
 export interface OfflineQueueDrainedPayload {
   contactId: string;
+  finalizedDeletes: string[];
 }
 
 export interface OfflineSyncPayload {

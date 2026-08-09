@@ -30,7 +30,6 @@
   import { draftsState } from '$lib/state/drafts.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
   import { archivedConvosState } from '$lib/state/archivedConvos.svelte';
-  import { pendingDropState } from '$lib/state/pendingDrop.svelte';
   import { typingState } from '$lib/state/typing.svelte';
   import { uiState } from '$lib/state/ui.svelte';
   import { removeContact, setContactBlocked } from '$lib/api/contacts';
@@ -299,6 +298,7 @@
     {:else}
       {#snippet contactRow(contact: ContactResponse, ci: number)}
         {@const unread = messagesState.unreadFor(contact.userId)}
+        {@const unreadCapped = messagesState.unreadCappedFor(contact.userId)}
         {@const status = contactsState.connectionStatus[contact.userId]}
         {@const previewTs = getLastMessageTs(contact.userId)}
         <div class="contact-row-wrap">
@@ -306,8 +306,6 @@
             class="contact-row"
             class:active={currentChatId === contact.userId}
             class:pinned-convo={pinnedConvosState.has(contact.userId)}
-            class:drop-target={pendingDropState.hoverId === contact.userId}
-            data-contact-drop={contact.userId}
             style="animation-delay: {Math.min(ci * 30, 180)}ms"
             class:unread={unread > 0}
             oncontextmenu={(e) => {
@@ -371,7 +369,7 @@
                   <span class="contact-status-text">{getStatusLabel(status, contact.userId)}</span>
                 {/if}
                 {#if unread > 0}
-                  <span class="badge">{unread > 99 ? '99+' : unread}</span>
+                  <span class="badge">{unread > 99 || unreadCapped ? '99+' : unread}</span>
                 {/if}
               </div>
             </div>
@@ -1245,11 +1243,6 @@
   .contact-row.pinned-convo {
     background: color-mix(in srgb, var(--accent) 5%, transparent);
   }
-  .contact-row.drop-target {
-    background: var(--accent-dim);
-    box-shadow: inset 0 0 0 2px var(--accent);
-  }
-
   .contact-row-wrap {
     position: relative;
   }

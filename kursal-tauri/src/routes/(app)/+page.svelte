@@ -110,6 +110,7 @@
   interface AttentionRow {
     contact: ContactResponse;
     unread: number;
+    unreadCapped: boolean;
     missedCall: boolean;
     hasDraft: boolean;
     ts: number;
@@ -130,6 +131,7 @@
         rows.push({
           contact,
           unread,
+          unreadCapped: messagesState.unreadCappedFor(contact.userId),
           missedCall,
           hasDraft,
           ts: last?.timestamp ?? contact.createdAt * 1000,
@@ -249,7 +251,9 @@
                   </span>
                 {/if}
                 {#if row.unread > 0}
-                  <span class="badge">{row.unread > 99 ? '99+' : row.unread}</span>
+                  <span class="badge"
+                    >{row.unread > 99 || row.unreadCapped ? '99+' : row.unread}</span
+                  >
                 {/if}
               </span>
             </button>

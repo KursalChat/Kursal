@@ -23,7 +23,6 @@
   import { draftsState } from '$lib/state/drafts.svelte';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
-  import { pendingDropState, contactDropTargetAt } from '$lib/state/pendingDrop.svelte';
   import { shareIntentState } from '$lib/state/shareIntent.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
@@ -132,21 +131,6 @@
   $effect(() => {
     if (!contact || contact.verified || messages.length < 10) return;
     winstonTips.show('verifyContact', openSecurityCodeModal);
-  });
-
-  // Files dropped on this contact's sidebar row while another view was open.
-  $effect(() => {
-    if (!contactId) return;
-    const paths = pendingDropState.consume(contactId);
-    if (!paths) return;
-    void (async () => {
-      try {
-        const prepared = await Promise.all(paths.map((p) => prepareOfferSourcePath(p)));
-        await stageFilesForSend(prepared);
-      } catch (e) {
-        notifyError(e, 'chat.conversation.errorPrepareFile');
-      }
-    })();
   });
 
   // Only messages created after the chat was opened get the entrance animation;
@@ -1009,13 +993,11 @@
         unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
           const p = event.payload;
           if (p.type === 'enter' || p.type === 'over') {
-            isDraggingFile = !contactDropTargetAt(p.position);
+            isDraggingFile = true;
           } else if (p.type === 'leave') {
             isDraggingFile = false;
           } else if (p.type === 'drop') {
             isDraggingFile = false;
-            // A drop on a sidebar contact row belongs to the layout router.
-            if (contactDropTargetAt(p.position)) return;
             const paths = (p as { paths?: string[] }).paths ?? [];
             void handleDroppedPaths(paths);
           }
@@ -1985,6 +1967,9 @@
               showEmojiPicker = msg.id;
               emojiPickerAnchor = rect;
             }
+          }}
+          onMediaResize={() => {
+            if (isScrolledToBottom) pinBottomFrames(2);
           }}
           onOpenMedia={(path, kind, filename) => {
             mediaViewer = {

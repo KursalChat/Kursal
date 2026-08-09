@@ -1,21 +1,24 @@
 use crate::{
     KursalError, MapKursalResult, Result,
-    api::CoreCommand,
+    api::{CoreCommand, file_transfers::attach_file_paths},
     contacts::Contact,
     dto::{
         ContactResponse, LtcStatusDto, MessageResponse, NearbyPeerResponse, NetworkStatusDto,
-        OtpResponse,
+        OtpResponse, PendingSyncDto, UnreadDto,
     },
     first_contact::{
         nearby::{NearbyBeacon, generate_session_name},
         otp,
     },
     identity::{UserId, security_code},
-    messaging::{StoredMessage, enums::MessageId, pin_index_list},
+    messaging::{
+        StoredMessage, UNREAD_BADGE_CAP, enums::MessageId, message_before, newest_message,
+        newest_received, pin_index_list, received_since_rev, unread_after,
+    },
     network::NetworkManager,
     storage::{
-        Database, get_dilithium_pub, get_local_identity_pub, get_local_profile, get_local_user_id,
-        set_local_profile,
+        Database, conversation, get_dilithium_pub, get_local_identity_pub, get_local_profile,
+        get_local_user_id, get_read_receipts_enabled, set_local_profile,
     },
 };
 use std::collections::HashMap;
@@ -251,9 +254,11 @@ pub async fn get_messages<S: StateWrapper>(
     let guard = state.db_lock().await;
     let stored = StoredMessage::load_recent(&guard, &user_id, limit, before.as_ref())?;
     let contact = Contact::load(&guard, &user_id)?;
-    drop(guard);
 
     let mut rows: Vec<MessageResponse> = stored.into_iter().map(MessageResponse::from).collect();
+    attach_file_paths(&guard, &mut rows)?;
+    drop(guard);
+
     if let Some(contact) = contact {
         crate::dto::apply_offline_overlay(&mut rows, &contact.offline);
     }
@@ -272,9 +277,11 @@ pub async fn get_messages_after<S: StateWrapper>(
     let guard = state.db_lock().await;
     let stored = StoredMessage::load_after(&guard, &user_id, &after_id, limit)?;
     let contact = Contact::load(&guard, &user_id)?;
-    drop(guard);
 
     let mut rows: Vec<MessageResponse> = stored.into_iter().map(MessageResponse::from).collect();
+    attach_file_paths(&guard, &mut rows)?;
+    drop(guard);
+
     if let Some(contact) = contact {
         crate::dto::apply_offline_overlay(&mut rows, &contact.offline);
     }
@@ -293,9 +300,11 @@ pub async fn get_messages_around<S: StateWrapper>(
     let guard = state.db_lock().await;
     let stored = StoredMessage::load_around(&guard, &user_id, &message_id, limit)?;
     let contact = Contact::load(&guard, &user_id)?;
-    drop(guard);
 
     let mut rows: Vec<MessageResponse> = stored.into_iter().map(MessageResponse::from).collect();
+    attach_file_paths(&guard, &mut rows)?;
+    drop(guard);
+
     if let Some(contact) = contact {
         crate::dto::apply_offline_overlay(&mut rows, &contact.offline);
     }
@@ -343,8 +352,154 @@ pub async fn get_pinned_messages<S: StateWrapper>(
         .filter_map(|id| StoredMessage::load(&db, &uid, id).ok().flatten())
         .map(MessageResponse::from)
         .collect();
+    attach_file_paths(&db, &mut msgs)?;
     msgs.sort_by_key(|m| m.timestamp);
     Ok(msgs)
+}
+
+const READ_RECEIPT_CAP: usize = 200;
+
+fn unread_entry(db: &Database, contact_id: &UserId) -> Result<UnreadDto> {
+    let contact_hex = hex::encode(contact_id.0);
+    let cursor = conversation::get_read_cursor(db, &contact_hex)
+        .and_then(|hex_id| parse_message_id(&hex_id).ok());
+
+    let unread = unread_after(db, contact_id, cursor.as_ref(), UNREAD_BADGE_CAP)?;
+
+    Ok(UnreadDto {
+        count: unread.count,
+        capped: unread.capped,
+        first_unread: unread.first.map(|id| hex::encode(id.0)),
+        marked_unread: conversation::get_marked_unread(db, &contact_hex),
+        contact_id: contact_hex,
+    })
+}
+
+pub async fn get_unread_summary<S: StateWrapper>(state: S) -> Result<Vec<UnreadDto>> {
+    let db = state.db_lock().await;
+    let contacts = Contact::load_all(&db)?;
+
+    if !conversation::read_cursors_migrated(&db) {
+        let mut cursors = Vec::with_capacity(contacts.len());
+        for contact in &contacts {
+            if let Some(newest) = newest_received(&db, &contact.user_id)? {
+                cursors.push((hex::encode(contact.user_id.0), hex::encode(newest.0)));
+            }
+        }
+        conversation::seed_read_cursors(&db, &cursors)?;
+    }
+
+    contacts
+        .iter()
+        .map(|contact| unread_entry(&db, &contact.user_id))
+        .collect()
+}
+
+pub async fn mark_contact_read<S: StateWrapper>(
+    state: S,
+    contact_id: String,
+) -> Result<Vec<String>> {
+    let user_id = parse_contact_id(&contact_id)?;
+    let contact_hex = hex::encode(user_id.0);
+    let db = state.db_lock().await;
+
+    if conversation::get_marked_unread(&db, &contact_hex) {
+        conversation::set_marked_unread(&db, &contact_hex, false)?;
+    }
+
+    let cursor = conversation::get_read_cursor(&db, &contact_hex)
+        .and_then(|hex_id| parse_message_id(&hex_id).ok());
+
+    let Some(newest) = newest_message(&db, &user_id)? else {
+        return Ok(Vec::new());
+    };
+    if cursor == Some(newest) {
+        return Ok(Vec::new());
+    }
+
+    let receipts = if get_read_receipts_enabled(&db) {
+        received_since_rev(&db, &user_id, cursor.as_ref(), READ_RECEIPT_CAP)?
+            .iter()
+            .map(|id| hex::encode(id.0))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    conversation::set_read_cursor(&db, &contact_hex, Some(&hex::encode(newest.0)))?;
+
+    Ok(receipts)
+}
+
+pub async fn mark_contact_unread<S: StateWrapper>(
+    state: S,
+    contact_id: String,
+    from_message_id: Option<String>,
+) -> Result<UnreadDto> {
+    let user_id = parse_contact_id(&contact_id)?;
+    let contact_hex = hex::encode(user_id.0);
+    let db = state.db_lock().await;
+
+    let anchor = match from_message_id.as_deref() {
+        Some(id) => Some(parse_message_id(id)?),
+        None => newest_received(&db, &user_id)?,
+    };
+
+    if let Some(anchor) = anchor {
+        let cursor = message_before(&db, &user_id, &anchor)?;
+        conversation::set_read_cursor(
+            &db,
+            &contact_hex,
+            cursor.map(|id| hex::encode(id.0)).as_deref(),
+        )?;
+    }
+    conversation::set_marked_unread(&db, &contact_hex, true)?;
+
+    unread_entry(&db, &user_id)
+}
+
+pub async fn set_contact_marked_unread<S: StateWrapper>(
+    state: S,
+    contact_id: String,
+    value: bool,
+) -> Result<()> {
+    let contact_hex = hex::encode(parse_contact_id(&contact_id)?.0);
+
+    conversation::set_marked_unread(&*state.db_lock().await, &contact_hex, value)
+}
+
+pub async fn get_delayed_unseen<S: StateWrapper>(state: S) -> Result<HashMap<String, Vec<String>>> {
+    Ok(conversation::list_delayed_unseen(&*state.db_lock().await)
+        .into_iter()
+        .collect())
+}
+
+pub async fn set_delayed_unseen<S: StateWrapper>(
+    state: S,
+    contact_id: String,
+    message_ids: Vec<String>,
+) -> Result<()> {
+    let contact_hex = hex::encode(parse_contact_id(&contact_id)?.0);
+
+    conversation::set_delayed_unseen(&*state.db_lock().await, &contact_hex, &message_ids)
+}
+
+pub async fn get_pending_sync<S: StateWrapper>(state: S) -> Result<PendingSyncDto> {
+    let entries = conversation::list_pending_sync(&*state.db_lock().await);
+
+    let mut dto = PendingSyncDto {
+        sync: Vec::with_capacity(entries.len()),
+        deleted: Vec::new(),
+    };
+    for (contact_id, message_id, is_delete) in entries {
+        let key = format!("{contact_id}:{message_id}");
+        if is_delete {
+            dto.deleted.push(key.clone());
+        }
+        dto.sync.push(key);
+    }
+
+    Ok(dto)
 }
 
 pub async fn get_security_code<S: StateWrapper>(state: S, contact_id: String) -> Result<String> {

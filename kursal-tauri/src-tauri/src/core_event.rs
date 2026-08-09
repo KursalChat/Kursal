@@ -491,13 +491,20 @@ pub async fn handle_core_event(
             );
         }
 
-        AppEvent::OfflineQueueDrained { contact_id } => {
+        AppEvent::OfflineQueueDrained {
+            contact_id,
+            finalized_deletes,
+        } => {
             emitter(
                 handle,
                 api_handle,
                 "offline_queue_drained",
                 serde_json::json!({
                     "contactId": hex::encode(contact_id.0),
+                    "finalizedDeletes": finalized_deletes
+                        .iter()
+                        .map(|id| hex::encode(id.0))
+                        .collect::<Vec<_>>(),
                 }),
             );
         }

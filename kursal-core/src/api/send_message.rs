@@ -147,6 +147,24 @@ pub async fn send_message_tracked(
 
     let queued_offline = !deliver_direct;
 
+    if queued_offline
+        && matches!(
+            content,
+            KursalMessage::MessageEdit(_)
+                | KursalMessage::MessageDelete(_)
+                | KursalMessage::ReactionAdd(_)
+                | KursalMessage::ReactionRemove(_)
+        )
+        && let Some(target) = content.target_message_id()
+    {
+        crate::storage::conversation::set_pending_sync(
+            &*db.0.lock().await,
+            &hex::encode(contact.user_id.0),
+            &hex::encode(target.0),
+            matches!(content, KursalMessage::MessageDelete(_)),
+        )?;
+    }
+
     if let KursalMessage::MessageDelete(msg) = content {
         let _ = crate::messaging::pin_index_set(
             &*db.0.lock().await,
