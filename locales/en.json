@@ -84,6 +84,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "saved": "Saved",
+    "tryAgain": "Try Again",
     "savedToDevice": "Saved to device",
     "relayBadge": "Relay",
     "relayBadgeVia": "Relay · {transport}"
@@ -348,14 +349,12 @@
       "readyHint": "Let them scan this, or send it over. It works once.",
       "creatingHint": "Hashing it and publishing it to the network…",
       "createFailed": "Could not create your code.",
-      "retryButton": "Try again",
       "expiresIn": "Expires in {time}",
       "codeExpired": "That code expired.",
       "codeUsed": "Someone used that code. Each one works once.",
       "newCodeButton": "Make a new one",
       "shareButton": "Send invite",
       "copyLinkButton": "Copy link",
-      "verifiedToast": "Added and verified. You scanned it in person.",
       "unverifiedToast": "Contact added. Verify the security code when you can."
     },
     "otp": {
@@ -429,8 +428,7 @@
         "pointerPublished": "Published. Copies you shared survive a rotation.",
         "pointerPending": "Publishing to the network…",
         "pointerFailed": "Could not publish. Copies you shared will stop working after a rotation.",
-        "pointerDisabled": "Off. Copies you shared stop working after a rotation.",
-        "pointerRetry": "Try again"
+        "pointerDisabled": "Off. Copies you shared stop working after a rotation."
       },
       "warningDescription": "Anyone holding it can request a secure session until it expires, runs out of uses, or you revoke it.",
       "invalidFileType": "Invalid file type. Please select a .kursal file.",

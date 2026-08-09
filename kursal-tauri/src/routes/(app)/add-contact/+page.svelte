@@ -10,7 +10,6 @@
   import { log } from '$lib/utils/log';
   import { checkOtpWords, fetchOtp } from '$lib/api/otp';
   import { importLtc } from '$lib/api/ltc';
-  import { confirmSecurityCode } from '$lib/api/contacts';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { errorText, parseError } from '$lib/utils/errors';
@@ -171,19 +170,7 @@
     try {
       const contact = await fetchOtp(normalizeOtp(invite));
       contactsState.upsert(contact);
-      // A scanned code came off their screen, so the out-of-band check already happened.
-      if (scanned) {
-        try {
-          await confirmSecurityCode(contact.userId);
-          contactsState.markVerified(contact.userId);
-        } catch (e) {
-          log.error('Auto-verify after scan failed:', e);
-        }
-      }
-      notifications.push(
-        scanned ? t('addContact.connect.verifiedToast') : t('addContact.connect.unverifiedToast'),
-        'success'
-      );
+      notifications.push(t('addContact.connect.unverifiedToast'), 'success');
       connectStatus = 'idle';
       goto('/chat/' + contact.userId);
     } catch (e) {

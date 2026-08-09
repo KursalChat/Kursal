@@ -288,7 +288,7 @@
         {pointerLabel()}
         {#if status.followRotations && status.pointerState === 'failed'}
           <button type="button" disabled={ltcState.pointerBusy} onclick={handleRepublish}>
-            {t('addContact.ltc.card.pointerRetry')}
+            {t('common.tryAgain')}
           </button>
         {/if}
       </p>

@@ -1,0 +1,191 @@
+name: warm-cache
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 10 * * 6"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-cache
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - if: github.ref != 'refs/heads/dev'
+        run: |
+          echo "::error::run this from dev; caches written on other refs are invisible to tag builds"
+          exit 1
+
+  deps:
+    needs: guard
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: cache
+        with:
+          path: bin/deps
+          key: deps-${{ runner.os }}-${{ hashFiles('bin/build-opus.sh', 'bin/build-abseil.sh') }}
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
+        id: ndk
+        with:
+          ndk-version: r26d
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: brew install ninja llvm
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install xwin --locked
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          export PATH="$(brew --prefix llvm)/bin:$PATH"
+          ./bin/build-opus.sh
+          ./bin/build-abseil.sh
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deps
+          path: bin/deps
+          retention-days: 1
+
+  macos:
+    needs: deps
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-26-intel
+            arch: x64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: macos-${{ matrix.arch }}
+          cache-workspace-crates: true
+          cache-on-failure: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - run: brew install meson ninja autoconf automake libtool protobuf
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          if [ "${{ matrix.arch }}" = x64 ]; then
+            export OPUS_NO_PKG=1 OPUS_STATIC=1
+            export OPUS_LIB_DIR="$GITHUB_WORKSPACE/bin/deps/mac-x64"
+          fi
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/bin/deps/mac-${{ matrix.arch }}/abseil/lib/pkgconfig"
+          cargo build --release --target ${{ matrix.target }} -p kursal-app
+
+  windows:
+    needs: deps
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - name: Defender exclusions
+        shell: pwsh
+        run: |
+          Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
+          Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cargo"
+          Add-MpPreference -ExclusionProcess rustc.exe,cargo.exe,link.exe
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: windows
+          cache-workspace-crates: true
+          cache-on-failure: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - run: choco install protoc -y --no-progress
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        env:
+          OPUS_NO_PKG: 1
+          OPUS_STATIC: 1
+        run: |
+          export OPUS_LIB_DIR="$GITHUB_WORKSPACE/bin/deps/win"
+          cargo build --release -p kursal-app
+
+  android:
+    needs: deps
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: deps
+          path: bin/deps
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: android
+          cache-workspace-crates: true
+          cache-on-failure: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
+
+      - name: Build
+        run: |
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          source bin/toolchain.sh android
+          cargo build --release --target aarch64-linux-android -p kursal-app

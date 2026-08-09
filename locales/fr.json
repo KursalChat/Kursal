@@ -16,7 +16,6 @@
       "orDivider": "ou",
       "readyHint": "À scanner ou à envoyer. Valable une seule fois.",
       "receivePlaceholder": "Collez leurs mots ou le lien kursal://, ou déposez leur carte .kursal…",
-      "retryButton": "Veuillez réessayer",
       "rowCard": "Carte réutilisable",
       "rowCardHint": "Un fichier, autant d'utilisations que vous voulez, pas d'expiration",
       "rowMakeCode": "Créer un code pour eux",
@@ -26,7 +25,6 @@
       "shareButton": "Envoyer une invitation",
       "theirCodeTitle": "Leur code",
       "unverifiedToast": "Contact ajouté. Vérifiez le code de sécurité dés que vous pouvez.",
-      "verifiedToast": "Ajouté et vérifié. Vous l'avez scanné en personne.",
       "yourCodeTitle": "Votre code"
     },
     "ltc": {
@@ -44,7 +42,6 @@
         "pointerFailed": "Impossible de publier. Les copies partagées arrêteront de fonctionner après une rotation.",
         "pointerPending": "Publication sur le réseau…",
         "pointerPublished": "Publié. Les copies partagées survivent aux rotations.",
-        "pointerRetry": "Veuillez réessayer",
         "regenerate": "Remplacer",
         "reshareHint": "Vous avez repoussé la date d'expiration. Les copies déjà distribuées utilisent encore l'ancienne date d'expiration : partagez le fichier à nouveau.",
         "revoke": "Révoquer",
@@ -496,6 +493,7 @@
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
+    "tryAgain": "Veuillez réessayer",
     "relayBadge": "Relai",
     "relayBadgeVia": "Relai · {transport}",
     "save": "Enregistrer",

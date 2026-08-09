@@ -52,7 +52,7 @@
   });
 
   const buttonLabel = $derived.by(() => {
-    if (codeStatus === 'failed') return t('addContact.connect.retryButton');
+    if (codeStatus === 'failed') return t('common.tryAgain');
     if (codeStatus === 'expired' || codeStatus === 'used')
       return t('addContact.connect.newCodeButton');
     return t('addContact.connect.makeCodeButton');
