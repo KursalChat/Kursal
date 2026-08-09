@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.6] - 2026-08-09
+
+### Features
+
+- Contact page complete rework
+- Call ringtone (probably temporary)
+
+### Bug Fixes
+
+- Move conversation state to encrypted storage
+- Optimizing final build size
+- No unwraps in external bluetooth crate
+- Smaller offline messages checks
+- Addresses display, general UI improvements
+- Prefer local connections & improved file transfers
+- MacOS .kursal file association
+- Contact order by last message time
+- Possible database deadlocks
+
+### Refactor
+
+- Less code unwraps/expects
+
+### CI
+
+- Full publish (api-docs, brew)
+- Tauri executable path
+- Build releases on github actions
+
+### Styling
+
+- Format
+
+### Miscellaneous
+
+- Small translation fixes (2)
+- Small translation fixes
+- Translated French (100%)
+- Backmerge release/0.1.0 into dev
+
 ## [0.1.0-beta.5] - 2026-08-05
 
 ### Features
