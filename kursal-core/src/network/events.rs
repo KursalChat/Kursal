@@ -6,7 +6,7 @@ use crate::{
         handle_incoming, poll_contact_offline,
     },
     contacts::Contact,
-    crypto::messages::message_send,
+    crypto::{DEVICE_ID, messages::message_send},
     first_contact::nearby::{
         BtEvent, NearbyMessage, NearbyOrigin, NearbyPacket, NearbyRouteResult,
         handle_nearby_request,
@@ -23,7 +23,7 @@ use crate::{
     storage::SharedDatabase,
 };
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
@@ -626,7 +626,7 @@ async fn queue_offline_ping(
     let contact = Contact::load(&*db.0.lock().await, &contact_id)?
         .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
-    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
     let serialized = KursalMessage::Typing.serialize()?;
     let ciphertext = message_send(db.clone(), &address, &serialized).await?;
 

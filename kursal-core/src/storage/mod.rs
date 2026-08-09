@@ -3,11 +3,11 @@ use crate::{
     KursalError, Result,
     api::file_transfers::FileTransferEntry,
     contacts::Contact,
-    crypto::derive_key,
+    crypto::{DEVICE_ID, derive_key},
     identity::UserId,
     storage::filetransfer::{get_auto_download_storage_for, get_folder_size},
 };
-use libsignal_protocol::{DeviceId, IdentityKeyPair, ProtocolAddress};
+use libsignal_protocol::{IdentityKeyPair, ProtocolAddress};
 use redb::ReadableDatabase;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -61,10 +61,7 @@ pub fn get_local_user_id(db: &Database) -> Result<UserId> {
 pub fn get_local_address(db: &Database) -> Result<ProtocolAddress> {
     let user_id = get_local_user_id(db)?;
 
-    Ok(ProtocolAddress::new(
-        hex::encode(user_id.0),
-        DeviceId::new(1u8).unwrap(),
-    ))
+    Ok(ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID))
 }
 
 pub fn get_dilithium_pub(db: &Database) -> Result<Vec<u8>> {

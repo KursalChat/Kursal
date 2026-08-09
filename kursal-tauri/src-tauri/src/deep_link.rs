@@ -2,6 +2,7 @@ use kursal_core::api::{
     AppEvent,
     state::{AppState, DeepLink},
 };
+use kursal_core::sync::LockExt;
 use tauri::{Manager, async_runtime::block_on};
 
 pub async fn dispatch_deep_links(state: &AppState, urls: Vec<DeepLink>) {
@@ -33,7 +34,7 @@ pub fn deep_link_handler(handle: &tauri::AppHandle, urls: Vec<DeepLink>) -> taur
     let state = handle.state::<AppState>();
 
     {
-        let mut queue = state.deep_links.lock().unwrap();
+        let mut queue = state.deep_links.lock_recover();
         if !queue.frontend_ready {
             queue.pending.extend(urls);
             return Ok(());

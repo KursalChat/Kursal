@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     contacts::Contact,
     crypto::{
-        PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
+        DEVICE_ID, PreKeyBundleData, mailbox_kem_encapsulate, session_initiate,
         stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
@@ -22,7 +22,7 @@ use crate::{
 };
 use argon2::{Argon2, ParamsBuilder};
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, KeyPair, ProtocolAddress};
+use libsignal_protocol::{KeyPair, ProtocolAddress};
 use rand::{Rng, TryRngCore, distr::Uniform, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -250,7 +250,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
     let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
     let user_id: [u8; 32] = Sha256::digest(&identity_pub_key).into();
 
-    let remote_address = ProtocolAddress::new(hex::encode(user_id), DeviceId::new(1u8).unwrap());
+    let remote_address = ProtocolAddress::new(hex::encode(user_id), DEVICE_ID);
     let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
     let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
     let mailbox_opk_pub = bundle

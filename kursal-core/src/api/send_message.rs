@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     api::{AppEvent, message_apply::store_pin_record},
     contacts::Contact,
-    crypto::messages::message_send,
+    crypto::{DEVICE_ID, messages::message_send},
     first_contact::WireMessage,
     identity::UserId,
     messaging::{
@@ -15,7 +15,7 @@ use crate::{
     storage::{SharedDatabase, get_local_user_id, get_timestamp_secs},
 };
 use libp2p::{Multiaddr, PeerId};
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -70,7 +70,7 @@ pub async fn send_message_tracked(
     );
 
     let serialized = content.serialize()?;
-    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
 
     let now = get_timestamp_secs()?;
 

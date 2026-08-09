@@ -1,3 +1,4 @@
+use kursal_core::sync::LockExt;
 use std::collections::HashMap;
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -78,7 +79,7 @@ pub fn show_or_create_main(app: &AppHandle) -> tauri::Result<()> {
 
 pub fn drain_pending_signal(app: &AppHandle) {
     if let Some(bg) = app.try_state::<BackgroundState>() {
-        let pending = bg.pending_signal.lock().unwrap().take();
+        let pending = bg.pending_signal.lock_recover().take();
         if let Some(sig) = pending {
             let (signal, payload) = match sig {
                 PendingSignal::NewContact => ("new_contact", String::new()),
@@ -159,10 +160,10 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     }
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .expect("default window icon missing");
+    let Some(icon) = app.default_window_icon().cloned() else {
+        log::error!("[tray] no default window icon, skipping tray setup");
+        return Ok(());
+    };
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
@@ -174,7 +175,7 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             "tray_add_contact" => {
                 if let Some(bg) = app.try_state::<BackgroundState>() {
-                    *bg.pending_signal.lock().unwrap() = Some(PendingSignal::NewContact);
+                    *bg.pending_signal.lock_recover() = Some(PendingSignal::NewContact);
                 }
                 let _ = show_or_create_main(app);
             }
@@ -221,7 +222,7 @@ pub fn refresh_tray(app: &AppHandle) {
         let (unread, online, peers, direct, relay) = {
             let bg = app.state::<BackgroundState>();
             bg.tray_refresh_queued.store(false, Ordering::Release);
-            let map = bg.conn_status.lock().unwrap();
+            let map = bg.conn_status.lock_recover();
             (
                 bg.unread.load(Ordering::Relaxed),
                 bg.net_online.load(Ordering::Relaxed),

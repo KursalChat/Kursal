@@ -8,9 +8,8 @@ pub fn encode_frame(seq: u64, cipher: &[u8]) -> Vec<u8> {
 }
 
 pub fn decode_frame(buf: &[u8]) -> Result<(u64, &[u8])> {
-    if buf.len() < 8 {
+    let Some((seq, cipher)) = buf.split_first_chunk::<8>() else {
         return Err(KursalError::Network("call frame too short".into()));
-    }
-    let seq = u64::from_be_bytes(buf[..8].try_into().unwrap());
-    Ok((seq, &buf[8..]))
+    };
+    Ok((u64::from_be_bytes(*seq), cipher))
 }

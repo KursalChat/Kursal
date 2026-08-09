@@ -334,10 +334,10 @@ impl SwarmHandle {
             .build();
 
         swarm
-            .listen_on(format!("/ip4/0.0.0.0/tcp/{port}").parse().unwrap())
+            .listen_on(format!("/ip4/0.0.0.0/tcp/{port}").parse()?)
             .map_err(|err| KursalError::Network(format!("swarm listen error: {err}")))?;
         swarm
-            .listen_on(format!("/ip4/0.0.0.0/udp/{port}/quic-v1").parse().unwrap())
+            .listen_on(format!("/ip4/0.0.0.0/udp/{port}/quic-v1").parse()?)
             .map_err(|err| KursalError::Network(format!("swarm listen error: {err}")))?;
 
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<SwarmCommand>(32);
@@ -347,7 +347,13 @@ impl SwarmHandle {
         let incoming_event_tx = event_tx.clone();
         let incoming_chunk_tx = chunk_tx.clone();
         tokio::spawn(async move {
-            let mut incoming = incoming_control.accept(STREAM_PROTOCOL).unwrap();
+            let mut incoming = match incoming_control.accept(STREAM_PROTOCOL) {
+                Ok(incoming) => incoming,
+                Err(err) => {
+                    log::error!("[swarm] cannot accept incoming streams: {err}");
+                    return;
+                }
+            };
             while let Some((peer_id, stream)) = incoming.next().await {
                 tokio::spawn(handle_incoming_stream(
                     peer_id,

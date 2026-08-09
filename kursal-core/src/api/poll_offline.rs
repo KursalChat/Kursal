@@ -11,7 +11,7 @@ use crate::{
         send_message,
     },
     contacts::Contact,
-    crypto::{messages::message_receive, offline_ratchet_step, offline_tag},
+    crypto::{DEVICE_ID, messages::message_receive, offline_ratchet_step, offline_tag},
     identity::UserId,
     messaging::{
         StoredMessage,
@@ -25,9 +25,10 @@ use crate::{
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS, filetransfer::sanitize_filename, get_timestamp_secs,
     },
+    sync::LockExt,
 };
 use libp2p::Multiaddr;
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::{LazyLock, Mutex as StdMutex},
@@ -114,8 +115,7 @@ pub async fn poll_contact_offline(
 ) -> Result<()> {
     if trigger == PollTrigger::Event
         && LAST_POLL
-            .lock()
-            .unwrap()
+            .lock_recover()
             .get(&contact_id.0)
             .is_some_and(|t| t.elapsed() < Duration::from_secs(POLL_COOLDOWN_SECS))
     {
@@ -123,7 +123,7 @@ pub async fn poll_contact_offline(
         return Ok(());
     }
 
-    if !POLLS_ACTIVE.lock().unwrap().insert(contact_id.0) {
+    if !POLLS_ACTIVE.lock_recover().insert(contact_id.0) {
         log::debug!(
             "[offline] poll already running for {}",
             hex::encode(contact_id.0)
@@ -132,10 +132,9 @@ pub async fn poll_contact_offline(
     }
     let result = poll_contact_offline_inner(&contact_id, &cmd_tx, &db, &event_tx).await;
     LAST_POLL
-        .lock()
-        .unwrap()
+        .lock_recover()
         .insert(contact_id.0, Instant::now());
-    POLLS_ACTIVE.lock().unwrap().remove(&contact_id.0);
+    POLLS_ACTIVE.lock_recover().remove(&contact_id.0);
     result
 }
 
@@ -188,7 +187,9 @@ async fn poll_contact_offline_inner(
             if hits.is_empty() {
                 break;
             }
-            let max_hit = *hits.keys().max().unwrap();
+            let Some(max_hit) = hits.keys().max().copied() else {
+                break;
+            };
             highest_hit = Some(highest_hit.map_or(max_hit, |h| h.max(max_hit)));
 
             for (counter, bytes) in &hits {
@@ -249,7 +250,7 @@ async fn process_bundle(
     db: SharedDatabase,
     event_tx: &Sender<AppEvent>,
 ) -> Result<bool> {
-    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
     let mut any_decrypted = false;
 
     for dr_ct in &inner.messages {
@@ -326,10 +327,8 @@ async fn dispatch_offline_kmessage(
     let now = get_timestamp_secs()?;
 
     match kmessage {
-        KursalMessage::Text(_) => {
-            let msg_id = kmessage
-                .message_id()
-                .expect("storable message always has an id");
+        KursalMessage::Text(ref text) => {
+            let msg_id = text.id;
 
             let stored = StoredMessage {
                 id: msg_id,

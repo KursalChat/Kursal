@@ -4,7 +4,8 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate, session_initiate,
+        DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate,
+        session_initiate,
     },
     first_contact::make_username,
     identity::UserId,
@@ -13,7 +14,7 @@ use crate::{
     storage::{SharedDatabase, get_dilithium_pub, get_timestamp_secs},
 };
 use libsignal_protocol::{
-    DeviceId, KeyPair, KyberPreKeyId, KyberPreKeyStore, PreKeyStore, ProtocolAddress, PublicKey,
+    KeyPair, KyberPreKeyId, KyberPreKeyStore, PreKeyStore, ProtocolAddress, PublicKey,
 };
 use rand::{Rng, TryRngCore, distr::Uniform, rngs::OsRng};
 use serde::{Deserialize, Serialize};
@@ -279,7 +280,7 @@ pub async fn handle_nearby_request(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+            let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             session_initiate(db.clone(), bundle, &address).await?;
 
@@ -385,7 +386,7 @@ pub async fn nearby_connect(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+            let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
             let mailbox_opk_pub = bundle.pre_key_public.ok_or_else(|| {

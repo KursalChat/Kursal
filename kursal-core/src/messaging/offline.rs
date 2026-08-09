@@ -4,7 +4,7 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        derive_key_salt,
+        DEVICE_ID, derive_key_salt,
         messages::message_send,
         offline_at, offline_ratchet_step, offline_tag, offline_wrapper,
         stream::{stream_decrypt, stream_encrypt},
@@ -21,9 +21,10 @@ use crate::{
         swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
     },
     storage::{SharedDatabase, TABLE_PENDING_ACK, get_timestamp_secs},
+    sync::LockExt,
 };
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, IdentityKeyStore, ProtocolAddress};
+use libsignal_protocol::{IdentityKeyStore, ProtocolAddress};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -266,7 +267,7 @@ static FLUSH_SCHEDULED: LazyLock<StdMutex<HashMap<[u8; 32], Arc<AtomicBool>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 
 fn offline_lock_for(user_id: &UserId) -> Arc<TokioMutex<()>> {
-    let mut map = OFFLINE_LOCKS.lock().unwrap();
+    let mut map = OFFLINE_LOCKS.lock_recover();
     map.entry(user_id.0)
         .or_insert_with(|| Arc::new(TokioMutex::new(())))
         .clone()
@@ -274,7 +275,7 @@ fn offline_lock_for(user_id: &UserId) -> Arc<TokioMutex<()>> {
 
 fn try_set_flush_scheduled(user_id: &UserId) -> bool {
     let flag = {
-        let mut map = FLUSH_SCHEDULED.lock().unwrap();
+        let mut map = FLUSH_SCHEDULED.lock_recover();
         map.entry(user_id.0)
             .or_insert_with(|| Arc::new(AtomicBool::new(false)))
             .clone()
@@ -283,7 +284,7 @@ fn try_set_flush_scheduled(user_id: &UserId) -> bool {
 }
 
 fn clear_flush_scheduled(user_id: &UserId) {
-    let map = FLUSH_SCHEDULED.lock().unwrap();
+    let map = FLUSH_SCHEDULED.lock_recover();
     if let Some(flag) = map.get(&user_id.0) {
         flag.store(false, Ordering::SeqCst);
     }
@@ -653,7 +654,7 @@ pub async fn move_to_mailbox_if_stuck(
     }
 
     let serialized = message.payload.serialize()?;
-    let address = ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+    let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
     let ciphertext = message_send(db.clone(), &address, &serialized).await?;
 
     queue_for_offline(

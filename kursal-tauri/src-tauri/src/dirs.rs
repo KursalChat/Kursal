@@ -11,7 +11,7 @@ pub fn init_dirs(app: &tauri::App) -> Result<()> {
     let path = app.path();
 
     let app_data_dir = path.app_data_dir().ok_kursal(KursalError::Storage)?;
-    std::fs::create_dir_all(&app_data_dir).unwrap();
+    std::fs::create_dir_all(&app_data_dir)?;
 
     APP_DATA_DIR
         .set(app_data_dir)
@@ -20,7 +20,7 @@ pub fn init_dirs(app: &tauri::App) -> Result<()> {
     //
 
     let cache_dir = path.app_cache_dir().ok_kursal(KursalError::Storage)?;
-    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::create_dir_all(&cache_dir)?;
 
     CACHE_DIR
         .set(cache_dir)
@@ -28,7 +28,7 @@ pub fn init_dirs(app: &tauri::App) -> Result<()> {
     //
 
     let logs_dir = path.app_log_dir().ok_kursal(KursalError::Storage)?;
-    std::fs::create_dir_all(&logs_dir).unwrap();
+    std::fs::create_dir_all(&logs_dir)?;
 
     LOGS_DIR
         .set(logs_dir)

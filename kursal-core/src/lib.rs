@@ -15,6 +15,7 @@ pub mod messaging;
 pub mod network;
 pub mod stats;
 pub mod storage;
+pub mod sync;
 
 #[cfg(test)]
 mod tests;

@@ -36,32 +36,38 @@ pub struct CLIArgs {
 
 const DEFAULT_RELAY_TOML: &str = include_str!("../relay.example.toml");
 
-pub async fn run(config: PathBuf, validate: bool, default_config: bool, tui: bool) {
-    if default_config
-        && !std::fs::exists(&config)
-            .expect("Cannot provide --default-config flag if config file already exists.")
-    {
-        std::fs::create_dir_all(config.parent().expect("Could not get the parent directory"))
-            .expect("Could not create parent directory");
-        std::fs::write(&config, DEFAULT_RELAY_TOML).expect("Could not write file");
+pub async fn run(
+    config: PathBuf,
+    validate: bool,
+    default_config: bool,
+    tui: bool,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let parent = config
+        .parent()
+        .ok_or_else(|| format!("config path `{}` has no parent directory", config.display()))?;
+
+    if default_config && !std::fs::exists(&config)? {
+        std::fs::create_dir_all(parent)?;
+        std::fs::write(&config, DEFAULT_RELAY_TOML)?;
     }
 
-    let relay_config = RelayConfig::load(&config).expect("Could not parse relay config. Does the file exist? If not, provide the --default-config flag to create it.");
+    let relay_config = RelayConfig::load(&config).map_err(|err| {
+        format!(
+            "Could not parse relay config at `{}`: {err}. If the file does not exist, provide the --default-config flag to create it.",
+            config.display()
+        )
+    })?;
 
     if !tui || relay_config.log_file.is_some() {
-        init_logging(&relay_config.log_level, relay_config.log_file.as_deref())
-            .expect("Could not initiate logging");
+        init_logging(&relay_config.log_level, relay_config.log_file.as_deref())?;
     }
 
     if validate {
         println!("Valid config file!");
-        return;
+        return Ok(());
     }
 
-    let keypair_path = config
-        .parent()
-        .expect("config has no parent dir")
-        .join("relay_identity.key");
+    let keypair_path = parent.join("relay_identity.key");
 
     let registry = new_shared_registry();
 
@@ -79,8 +85,8 @@ pub async fn run(config: PathBuf, validate: bool, default_config: bool, tui: boo
         let _ = ui.await;
         swarm_task.abort();
     } else {
-        spawn_relay_swarm(relay_config, keypair_path, registry, None)
-            .await
-            .expect("Could not spawn swarm");
+        spawn_relay_swarm(relay_config, keypair_path, registry, None).await?;
     }
+
+    Ok(())
 }

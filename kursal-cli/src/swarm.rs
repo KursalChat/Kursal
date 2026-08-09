@@ -243,10 +243,14 @@ pub async fn spawn_relay_swarm(
         connections: 0,
     }));
 
-    tokio::spawn(start_health_server(
-        health_state.clone(),
-        config.health.listen_addr.parse().unwrap(),
-    ));
+    let health_addr = config.health.listen_addr.parse().map_err(|err| {
+        KursalError::Storage(format!(
+            "Could not parse health.listen_addr `{}`: {err}",
+            config.health.listen_addr
+        ))
+    })?;
+
+    tokio::spawn(start_health_server(health_state.clone(), health_addr));
 
     let mut state = RelayState {
         snapshot: RelaySnapshot {

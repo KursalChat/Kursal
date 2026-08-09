@@ -4,6 +4,7 @@ use crate::call::frame::{decode_frame, encode_frame};
 use crate::call::media::ReplayWindow;
 use crate::crypto::stream::{stream_decrypt_aad, stream_encrypt_aad};
 use crate::network::swarm::SwarmCommand;
+use crate::sync::LockExt;
 use futures::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use libp2p::{PeerId, Stream};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,11 +78,11 @@ fn rx_forwarder() -> &'static StdMutex<Option<RxForwarder>> {
 }
 
 pub fn set_rx_forwarder(f: RxForwarder) {
-    *rx_forwarder().lock().unwrap() = Some(f);
+    *rx_forwarder().lock_recover() = Some(f);
 }
 
 pub fn send_chunk(bytes: Vec<u8>) {
-    if let Some(session) = tx_slot().lock().unwrap().as_ref()
+    if let Some(session) = tx_slot().lock_recover().as_ref()
         && session.chunk_tx.try_send(bytes).is_err()
     {
         session.dropped.store(true, Ordering::Relaxed);
@@ -98,7 +99,7 @@ pub fn start_tx(
     let dropped = Arc::new(AtomicBool::new(false));
     let (chunk_tx, mut chunk_rx) = mpsc::channel::<Vec<u8>>(TX_QUEUE_CHUNKS);
     {
-        let mut slot = tx_slot().lock().unwrap();
+        let mut slot = tx_slot().lock_recover();
         if let Some(old) = slot.take() {
             old.stop.store(true, Ordering::Relaxed);
             let _ = old.chunk_tx.try_send(Vec::new());
@@ -211,7 +212,7 @@ pub fn start_rx(peer_id: PeerId, rx_key: [u8; 32]) {
     let stop = Arc::new(AtomicBool::new(false));
     let notify = Arc::new(Notify::new());
     {
-        let mut slot = rx_slot().lock().unwrap();
+        let mut slot = rx_slot().lock_recover();
         if let Some(old) = slot.take() {
             old.stop.store(true, Ordering::Relaxed);
             old.notify.notify_waiters();
@@ -272,7 +273,7 @@ pub fn start_rx(peer_id: PeerId, rx_key: [u8; 32]) {
                     ReadOutcome::Frame(seq, pkt) => {
                         got_frame = true;
                         if replay.accept(seq) {
-                            let forwarder = rx_forwarder().lock().unwrap();
+                            let forwarder = rx_forwarder().lock_recover();
                             if let Some(f) = forwarder.as_ref() {
                                 if !logged_first_recv {
                                     logged_first_recv = true;
@@ -302,14 +303,14 @@ pub fn start_rx(peer_id: PeerId, rx_key: [u8; 32]) {
 }
 
 pub async fn stop_tx() {
-    if let Some(session) = tx_slot().lock().unwrap().take() {
+    if let Some(session) = tx_slot().lock_recover().take() {
         session.stop.store(true, Ordering::Relaxed);
         let _ = session.chunk_tx.try_send(Vec::new());
     }
 }
 
 pub async fn stop_rx() {
-    if let Some(session) = rx_slot().lock().unwrap().take() {
+    if let Some(session) = rx_slot().lock_recover().take() {
         session.stop.store(true, Ordering::Relaxed);
         session.notify.notify_waiters();
     }

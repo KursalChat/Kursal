@@ -94,12 +94,15 @@ pub fn run() {
     match Args::try_parse() {
         Ok(args) => {
             if let Some(Commands::Cli(cli_args)) = args.command {
-                block_on(kursal_cli::run(
+                if let Err(err) = block_on(kursal_cli::run(
                     cli_args.config,
                     cli_args.validate,
                     cli_args.default_config,
                     cli_args.tui,
-                ));
+                )) {
+                    eprintln!("{err}");
+                    std::process::exit(1);
+                }
 
                 return;
             }
@@ -212,18 +215,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            window_menu::setup(app).unwrap();
+            window_menu::setup(app)?;
 
             let args = Args::try_parse().unwrap_or_default();
-            dirs::init_dirs(app).unwrap();
-            let log_path = dirs::logs_dir().unwrap().join(format!(
+            dirs::init_dirs(app)?;
+            let log_path = dirs::logs_dir()?.join(format!(
                 "{}.log",
                 args.database_id.clone().unwrap_or("kursal".to_string())
             ));
             let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
 
-            kursal_core::logging::init_logging(&log_level, Some(&log_path.to_string_lossy()))
-                .expect("failed to init logger");
+            kursal_core::logging::init_logging(&log_level, Some(&log_path.to_string_lossy()))?;
             log::info!("Logging enabled, writing to {}", log_path.display());
 
             let _ = install_panic_hook();
@@ -237,7 +239,7 @@ pub fn run() {
                 log::info!("Keychain initialized");
             }
 
-            let app_data_dir = dirs::app_data_dir().unwrap();
+            let app_data_dir = dirs::app_data_dir()?;
             log::info!("Directories initialized");
 
             let db_path = app_data_dir.join(format!(
@@ -280,7 +282,7 @@ pub fn run() {
                 }
             };
             let (network, event_rx, bt_event_rx, chunk_rx) =
-                block_on(NetworkManager::new(&db.0.blocking_lock())).unwrap();
+                block_on(NetworkManager::new(&db.0.blocking_lock()))?;
 
             // check for reset flags
             let db_clone = db.clone();

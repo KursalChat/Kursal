@@ -2,9 +2,12 @@ use libp2p::identity::Keypair;
 use std::path::Path;
 
 pub fn save_keypair(keypair: &Keypair, path: &Path) -> std::io::Result<()> {
-    let bytes = keypair
-        .to_protobuf_encoding()
-        .expect("keypair serialization failed");
+    let bytes = keypair.to_protobuf_encoding().map_err(|err| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("keypair serialization failed: {err}"),
+        )
+    })?;
     std::fs::write(path, bytes)
 }
 
@@ -15,7 +18,12 @@ pub fn load_keypair(path: &Path) -> std::io::Result<Option<Keypair>> {
 
     let bytes = std::fs::read(path)?;
 
-    let keypair = Keypair::from_protobuf_encoding(&bytes).expect("keypair deserialization failed");
+    let keypair = Keypair::from_protobuf_encoding(&bytes).map_err(|err| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("keypair at {} is unreadable: {err}", path.display()),
+        )
+    })?;
 
     Ok(Some(keypair))
 }

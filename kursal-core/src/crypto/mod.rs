@@ -25,6 +25,11 @@ pub mod dilithium;
 pub mod messages;
 pub mod stream;
 
+pub const DEVICE_ID: DeviceId = match DeviceId::new(1) {
+    Ok(id) => id,
+    Err(_) => unreachable!(),
+};
+
 pub struct PreKeyBundleData {
     pub registration_id: u32,
     // pub device_id: u32,
@@ -162,7 +167,7 @@ pub async fn session_initiate(
 ) -> Result<()> {
     let bundle = PreKeyBundle::new(
         remote.registration_id,
-        DeviceId::new(1u8).unwrap(),
+        DEVICE_ID,
         remote.pre_key_id.zip(remote.pre_key_public),
         remote.signed_pre_key_id,
         remote.signed_pre_key_public,

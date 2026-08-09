@@ -28,6 +28,7 @@ use kursal_core::storage::{
     get_swarm_mdns_enabled, reset_full_app, set_api_server_config, set_new_api_server_password,
     set_swarm_listening_port, set_swarm_mdns_enabled,
 };
+use kursal_core::sync::LockExt;
 use std::collections::HashMap;
 use tauri_plugin_opener::OpenerExt;
 use tokio::fs::remove_dir_all;
@@ -769,7 +770,7 @@ pub async fn frontend_ready(
     state: tauri::State<'_, AppState>,
 ) -> Result<()> {
     let urls = {
-        let mut queue = state.deep_links.lock().unwrap();
+        let mut queue = state.deep_links.lock_recover();
         queue.frontend_ready = true;
         std::mem::take(&mut queue.pending)
     };

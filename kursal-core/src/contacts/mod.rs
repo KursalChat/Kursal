@@ -1,10 +1,12 @@
 use crate::{
     KursalError, Result,
+    crypto::DEVICE_ID,
     identity::UserId,
     messaging::offline::OfflineState,
     storage::{Database, TABLE_CONTACTS, TABLE_MESSAGES, TABLE_SESSIONS},
+    sync::RwLockExt,
 };
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
@@ -91,7 +93,7 @@ impl Contact {
     }
 
     pub fn find_by_peer_id(db: &Database, peer_id: &str) -> Result<Option<Self>> {
-        let cached = PEER_ID_CACHE.read().unwrap().get(peer_id).cloned();
+        let cached = PEER_ID_CACHE.read_recover().get(peer_id).cloned();
         if let Some(user_id) = cached
             && let Some(contact) = Contact::load(db, &user_id)?
             && contact.peer_id == peer_id
@@ -101,7 +103,7 @@ impl Contact {
 
         let all = Contact::load_all(db)?;
         {
-            let mut cache = PEER_ID_CACHE.write().unwrap();
+            let mut cache = PEER_ID_CACHE.write_recover();
             cache.clear();
             for contact in &all {
                 cache.insert(contact.peer_id.clone(), contact.user_id.clone());
@@ -143,7 +145,7 @@ impl Contact {
 
     pub fn delete(db: &Database, user_id: &UserId) -> Result<()> {
         let contact_id = hex::encode(user_id.0);
-        let address = ProtocolAddress::new(contact_id.clone(), DeviceId::new(1u8).unwrap());
+        let address = ProtocolAddress::new(contact_id.clone(), DEVICE_ID);
 
         db.raw_delete(TABLE_CONTACTS, &contact_id)?;
         db.raw_delete_prefix(TABLE_MESSAGES, &format!("{contact_id}:"))?;

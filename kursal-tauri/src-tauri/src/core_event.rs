@@ -2,6 +2,7 @@ use kursal_core::{
     api::{AppEvent, ConnectionStatus},
     apiserver::CoreEventEmitter,
     dto::{ContactResponse, MessageResponse},
+    sync::LockExt,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -247,7 +248,7 @@ pub async fn handle_core_event(
         AppEvent::ConnectionChange { contact_id, status } => {
             let key = hex::encode(contact_id.0);
             let stamp = {
-                let mut online = ONLINE_CONTACTS.lock().unwrap();
+                let mut online = ONLINE_CONTACTS.lock_recover();
                 match status {
                     ConnectionStatus::Direct
                     | ConnectionStatus::HolePunch
@@ -270,7 +271,7 @@ pub async fn handle_core_event(
                 if let Some(bg) = handle.try_state::<crate::background::BackgroundState>() {
                     let key = hex::encode(contact_id.0);
                     {
-                        let mut map = bg.conn_status.lock().unwrap();
+                        let mut map = bg.conn_status.lock_recover();
                         match &status {
                             ConnectionStatus::Direct | ConnectionStatus::HolePunch => {
                                 map.insert(key, crate::background::TrayLink::Direct);

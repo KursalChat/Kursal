@@ -6,7 +6,7 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        PreKeyBundleData,
+        DEVICE_ID, PreKeyBundleData,
         dilithium::{dilithium_sign, dilithium_verify},
         mailbox_kem_encapsulate, session_initiate,
     },
@@ -26,7 +26,7 @@ use crate::{
     },
 };
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, IdentityKeyStore, ProtocolAddress, PublicKey};
+use libsignal_protocol::{IdentityKeyStore, ProtocolAddress, PublicKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
@@ -303,8 +303,7 @@ impl LtcState {
         let identity_key_bytes = bundle.identity_key.public_key().serialize().to_vec();
 
         let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
-        let remote_address =
-            ProtocolAddress::new(hex::encode(user_id.0), DeviceId::new(1u8).unwrap());
+        let remote_address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
         let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
         let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
         session_initiate(db.clone(), bundle, &remote_address).await?;

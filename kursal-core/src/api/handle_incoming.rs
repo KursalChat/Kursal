@@ -12,7 +12,7 @@ use crate::{
         send_message,
     },
     contacts::Contact,
-    crypto::messages::message_receive,
+    crypto::{DEVICE_ID, messages::message_receive},
     first_contact::{FileTransferMessage, WireMessage, handle_fc_response, resolve_ack_waiter},
     identity::UserId,
     messaging::{
@@ -29,10 +29,11 @@ use crate::{
         get_auto_accept_config, get_auto_download_config, get_contact_terminated,
         get_timestamp_secs, set_contact_terminated,
     },
+    sync::LockExt,
 };
 use futures::AsyncReadExt;
 use libp2p::PeerId;
-use libsignal_protocol::{DeviceId, ProtocolAddress};
+use libsignal_protocol::ProtocolAddress;
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 use tokio::{fs::create_dir_all, sync::mpsc};
@@ -89,8 +90,7 @@ pub async fn handle_incoming(
         return Ok(()); // ignore
     }
 
-    let remote_address =
-        ProtocolAddress::new(hex::encode(contact.user_id.0), DeviceId::new(1u8).unwrap());
+    let remote_address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
     let now = get_timestamp_secs()?;
 
     let received = message_receive(db.clone(), &remote_address, &encrypted_payload).await?;
@@ -134,10 +134,8 @@ pub async fn handle_incoming(
             apply_reaction_add(&contact, r, &db, event_tx, now).await?;
         }
 
-        KursalMessage::Text(_) => {
-            let msg_id = kmessage
-                .message_id()
-                .expect("storable message always has an id");
+        KursalMessage::Text(ref text) => {
+            let msg_id = text.id;
 
             let stored = StoredMessage {
                 id: msg_id,
@@ -440,7 +438,7 @@ const TERMINATE_REPLY_CAP: usize = 512;
 
 async fn reply_terminate_once(peer: PeerId, cmd_tx: &mpsc::Sender<SwarmCommand>) {
     {
-        let mut seen = TERMINATE_REPLIED.lock().unwrap();
+        let mut seen = TERMINATE_REPLIED.lock_recover();
         if seen.len() >= TERMINATE_REPLY_CAP || !seen.insert(peer) {
             return;
         }
