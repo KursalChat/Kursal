@@ -496,6 +496,7 @@
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
+    "tryAgain": "Veuillez réessayer",
     "relayBadge": "Relai",
     "relayBadgeVia": "Relai · {transport}",
     "save": "Enregistrer",
