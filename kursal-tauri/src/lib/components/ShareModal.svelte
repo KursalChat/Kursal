@@ -20,9 +20,9 @@
     try {
       qrDataUrl = await QRCode.toDataURL(link, {
         errorCorrectionLevel: 'M',
-        margin: 1,
+        margin: 4,
         width: 320,
-        color: { dark: '#0f172a', light: '#f8fafc' },
+        color: { dark: '#000000', light: '#ffffff' },
       });
     } catch (e) {
       qrDataUrl = null;

@@ -59,7 +59,7 @@
   });
 
   function buildOtpLink(value: string): string {
-    return OTP_LINK_PREFIX + encodeURIComponent(value);
+    return OTP_LINK_PREFIX + value.trim().split(/\s+/).join('-');
   }
 
   function stopCountdown() {
@@ -93,10 +93,10 @@
   async function renderQr(value: string) {
     try {
       qrDataUrl = await QRCode.toDataURL(value, {
-        errorCorrectionLevel: 'M',
-        margin: 1,
-        width: 420,
-        color: { dark: '#0f172a', light: '#f8fafc' },
+        errorCorrectionLevel: 'L',
+        margin: 4,
+        width: 640,
+        color: { dark: '#000000', light: '#ffffff' },
       });
     } catch (e) {
       qrDataUrl = null;
@@ -248,7 +248,7 @@
 
   .qr,
   .qr-placeholder {
-    width: min(240px, 100%);
+    width: min(320px, 100%);
     aspect-ratio: 1;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
