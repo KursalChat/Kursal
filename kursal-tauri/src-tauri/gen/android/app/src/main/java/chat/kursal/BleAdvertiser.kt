@@ -80,7 +80,9 @@ object BleAdvertiser {
     val service = BluetoothGattService(sUuid, BluetoothGattService.SERVICE_TYPE_PRIMARY)
     val ch = BluetoothGattCharacteristic(
       cUuid,
-      BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE,
+      BluetoothGattCharacteristic.PROPERTY_READ or
+        BluetoothGattCharacteristic.PROPERTY_WRITE or
+        BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
       BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
     )
     service.addCharacteristic(ch)
@@ -194,13 +196,13 @@ object BleAdvertiser {
         }
         return
       }
+      if (responseNeeded && srv != null) {
+        srv.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
+      }
       try {
         nativeOnWriteRequest(device.address, value)
       } catch (e: Throwable) {
         Log.e(TAG, "nativeOnWriteRequest: $e")
-      }
-      if (responseNeeded && srv != null) {
-        srv.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
       }
     }
 

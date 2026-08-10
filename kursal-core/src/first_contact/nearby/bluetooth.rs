@@ -17,7 +17,8 @@ use ble_peripheral_rust::{
     },
 };
 use btleplug::api::{
-    Central, CentralEvent, Characteristic, Manager as _, Peripheral, ScanFilter, WriteType,
+    Central, CentralEvent, CharPropFlags, Characteristic, DEFAULT_MTU_SIZE, Manager as _,
+    Peripheral, ScanFilter, WriteType,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral as PlatformPeripheral};
 use futures::StreamExt;
@@ -27,7 +28,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{Mutex, Notify, mpsc};
 use uuid::Uuid;
 
 const SERVICE_UUID: Uuid = Uuid::from_u128(0x4b75_7273_616c_0001_0000_0000_0000_0001);
@@ -39,12 +40,12 @@ const POWER_POLL_MAX_ATTEMPTS: u32 = 60;
 
 const FRAG_HEADER_LEN: usize = 12;
 const ATT_OVERHEAD: usize = 3;
-const DEFAULT_CHUNK_SIZE: usize = 180;
+const DEFAULT_CHUNK_SIZE: usize = 160;
 const MIN_CHUNK_SIZE: usize = 8;
 const MAX_CHUNK_SIZE: usize = 500;
+const WRITE_ACK_WINDOW: u16 = 8;
 const REASSEMBLY_TTL: Duration = Duration::from_secs(60);
 const PEER_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
-const PEER_WAIT_POLL: Duration = Duration::from_millis(250);
 
 #[derive(Clone)]
 struct PartialMsg {
@@ -56,6 +57,8 @@ struct PartialMsg {
 
 type ReassemblyMap = Arc<std::sync::Mutex<HashMap<(String, u64), PartialMsg>>>;
 
+type GattLocks = Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>;
+
 #[derive(Serialize, Deserialize)]
 struct BtWireMessage {
     from_peer_id: String,
@@ -63,8 +66,19 @@ struct BtWireMessage {
 }
 
 struct BtPeer {
+    bt_id: String,
     peripheral: PlatformPeripheral,
     write_char: Characteristic,
+}
+
+impl BtPeer {
+    fn new(peripheral: PlatformPeripheral, write_char: Characteristic) -> Self {
+        Self {
+            bt_id: peripheral.id().to_string(),
+            peripheral,
+            write_char,
+        }
+    }
 }
 
 #[cfg(not(target_os = "android"))]
@@ -85,6 +99,8 @@ pub struct BTTransport {
     pub pending_handshakes: Arc<Mutex<HashMap<String, mpsc::Sender<NearbyMessage>>>>,
     pub bt_event_tx: mpsc::Sender<BtEvent>,
     peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peer_added: Arc<Notify>,
+    gatt_locks: GattLocks,
     #[cfg(not(target_os = "android"))]
     adv: Arc<Mutex<Option<AdvState>>>,
     scan: Arc<Mutex<Option<ScanState>>>,
@@ -103,6 +119,8 @@ impl BTTransport {
             pending_handshakes: Arc::new(Mutex::new(HashMap::new())),
             bt_event_tx,
             peers: Arc::new(Mutex::new(HashMap::new())),
+            peer_added: Arc::new(Notify::new()),
+            gatt_locks: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(target_os = "android"))]
             adv: Arc::new(Mutex::new(None)),
             scan: Arc::new(Mutex::new(None)),
@@ -116,8 +134,14 @@ impl NearbyTransport for BTTransport {
     async fn start(&self, beacon: NearbyBeacon) {
         log::info!("[bt] starting bluetooth transport");
 
-        if let Err(err) =
-            start_scanner(&self.scan, self.peers.clone(), self.bt_event_tx.clone()).await
+        if let Err(err) = start_scanner(
+            &self.scan,
+            self.peers.clone(),
+            self.peer_added.clone(),
+            self.gatt_locks.clone(),
+            self.bt_event_tx.clone(),
+        )
+        .await
         {
             log::error!("[bt] scanner start: {err}");
         }
@@ -197,15 +221,13 @@ impl NearbyTransport for BTTransport {
         };
         let bytes = bincode::serialize(&wire)?;
 
-        let (peripheral, write_char) = ensure_peer_connected(&self.peers, peer_id).await?;
+        let (peripheral, mut write_char) =
+            ensure_peer_connected(&self.peers, &self.peer_added, &self.gatt_locks, peer_id).await?;
 
-        let mtu = peripheral.mtu() as usize;
-        let chunk_size = if mtu > 23 {
-            mtu.saturating_sub(FRAG_HEADER_LEN + ATT_OVERHEAD)
-                .clamp(MIN_CHUNK_SIZE, MAX_CHUNK_SIZE)
-        } else {
-            DEFAULT_CHUNK_SIZE
-        };
+        let chunk_size = chunk_size_for(&peripheral);
+        let unacked_writes = write_char
+            .properties
+            .contains(CharPropFlags::WRITE_WITHOUT_RESPONSE);
 
         let total_chunks = bytes.chunks(chunk_size).count();
         let total = u16::try_from(total_chunks).map_err(|_| {
@@ -220,37 +242,24 @@ impl NearbyTransport for BTTransport {
             frame.extend_from_slice(&total.to_be_bytes());
             frame.extend_from_slice(chunk);
 
-            if let Err(e) = peripheral
-                .write(&write_char, &frame, WriteType::WithResponse)
-                .await
+            let write_type = if !unacked_writes
+                || seq + 1 == total
+                || (seq + 1).is_multiple_of(WRITE_ACK_WINDOW)
             {
+                WriteType::WithResponse
+            } else {
+                WriteType::WithoutResponse
+            };
+
+            if let Err(e) = peripheral.write(&write_char, &frame, write_type).await {
                 log::warn!("[bt] write to {peer_id} failed: {e}, attempting reconnect");
-                let bt_err = |e: btleplug::Error| KursalError::Network(e.to_string());
                 let _ = peripheral.disconnect().await;
-                {
-                    let mut guard = self.peers.lock().await;
-                    guard.remove(peer_id);
-                }
-                peripheral.connect().await.map_err(bt_err)?;
-                peripheral.discover_services().await.map_err(bt_err)?;
-                let chars = peripheral.characteristics();
-                let new_char = chars
-                    .iter()
-                    .find(|c| c.uuid == CHAR_UUID)
-                    .ok_or_else(|| KursalError::Network("bt: kursal char missing".into()))?
-                    .clone();
-                {
-                    let mut guard = self.peers.lock().await;
-                    guard.insert(
-                        peer_id.to_string(),
-                        BtPeer {
-                            peripheral: peripheral.clone(),
-                            write_char: new_char.clone(),
-                        },
-                    );
-                }
+                self.peers.lock().await.remove(peer_id);
+                write_char =
+                    connect_and_register(&self.peers, &self.gatt_locks, peer_id, &peripheral)
+                        .await?;
                 peripheral
-                    .write(&new_char, &frame, WriteType::WithResponse)
+                    .write(&write_char, &frame, write_type)
                     .await
                     .ok_kursal(KursalError::Network)?;
             }
@@ -275,50 +284,104 @@ impl NearbyTransport for BTTransport {
     }
 }
 
-async fn ensure_peer_connected(
-    peers: &Arc<Mutex<HashMap<String, BtPeer>>>,
-    peer_id: &str,
-) -> Result<(PlatformPeripheral, Characteristic)> {
+fn chunk_size_for(peripheral: &PlatformPeripheral) -> usize {
+    let mtu = peripheral.mtu();
+    if mtu > DEFAULT_MTU_SIZE {
+        (mtu as usize)
+            .saturating_sub(FRAG_HEADER_LEN + ATT_OVERHEAD)
+            .clamp(MIN_CHUNK_SIZE, MAX_CHUNK_SIZE)
+    } else {
+        DEFAULT_CHUNK_SIZE
+    }
+}
+
+async fn gatt_lock(locks: &GattLocks, bt_id: &str) -> Arc<Mutex<()>> {
+    locks
+        .lock()
+        .await
+        .entry(bt_id.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
+async fn prune_gatt_locks(locks: &GattLocks) {
+    locks.lock().await.retain(|_, l| Arc::strong_count(l) > 1);
+}
+
+async fn connect_and_discover(
+    locks: &GattLocks,
+    peripheral: &PlatformPeripheral,
+) -> Result<Characteristic> {
     let bt_err = |e: btleplug::Error| KursalError::Network(e.to_string());
 
-    let start = Instant::now();
+    let lock = gatt_lock(locks, &peripheral.id().to_string()).await;
+    let _guard = lock.lock().await;
+
+    if !peripheral.is_connected().await.map_err(bt_err)? {
+        peripheral.connect().await.map_err(bt_err)?;
+    }
+    if peripheral.characteristics().is_empty() {
+        peripheral.discover_services().await.map_err(bt_err)?;
+    }
+
+    let write_char = peripheral
+        .characteristics()
+        .iter()
+        .find(|c| c.uuid == CHAR_UUID)
+        .ok_or_else(|| KursalError::Network("bt: kursal char missing".into()))?
+        .clone();
+
+    Ok(write_char)
+}
+
+async fn connect_and_register(
+    peers: &Arc<Mutex<HashMap<String, BtPeer>>>,
+    locks: &GattLocks,
+    peer_id: &str,
+    peripheral: &PlatformPeripheral,
+) -> Result<Characteristic> {
+    let write_char = connect_and_discover(locks, peripheral).await?;
+
+    peers.lock().await.insert(
+        peer_id.to_string(),
+        BtPeer::new(peripheral.clone(), write_char.clone()),
+    );
+
+    Ok(write_char)
+}
+
+async fn ensure_peer_connected(
+    peers: &Arc<Mutex<HashMap<String, BtPeer>>>,
+    peer_added: &Notify,
+    locks: &GattLocks,
+    peer_id: &str,
+) -> Result<(PlatformPeripheral, Characteristic)> {
+    let deadline = Instant::now() + PEER_WAIT_TIMEOUT;
+
     let (peripheral, write_char) = loop {
+        let mut wait = Box::pin(peer_added.notified());
+        wait.as_mut().enable();
+
         {
             let guard = peers.lock().await;
             if let Some(peer) = guard.get(peer_id) {
                 break (peer.peripheral.clone(), peer.write_char.clone());
             }
         }
-        if start.elapsed() >= PEER_WAIT_TIMEOUT {
+
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() || tokio::time::timeout(remaining, wait).await.is_err() {
             return Err(KursalError::Network(format!(
                 "bt: peer {peer_id} not connected"
             )));
         }
-        tokio::time::sleep(PEER_WAIT_POLL).await;
     };
 
     match peripheral.is_connected().await {
         Ok(true) => Ok((peripheral, write_char)),
         Ok(false) => {
             log::info!("[bt] peer {peer_id} disconnected, reconnecting");
-            peripheral.connect().await.map_err(bt_err)?;
-            peripheral.discover_services().await.map_err(bt_err)?;
-            let chars = peripheral.characteristics();
-            let new_char = chars
-                .iter()
-                .find(|c| c.uuid == CHAR_UUID)
-                .ok_or_else(|| KursalError::Network("bt: kursal char missing".into()))?
-                .clone();
-            {
-                let mut guard = peers.lock().await;
-                guard.insert(
-                    peer_id.to_string(),
-                    BtPeer {
-                        peripheral: peripheral.clone(),
-                        write_char: new_char.clone(),
-                    },
-                );
-            }
+            let new_char = connect_and_register(peers, locks, peer_id, &peripheral).await?;
             Ok((peripheral, new_char))
         }
         Err(err) => Err(KursalError::Network(err.to_string())),
@@ -328,6 +391,8 @@ async fn ensure_peer_connected(
 async fn start_scanner(
     scan: &Arc<Mutex<Option<ScanState>>>,
     peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peer_added: Arc<Notify>,
+    gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
 ) -> Result<()> {
     #[cfg(target_os = "android")]
@@ -365,6 +430,8 @@ async fn start_scanner(
             events,
             central.clone(),
             peers,
+            peer_added,
+            gatt_locks,
             bt_event_tx,
         ));
 
@@ -400,6 +467,8 @@ async fn run_scanner_events(
     events: std::pin::Pin<Box<dyn futures::Stream<Item = CentralEvent> + Send>>,
     central: Adapter,
     peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peer_added: Arc<Notify>,
+    gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
 ) {
     let inflight: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
@@ -412,6 +481,7 @@ async fn run_scanner_events(
                 let bt_id = id.to_string();
                 remove_peer_by_bt_id(&peers, &bt_id).await;
                 inflight.lock().await.remove(&bt_id);
+                prune_gatt_locks(&gatt_locks).await;
                 log::info!("[bt] device disconnected {bt_id}, cleared peer");
                 continue;
             }
@@ -436,10 +506,15 @@ async fn run_scanner_events(
 
         log::info!("[bt] kursal peripheral {bt_id} - handshaking");
         let peers_clone = peers.clone();
+        let notify_clone = peer_added.clone();
+        let locks_clone = gatt_locks.clone();
         let tx_clone = bt_event_tx.clone();
         let inflight_clone = inflight.clone();
         tokio::spawn(async move {
-            if let Err(err) = handshake_with_peer(peripheral, peers_clone, tx_clone).await {
+            if let Err(err) =
+                handshake_with_peer(peripheral, peers_clone, notify_clone, locks_clone, tx_clone)
+                    .await
+            {
                 log::warn!("[bt] handshake {bt_id}: {err}");
             }
             inflight_clone.lock().await.remove(&bt_id);
@@ -451,34 +526,24 @@ async fn run_scanner_events(
 
 async fn peers_contains_bt_id(peers: &Arc<Mutex<HashMap<String, BtPeer>>>, bt_id: &str) -> bool {
     let guard = peers.lock().await;
-    guard
-        .values()
-        .any(|p| p.peripheral.id().to_string() == bt_id)
+    guard.values().any(|p| p.bt_id == bt_id)
 }
 
 async fn remove_peer_by_bt_id(peers: &Arc<Mutex<HashMap<String, BtPeer>>>, bt_id: &str) {
     let mut guard = peers.lock().await;
-    guard.retain(|_, p| p.peripheral.id().to_string() != bt_id);
+    guard.retain(|_, p| p.bt_id != bt_id);
 }
 
 async fn handshake_with_peer(
     peripheral: PlatformPeripheral,
     peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peer_added: Arc<Notify>,
+    gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
 ) -> Result<()> {
     let bt_err = |e: btleplug::Error| KursalError::Network(e.to_string());
 
-    if !peripheral.is_connected().await.map_err(bt_err)? {
-        peripheral.connect().await.map_err(bt_err)?;
-    }
-    peripheral.discover_services().await.map_err(bt_err)?;
-
-    let chars = peripheral.characteristics();
-    let write_char = chars
-        .iter()
-        .find(|c| c.uuid == CHAR_UUID)
-        .ok_or_else(|| KursalError::Network("bt: kursal char missing".into()))?
-        .clone();
+    let write_char = connect_and_discover(&gatt_locks, &peripheral).await?;
 
     let beacon_bytes = peripheral.read(&write_char).await.map_err(bt_err)?;
     let beacon = NearbyBeacon::deserialize(&beacon_bytes)?;
@@ -488,13 +553,11 @@ async fn handshake_with_peer(
         beacon.session_name
     );
 
-    peers.lock().await.insert(
-        peer_id.clone(),
-        BtPeer {
-            peripheral,
-            write_char,
-        },
-    );
+    peers
+        .lock()
+        .await
+        .insert(peer_id.clone(), BtPeer::new(peripheral, write_char));
+    peer_added.notify_waiters();
 
     bt_event_tx
         .send(BtEvent::Beacon { peer_id, beacon })
@@ -582,7 +645,11 @@ fn kursal_service() -> Service {
         primary: true,
         characteristics: vec![AdCharacteristic {
             uuid: CHAR_UUID,
-            properties: vec![CharacteristicProperty::Read, CharacteristicProperty::Write],
+            properties: vec![
+                CharacteristicProperty::Read,
+                CharacteristicProperty::Write,
+                CharacteristicProperty::WriteWithoutResponse,
+            ],
             permissions: vec![
                 AttributePermission::Readable,
                 AttributePermission::Writeable,
