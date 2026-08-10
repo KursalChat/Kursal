@@ -68,7 +68,7 @@ pub fn hash_otp(otp: &str) -> Result<[u8; 32]> {
         argon2::Version::V0x13,
         ParamsBuilder::new()
             .m_cost(256 * 1024)
-            .t_cost(2)
+            .t_cost(1)
             .p_cost(1)
             .output_len(32)
             .build()
