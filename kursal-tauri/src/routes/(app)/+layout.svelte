@@ -354,6 +354,13 @@
     .shell:not(.chat-active) .content.offline {
       padding-top: calc(var(--header-height) + 30px + var(--safe-top));
     }
+    .shell.chat-active .content.offline {
+      padding-top: 30px;
+    }
+    .shell.chat-active .offline-banner {
+      top: 0;
+      padding-top: calc(6px + var(--safe-top));
+    }
     .shell:not(.chat-active) .offline-banner {
       top: calc(var(--header-height) + var(--safe-top));
     }

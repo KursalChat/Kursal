@@ -20,9 +20,11 @@
 </script>
 
 <div class="onboarding" class:bright={screen === 5}>
+  <div class="backdrop" aria-hidden="true">
+    <div class="grain"></div>
+    <div class="glow-bg"></div>
+  </div>
   <div class="mac-drag" data-tauri-drag-region aria-hidden="true"></div>
-  <div class="grain"></div>
-  <div class="glow-bg"></div>
 
   <div class="progress-dots" aria-hidden="true">
     {#each Array(5) as _, i}
@@ -91,15 +93,11 @@
   .onboarding {
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(ellipse at 20% 15%, rgba(46, 91, 215, 0.18) 0%, transparent 45%),
-      radial-gradient(ellipse at 85% 85%, rgba(30, 80, 229, 0.12) 0%, transparent 50%), #05070f;
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;
     align-items: stretch;
     justify-content: center;
-    transition: background 1200ms ease;
     -webkit-overflow-scrolling: touch;
     padding-top: var(--safe-top);
     padding-bottom: var(--safe-bottom);
@@ -107,7 +105,18 @@
     padding-right: var(--safe-right);
   }
 
-  .onboarding.bright {
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 15%, rgba(46, 91, 215, 0.18) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 85%, rgba(30, 80, 229, 0.12) 0%, transparent 50%), #05070f;
+    transition: background 1200ms ease;
+  }
+
+  .onboarding.bright .backdrop {
     background:
       radial-gradient(ellipse at 50% 30%, rgba(123, 163, 247, 0.28) 0%, transparent 55%),
       radial-gradient(ellipse at 50% 90%, rgba(46, 91, 215, 0.2) 0%, transparent 60%), #0a1026;
