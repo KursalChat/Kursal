@@ -44,6 +44,7 @@
   import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
   import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
   import { readInsets } from '$lib/utils/android-insets';
+  import * as haptics from '$lib/utils/haptics';
   import { t, dateLocale } from '$lib/i18n';
 
   interface Props {
@@ -89,6 +90,64 @@
     if (!audioMenu) return;
     if ((e.target as HTMLElement)?.closest('.self-controls')) return;
     audioMenu = null;
+  }
+
+  // Drawer swipe: grab from the screen edge to open, drag anywhere on the panel
+  // to close. Only in drawer mode, which the CSS switches on at the same width.
+  const DRAWER_MAX_WIDTH = 768;
+  const EDGE_ZONE = 20;
+  const AXIS_LOCK = 10;
+  const COMMIT = 72;
+
+  let asideEl = $state<HTMLElement | null>(null);
+  let swipe: { x: number; y: number; opening: boolean; locked: boolean } | null = null;
+
+  function drawerWidth(): number {
+    return asideEl?.offsetWidth || 300;
+  }
+
+  function onDrawerTouchStart(e: TouchEvent) {
+    swipe = null;
+    if (e.touches.length !== 1 || window.innerWidth > DRAWER_MAX_WIDTH) return;
+    const touch = e.touches[0];
+    const open = uiState.mobileSidebarOpen;
+    if (!open && touch.clientX > readInsets().left + EDGE_ZONE) return;
+    if (open && !asideEl?.contains(e.target as Node)) return;
+    swipe = { x: touch.clientX, y: touch.clientY, opening: !open, locked: false };
+  }
+
+  function onDrawerTouchMove(e: TouchEvent) {
+    if (!swipe) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipe.x;
+    const dy = touch.clientY - swipe.y;
+    if (!swipe.locked) {
+      if (Math.abs(dx) < AXIS_LOCK && Math.abs(dy) < AXIS_LOCK) return;
+      // A vertical intent belongs to the contact list, so drop the gesture.
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        swipe = null;
+        return;
+      }
+      swipe.locked = true;
+    }
+    const width = drawerWidth();
+    const offset = (swipe.opening ? 0 : width) + dx;
+    uiState.sidebarDrag = Math.max(0, Math.min(1, offset / width));
+  }
+
+  function onDrawerTouchEnd() {
+    if (!swipe) return;
+    const progress = uiState.sidebarDrag;
+    if (progress !== null) {
+      const threshold = Math.min(COMMIT, drawerWidth() * 0.35) / drawerWidth();
+      const open = swipe.opening ? progress > threshold : progress > 1 - threshold;
+      if (open !== uiState.mobileSidebarOpen) {
+        uiState.mobileSidebarOpen = open;
+        void haptics.impact('light');
+      }
+    }
+    swipe = null;
+    uiState.sidebarDrag = null;
   }
 
   function handleAddContact() {
@@ -224,9 +283,23 @@
   }
 </script>
 
-<svelte:window onpointerdown={onWindowPointerDown} />
+<svelte:window
+  onpointerdown={onWindowPointerDown}
+  ontouchstart={onDrawerTouchStart}
+  ontouchmove={onDrawerTouchMove}
+  ontouchend={onDrawerTouchEnd}
+  ontouchcancel={onDrawerTouchEnd}
+/>
 
-<aside class="sidebar" class:open={uiState.mobileSidebarOpen}>
+<aside
+  class="sidebar"
+  class:open={uiState.mobileSidebarOpen}
+  class:dragging={uiState.sidebarDrag !== null}
+  style={uiState.sidebarDrag !== null
+    ? `transform: translateX(${(uiState.sidebarDrag - 1) * 100}%)`
+    : ''}
+  bind:this={asideEl}
+>
   <div class="sidebar-header" data-tauri-drag-region>
     <button
       class="brand"
@@ -1187,6 +1260,9 @@
     }
     .sidebar.open {
       transform: translateX(0);
+    }
+    .sidebar.dragging {
+      transition: none;
     }
 
     .icon-btn.mobile-close {

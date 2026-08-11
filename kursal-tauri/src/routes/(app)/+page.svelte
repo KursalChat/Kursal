@@ -83,8 +83,10 @@
         const s = await getNodeStats();
         if (cancelled) return;
         nodeStats = s;
-        pushSample('cpu', s.cpuPercent);
-        pushSample('mem', s.memBytes);
+        if (s.memBytes > 0) {
+          pushSample('cpu', s.cpuPercent);
+          pushSample('mem', s.memBytes);
+        }
         pushSample('in', s.rateIn);
         pushSample('out', s.rateOut);
       } catch {
@@ -98,6 +100,8 @@
       clearInterval(timer);
     };
   });
+
+  const processStatsAvailable = $derived(!!nodeStats && nodeStats.memBytes > 0);
 
   const greetingKey = (() => {
     const h = new Date().getHours();
@@ -190,17 +194,23 @@
         </svg>
         <span class="tile-scale">{t('home.tileScale', { max: ceilLabel })}</span>
       {/snippet}
-      <section class="tile-grid" aria-label={t('home.statusHeading')}>
-        <div class="tile">
-          <span class="tile-label">{t('home.tileCpu')}</span>
-          <span class="tile-value">{nodeStats.cpuPercent.toFixed(1)}%</span>
-          {@render sparkline('cpu', `${series.cpu.ceil}%`)}
-        </div>
-        <div class="tile">
-          <span class="tile-label">{t('home.tileMem')}</span>
-          <span class="tile-value">{formatFileSize(nodeStats.memBytes)}</span>
-          {@render sparkline('mem', formatFileSize(series.mem.ceil))}
-        </div>
+      <section
+        class="tile-grid"
+        class:net-only={!processStatsAvailable}
+        aria-label={t('home.statusHeading')}
+      >
+        {#if processStatsAvailable}
+          <div class="tile">
+            <span class="tile-label">{t('home.tileCpu')}</span>
+            <span class="tile-value">{nodeStats.cpuPercent.toFixed(1)}%</span>
+            {@render sparkline('cpu', `${series.cpu.ceil}%`)}
+          </div>
+          <div class="tile">
+            <span class="tile-label">{t('home.tileMem')}</span>
+            <span class="tile-value">{formatFileSize(nodeStats.memBytes)}</span>
+            {@render sparkline('mem', formatFileSize(series.mem.ceil))}
+          </div>
+        {/if}
         <div class="tile">
           <span class="tile-label">{t('home.tileDown')}</span>
           <span class="tile-value">{formatFileSize(Math.round(nodeStats.rateIn)) || '0 B'}/s</span>
@@ -433,6 +443,9 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
+  }
+  .tile-grid.net-only {
+    grid-template-columns: repeat(2, 1fr);
   }
   .tile {
     display: flex;

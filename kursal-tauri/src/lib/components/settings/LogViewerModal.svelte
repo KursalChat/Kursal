@@ -113,7 +113,7 @@
 
     <!-- The pre stays mounted so refreshing swaps text under a fixed frame. -->
     <div class="log-wrap">
-      <pre class="log-body" bind:this={bodyEl}>{text}</pre>
+      <pre class="log-body selectable" bind:this={bodyEl}>{text}</pre>
       {#if loading || !text}
         <div class="log-overlay">
           {#if loading}
@@ -175,8 +175,7 @@
     padding: 22px;
     width: 100%;
     max-width: 720px;
-    /* Fixed height: content length must not resize the dialog on refresh. */
-    height: min(640px, 85vh, 100%);
+    height: min(640px, 80vh, calc(100% - 32px));
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -243,7 +242,6 @@
     white-space: pre-wrap;
     word-break: break-word;
     scrollbar-width: thin;
-    user-select: text;
   }
   .muted {
     color: var(--text-muted);
