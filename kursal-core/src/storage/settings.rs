@@ -157,6 +157,18 @@ pub fn set_contact_last_seen(db: &Database, contact_id: &str, ts_ms: u64) -> Res
     Ok(())
 }
 
+pub fn get_last_offline_sweep(db: &Database) -> Option<u64> {
+    match db.raw_read(TABLE_SETTINGS, "last_offline_sweep") {
+        Ok(Some(bytes)) => bytes.try_into().ok().map(u64::from_le_bytes),
+        _ => None,
+    }
+}
+
+pub fn set_last_offline_sweep(db: &Database, ts_secs: u64) -> Result<()> {
+    db.raw_write(TABLE_SETTINGS, "last_offline_sweep", &ts_secs.to_le_bytes())?;
+    Ok(())
+}
+
 pub fn get_contact_alias(db: &Database, contact_id: &str) -> Option<String> {
     match db.raw_read(TABLE_SETTINGS, &format!("contact_alias:{contact_id}")) {
         Ok(Some(bytes)) => String::from_utf8(bytes).ok().filter(|s| !s.is_empty()),

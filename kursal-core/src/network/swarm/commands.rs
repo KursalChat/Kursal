@@ -48,8 +48,21 @@ pub(super) async fn handle_swarm_command(
                 }
             }
         }
+        SwarmCommand::DialPeer { peer_id, addresses } => {
+            if addresses.is_empty() {
+                return;
+            }
+            let opts = DialOpts::peer_id(peer_id)
+                .addresses(addresses)
+                .condition(PeerCondition::DisconnectedAndNotDialing)
+                .build();
+            if let Err(err) = swarm.dial(opts) {
+                log::debug!("[presence] dial to {peer_id} skipped: {err:?}");
+            }
+        }
         SwarmCommand::AddNode(addr) => {
             if let Some(Protocol::P2p(peer_id)) = addr.iter().last() {
+                swarm.behaviour_mut().limiter.protect(peer_id);
                 swarm
                     .behaviour_mut()
                     .kad
@@ -179,12 +192,20 @@ pub(super) async fn handle_swarm_command(
             pending_queries.insert(query_id, reply_tx);
         }
         SwarmCommand::ContactAdded { contact } => {
+            if let Ok(peer_id) = contact.peer_id.parse::<PeerId>() {
+                swarm.behaviour_mut().limiter.protect(peer_id);
+            }
             for addr_str in &contact.known_addresses {
                 if let Ok(addr) = addr_str.parse::<Multiaddr>()
                     && let Some(Protocol::P2p(peer_id)) = addr.iter().last()
                 {
                     swarm.behaviour_mut().kad.add_address(&peer_id, addr);
                 }
+            }
+        }
+        SwarmCommand::ContactRemoved { peer_id } => {
+            if let Ok(peer_id) = peer_id.parse::<PeerId>() {
+                swarm.behaviour_mut().limiter.unprotect(&peer_id);
             }
         }
         SwarmCommand::SendMessage {

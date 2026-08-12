@@ -17,7 +17,7 @@ pub struct KursalBehaviour {
     pub identify: libp2p::identify::Behaviour,
     pub request_response: request_response::Behaviour<super::KursalMsgCodec>,
     pub streaming: libp2p_stream::Behaviour,
-    pub limiter: Toggle<ConnectionLimiter>,
+    pub limiter: ConnectionLimiter,
     pub ping: libp2p::ping::Behaviour,
 }
 

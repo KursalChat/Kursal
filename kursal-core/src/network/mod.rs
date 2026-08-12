@@ -200,6 +200,15 @@ pub async fn dispatch_events(
                 let _ = cmd_tx.send(SwarmCommand::AddNode(addr)).await;
             }
         }
+
+        match crate::contacts::Contact::load_all(&*db.0.lock().await) {
+            Ok(contacts) => {
+                for contact in contacts {
+                    let _ = cmd_tx.send(SwarmCommand::ContactAdded { contact }).await;
+                }
+            }
+            Err(err) => log::warn!("[swarm] contact seeding failed: {err}"),
+        }
     }
     #[cfg(feature = "calls")]
     {

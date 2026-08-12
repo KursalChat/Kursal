@@ -167,8 +167,11 @@ pub async fn spawn_relay_swarm(
                     key.public(),
                 ));
 
-                let limiter =
-                    ConnectionLimiter::new(config.max_connections, config.max_connections_per_ip);
+                let limiter = ConnectionLimiter::new(
+                    config.max_connections,
+                    config.max_connections_per_ip,
+                    None,
+                );
 
                 let ping = libp2p::ping::Behaviour::new(
                     libp2p::ping::Config::new()

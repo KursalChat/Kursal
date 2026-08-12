@@ -8,7 +8,7 @@ use crate::{
     network::{
         bootstrap::bootstrap_peers,
         kademlia::{KAD_MAX_PACKET, KAD_VALIDATED_QUEUE, KursalKadStore},
-        limiter::ConnectionLimiter,
+        limiter::{ConnectionLimiter, MAX_TRANSIENT_CONNECTIONS},
     },
     storage::RelayConfig,
 };
@@ -72,6 +72,10 @@ pub enum SwarmCommand {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
     },
+    DialPeer {
+        peer_id: PeerId,
+        addresses: Vec<Multiaddr>,
+    },
     AddNode(Multiaddr),
     DialOnce {
         addr: Multiaddr,
@@ -114,6 +118,9 @@ pub enum SwarmCommand {
     EnsureRelayReservations,
     ContactAdded {
         contact: Contact,
+    },
+    ContactRemoved {
+        peer_id: String,
     },
     GetListenAddresses {
         reply_tx: oneshot::Sender<Vec<Multiaddr>>,
@@ -301,12 +308,13 @@ impl SwarmHandle {
                 let streaming = libp2p_stream::Behaviour::new();
 
                 let limiter = if relay_config.enabled {
-                    Toggle::from(Some(ConnectionLimiter::new(
+                    ConnectionLimiter::new(
                         relay_config.max_connections,
                         relay_config.max_connections_per_ip,
-                    )))
+                        None,
+                    )
                 } else {
-                    Toggle::from(None)
+                    ConnectionLimiter::new(0, 0, Some(MAX_TRANSIENT_CONNECTIONS))
                 };
 
                 let ping = libp2p::ping::Behaviour::new(
@@ -417,6 +425,7 @@ impl SwarmHandle {
 
             for multiaddr in bootstrap_peers() {
                 if let Some(Protocol::P2p(peer_id)) = multiaddr.iter().last() {
+                    swarm.behaviour_mut().limiter.protect(peer_id);
                     swarm
                         .behaviour_mut()
                         .kad

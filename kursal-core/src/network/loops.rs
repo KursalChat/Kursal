@@ -16,7 +16,7 @@ use crate::{
         kademlia::KAD_LONG_MAX_AGE,
         swarm::{ConnectionKind, SwarmCommand},
     },
-    storage::{SharedDatabase, get_timestamp_secs},
+    storage::{SharedDatabase, get_last_offline_sweep, get_timestamp_secs, set_last_offline_sweep},
 };
 use libp2p::PeerId;
 use std::{
@@ -27,7 +27,8 @@ use std::{
 };
 use tokio::sync::{Mutex, mpsc};
 
-const OFFLINE_PERIODIC_POLL_SECS: u64 = 15 * 60;
+const OFFLINE_PERIODIC_POLL_SECS: u64 = 30 * 60;
+const OFFLINE_SWEEP_COOLDOWN_SECS: u64 = 10 * 60;
 const OFFLINE_REPUBLISH_SECS: u64 = 3 * 60 * 60;
 const OFFLINE_POLL_STAGGER_MS: u64 = 1000;
 const PRESENCE_DIAL_INTERVAL_SECS: u64 = 3 * 60;
@@ -151,10 +152,6 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
 
     loop {
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-        let connected_peers: HashSet<PeerId> = crate::network::swarm::get_connected_peers(&cmd_tx)
-            .await
-            .into_iter()
-            .collect();
         let contacts = match Contact::load_all(&*db.0.lock().await) {
             Ok(c) => c,
             Err(err) => {
@@ -168,14 +165,17 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
             let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
                 continue;
             };
-            if connected_peers.contains(&peer_id) {
+            let addresses: Vec<libp2p::Multiaddr> = contact
+                .known_addresses
+                .iter()
+                .filter_map(|addr| addr.parse().ok())
+                .collect();
+            if addresses.is_empty() {
                 continue;
             }
-            for addr_str in &contact.known_addresses {
-                if let Ok(addr) = addr_str.parse::<libp2p::Multiaddr>() {
-                    let _ = cmd_tx.send(SwarmCommand::Dial(addr)).await;
-                }
-            }
+            let _ = cmd_tx
+                .send(SwarmCommand::DialPeer { peer_id, addresses })
+                .await;
             tokio::time::sleep(Duration::from_millis(PRESENCE_DIAL_STAGGER_MS)).await;
         }
 
@@ -214,17 +214,24 @@ pub(super) async fn periodic_offline_poll(
             }
         };
 
-        let do_republish = last_republish
-            .map(|t| t.elapsed().as_secs() >= OFFLINE_REPUBLISH_SECS)
-            .unwrap_or(true);
-        if do_republish {
-            last_republish = Some(tokio::time::Instant::now());
-        }
-
         if contacts.is_empty() {
             interval.tick().await;
             continue;
         }
+
+        let now = get_timestamp_secs().unwrap_or(0);
+        let last_sweep = get_last_offline_sweep(&*db.0.lock().await).unwrap_or(0);
+        let mailbox_sweep = now.saturating_sub(last_sweep) >= OFFLINE_SWEEP_COOLDOWN_SECS;
+
+        let do_republish = mailbox_sweep
+            && last_republish
+                .map(|t| t.elapsed().as_secs() >= OFFLINE_REPUBLISH_SECS)
+                .unwrap_or(true);
+        if do_republish {
+            last_republish = Some(tokio::time::Instant::now());
+        }
+
+        let peer_kinds = crate::network::swarm::get_peer_connection_kinds(&cmd_tx).await;
 
         let _ = event_tx.send(AppEvent::OfflineSync { active: true }).await;
 
@@ -251,19 +258,32 @@ pub(super) async fn periodic_offline_poll(
                 log::warn!("[offline] periodic republish failed: {err}");
             }
 
-            if let Err(err) = poll_contact_offline(
-                contact.user_id.clone(),
-                cmd_tx.clone(),
-                db.clone(),
-                event_tx.clone(),
-                PollTrigger::Periodic,
-            )
-            .await
+            let direct = PeerId::from_str(&contact.peer_id).ok().is_some_and(|peer| {
+                matches!(
+                    peer_kinds.get(&peer),
+                    Some(ConnectionKind::Direct | ConnectionKind::HolePunch)
+                )
+            });
+
+            if mailbox_sweep
+                && (!direct || do_republish)
+                && let Err(err) = poll_contact_offline(
+                    contact.user_id.clone(),
+                    cmd_tx.clone(),
+                    db.clone(),
+                    event_tx.clone(),
+                    PollTrigger::Periodic,
+                )
+                .await
             {
                 log::warn!("[offline] periodic poll failed: {err}");
             }
 
             tokio::time::sleep(Duration::from_millis(OFFLINE_POLL_STAGGER_MS)).await;
+        }
+
+        if mailbox_sweep && let Err(err) = set_last_offline_sweep(&*db.0.lock().await, now) {
+            log::warn!("[offline] sweep timestamp not saved: {err}");
         }
 
         drive_pending_ack_backstop(&db, &cmd_tx, &event_tx).await;

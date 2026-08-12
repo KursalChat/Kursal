@@ -1,10 +1,20 @@
-use std::{collections::HashMap, convert::Infallible, net::IpAddr, task::Poll};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    convert::Infallible,
+    net::IpAddr,
+    task::{Poll, Waker},
+};
 
 use libp2p::{
     Multiaddr, PeerId,
     multiaddr::Protocol,
-    swarm::{ConnectionDenied, FromSwarm, NetworkBehaviour, dummy},
+    swarm::{
+        CloseConnection, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, ToSwarm,
+        dummy,
+    },
 };
+
+pub const MAX_TRANSIENT_CONNECTIONS: usize = 32;
 
 pub struct ConnectionLimiter {
     pub max_total: u32,
@@ -12,16 +22,64 @@ pub struct ConnectionLimiter {
     by_ip: HashMap<IpAddr, u32>,
     by_peer: HashMap<PeerId, u32>,
     total: u32,
+    transient_cap: Option<usize>,
+    protected: HashSet<PeerId>,
+    transient: VecDeque<(ConnectionId, PeerId)>,
+    pending: VecDeque<ToSwarm<Infallible, Infallible>>,
+    waker: Option<Waker>,
 }
 
 impl ConnectionLimiter {
-    pub fn new(max_total: u32, max_per_ip: u32) -> Self {
+    pub fn new(max_total: u32, max_per_ip: u32, transient_cap: Option<usize>) -> Self {
         Self {
             max_per_ip,
             max_total,
             total: 0,
             by_ip: HashMap::new(),
             by_peer: HashMap::new(),
+            transient_cap,
+            protected: HashSet::new(),
+            transient: VecDeque::new(),
+            pending: VecDeque::new(),
+            waker: None,
+        }
+    }
+
+    pub fn protect(&mut self, peer_id: PeerId) {
+        if self.protected.insert(peer_id) {
+            self.transient.retain(|(_, peer)| *peer != peer_id);
+        }
+    }
+
+    pub fn unprotect(&mut self, peer_id: &PeerId) {
+        self.protected.remove(peer_id);
+    }
+
+    fn track_transient(&mut self, connection_id: ConnectionId, peer_id: PeerId) {
+        let Some(cap) = self.transient_cap else {
+            return;
+        };
+        if self.protected.contains(&peer_id) {
+            return;
+        }
+
+        self.transient.push_back((connection_id, peer_id));
+
+        while self.transient.len() > cap {
+            let Some((evicted, peer)) = self.transient.pop_front() else {
+                break;
+            };
+            log::debug!("[conn] transient cap {cap} reached: evicting {evicted:?} to {peer}");
+            self.pending.push_back(ToSwarm::CloseConnection {
+                peer_id: peer,
+                connection: CloseConnection::One(evicted),
+            });
+        }
+
+        if !self.pending.is_empty()
+            && let Some(waker) = self.waker.take()
+        {
+            waker.wake();
         }
     }
 }
@@ -67,6 +125,8 @@ impl NetworkBehaviour for ConnectionLimiter {
     fn on_swarm_event(&mut self, event: libp2p::swarm::FromSwarm) {
         match event {
             FromSwarm::ConnectionEstablished(e) => {
+                self.track_transient(e.connection_id, e.peer_id);
+
                 if !e.endpoint.is_listener() {
                     return;
                 }
@@ -83,6 +143,8 @@ impl NetworkBehaviour for ConnectionLimiter {
                 }
             }
             FromSwarm::ConnectionClosed(e) => {
+                self.transient.retain(|(cid, _)| *cid != e.connection_id);
+
                 if !e.endpoint.is_listener() {
                     return;
                 }
@@ -157,9 +219,14 @@ impl NetworkBehaviour for ConnectionLimiter {
 
     fn poll(
         &mut self,
-        _cx: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<libp2p::swarm::ToSwarm<Self::ToSwarm, libp2p::swarm::THandlerInEvent<Self>>>
     {
+        if let Some(action) = self.pending.pop_front() {
+            return Poll::Ready(action);
+        }
+
+        self.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }

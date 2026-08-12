@@ -28,7 +28,7 @@ use crate::{
     },
     network::{
         NetworkManager,
-        swarm::{FILE_CHUNK_SIZE, SwarmHandle},
+        swarm::{FILE_CHUNK_SIZE, SwarmCommand, SwarmHandle},
     },
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS, file::KursalFile, filetransfer::hash_file,
@@ -449,6 +449,11 @@ pub async fn handle_core_command(
                         None,
                     )
                     .await;
+                    let _ = cmd_tx
+                        .send(SwarmCommand::ContactRemoved {
+                            peer_id: contact.peer_id.clone(),
+                        })
+                        .await;
                 }
 
                 remove_contact_transfers(db.clone(), &user_id).await?;
