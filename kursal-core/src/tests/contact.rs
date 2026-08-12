@@ -88,3 +88,114 @@ fn contact_load_all_three() {
     let all = Contact::load_all(&db).unwrap();
     assert_eq!(all.len(), 3);
 }
+
+#[test]
+fn find_by_peer_id_reports_unknown_peers() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "peer_unknown");
+    make_contact(UserId([4u8; 32])).save(&db).unwrap();
+
+    assert!(
+        Contact::find_by_peer_id(&db, "Test User")
+            .unwrap()
+            .is_some()
+    );
+    assert!(Contact::find_by_peer_id(&db, "stranger").unwrap().is_none());
+}
+
+#[test]
+fn find_by_peer_id_follows_a_rotated_peer_id() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "peer_rotate");
+    let user_id = UserId([5u8; 32]);
+
+    let mut contact = make_contact(user_id.clone());
+    contact.save(&db).unwrap();
+
+    contact.peer_id = "rotated".to_string();
+    contact.save(&db).unwrap();
+
+    assert!(
+        Contact::find_by_peer_id(&db, "Test User")
+            .unwrap()
+            .is_none()
+    );
+    let found = Contact::find_by_peer_id(&db, "rotated").unwrap().unwrap();
+    assert_eq!(found.user_id.0, user_id.0);
+}
+
+#[test]
+fn deleted_contact_leaves_no_peer_binding() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "peer_delete");
+    let user_id = UserId([6u8; 32]);
+    make_contact(user_id.clone()).save(&db).unwrap();
+
+    Contact::delete(&db, &user_id).unwrap();
+
+    assert!(Contact::load(&db, &user_id).unwrap().is_none());
+    assert!(
+        Contact::find_by_peer_id(&db, "Test User")
+            .unwrap()
+            .is_none()
+    );
+    assert!(Contact::load_all(&db).unwrap().is_empty());
+}
+
+#[test]
+fn save_if_exists_ignores_an_unknown_contact() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "save_if_exists");
+    let user_id = UserId([7u8; 32]);
+
+    make_contact(user_id.clone()).save_if_exists(&db).unwrap();
+    assert!(Contact::load(&db, &user_id).unwrap().is_none());
+
+    make_contact(user_id.clone()).save(&db).unwrap();
+    let mut contact = Contact::load(&db, &user_id).unwrap().unwrap();
+    contact.display_name = "Renamed".to_string();
+    contact.save_if_exists(&db).unwrap();
+
+    let loaded = Contact::load(&db, &user_id).unwrap().unwrap();
+    assert_eq!(loaded.display_name, "Renamed");
+}
+
+// Two handles in one process must not serve each other's contacts.
+#[test]
+fn each_database_keeps_its_own_contacts() {
+    let env = TestEnv::new();
+    let first = make_db(&env, "scope_a");
+    let second = make_db(&env, "scope_b");
+
+    make_contact(UserId([8u8; 32])).save(&first).unwrap();
+
+    assert_eq!(Contact::load_all(&first).unwrap().len(), 1);
+    assert!(Contact::load_all(&second).unwrap().is_empty());
+    assert!(
+        Contact::find_by_peer_id(&second, "Test User")
+            .unwrap()
+            .is_none()
+    );
+}
+
+// A contact written by one handle has to be visible to a handle opened later
+// over the same file, which is what a restart looks like.
+#[test]
+fn a_reopened_database_sees_stored_contacts() {
+    let env = TestEnv::new();
+    let user_id = UserId([9u8; 32]);
+
+    {
+        let db = make_db(&env, "reopen");
+        make_contact(user_id.clone()).save(&db).unwrap();
+    }
+
+    let reopened = make_db(&env, "reopen");
+    let loaded = Contact::load(&reopened, &user_id).unwrap().unwrap();
+    assert_eq!(loaded.user_id.0, user_id.0);
+    assert!(
+        Contact::find_by_peer_id(&reopened, "Test User")
+            .unwrap()
+            .is_some()
+    );
+}

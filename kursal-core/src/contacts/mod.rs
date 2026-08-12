@@ -9,10 +9,62 @@ use crate::{
 use libsignal_protocol::ProtocolAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{LazyLock, RwLock};
+use std::sync::{Arc, LazyLock, RwLock};
 
-static PEER_ID_CACHE: LazyLock<RwLock<HashMap<String, UserId>>> =
+#[derive(Default)]
+struct Roster {
+    by_user: HashMap<UserId, Contact>,
+    by_peer: HashMap<String, UserId>,
+}
+
+impl Roster {
+    fn insert(&mut self, contact: Contact) {
+        if let Some(previous) = self.by_user.get(&contact.user_id)
+            && previous.peer_id != contact.peer_id
+        {
+            self.by_peer.remove(&previous.peer_id);
+        }
+        self.by_peer
+            .insert(contact.peer_id.clone(), contact.user_id.clone());
+        self.by_user.insert(contact.user_id.clone(), contact);
+    }
+
+    fn remove(&mut self, user_id: &UserId) {
+        if let Some(contact) = self.by_user.remove(user_id) {
+            self.by_peer.remove(&contact.peer_id);
+        }
+    }
+}
+
+// contact mirrored in memory
+static ROSTERS: LazyLock<RwLock<HashMap<u64, Arc<RwLock<Roster>>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
+
+fn roster(db: &Database) -> Result<Arc<RwLock<Roster>>> {
+    if let Some(existing) = ROSTERS.read_recover().get(&db.id()) {
+        return Ok(existing.clone());
+    }
+
+    let mut loaded = Roster::default();
+    for (_, bytes) in db.raw_readall(TABLE_CONTACTS)? {
+        match Contact::deserialize(&bytes) {
+            Ok(contact) => loaded.insert(contact),
+            Err(err) => log::warn!("[contacts] skipping undeserializable contact: {err}"),
+        }
+    }
+
+    let mut rosters = ROSTERS.write_recover();
+    Ok(rosters
+        .entry(db.id())
+        .or_insert_with(|| Arc::new(RwLock::new(loaded)))
+        .clone())
+}
+
+pub struct ContactRoute {
+    pub user_id: UserId,
+    pub peer_id: String,
+    pub known_addresses: Vec<String>,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Contact {
@@ -44,73 +96,60 @@ impl Contact {
         let serialized = self.serialize()?;
 
         db.raw_write(TABLE_CONTACTS, &user_id, &serialized)?;
+        roster(db)?.write_recover().insert(self.clone());
 
         Ok(())
     }
 
     pub fn save_if_exists(&self, db: &Database) -> Result<()> {
-        let user_id = hex::encode(self.user_id.0);
-        if db.raw_read(TABLE_CONTACTS, &user_id)?.is_none() {
+        let roster = roster(db)?;
+        if !roster.read_recover().by_user.contains_key(&self.user_id) {
             return Ok(());
         }
+
+        let user_id = hex::encode(self.user_id.0);
         let serialized = self.serialize()?;
         db.raw_write(TABLE_CONTACTS, &user_id, &serialized)?;
+        roster.write_recover().insert(self.clone());
 
         Ok(())
     }
 
     pub fn load(db: &Database, user_id: &UserId) -> Result<Option<Self>> {
-        let user_id = hex::encode(user_id.0);
-        let raw = db.raw_read(TABLE_CONTACTS, &user_id)?;
-
-        match raw {
-            Some(v) => match Contact::deserialize(&v) {
-                Ok(contact) => Ok(Some(contact)),
-                Err(e) => {
-                    log::warn!("Failed to deserialize contact {user_id}, treating as absent: {e}");
-                    Ok(None)
-                }
-            },
-            None => Ok(None),
-        }
+        Ok(roster(db)?.read_recover().by_user.get(user_id).cloned())
     }
 
     pub fn load_all(db: &Database) -> Result<Vec<Self>> {
-        let all = db.raw_readall(TABLE_CONTACTS)?;
+        Ok(roster(db)?
+            .read_recover()
+            .by_user
+            .values()
+            .cloned()
+            .collect())
+    }
 
-        let contacts = all
-            .iter()
-            .filter_map(|(_, el)| match Contact::deserialize(el) {
-                Ok(contact) => Some(contact),
-                Err(e) => {
-                    log::warn!("Failed to deserialize contact: {e}");
-                    None
-                }
+    pub fn routes(db: &Database) -> Result<Vec<ContactRoute>> {
+        Ok(roster(db)?
+            .read_recover()
+            .by_user
+            .values()
+            .map(|c| ContactRoute {
+                user_id: c.user_id.clone(),
+                peer_id: c.peer_id.clone(),
+                known_addresses: c.known_addresses.clone(),
             })
-            .collect();
-
-        Ok(contacts)
+            .collect())
     }
 
     pub fn find_by_peer_id(db: &Database, peer_id: &str) -> Result<Option<Self>> {
-        let cached = PEER_ID_CACHE.read_recover().get(peer_id).cloned();
-        if let Some(user_id) = cached
-            && let Some(contact) = Contact::load(db, &user_id)?
-            && contact.peer_id == peer_id
-        {
-            return Ok(Some(contact));
-        }
+        let roster = roster(db)?;
+        let roster = roster.read_recover();
 
-        let all = Contact::load_all(db)?;
-        {
-            let mut cache = PEER_ID_CACHE.write_recover();
-            cache.clear();
-            for contact in &all {
-                cache.insert(contact.peer_id.clone(), contact.user_id.clone());
-            }
-        }
-
-        Ok(all.into_iter().find(|c| c.peer_id == peer_id))
+        Ok(roster
+            .by_peer
+            .get(peer_id)
+            .and_then(|user_id| roster.by_user.get(user_id))
+            .cloned())
     }
 
     pub fn set_verified(db: &Database, user_id: &UserId) -> Result<()> {
@@ -148,6 +187,7 @@ impl Contact {
         let address = ProtocolAddress::new(contact_id.clone(), DEVICE_ID);
 
         db.raw_delete(TABLE_CONTACTS, &contact_id)?;
+        roster(db)?.write_recover().remove(user_id);
         db.raw_delete_prefix(TABLE_MESSAGES, &format!("{contact_id}:"))?;
         db.raw_delete(TABLE_SESSIONS, &address.to_string())?;
         crate::storage::delete_contact_meta(db, &contact_id)?;

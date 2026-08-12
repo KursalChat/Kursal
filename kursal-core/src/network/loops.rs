@@ -67,10 +67,10 @@ pub(super) async fn presence_sync_loop(
                 .ok();
         }
 
-        let contacts = match Contact::load_all(&*db.0.lock().await) {
+        let contacts = match Contact::routes(&db) {
             Ok(c) => c,
             Err(err) => {
-                log::warn!("[presence-sync] load_all failed: {err}");
+                log::warn!("[presence-sync] roster read failed: {err}");
                 interval.tick().await;
                 continue;
             }
@@ -152,10 +152,10 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
 
     loop {
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-        let contacts = match Contact::load_all(&*db.0.lock().await) {
+        let contacts = match Contact::routes(&db) {
             Ok(c) => c,
             Err(err) => {
-                log::warn!("[presence] load_all failed: {err}");
+                log::warn!("[presence] roster read failed: {err}");
                 interval.tick().await;
                 continue;
             }
@@ -205,7 +205,7 @@ pub(super) async fn periodic_offline_poll(
             continue;
         }
 
-        let contacts = match Contact::load_all(&*db.0.lock().await) {
+        let contacts = match Contact::load_all(&db) {
             Ok(c) => c,
             Err(err) => {
                 log::warn!("[offline] periodic poll: load_all failed: {err}");
@@ -220,7 +220,7 @@ pub(super) async fn periodic_offline_poll(
         }
 
         let now = get_timestamp_secs().unwrap_or(0);
-        let last_sweep = get_last_offline_sweep(&*db.0.lock().await).unwrap_or(0);
+        let last_sweep = get_last_offline_sweep(&db).unwrap_or(0);
         let mailbox_sweep = now.saturating_sub(last_sweep) >= OFFLINE_SWEEP_COOLDOWN_SECS;
 
         let do_republish = mailbox_sweep
@@ -282,7 +282,7 @@ pub(super) async fn periodic_offline_poll(
             tokio::time::sleep(Duration::from_millis(OFFLINE_POLL_STAGGER_MS)).await;
         }
 
-        if mailbox_sweep && let Err(err) = set_last_offline_sweep(&*db.0.lock().await, now) {
+        if mailbox_sweep && let Err(err) = set_last_offline_sweep(&db, now) {
             log::warn!("[offline] sweep timestamp not saved: {err}");
         }
 
@@ -310,8 +310,8 @@ async fn drive_pending_ack_backstop(
         }
         if age >= KAD_LONG_MAX_AGE {
             let failed = {
-                let guard = db.0.lock().await;
-                crate::messaging::StoredMessage::set_failed(&guard, &user, &id).unwrap_or(false)
+                let guard = db;
+                crate::messaging::StoredMessage::set_failed(guard, &user, &id).unwrap_or(false)
             };
             let _ = crate::messaging::offline::clear_pending_ack(db, &user, &id).await;
             if failed {

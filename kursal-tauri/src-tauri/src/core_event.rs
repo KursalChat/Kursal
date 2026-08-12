@@ -23,8 +23,8 @@ async fn stamp_last_seen(handle: &AppHandle, contact_id_hex: &str) {
         .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX))
         .unwrap_or(0);
     let state = handle.state::<AppState>();
-    let db = state.db().await;
-    let _ = kursal_core::storage::set_contact_last_seen(&db, contact_id_hex, now_ms);
+    let db = state.db();
+    let _ = kursal_core::storage::set_contact_last_seen(db, contact_id_hex, now_ms);
 }
 
 fn emitter<S: serde::Serialize + Clone>(

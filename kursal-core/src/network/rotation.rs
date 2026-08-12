@@ -28,7 +28,7 @@ impl NetworkManager {
             let _ = secondary.cmd_tx.send(SwarmCommand::Shutdown).await;
         }
 
-        identity.save_next(&*db.0.lock().await)?;
+        identity.save_next(db)?;
 
         let secondary = SwarmHandle::spawn(
             identity,
@@ -52,7 +52,7 @@ impl NetworkManager {
         cmd_tx: &mpsc::Sender<SwarmCommand>,
         app_event_tx: &mpsc::Sender<AppEvent>,
     ) -> Result<()> {
-        let contacts = Contact::load_all(&*db.clone().0.lock().await)?;
+        let contacts = Contact::load_all(&db)?;
 
         let secondary = self.secondary.as_ref().ok_or(KursalError::Identity(
             "Could not access secondary identity".to_string(),
@@ -91,7 +91,7 @@ impl NetworkManager {
             .ok_or_else(|| KursalError::Network("No secondary swarm".to_string()))?;
         self.primary = new_primary;
 
-        TransportIdentity::promote_next(&*db.0.lock().await)?;
+        TransportIdentity::promote_next(db)?;
 
         // update transports to use new swarm's command channel
         self.mdns_transport = Arc::new(MdnsTransport::new(
@@ -112,7 +112,7 @@ impl NetworkManager {
         core_cmd_tx: mpsc::Sender<CoreCommand>,
     ) {
         loop {
-            let secs = get_peer_rotation_interval(&*db.0.lock().await);
+            let secs = get_peer_rotation_interval(&db);
 
             if secs == 0u64 {
                 break;
@@ -141,7 +141,7 @@ impl NetworkManager {
     ) {
         loop {
             let secs = {
-                let lock = db.0.lock().await;
+                let lock = &*db;
                 lock.raw_read(TABLE_SETTINGS, "address_announce_interval_secs")
                     .ok()
                     .flatten()
@@ -167,9 +167,9 @@ pub async fn announce_addresses_to_offline(
     cmd_tx: &mpsc::Sender<SwarmCommand>,
     app_event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let contacts = Contact::load_all(&*db.0.lock().await)?;
+    let contacts = Contact::load_all(&db)?;
 
-    let my_peer_id = TransportIdentity::load(&*db.0.lock().await)?
+    let my_peer_id = TransportIdentity::load(&db)?
         .ok_or_else(|| KursalError::Identity("No transport identity".to_string()))?
         .peer_id
         .to_base58();

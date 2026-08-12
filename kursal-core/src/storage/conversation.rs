@@ -19,10 +19,8 @@ pub fn get_read_cursor(db: &Database, contact_id: &str) -> Option<String> {
 pub fn set_read_cursor(db: &Database, contact_id: &str, value: Option<&str>) -> Result<()> {
     let key = format!("read_cursor:{contact_id}");
     match value.filter(|v| !v.is_empty()) {
-        Some(v) => {
-            db.raw_write(TABLE_CONVERSATION, &key, v.as_bytes())?;
-        }
-        None => db.raw_delete(TABLE_CONVERSATION, &key)?,
+        Some(v) => db.raw_write_deferred(TABLE_CONVERSATION, &key, v.as_bytes())?,
+        None => db.raw_delete_deferred(TABLE_CONVERSATION, &key)?,
     }
     Ok(())
 }
@@ -37,9 +35,9 @@ pub fn get_marked_unread(db: &Database, contact_id: &str) -> bool {
 pub fn set_marked_unread(db: &Database, contact_id: &str, value: bool) -> Result<()> {
     let key = format!("marked_unread:{contact_id}");
     if value {
-        db.raw_write(TABLE_CONVERSATION, &key, &[1u8])?;
+        db.raw_write_deferred(TABLE_CONVERSATION, &key, &[1u8])?;
     } else {
-        db.raw_delete(TABLE_CONVERSATION, &key)?;
+        db.raw_delete_deferred(TABLE_CONVERSATION, &key)?;
     }
     Ok(())
 }
@@ -54,10 +52,10 @@ pub fn get_delayed_unseen(db: &Database, contact_id: &str) -> Vec<String> {
 pub fn set_delayed_unseen(db: &Database, contact_id: &str, ids: &[String]) -> Result<()> {
     let key = format!("delayed_unseen:{contact_id}");
     if ids.is_empty() {
-        db.raw_delete(TABLE_CONVERSATION, &key)?;
+        db.raw_delete_deferred(TABLE_CONVERSATION, &key)?;
         return Ok(());
     }
-    db.raw_write(TABLE_CONVERSATION, &key, &bincode::serialize(ids)?)?;
+    db.raw_write_deferred(TABLE_CONVERSATION, &key, &bincode::serialize(ids)?)?;
     Ok(())
 }
 
@@ -90,12 +88,11 @@ pub fn set_pending_sync(
             .raw_read(TABLE_CONVERSATION, &key)?
             .is_some_and(|v| v.as_slice() == [PENDING_SYNC_DELETE]);
 
-    let value: [u8; 1] = if tombstoned {
-        [PENDING_SYNC_DELETE]
+    if tombstoned {
+        db.raw_write(TABLE_CONVERSATION, &key, &[PENDING_SYNC_DELETE])?;
     } else {
-        [0u8]
-    };
-    db.raw_write(TABLE_CONVERSATION, &key, &value)?;
+        db.raw_write_deferred(TABLE_CONVERSATION, &key, &[0u8])?;
+    }
 
     Ok(())
 }
@@ -126,14 +123,16 @@ pub fn clear_pending_sync_for(db: &Database, contact_id: &str) -> Result<Vec<Str
     )?;
 
     let mut finalized_deletes = Vec::new();
+    let mut batch = db.batch()?;
     for (key, value) in entries {
         if value.as_slice() == [PENDING_SYNC_DELETE]
             && let Some(message_id) = suffix_after_prefix(&key, &prefix)
         {
             finalized_deletes.push(message_id);
         }
-        db.raw_delete(TABLE_CONVERSATION, &key)?;
+        batch.remove(TABLE_CONVERSATION, &key)?;
     }
+    batch.commit()?;
 
     Ok(finalized_deletes)
 }

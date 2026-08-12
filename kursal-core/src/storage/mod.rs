@@ -2,7 +2,6 @@ use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
     api::file_transfers::FileTransferEntry,
-    contacts::Contact,
     crypto::{DEVICE_ID, derive_key},
     identity::UserId,
     storage::filetransfer::{get_auto_download_storage_for, get_folder_size},
@@ -114,11 +113,10 @@ pub fn get_storage_usage(
 
     let mut files_bytes = 0u64;
 
-    let contacts = Contact::load_all(db)?;
-    let mut per_contact = Vec::with_capacity(contacts.len());
-    for contact in contacts.into_iter() {
-        let contact_id = hex::encode(contact.user_id.0);
-
+    // The contact table is keyed by the hex user id
+    let contact_ids = db.raw_keys(TABLE_CONTACTS, "")?;
+    let mut per_contact = Vec::with_capacity(contact_ids.len());
+    for contact_id in contact_ids {
         let contact_files_bytes = get_auto_download_storage_for(&app_data_dir, &contact_id)?;
 
         let read_txn = db.inner.begin_read().ok_kursal(KursalError::Storage)?;

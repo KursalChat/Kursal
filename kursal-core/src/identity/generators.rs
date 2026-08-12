@@ -101,7 +101,7 @@ pub async fn generate_kyber_prekey(
         .ok_kursal(KursalError::Crypto)?;
 
     if last_resort {
-        db.0.lock().await.raw_write(
+        db.raw_write(
             TABLE_SETTINGS,
             &format!("kyber_lastresort_{}", u32::from(kyber_prekey_id)),
             &[1u8],

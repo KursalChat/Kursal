@@ -164,12 +164,10 @@ pub async fn handle_fc_response(
     let now = get_timestamp_secs()?;
 
     let (handshake, otp_expired, ltc_reject) = {
-        let db_lock = db.0.lock().await;
-
         let mut otp_expired = false;
-        let otp_match = match db_lock.raw_read(TABLE_SETTINGS, "otp_pending_id")? {
+        let otp_match = match db.raw_read(TABLE_SETTINGS, "otp_pending_id")? {
             Some(id) if id.as_slice() == response.payload_id.0.as_slice() => {
-                let published_at: u64 = db_lock
+                let published_at: u64 = db
                     .raw_read(TABLE_SETTINGS, "otp_published_at")?
                     .and_then(|b| b.try_into().ok().map(u64::from_be_bytes))
                     .unwrap_or(0);
@@ -181,7 +179,7 @@ pub async fn handle_fc_response(
         };
 
         let mut ltc_reject = None;
-        let ltc_match = match LtcState::load(&db_lock)? {
+        let ltc_match = match LtcState::load(&db)? {
             Some(state) if state.payload_id == response.payload_id => {
                 if now > state.expires_at {
                     ltc_reject = Some(FcRejectReason::Expired);
@@ -208,11 +206,9 @@ pub async fn handle_fc_response(
     };
 
     let Some(handshake) = handshake else {
-        let consumed =
-            db.0.lock()
-                .await
-                .raw_read(TABLE_SETTINGS, "otp_consumed_id")?
-                .is_some_and(|id| id.as_slice() == response.payload_id.0.as_slice());
+        let consumed = db
+            .raw_read(TABLE_SETTINGS, "otp_consumed_id")?
+            .is_some_and(|id| id.as_slice() == response.payload_id.0.as_slice());
 
         let reason = ltc_reject.unwrap_or(if consumed {
             FcRejectReason::AlreadyUsed
@@ -247,7 +243,7 @@ pub async fn handle_fc_response(
 
     let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
 
-    let already_exists = Contact::load(&*db.0.lock().await, &user_id)?.is_some();
+    let already_exists = Contact::load(&db, &user_id)?.is_some();
     if already_exists {
         log::warn!(
             "[fc] ignoring ContactResponse for already-established contact {} (replay or duplicate)",
@@ -283,12 +279,10 @@ pub async fn handle_fc_response(
                 log::warn!("Rejected incoming ContactResponse: missing mailbox ephemeral");
                 return Ok(());
             }
-            let prekey_id =
-                db.0.lock()
-                    .await
-                    .raw_read(TABLE_SETTINGS, "otp_prekey_id")?
-                    .and_then(|b| b.try_into().ok().map(u32::from_be_bytes))
-                    .ok_or_else(|| KursalError::Crypto("No OTP mailbox prekey id".to_string()))?;
+            let prekey_id = db
+                .raw_read(TABLE_SETTINGS, "otp_prekey_id")?
+                .and_then(|b| b.try_into().ok().map(u32::from_be_bytes))
+                .ok_or_else(|| KursalError::Crypto("No OTP mailbox prekey id".to_string()))?;
             let record = db
                 .get_pre_key(PreKeyId::from(prekey_id))
                 .await
@@ -335,19 +329,17 @@ pub async fn handle_fc_response(
     };
 
     let (otp_dht_key, ltc_denied, ltc_status) = {
-        let db_lock = db.0.lock().await;
-
         let mut ltc_denied = false;
         let mut ltc_status = None;
         if matches!(handshake, HandshakeKind::Ltc) {
-            match LtcState::load(&db_lock)? {
+            match LtcState::load(&db)? {
                 Some(mut state)
                     if state.payload_id == response.payload_id
                         && now <= state.expires_at
                         && state.max_uses.is_none_or(|max| state.uses < max) =>
                 {
                     state.uses += 1;
-                    state.save(&db_lock)?;
+                    state.save(&db)?;
                     ltc_status = Some(state.dto_serialize()?);
                 }
                 _ => ltc_denied = true,
@@ -357,15 +349,15 @@ pub async fn handle_fc_response(
         if ltc_denied {
             (None, true, None)
         } else {
-            contact.save(&db_lock)?;
-            crate::storage::set_contact_terminated(&db_lock, &hex::encode(user_id.0), false)?;
+            contact.save(&db)?;
+            crate::storage::set_contact_terminated(&db, &hex::encode(user_id.0), false)?;
 
-            let dht_key = db_lock.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
-            db_lock.raw_write(TABLE_SETTINGS, "otp_consumed_id", &response.payload_id.0)?;
-            db_lock.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
-            db_lock.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
-            db_lock.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
-            db_lock.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
+            let dht_key = db.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
+            db.raw_write(TABLE_SETTINGS, "otp_consumed_id", &response.payload_id.0)?;
+            db.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
+            db.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
+            db.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
+            db.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
 
             (dht_key, false, ltc_status)
         }

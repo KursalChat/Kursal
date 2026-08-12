@@ -248,7 +248,7 @@ pub async fn handle_nearby_request(
 
     let mut rx = transport.register_handshake(from_peer_id).await;
 
-    let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+    let dilithium_pub_key = get_dilithium_pub(&db)?;
 
     let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
     let mailbox_kem_prekey_id: u32 = my_bundle.kyber_pre_key_id.into();
@@ -330,10 +330,7 @@ pub async fn handle_nearby_request(
                     .await?,
             };
 
-            {
-                let db_lock = db.0.lock().await;
-                contact.save(&db_lock)?;
-            }
+            contact.save(&db)?;
 
             cmd_tx
                 .send(SwarmCommand::ContactAdded {
@@ -406,7 +403,7 @@ pub async fn nearby_connect(
             let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
 
             let our_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-            let our_dilithium = get_dilithium_pub(&*db.0.lock().await)?;
+            let our_dilithium = get_dilithium_pub(&db)?;
 
             let contact = Contact {
                 user_id,
@@ -438,10 +435,7 @@ pub async fn nearby_connect(
                 )
                 .await?;
 
-            {
-                let db_lock = db.0.lock().await;
-                contact.save(&db_lock)?;
-            }
+            contact.save(&db)?;
 
             cmd_tx
                 .send(SwarmCommand::ContactAdded {

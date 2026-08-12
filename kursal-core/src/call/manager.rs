@@ -371,7 +371,7 @@ async fn store_call_record(
         reactions: Vec::new(),
     };
 
-    if stored.save(&*db.0.lock().await).is_err() {
+    if stored.save(db).is_err() {
         return;
     }
 
@@ -505,10 +505,10 @@ pub async fn start(
         .try_into()
         .map_err(|_| KursalError::Crypto("invalid contact id length".into()))?;
 
-    let peer = Contact::load(&*db.0.lock().await, &UserId(bytes))?
+    let peer = Contact::load(&db, &UserId(bytes))?
         .ok_or_else(|| KursalError::Storage("contact not found".into()))?;
 
-    let sample_rate = crate::storage::get_call_sample_rate(&*db.0.lock().await);
+    let sample_rate = crate::storage::get_call_sample_rate(&db);
 
     let mut guard = slot().lock().await;
     if guard.is_some() {

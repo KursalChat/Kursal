@@ -98,7 +98,7 @@ async fn test_message_roundtrip_with_receipt() {
         pinned: false,
         reactions: vec![],
     };
-    sent.save(&*alice.0.lock().await).unwrap();
+    sent.save(&alice).unwrap();
 
     // ── Bob decrypts ──────────────────────────────────────────
     let decrypted = message_receive(bob.clone(), &alice_addr, &ciphertext)
@@ -119,14 +119,14 @@ async fn test_message_roundtrip_with_receipt() {
     assert_eq!(round.message_id(), Some(msg_id));
 
     // ── Alice marks the message Delivered when the receipt arrives ──
-    let mut stored = StoredMessage::load(&*alice.0.lock().await, &alice_view_of_bob, &msg_id)
+    let mut stored = StoredMessage::load(&alice, &alice_view_of_bob, &msg_id)
         .unwrap()
         .expect("message must exist in Alice's DB");
 
     stored.status = MessageStatus::Delivered;
-    stored.save(&*alice.0.lock().await).unwrap();
+    stored.save(&alice).unwrap();
 
-    let final_msg = StoredMessage::load(&*alice.0.lock().await, &alice_view_of_bob, &msg_id)
+    let final_msg = StoredMessage::load(&alice, &alice_view_of_bob, &msg_id)
         .unwrap()
         .unwrap();
 
@@ -379,7 +379,7 @@ async fn address_announce_updates_contact() {
         created_at: 1,
         offline: OfflineState::default(),
     };
-    contact.save(&*db.0.lock().await).unwrap();
+    contact.save(&db).unwrap();
 
     let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::channel(16);
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(16);
@@ -395,9 +395,7 @@ async fn address_announce_updates_contact() {
     .await
     .unwrap();
 
-    let reloaded = Contact::load(&*db.0.lock().await, &UserId([7u8; 32]))
-        .unwrap()
-        .unwrap();
+    let reloaded = Contact::load(&db, &UserId([7u8; 32])).unwrap().unwrap();
     assert_eq!(reloaded.peer_id, "NewPeer");
     assert_eq!(
         reloaded.known_addresses,

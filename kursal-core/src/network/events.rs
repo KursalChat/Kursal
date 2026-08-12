@@ -130,7 +130,7 @@ fn spawn_transfer_resume(
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(&contact_id);
 
-        let loaded = Contact::load(&*db.0.lock().await, &contact_id);
+        let loaded = Contact::load(&db, &contact_id);
         if let Ok(Some(contact)) = loaded
             && let Err(err) = resume_incoming_transfers(contact, db.clone(), cmd_tx, event_tx).await
         {
@@ -191,7 +191,7 @@ pub(super) async fn handle_internal_network_event(
 
         NetworkEvent::LocalPeerDiscovered { peer_id, addresses } => {
             let peer_id_str = peer_id.to_base58();
-            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let found = Contact::find_by_peer_id(db, &peer_id_str);
             let Ok(Some(_)) = found else {
                 return;
             };
@@ -376,7 +376,7 @@ pub(super) async fn handle_internal_network_event(
             log::info!("[network] connection established with {peer_id} via {via:?}");
             let peer_id_str = peer_id.to_base58();
 
-            let contact_id = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str)
+            let contact_id = Contact::find_by_peer_id(db, &peer_id_str)
                 .ok()
                 .flatten()
                 .map(|c| c.user_id);
@@ -469,7 +469,7 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionKindChanged { peer_id, via } => {
             let peer_id_str = peer_id.to_base58();
-            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let found = Contact::find_by_peer_id(db, &peer_id_str);
             if let Ok(Some(contact)) = found {
                 let status = match via {
                     ConnectionKind::Relay => ConnectionStatus::Relay,
@@ -494,7 +494,7 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionPending { peer_id } => {
             let peer_id_str = peer_id.to_base58();
-            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let found = Contact::find_by_peer_id(db, &peer_id_str);
             if let Ok(Some(contact)) = found {
                 let mut map = status_map.lock().await;
                 let settled = matches!(
@@ -520,7 +520,7 @@ pub(super) async fn handle_internal_network_event(
         }
         NetworkEvent::ConnectionFailed { peer_id } => {
             let peer_id_str = peer_id.to_base58();
-            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let found = Contact::find_by_peer_id(db, &peer_id_str);
             if let Ok(Some(contact)) = found {
                 let mut map = status_map.lock().await;
                 if map.get(&contact.user_id) != Some(&ConnectionStatus::Disconnected) {
@@ -540,7 +540,7 @@ pub(super) async fn handle_internal_network_event(
         NetworkEvent::ConnectionLost { peer_id } => {
             let peer_id_str = peer_id.to_base58();
 
-            let found = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str);
+            let found = Contact::find_by_peer_id(db, &peer_id_str);
             if let Ok(Some(contact)) = found {
                 status_map
                     .lock()
@@ -561,15 +561,10 @@ pub(super) async fn handle_internal_network_event(
 
         NetworkEvent::SendFailed { peer_id } => {
             let peer_id_str = peer_id.to_base58();
-            let db_lock = db.0.lock().await;
 
-            let Ok(contacts) = Contact::load_all(&db_lock) else {
+            let Ok(Some(contact)) = Contact::find_by_peer_id(db, &peer_id_str) else {
                 return;
             };
-            let Some(contact) = contacts.into_iter().find(|c| c.peer_id == peer_id_str) else {
-                return;
-            };
-            drop(db_lock);
 
             let cmd_tx = network.lock().await.primary.cmd_tx.clone();
 
@@ -623,7 +618,7 @@ async fn queue_offline_ping(
     cmd_tx: &mpsc::Sender<SwarmCommand>,
     event_tx: Option<&mpsc::Sender<AppEvent>>,
 ) -> Result<()> {
-    let contact = Contact::load(&*db.0.lock().await, &contact_id)?
+    let contact = Contact::load(&db, &contact_id)?
         .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
     let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);

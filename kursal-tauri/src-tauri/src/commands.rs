@@ -22,11 +22,11 @@ use kursal_core::storage::filetransfer::{
     sanitize_filename,
 };
 use kursal_core::storage::{
-    AutoAcceptConfig, AutoDownloadConfig, Database, RelayConfig, SharedFileEntry, StorageUsage,
-    api_server_config, delete_message_history_all, delete_message_history_for, files_list_shared,
-    files_revoke_shared, get_local_profile, get_local_user_id, get_swarm_listening_port,
-    get_swarm_mdns_enabled, reset_full_app, set_api_server_config, set_new_api_server_password,
-    set_swarm_listening_port, set_swarm_mdns_enabled,
+    AutoAcceptConfig, AutoDownloadConfig, Database, RelayConfig, SharedDatabase, SharedFileEntry,
+    StorageUsage, api_server_config, delete_message_history_all, delete_message_history_for,
+    files_list_shared, files_revoke_shared, get_local_profile, get_local_user_id,
+    get_swarm_listening_port, get_swarm_mdns_enabled, reset_full_app, set_api_server_config,
+    set_new_api_server_password, set_swarm_listening_port, set_swarm_mdns_enabled,
 };
 use kursal_core::sync::LockExt;
 use std::collections::HashMap;
@@ -46,8 +46,11 @@ impl StateWrapper for AppStateWrapper<'_> {
     async fn pending_nearby_lock(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<bool>>> {
         self.0.pending_nearby.lock().await
     }
-    async fn db_lock(&self) -> MutexGuard<'_, Database> {
-        self.0.db.0.lock().await
+    fn db(&self) -> &Database {
+        &self.0.db
+    }
+    fn db_handle(&self) -> SharedDatabase {
+        self.0.db.clone()
     }
 }
 
@@ -69,25 +72,25 @@ macro_rules! setting_cmd {
     (get $name:ident -> $ret:ty, $fn:path) => {
         #[tauri::command]
         pub async fn $name(state: tauri::State<'_, AppState>) -> Result<$ret> {
-            Ok($fn(&*state.db().await))
+            Ok($fn(state.db()))
         }
     };
     (try $name:ident -> $ret:ty, $fn:path) => {
         #[tauri::command]
         pub async fn $name(state: tauri::State<'_, AppState>) -> Result<$ret> {
-            $fn(&*state.db().await).map_err(Into::into)
+            $fn(state.db()).map_err(Into::into)
         }
     };
     (set $name:ident($arg:ident: $ty:ty), $fn:path) => {
         #[tauri::command]
         pub async fn $name(state: tauri::State<'_, AppState>, $arg: $ty) -> Result<()> {
-            $fn(&*state.db().await, $arg).map_err(Into::into)
+            $fn(state.db(), $arg).map_err(Into::into)
         }
     };
     (set ref $name:ident($arg:ident: $ty:ty), $fn:path) => {
         #[tauri::command]
         pub async fn $name(state: tauri::State<'_, AppState>, $arg: $ty) -> Result<()> {
-            $fn(&*state.db().await, &$arg).map_err(Into::into)
+            $fn(state.db(), &$arg).map_err(Into::into)
         }
     };
 }
@@ -248,8 +251,8 @@ core_cmd!(get_local_peer_id() -> String);
 
 #[tauri::command]
 pub async fn get_local_user_id_hex(state: tauri::State<'_, AppState>) -> Result<String> {
-    let db = state.db().await;
-    let uid = get_local_user_id(&db)?;
+    let db = state.db();
+    let uid = get_local_user_id(db)?;
     Ok(hex::encode(uid.0))
 }
 
@@ -310,14 +313,21 @@ core_cmd!(flush_offline(contact_id: String) -> ());
 pub async fn get_storage_usage(state: tauri::State<'_, AppState>) -> Result<StorageUsage> {
     let logs_dir = logs_dir()?;
     let app_data_dir = app_data_dir()?;
+    let db_path = state.db_path.clone();
 
-    kursal_core::storage::get_storage_usage(
-        &*state.db().await,
-        logs_dir.to_path_buf(),
-        app_data_dir.to_path_buf(),
-        state.db_path.clone(),
-    )
-    .map_err(Into::into)
+    // Walks the message table and two directory trees.
+    state
+        .db
+        .blocking(move |db| {
+            kursal_core::storage::get_storage_usage(
+                db,
+                logs_dir.to_path_buf(),
+                app_data_dir.to_path_buf(),
+                db_path,
+            )
+        })
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -371,8 +381,8 @@ fn revoke_shared_entry(db: &Database, id: String) -> Result<()> {
 
 #[tauri::command]
 pub async fn revoke_shared_file(state: tauri::State<'_, AppState>, id: String) -> Result<()> {
-    let db = state.db().await;
-    revoke_shared_entry(&db, id)
+    let db = state.db();
+    revoke_shared_entry(db, id)
 }
 
 #[tauri::command]
@@ -380,10 +390,10 @@ pub async fn revoke_shared_files_bulk(
     state: tauri::State<'_, AppState>,
     ids: Vec<String>,
 ) -> Result<()> {
-    let db = state.db().await;
+    let db = state.db();
 
     for id in ids {
-        revoke_shared_entry(&db, id)?;
+        revoke_shared_entry(db, id)?;
     }
 
     Ok(())
@@ -415,8 +425,8 @@ pub async fn generate_local_api_token(state: tauri::State<'_, AppState>) -> Resu
     let db = state.db.clone();
 
     let token = tokio::task::spawn_blocking(move || {
-        let guard = db.0.blocking_lock();
-        set_new_api_server_password(&guard)
+        let guard = &*db;
+        set_new_api_server_password(guard)
     })
     .await
     .ok_kursal(KursalError::Crypto)??;
@@ -428,7 +438,7 @@ pub async fn delete_all_local_data(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<()> {
-    reset_full_app(&*state.db().await)?;
+    reset_full_app(state.db())?;
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -450,9 +460,9 @@ pub async fn clear_message_history(
     contact_id: Option<String>, // None = ALL CONTACTS
 ) -> Result<()> {
     if let Some(contact_id) = contact_id {
-        delete_message_history_for(&*state.db().await, contact_id)?;
+        delete_message_history_for(state.db(), contact_id)?;
     } else {
-        delete_message_history_all(&*state.db().await)?;
+        delete_message_history_all(state.db())?;
     }
 
     Ok(())
@@ -460,7 +470,7 @@ pub async fn clear_message_history(
 
 #[tauri::command]
 pub async fn get_peer_rotation_interval(state: tauri::State<'_, AppState>) -> Result<String> {
-    let result = match kursal_core::storage::get_peer_rotation_interval(&*state.db().await) {
+    let result = match kursal_core::storage::get_peer_rotation_interval(state.db()) {
         21_600 => "6h",
         43_200 => "12h",
         108_000 => "30h",
@@ -483,7 +493,7 @@ pub async fn set_peer_rotation_interval(
         _ => 0,
     };
 
-    kursal_core::storage::set_peer_rotation_interval(&*state.db().await, result)?;
+    kursal_core::storage::set_peer_rotation_interval(state.db(), result)?;
 
     Ok(())
 }
@@ -511,8 +521,7 @@ pub async fn set_contact_muted(
     contact_id: String,
     value: bool,
 ) -> Result<()> {
-    kursal_core::storage::set_contact_muted(&*state.db().await, &contact_id, value)
-        .map_err(Into::into)
+    kursal_core::storage::set_contact_muted(state.db(), &contact_id, value).map_err(Into::into)
 }
 
 #[tauri::command]
@@ -521,27 +530,26 @@ pub async fn set_contact_alias(
     contact_id: String,
     value: Option<String>,
 ) -> Result<()> {
-    kursal_core::storage::set_contact_alias(&*state.db().await, &contact_id, value)
-        .map_err(Into::into)
+    kursal_core::storage::set_contact_alias(state.db(), &contact_id, value).map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn get_contact_meta(state: tauri::State<'_, AppState>) -> Result<Vec<ContactMetaDto>> {
-    let db = state.db().await;
-    let contacts = kursal_core::contacts::Contact::load_all(&db)?;
+    let db = state.db();
+    let contacts = kursal_core::contacts::Contact::load_all(db)?;
     Ok(contacts
         .into_iter()
         .map(|c| {
             let id = hex::encode(c.user_id.0);
-            let last_message_at = StoredMessage::load_recent(&db, &c.user_id, 1, None)
+            let last_message_at = StoredMessage::load_recent(db, &c.user_id, 1, None)
                 .ok()
                 .and_then(|msgs| msgs.first().map(|m| m.id.timestamp_secs()));
             ContactMetaDto {
-                muted: kursal_core::storage::get_contact_muted(&db, &id),
-                last_seen_at: kursal_core::storage::get_contact_last_seen(&db, &id),
+                muted: kursal_core::storage::get_contact_muted(db, &id),
+                last_seen_at: kursal_core::storage::get_contact_last_seen(db, &id),
                 last_message_at,
-                alias: kursal_core::storage::get_contact_alias(&db, &id),
-                terminated: kursal_core::storage::get_contact_terminated(&db, &id),
+                alias: kursal_core::storage::get_contact_alias(db, &id),
+                terminated: kursal_core::storage::get_contact_terminated(db, &id),
                 contact_id: id,
             }
         })
@@ -553,7 +561,7 @@ pub async fn get_ui_state(
     state: tauri::State<'_, AppState>,
     key: String,
 ) -> Result<Option<String>> {
-    kursal_core::storage::get_ui_state(&*state.db().await, &key).map_err(Into::into)
+    kursal_core::storage::get_ui_state(state.db(), &key).map_err(Into::into)
 }
 #[tauri::command]
 pub async fn set_ui_state(
@@ -561,7 +569,7 @@ pub async fn set_ui_state(
     key: String,
     value: String,
 ) -> Result<()> {
-    kursal_core::storage::set_ui_state(&*state.db().await, &key, &value).map_err(Into::into)
+    kursal_core::storage::set_ui_state(state.db(), &key, &value).map_err(Into::into)
 }
 
 setting_cmd!(get get_call_sample_rate -> u32, kursal_core::storage::get_call_sample_rate);
@@ -628,7 +636,7 @@ pub async fn set_background_mode(
     state: tauri::State<'_, AppState>,
     value: bool,
 ) -> Result<()> {
-    kursal_core::storage::set_background_mode(&*state.db().await, value)?;
+    kursal_core::storage::set_background_mode(state.db(), value)?;
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {

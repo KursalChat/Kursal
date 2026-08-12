@@ -158,7 +158,7 @@ pub async fn send_message_tracked(
         && let Some(target) = content.target_message_id()
     {
         crate::storage::conversation::set_pending_sync(
-            &*db.0.lock().await,
+            &db,
             &hex::encode(contact.user_id.0),
             &hex::encode(target.0),
             matches!(content, KursalMessage::MessageDelete(_)),
@@ -166,66 +166,60 @@ pub async fn send_message_tracked(
     }
 
     if let KursalMessage::MessageDelete(msg) = content {
-        let _ = crate::messaging::pin_index_set(
-            &*db.0.lock().await,
-            &contact.user_id,
-            &msg.target_id,
-            false,
-            0,
-        );
-        StoredMessage::delete(&*db.0.lock().await, &contact.user_id, &msg.target_id)?;
+        let _ = crate::messaging::pin_index_set(&db, &contact.user_id, &msg.target_id, false, 0);
+        StoredMessage::delete(&db, &contact.user_id, &msg.target_id)?;
         return Ok((None, queued_offline));
     }
 
     if let KursalMessage::MessageEdit(msg) = content {
-        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &msg.target_id);
+        let loaded = StoredMessage::load(&db, &contact.user_id, &msg.target_id);
 
         if let Ok(Some(mut message)) = loaded {
             if let KursalMessage::Text(ref mut t) = message.payload {
                 t.content = msg.new_content;
             }
             message.edited = true;
-            let _ = message.save(&*db.0.lock().await);
+            let _ = message.save(&db);
         }
         return Ok((None, queued_offline));
     }
 
     if let KursalMessage::ReactionAdd(r) = content {
-        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &r.target_id);
+        let loaded = StoredMessage::load(&db, &contact.user_id, &r.target_id);
 
         if let Ok(Some(mut message)) = loaded {
             message.reactions.push(StoredReaction {
                 emoji: r.emoji,
-                user_id: get_local_user_id(&*db.0.lock().await)?,
+                user_id: get_local_user_id(&db)?,
                 timestamp: now,
             });
-            let _ = message.save(&*db.0.lock().await);
+            let _ = message.save(&db);
         }
         return Ok((None, queued_offline));
     }
 
     if let KursalMessage::ReactionRemove(r) = content {
-        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &r.target_id);
+        let loaded = StoredMessage::load(&db, &contact.user_id, &r.target_id);
 
         if let Ok(Some(mut message)) = loaded {
-            let local_user_id = get_local_user_id(&*db.0.lock().await)?;
+            let local_user_id = get_local_user_id(&db)?;
             message
                 .reactions
                 .retain(|rx| !(rx.emoji == r.emoji && rx.user_id == local_user_id));
-            let _ = message.save(&*db.0.lock().await);
+            let _ = message.save(&db);
         }
         return Ok((None, queued_offline));
     }
 
     if let KursalMessage::MessagePin(ref pin) = content {
-        let loaded = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id);
+        let loaded = StoredMessage::load(&db, &contact.user_id, &pin.target_id);
 
         if let Ok(Some(mut message)) = loaded {
             message.pinned = pin.pinned;
             let ts = message.timestamp;
-            let _ = message.save(&*db.0.lock().await);
+            let _ = message.save(&db);
             let _ = crate::messaging::pin_index_set(
-                &*db.0.lock().await,
+                &db,
                 &contact.user_id,
                 &pin.target_id,
                 pin.pinned,
@@ -272,7 +266,7 @@ pub async fn send_message_tracked(
         reactions: Vec::with_capacity(0),
     };
 
-    stored.save(&*db.0.lock().await)?;
+    stored.save(&db)?;
 
     crate::messaging::offline::schedule_direct_ack_deadline(
         contact.user_id.clone(),

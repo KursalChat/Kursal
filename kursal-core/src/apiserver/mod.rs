@@ -98,8 +98,11 @@ impl StateWrapper for APIAppState {
     async fn pending_nearby_lock(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<bool>>> {
         self.pending_nearby.lock().await
     }
-    async fn db_lock(&self) -> MutexGuard<'_, Database> {
-        self.db.0.lock().await
+    fn db(&self) -> &Database {
+        &self.db
+    }
+    fn db_handle(&self) -> SharedDatabase {
+        self.db.clone()
     }
 }
 

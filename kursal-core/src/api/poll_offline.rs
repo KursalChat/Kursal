@@ -150,7 +150,7 @@ async fn poll_contact_offline_inner(
     );
 
     loop {
-        let mut contact = Contact::load(&*db.0.lock().await, contact_id)?
+        let mut contact = Contact::load(db, contact_id)?
             .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
         if let Some(since) = contact.offline.recv_stuck_since
@@ -167,7 +167,7 @@ async fn poll_contact_offline_inner(
                 Ok(())
             })
             .await?;
-            contact = Contact::load(&*db.0.lock().await, contact_id)?
+            contact = Contact::load(db, contact_id)?
                 .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
             event_tx
                 .send(AppEvent::OfflineGapSkipped {
@@ -342,7 +342,7 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&*db.0.lock().await)?;
+            stored.save(&db)?;
 
             event_tx
                 .send(AppEvent::MessageReceived {
@@ -365,7 +365,7 @@ async fn dispatch_offline_kmessage(
                 hash: file.hash,
                 created_at: now,
             };
-            db.0.lock().await.raw_write(
+            db.raw_write(
                 TABLE_FILE_TRANSFERS,
                 &format!(
                     "recv:{}:{}",
@@ -387,7 +387,7 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&*db.0.lock().await)?;
+            stored.save(&db)?;
 
             event_tx
                 .send(AppEvent::FileOffered {
@@ -430,19 +430,24 @@ async fn dispatch_offline_kmessage(
                 Ok(())
             })
             .await?;
-            crate::messaging::offline::clear_pending_ack(
-                &db,
+            let mut batch = db.batch()?;
+            crate::messaging::offline::clear_pending_ack_into(
+                &mut batch,
                 &contact.user_id,
                 &receipt.message_id,
-            )
-            .await?;
+            )?;
 
-            let loaded =
-                StoredMessage::load(&*db.0.lock().await, &contact.user_id, &receipt.message_id)?;
-            if let Some(mut message) = loaded {
+            let mut confirmed = false;
+            if let Some(mut message) =
+                StoredMessage::load(&db, &contact.user_id, &receipt.message_id)?
+            {
                 message.status = MessageStatus::OfflineDelivered;
-                message.save(&*db.0.lock().await)?;
+                message.save_into(&mut batch)?;
+                confirmed = true;
+            }
+            batch.commit()?;
 
+            if confirmed {
                 event_tx
                     .send(AppEvent::DeliveryConfirmed {
                         contact_id: contact.user_id.clone(),

@@ -20,7 +20,7 @@ use crate::{
         kademlia::KAD_LONG_MAX_AGE,
         swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
     },
-    storage::{SharedDatabase, TABLE_PENDING_ACK, get_timestamp_secs},
+    storage::{SharedDatabase, TABLE_PENDING_ACK, WriteBatch, get_timestamp_secs},
     sync::LockExt,
 };
 use libp2p::PeerId;
@@ -296,11 +296,11 @@ where
 {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(db, user_id)? else {
         return Ok(None);
     };
     let out = f(&mut contact.offline)?;
-    contact.save_if_exists(&*db.0.lock().await)?;
+    contact.save_if_exists(db)?;
     Ok(Some(out))
 }
 
@@ -314,11 +314,11 @@ where
 {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(db, user_id)? else {
         return Ok(None);
     };
     if f(&mut contact) {
-        contact.save_if_exists(&*db.0.lock().await)?;
+        contact.save_if_exists(db)?;
         Ok(Some(contact))
     } else {
         Ok(None)
@@ -343,7 +343,7 @@ pub async fn queue_for_offline(
 
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let mut contact = Contact::load(&*db.0.lock().await, user_id)?
+    let mut contact = Contact::load(&db, user_id)?
         .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
     queue_for_offline_locked(&mut contact, message_id, dr_ct, cmd_tx, db, event_tx).await
 }
@@ -356,7 +356,7 @@ pub async fn discard_queued(
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
 
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(db, user_id)? else {
         return Ok(false);
     };
 
@@ -372,7 +372,7 @@ pub async fn discard_queued(
     }
 
     if dropped {
-        contact.save_if_exists(&*db.0.lock().await)?;
+        contact.save_if_exists(db)?;
     }
 
     Ok(dropped)
@@ -386,7 +386,7 @@ pub async fn maybe_flush(
 ) -> Result<()> {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(&db, user_id)? else {
         return Ok(());
     };
     maybe_flush_locked(&mut contact, cmd_tx, db, event_tx).await
@@ -399,7 +399,7 @@ pub async fn republish_pending(
 ) -> Result<()> {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(contact) = Contact::load(&db, user_id)? else {
         return Ok(());
     };
 
@@ -441,7 +441,7 @@ pub async fn flush_now(
 ) -> Result<()> {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(&db, user_id)? else {
         return Ok(());
     };
     flush_now_locked(&mut contact, cmd_tx, db, event_tx).await
@@ -456,7 +456,7 @@ pub async fn deliver_queue_direct(
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
 
-    let Some(mut contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(mut contact) = Contact::load(&db, user_id)? else {
         return Ok(0);
     };
     if contact.offline.send_queue.is_empty() {
@@ -510,7 +510,7 @@ pub async fn deliver_queue_direct(
     if drained {
         contact.offline.queue_first_at = None;
     }
-    contact.save_if_exists(&*db.0.lock().await)?;
+    contact.save_if_exists(&db)?;
 
     log::info!(
         "[offline] direct drain contact={contact_dbg} delivered={sent}/{queued} peer={peer_id}"
@@ -531,8 +531,7 @@ pub async fn deliver_queue_direct(
 async fn take_finalized_deletes(db: &SharedDatabase, user_id: &UserId) -> Vec<MessageId> {
     let contact_hex = hex::encode(user_id.0);
     let cleared =
-        crate::storage::conversation::clear_pending_sync_for(&*db.0.lock().await, &contact_hex)
-            .unwrap_or_default();
+        crate::storage::conversation::clear_pending_sync_for(db, &contact_hex).unwrap_or_default();
 
     cleared
         .iter()
@@ -580,7 +579,7 @@ pub async fn write_pending_ack(
     id: &MessageId,
     sent_at: u64,
 ) -> Result<()> {
-    db.0.lock().await.raw_write(
+    db.raw_write(
         TABLE_PENDING_ACK,
         &pending_ack_key(user, id),
         &sent_at.to_be_bytes(),
@@ -590,34 +589,45 @@ pub async fn write_pending_ack(
 }
 
 pub async fn clear_pending_ack(db: &SharedDatabase, user: &UserId, id: &MessageId) -> Result<()> {
-    db.0.lock()
-        .await
-        .raw_delete(TABLE_PENDING_ACK, &pending_ack_key(user, id))
+    db.raw_delete(TABLE_PENDING_ACK, &pending_ack_key(user, id))
+}
+
+pub(crate) fn clear_pending_ack_into(
+    batch: &mut WriteBatch<'_>,
+    user: &UserId,
+    id: &MessageId,
+) -> Result<()> {
+    batch.remove(TABLE_PENDING_ACK, &pending_ack_key(user, id))
 }
 
 pub async fn list_pending_ack(db: &SharedDatabase) -> Result<Vec<(UserId, MessageId, u64)>> {
-    let rows = db.0.lock().await.raw_readall(TABLE_PENDING_ACK)?;
-    let mut out = Vec::with_capacity(rows.len());
-    for (key, val) in rows {
-        let mut parts = key.split(':');
-        let (Some(uhex), Some(mhex)) = (parts.next(), parts.next()) else {
-            continue;
-        };
-        let (Ok(ub), Ok(mb)) = (hex::decode(uhex), hex::decode(mhex)) else {
-            continue;
-        };
-        let (Ok(uarr), Ok(marr)) = (
-            <[u8; 32]>::try_from(ub.as_slice()),
-            <[u8; 16]>::try_from(mb.as_slice()),
-        ) else {
-            continue;
-        };
-        let ts = <[u8; 8]>::try_from(val.as_slice())
-            .map(u64::from_be_bytes)
-            .unwrap_or(0);
-        out.push((UserId(uarr), MessageId(marr), ts));
-    }
-    Ok(out)
+    db.blocking(|db| {
+        let mut out = Vec::new();
+        db.raw_scan_all(TABLE_PENDING_ACK, |key, val| {
+            let mut parts = key.split(':');
+            let (Some(uhex), Some(mhex)) = (parts.next(), parts.next()) else {
+                return true;
+            };
+            let (Ok(ub), Ok(mb)) = (hex::decode(uhex), hex::decode(mhex)) else {
+                return true;
+            };
+            let (Ok(uarr), Ok(marr)) = (
+                <[u8; 32]>::try_from(ub.as_slice()),
+                <[u8; 16]>::try_from(mb.as_slice()),
+            ) else {
+                return true;
+            };
+            let ts = <[u8; 8]>::try_from(val.as_slice())
+                .map(u64::from_be_bytes)
+                .unwrap_or(0);
+            out.push((UserId(uarr), MessageId(marr), ts));
+
+            true
+        })?;
+
+        Ok(out)
+    })
+    .await
 }
 
 pub async fn move_to_mailbox_if_stuck(
@@ -627,7 +637,7 @@ pub async fn move_to_mailbox_if_stuck(
     db: SharedDatabase,
     event_tx: Option<&Sender<AppEvent>>,
 ) -> Result<bool> {
-    let Some(contact) = Contact::load(&*db.0.lock().await, user_id)? else {
+    let Some(contact) = Contact::load(&db, user_id)? else {
         clear_pending_ack(&db, user_id, message_id).await?;
         return Ok(false);
     };
@@ -643,7 +653,7 @@ pub async fn move_to_mailbox_if_stuck(
             .iter()
             .any(|b| b.message_ids.contains(message_id));
 
-    let Some(message) = StoredMessage::load(&*db.0.lock().await, user_id, message_id)? else {
+    let Some(message) = StoredMessage::load(&db, user_id, message_id)? else {
         clear_pending_ack(&db, user_id, message_id).await?;
         return Ok(false);
     };
@@ -735,17 +745,19 @@ pub async fn expire_and_fail(
     }
 
     let mut failed = Vec::new();
-    {
-        let guard = db.0.lock().await;
-        for id in &expired_ids {
-            if StoredMessage::set_failed(&guard, user_id, id)? {
-                failed.push(*id);
-            }
-        }
-    }
+    let mut batch = db.batch()?;
     for id in &expired_ids {
-        clear_pending_ack(db, user_id, id).await?;
+        if let Some(mut message) = StoredMessage::load(db, user_id, id)?
+            && matches!(message.status, MessageStatus::Sending)
+        {
+            message.status = MessageStatus::Failed;
+            message.save_into(&mut batch)?;
+            failed.push(*id);
+        }
+        batch.remove(TABLE_PENDING_ACK, &pending_ack_key(user_id, id))?;
     }
+    batch.commit()?;
+
     if !failed.is_empty()
         && let Some(tx) = event_tx
     {
@@ -782,11 +794,11 @@ async fn queue_for_offline_locked(
         contact.offline.send_queue.len()
     );
 
-    contact.save_if_exists(&*db.0.lock().await)?;
+    contact.save_if_exists(&db)?;
 
     maybe_flush_locked(contact, cmd_tx, db.clone(), event_tx).await?;
 
-    contact.save_if_exists(&*db.0.lock().await)?;
+    contact.save_if_exists(&db)?;
 
     if was_empty && !contact.offline.send_queue.is_empty() {
         log::info!(
@@ -875,7 +887,7 @@ async fn flush_now_locked(
     if contact.offline.send_queue.is_empty() && contact.offline.pending_bundles.is_empty() {
         log::debug!("[offline] flush contact={contact_dbg} nothing to flush");
         contact.offline.queue_first_at = None;
-        contact.save_if_exists(&*db.0.lock().await)?;
+        contact.save_if_exists(&db)?;
         return Ok(());
     }
 
@@ -908,7 +920,7 @@ async fn flush_now_locked(
             sender_addresses.len()
         );
 
-        let sender_peer_id = TransportIdentity::load(&*db.0.lock().await)?
+        let sender_peer_id = TransportIdentity::load(&db)?
             .ok_or_else(|| KursalError::Identity("No transport identity".to_string()))?
             .peer_id
             .to_base58();
@@ -945,7 +957,7 @@ async fn flush_now_locked(
             tag,
             message_ids: new_bundle_message_ids.clone(),
         });
-        contact.save_if_exists(&*db.0.lock().await)?;
+        contact.save_if_exists(&db)?;
     }
 
     let published = new_bundle.is_some();

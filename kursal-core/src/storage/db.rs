@@ -3,7 +3,11 @@ use crate::{
     crypto::stream::{stream_decrypt, stream_encrypt},
 };
 use redb::{ReadableDatabase, ReadableTable, TableDefinition};
-use std::{ops::Bound, path::Path};
+use std::{
+    ops::Bound,
+    path::Path,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use zeroize::Zeroizing;
 
 pub const TABLE_SESSIONS: TableDefinition<&str, &[u8]> = TableDefinition::new("sessions");
@@ -23,18 +27,87 @@ pub const TABLE_FILE_TRANSFERS: TableDefinition<&str, &[u8]> =
 pub const TABLE_PENDING_ACK: TableDefinition<&str, &[u8]> = TableDefinition::new("pending_ack");
 pub const TABLE_CONVERSATION: TableDefinition<&str, &[u8]> = TableDefinition::new("conversation");
 
+pub(crate) struct WriteBatch<'db> {
+    txn: redb::WriteTransaction,
+    key: &'db Zeroizing<[u8; 32]>,
+}
+
+impl WriteBatch<'_> {
+    pub(crate) fn put(
+        &mut self,
+        table: TableDefinition<&str, &[u8]>,
+        key: &str,
+        value: &[u8],
+    ) -> Result<()> {
+        let enc_value = stream_encrypt(self.key, value)?;
+        self.txn
+            .open_table(table)?
+            .insert(key, enc_value.as_slice())?;
+
+        Ok(())
+    }
+
+    pub(crate) fn remove(&mut self, table: TableDefinition<&str, &[u8]>, key: &str) -> Result<()> {
+        self.txn.open_table(table)?.remove(key)?;
+
+        Ok(())
+    }
+
+    pub(crate) fn commit(self) -> Result<()> {
+        self.txn.commit()?;
+
+        Ok(())
+    }
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+const PAGE_CACHE_BYTES: usize = 8 * 1024 * 1024;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+const PAGE_CACHE_BYTES: usize = 32 * 1024 * 1024;
+
+static NEXT_DB_ID: AtomicU64 = AtomicU64::new(0);
+
 pub struct Database {
     pub(crate) inner: redb::Database,
     key: Zeroizing<[u8; 32]>,
+    id: u64,
 }
 
 impl Database {
     pub fn open(path: &Path, key: [u8; 32]) -> Result<Self> {
-        let db = redb::Database::create(path)?;
+        let db = redb::Database::builder()
+            .set_cache_size(PAGE_CACHE_BYTES)
+            .create(path)?;
 
         Ok(Self {
             inner: db,
             key: Zeroizing::new(key),
+            id: NEXT_DB_ID.fetch_add(1, Ordering::Relaxed),
+        })
+    }
+
+    pub(crate) fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub(crate) fn batch(&self) -> Result<WriteBatch<'_>> {
+        Ok(WriteBatch {
+            txn: self.inner.begin_write()?,
+            key: &self.key,
+        })
+    }
+
+    /// As [`Database::batch`], but the commit is not flushed to disk. A crash
+    /// loses the writes. Only for state that is re-derivable, never for messages
+    /// or key material.
+    pub(crate) fn batch_deferred(&self) -> Result<WriteBatch<'_>> {
+        let mut txn = self.inner.begin_write()?;
+        txn.set_durability(redb::Durability::None)
+            .map_err(|err| crate::KursalError::Storage(err.to_string()))?;
+
+        Ok(WriteBatch {
+            txn,
+            key: &self.key,
         })
     }
 
@@ -63,6 +136,27 @@ impl Database {
         write_txn.commit()?;
 
         previous_value
+    }
+
+    pub(crate) fn raw_write_deferred(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        key: &str,
+        value: &[u8],
+    ) -> Result<()> {
+        let mut batch = self.batch_deferred()?;
+        batch.put(table, key, value)?;
+        batch.commit()
+    }
+
+    pub(crate) fn raw_delete_deferred(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        key: &str,
+    ) -> Result<()> {
+        let mut batch = self.batch_deferred()?;
+        batch.remove(table, key)?;
+        batch.commit()
     }
 
     pub(crate) fn raw_read(
@@ -101,6 +195,69 @@ impl Database {
         write_txn.commit()?;
 
         Ok(())
+    }
+
+    /// Walks a whole table one row at a time, where `raw_readall` holds every
+    /// decrypted row at once. `visit` returns false to stop the scan.
+    pub(crate) fn raw_scan_all(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        mut visit: impl FnMut(&str, Vec<u8>) -> bool,
+    ) -> Result<()> {
+        let read_txn = self.inner.begin_read()?;
+
+        let table = match read_txn.open_table(table) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(()),
+            Err(err) => return Err(err.into()),
+        };
+
+        for entry in table.iter()? {
+            let (k, v) = match entry {
+                Ok(kv) => kv,
+                Err(err) => {
+                    log::warn!("[storage] scan entry error: {err}");
+                    continue;
+                }
+            };
+
+            let key = k.value();
+            match stream_decrypt(&self.key, v.value()) {
+                Ok(decrypted) => {
+                    if !visit(key, decrypted) {
+                        break;
+                    }
+                }
+                Err(err) => log::warn!("[storage] skipping undecryptable row key={key}: {err}"),
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn raw_keys(
+        &self,
+        table: TableDefinition<&str, &[u8]>,
+        prefix: &str,
+    ) -> Result<Vec<String>> {
+        let read_txn = self.inner.begin_read()?;
+
+        let table = match read_txn.open_table(table) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(vec![]),
+            Err(err) => return Err(err.into()),
+        };
+
+        let mut out = Vec::new();
+        for entry in table.range(prefix..)? {
+            let (k, _) = entry?;
+            if !k.value().starts_with(prefix) {
+                break;
+            }
+            out.push(k.value().to_string());
+        }
+
+        Ok(out)
     }
 
     pub(crate) fn raw_range(

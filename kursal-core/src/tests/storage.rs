@@ -160,6 +160,103 @@ fn backup_wrong_password_fails() {
     assert!(KursalBackup::deserialize(bytes, b"wrong-password".to_vec()).is_err());
 }
 
+// A deferred commit skips the flush to disk, but the write still has to be
+// visible to every later read on the same handle.
+#[test]
+fn deferred_write_is_readable() {
+    use crate::storage::conversation::{get_read_cursor, set_read_cursor};
+
+    let env = TestEnv::new();
+    let db = setup_db(&env, "deferred_write", [4u8; 32]);
+
+    set_read_cursor(&db, "contact", Some("message-7")).unwrap();
+    assert_eq!(
+        get_read_cursor(&db, "contact").as_deref(),
+        Some("message-7")
+    );
+
+    set_read_cursor(&db, "contact", None).unwrap();
+    assert_eq!(get_read_cursor(&db, "contact"), None);
+}
+
+#[test]
+fn batch_applies_every_write_at_once() {
+    let env = TestEnv::new();
+    let db = setup_db(&env, "batch_writes", [5u8; 32]);
+
+    db.raw_write(TABLE_MESSAGES, "stale", b"old").unwrap();
+
+    let mut batch = db.batch().unwrap();
+    batch.put(TABLE_MESSAGES, "a", b"one").unwrap();
+    batch.put(TABLE_IDENTITY_KEYS, "b", b"two").unwrap();
+    batch.remove(TABLE_MESSAGES, "stale").unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.raw_read(TABLE_MESSAGES, "a").unwrap().unwrap(),
+        b"one".to_vec()
+    );
+    assert_eq!(
+        db.raw_read(TABLE_IDENTITY_KEYS, "b").unwrap().unwrap(),
+        b"two".to_vec()
+    );
+    assert!(db.raw_read(TABLE_MESSAGES, "stale").unwrap().is_none());
+}
+
+// Dropping a batch without committing must leave the table untouched.
+#[test]
+fn uncommitted_batch_writes_nothing() {
+    let env = TestEnv::new();
+    let db = setup_db(&env, "batch_rollback", [6u8; 32]);
+
+    let mut batch = db.batch().unwrap();
+    batch.put(TABLE_MESSAGES, "ghost", b"value").unwrap();
+    drop(batch);
+
+    assert!(db.raw_read(TABLE_MESSAGES, "ghost").unwrap().is_none());
+}
+
+#[test]
+fn raw_scan_all_visits_every_row_and_can_stop() {
+    let env = TestEnv::new();
+    let db = setup_db(&env, "scan_all", [7u8; 32]);
+
+    for i in 0..5u8 {
+        db.raw_write(TABLE_MESSAGES, &format!("k{i}"), &[i])
+            .unwrap();
+    }
+
+    let mut seen = 0;
+    db.raw_scan_all(TABLE_MESSAGES, |_, _| {
+        seen += 1;
+        true
+    })
+    .unwrap();
+    assert_eq!(seen, 5);
+
+    let mut stopped = 0;
+    db.raw_scan_all(TABLE_MESSAGES, |_, _| {
+        stopped += 1;
+        stopped < 2
+    })
+    .unwrap();
+    assert_eq!(stopped, 2);
+}
+
+#[test]
+fn raw_keys_filters_by_prefix() {
+    let env = TestEnv::new();
+    let db = setup_db(&env, "raw_keys", [8u8; 32]);
+
+    db.raw_write(TABLE_MESSAGES, "aa:1", b"x").unwrap();
+    db.raw_write(TABLE_MESSAGES, "aa:2", b"x").unwrap();
+    db.raw_write(TABLE_MESSAGES, "bb:1", b"x").unwrap();
+
+    let keys = db.raw_keys(TABLE_MESSAGES, "aa:").unwrap();
+    assert_eq!(keys, vec!["aa:1".to_string(), "aa:2".to_string()]);
+    assert_eq!(db.raw_keys(TABLE_MESSAGES, "").unwrap().len(), 3);
+}
+
 #[test]
 fn typing_indicators_roundtrip() {
     use crate::storage::{get_typing_indicators_enabled, set_typing_indicators_enabled};

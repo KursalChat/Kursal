@@ -45,7 +45,7 @@ pub async fn store_pin_record(
         reactions: Vec::new(),
     };
 
-    if stored.save(&*db.0.lock().await).is_err() {
+    if stored.save(db).is_err() {
         return;
     }
 
@@ -64,22 +64,14 @@ pub async fn apply_pin(
     db: &SharedDatabase,
     event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let Some(mut message) =
-        StoredMessage::load(&*db.0.lock().await, &contact.user_id, &pin.target_id)?
-    else {
+    let Some(mut message) = StoredMessage::load(db, &contact.user_id, &pin.target_id)? else {
         return Ok(());
     };
 
     message.pinned = pin.pinned;
     let ts = message.timestamp;
-    message.save(&*db.0.lock().await)?;
-    pin_index_set(
-        &*db.0.lock().await,
-        &contact.user_id,
-        &pin.target_id,
-        pin.pinned,
-        ts,
-    )?;
+    message.save(db)?;
+    pin_index_set(db, &contact.user_id, &pin.target_id, pin.pinned, ts)?;
 
     event_tx
         .send(AppEvent::MessagePinned {
@@ -101,9 +93,7 @@ pub async fn apply_edit(
     db: &SharedDatabase,
     event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let Some(mut message) =
-        StoredMessage::load(&*db.0.lock().await, &contact.user_id, &edit.target_id)?
-    else {
+    let Some(mut message) = StoredMessage::load(db, &contact.user_id, &edit.target_id)? else {
         return Ok(());
     };
 
@@ -115,7 +105,7 @@ pub async fn apply_edit(
         t.content = edit.new_content.clone();
     }
     message.edited = true;
-    message.save(&*db.0.lock().await)?;
+    message.save(db)?;
 
     event_tx
         .send(AppEvent::MessageEdited {
@@ -133,8 +123,7 @@ pub async fn apply_delete(
     db: &SharedDatabase,
     event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let Some(message) = StoredMessage::load(&*db.0.lock().await, &contact.user_id, &del.target_id)?
-    else {
+    let Some(message) = StoredMessage::load(db, &contact.user_id, &del.target_id)? else {
         return Ok(());
     };
 
@@ -142,7 +131,7 @@ pub async fn apply_delete(
         return Ok(());
     }
 
-    StoredMessage::delete(&*db.0.lock().await, &contact.user_id, &del.target_id)?;
+    StoredMessage::delete(db, &contact.user_id, &del.target_id)?;
 
     event_tx
         .send(AppEvent::MessageDeleted {
@@ -165,9 +154,7 @@ pub async fn apply_reaction_add(
         return Ok(());
     }
 
-    let Some(mut target) =
-        StoredMessage::load(&*db.0.lock().await, &contact.user_id, &r.target_id)?
-    else {
+    let Some(mut target) = StoredMessage::load(db, &contact.user_id, &r.target_id)? else {
         return Ok(());
     };
 
@@ -176,7 +163,7 @@ pub async fn apply_reaction_add(
         user_id: contact.user_id.clone(),
         timestamp: now,
     });
-    target.save(&*db.0.lock().await)?;
+    target.save(db)?;
 
     event_tx
         .send(AppEvent::ReactionAdded {
@@ -194,16 +181,14 @@ pub async fn apply_reaction_remove(
     db: &SharedDatabase,
     event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let Some(mut message) =
-        StoredMessage::load(&*db.0.lock().await, &contact.user_id, &r.target_id)?
-    else {
+    let Some(mut message) = StoredMessage::load(db, &contact.user_id, &r.target_id)? else {
         return Ok(());
     };
 
     message
         .reactions
         .retain(|rx| !(rx.emoji == r.emoji && rx.user_id == contact.user_id));
-    message.save(&*db.0.lock().await)?;
+    message.save(db)?;
 
     event_tx
         .send(AppEvent::ReactionRemoved {

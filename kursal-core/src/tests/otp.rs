@@ -54,7 +54,7 @@ async fn otp_full_session_roundtrip() {
         payload_id: MessageId::new(),
         pre_key_bundle: alice_bundle_bytes,
         peer_id: "alice_peer_id".to_string(),
-        dilithium_pub_key: get_dilithium_pub(&*alice.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(&alice).unwrap(),
         relay_addresses: vec![],
     };
     let encrypted_payload =
@@ -102,29 +102,23 @@ async fn otp_response_ignored_after_consumed() {
     let bob = make_peer(&env, "otp_consumed_bob").await;
 
     let payload_id = MessageId::new();
-    db.0.lock()
-        .await
-        .raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
+    db.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
         .unwrap();
 
     let now = get_timestamp_secs().unwrap();
-    db.0.lock()
-        .await
-        .raw_write(TABLE_SETTINGS, "otp_published_at", &now.to_be_bytes())
+    db.raw_write(TABLE_SETTINGS, "otp_published_at", &now.to_be_bytes())
         .unwrap();
 
     let alice_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone())
         .await
         .unwrap();
     let alice_prekey_id: u32 = alice_bundle.pre_key_id.unwrap().into();
-    db.0.lock()
-        .await
-        .raw_write(
-            TABLE_SETTINGS,
-            "otp_prekey_id",
-            &alice_prekey_id.to_be_bytes(),
-        )
-        .unwrap();
+    db.raw_write(
+        TABLE_SETTINGS,
+        "otp_prekey_id",
+        &alice_prekey_id.to_be_bytes(),
+    )
+    .unwrap();
 
     let mut rng = rand::rngs::OsRng.unwrap_err();
     let mailbox_ephemeral = KeyPair::generate(&mut rng);
@@ -138,7 +132,7 @@ async fn otp_response_ignored_after_consumed() {
         payload_id,
         pre_key_bundle: bob_bundle.serialize().unwrap(),
         peer_id: "bob_peer_id".to_string(),
-        dilithium_pub_key: get_dilithium_pub(&*bob.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(&bob).unwrap(),
         relay_addresses: vec![],
         mailbox_kem_ct: vec![],
         mailbox_kem_prekey_id: 0,
@@ -168,13 +162,9 @@ async fn otp_response_rejected_after_expiry() {
     let fake_past = get_timestamp_secs().unwrap() - 660; // 11 minutes ago
     let payload_id = MessageId::new();
 
-    db.0.lock()
-        .await
-        .raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
+    db.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
         .unwrap();
-    db.0.lock()
-        .await
-        .raw_write(TABLE_SETTINGS, "otp_published_at", &fake_past.to_be_bytes())
+    db.raw_write(TABLE_SETTINGS, "otp_published_at", &fake_past.to_be_bytes())
         .unwrap();
 
     let bob_bundle = PreKeyBundleData::build_pre_key_bundle(bob.clone())
@@ -184,7 +174,7 @@ async fn otp_response_rejected_after_expiry() {
         payload_id,
         pre_key_bundle: bob_bundle.serialize().unwrap(),
         peer_id: "bob_peer_id".to_string(),
-        dilithium_pub_key: get_dilithium_pub(&*bob.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(&bob).unwrap(),
         relay_addresses: vec![],
         mailbox_kem_ct: vec![],
         mailbox_kem_prekey_id: 0,
@@ -210,7 +200,7 @@ async fn otp_mailbox_chains_match_after_handshake() {
     let payload_id = MessageId::new();
     let now = get_timestamp_secs().unwrap();
     {
-        let lock = alice.0.lock().await;
+        let lock = &*alice;
         lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
             .unwrap();
         lock.raw_write(TABLE_SETTINGS, "otp_published_at", &now.to_be_bytes())
@@ -222,9 +212,6 @@ async fn otp_mailbox_chains_match_after_handshake() {
         .unwrap();
     let alice_prekey_id: u32 = alice_bundle.pre_key_id.unwrap().into();
     alice
-        .0
-        .lock()
-        .await
         .raw_write(
             TABLE_SETTINGS,
             "otp_prekey_id",
@@ -255,7 +242,7 @@ async fn otp_mailbox_chains_match_after_handshake() {
         payload_id,
         pre_key_bundle: bob_bundle.serialize().unwrap(),
         peer_id: "bob_peer_id".to_string(),
-        dilithium_pub_key: get_dilithium_pub(&*bob.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(&bob).unwrap(),
         relay_addresses: vec![],
         mailbox_kem_ct: vec![],
         mailbox_kem_prekey_id: 0,
@@ -269,9 +256,7 @@ async fn otp_mailbox_chains_match_after_handshake() {
         .unwrap();
 
     let bob_user_id = UserId(Sha256::digest(&bob_identity_pub).into());
-    let alice_contact = Contact::load(&*alice.0.lock().await, &bob_user_id)
-        .unwrap()
-        .unwrap();
+    let alice_contact = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
 
     assert_eq!(alice_contact.offline.send_chain, bob_offline.recv_chain);
     assert_eq!(alice_contact.offline.recv_chain, bob_offline.send_chain);
@@ -297,7 +282,7 @@ async fn otp_replayed_response_is_refused_as_already_used() {
         .unwrap();
     let alice_prekey_id: u32 = alice_bundle.pre_key_id.unwrap().into();
     {
-        let lock = alice.0.lock().await;
+        let lock = &*alice;
         lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)
             .unwrap();
         lock.raw_write(TABLE_SETTINGS, "otp_published_at", &now.to_be_bytes())
@@ -320,7 +305,7 @@ async fn otp_replayed_response_is_refused_as_already_used() {
             payload_id,
             pre_key_bundle: bundle.serialize().unwrap(),
             peer_id,
-            dilithium_pub_key: get_dilithium_pub(&*db.0.lock().await).unwrap(),
+            dilithium_pub_key: get_dilithium_pub(&db).unwrap(),
             relay_addresses: vec![],
             mailbox_kem_ct: vec![],
             mailbox_kem_prekey_id: 0,
@@ -351,9 +336,6 @@ async fn otp_replayed_response_is_refused_as_already_used() {
 
     assert!(
         alice
-            .0
-            .lock()
-            .await
             .raw_read(TABLE_SETTINGS, "otp_consumed_id")
             .unwrap()
             .is_some_and(|id| id.as_slice() == payload_id.0.as_slice())
