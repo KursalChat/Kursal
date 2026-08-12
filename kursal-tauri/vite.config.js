@@ -1,15 +1,16 @@
-import { defineConfig } from "vite";
-import { sveltekit } from "@sveltejs/kit/vite";
-import { fileURLToPath } from "node:url";
+import { defineConfig } from 'vite';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { fileURLToPath } from 'node:url';
+import { emojiIndexPlugin } from './emoji-index-plugin.js';
 
 // Repo root, so src can import ../../CHANGELOG.md?raw in dev.
-const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
 // // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
-const TERMS_VERSION_URL = "https://kursal.chat/terms/v";
-const TERMS_FALLBACK = "2026-07-27";
+const TERMS_VERSION_URL = 'https://kursal.chat/terms/v';
+const TERMS_FALLBACK = '2026-07-27';
 
 /**
  * @param {boolean} isBuild
@@ -38,9 +39,9 @@ async function resolveTermsVersion(isBuild) {
 
 // https://vite.dev/config/
 export default defineConfig(async ({ command }) => ({
-  plugins: [sveltekit()],
+  plugins: [emojiIndexPlugin(), sveltekit()],
   define: {
-    __TERMS_UPDATED__: JSON.stringify(await resolveTermsVersion(command === "build")),
+    __TERMS_UPDATED__: JSON.stringify(await resolveTermsVersion(command === 'build')),
   },
   clearScreen: false,
   server: {
@@ -49,13 +50,13 @@ export default defineConfig(async ({ command }) => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host,
           port: 1421,
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ['**/src-tauri/**'],
     },
     fs: {
       allow: [repoRoot],
