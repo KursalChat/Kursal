@@ -9,5 +9,6 @@ services:
     ports:
       - "4891:4891/tcp"
       - "4891:4891/udp"
+      - "4892:4892/tcp"
     volumes:
       - ./:/data

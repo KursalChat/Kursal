@@ -30,7 +30,7 @@ USER kursal
 WORKDIR /data
 VOLUME /data
 
-EXPOSE 4891/tcp 4891/udp
+EXPOSE 4891/tcp 4891/udp 4892/tcp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD curl -sf http://127.0.0.1:4892/health || exit 1
 ENTRYPOINT ["kursal-relay", "--config", "/data/relay.toml"]
