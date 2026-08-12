@@ -433,6 +433,7 @@ pub fn run() {
                     transfer_active: AtomicBool::new(false),
                     quit_when_idle: AtomicBool::new(false),
                     close_explainer_pending: AtomicBool::new(false),
+                    node_stats_task: StdMutex::new(None),
                 });
 
                 if bg_on {
@@ -623,6 +624,8 @@ pub fn run() {
             commands::dial_address,
             commands::get_network_status,
             commands::get_node_stats,
+            commands::start_node_stats,
+            commands::stop_node_stats,
             commands::get_listening_port,
             commands::set_listening_port,
             commands::get_local_api_config,

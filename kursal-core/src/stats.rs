@@ -64,6 +64,7 @@ pub struct StatsCollector {
     pid: Pid,
     start: Instant,
     prev: Option<(u64, u64, Instant)>,
+    encoded: String,
 }
 
 impl StatsCollector {
@@ -74,6 +75,7 @@ impl StatsCollector {
             pid: sysinfo::get_current_pid().unwrap_or(Pid::from_u32(0)),
             start: Instant::now(),
             prev: None,
+            encoded: String::new(),
         }
     }
 
@@ -86,11 +88,11 @@ impl StatsCollector {
             .map(|p| (p.cpu_usage(), p.memory()))
             .unwrap_or((0.0, 0));
 
-        let mut encoded = String::new();
+        self.encoded.clear();
         if let Ok(registry) = self.registry.lock() {
-            let _ = prometheus_client::encoding::text::encode(&mut encoded, &registry);
+            let _ = prometheus_client::encoding::text::encode(&mut self.encoded, &registry);
         }
-        let (bytes_in, bytes_out) = parse_bandwidth(&encoded);
+        let (bytes_in, bytes_out) = parse_bandwidth(&self.encoded);
 
         let now = Instant::now();
         let (rate_in, rate_out) = match self.prev {

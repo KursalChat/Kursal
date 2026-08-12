@@ -116,6 +116,10 @@ export interface NodeStats {
 }
 export const getNodeStats = (): Promise<NodeStats> => invoke('get_node_stats');
 
+/** Core emits `node_stats` on its own timer until stopNodeStats(). */
+export const startNodeStats = (): Promise<void> => invoke('start_node_stats');
+export const stopNodeStats = (): Promise<void> => invoke('stop_node_stats');
+
 export const getListeningPort = (): Promise<number | null> => invoke('get_listening_port');
 export const setListeningPort = (port: number | null): Promise<void> =>
   invoke('set_listening_port', { port });

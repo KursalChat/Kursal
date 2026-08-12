@@ -30,6 +30,7 @@ use kursal_core::storage::{
 };
 use kursal_core::sync::LockExt;
 use std::collections::HashMap;
+use tauri::{Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tokio::fs::remove_dir_all;
 use tokio::sync::{MutexGuard, mpsc, oneshot};
@@ -410,9 +411,50 @@ core_cmd!(remove_custom_node(addr: String) -> ());
 core_cmd!(dial_address(addr: String) -> ());
 core_cmd!(get_network_status() -> NetworkStatusDto, as network_status);
 
+const NODE_STATS_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
+
+async fn sample_node_stats() -> kursal_core::stats::NodeStats {
+    tauri::async_runtime::spawn_blocking(kursal_core::stats::global_sample)
+        .await
+        .unwrap_or_default()
+}
+
 #[tauri::command]
-pub fn get_node_stats() -> kursal_core::stats::NodeStats {
-    kursal_core::stats::global_sample()
+pub async fn get_node_stats() -> kursal_core::stats::NodeStats {
+    sample_node_stats().await
+}
+
+#[tauri::command]
+pub async fn start_node_stats(app: tauri::AppHandle) -> Result<()> {
+    let bg = app.state::<crate::background::BackgroundState>();
+
+    let handle = app.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(NODE_STATS_INTERVAL);
+        loop {
+            ticker.tick().await;
+            let stats = sample_node_stats().await;
+            if handle.emit("node_stats", stats).is_err() {
+                break;
+            }
+        }
+    });
+
+    if let Some(previous) = bg.node_stats_task.lock_recover().replace(task) {
+        previous.abort();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_node_stats(app: tauri::AppHandle) -> Result<()> {
+    let bg = app.state::<crate::background::BackgroundState>();
+    if let Some(task) = bg.node_stats_task.lock_recover().take() {
+        task.abort();
+    }
+
+    Ok(())
 }
 
 setting_cmd!(get get_listening_port -> Option<u16>, get_swarm_listening_port);
@@ -425,8 +467,7 @@ pub async fn generate_local_api_token(state: tauri::State<'_, AppState>) -> Resu
     let db = state.db.clone();
 
     let token = tokio::task::spawn_blocking(move || {
-        let guard = &*db;
-        set_new_api_server_password(guard)
+        set_new_api_server_password(&db)
     })
     .await
     .ok_kursal(KursalError::Crypto)??;
