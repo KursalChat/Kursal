@@ -260,11 +260,12 @@ impl SwarmHandle {
                 kad_config.set_record_filtering(libp2p::kad::StoreInserts::FilterBoth);
                 kad_config.set_record_ttl(Some(Duration::from_secs(3 * 7 * 24 * 60 * 60))); // 3 weeks
 
-                let kad = libp2p::kad::Behaviour::with_config(
+                let mut kad = libp2p::kad::Behaviour::with_config(
                     local_peer_id,
                     KursalKadStore::new(local_peer_id),
                     kad_config,
                 );
+                kad.set_mode(Some(libp2p::kad::Mode::Client));
 
                 #[cfg(not(target_os = "ios"))]
                 let mdns = if mdns_enabled {
