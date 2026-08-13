@@ -297,6 +297,22 @@ export function isEmojiOnly(content: string): { jumbo: boolean; count: number } 
 }
 
 const markdownCache = new Map<string, string>();
+const MARKDOWN_CACHE_MAX_CHARS = 500_000;
+let markdownCacheChars = 0;
+
+function cacheMarkdown(key: string, html: string): void {
+  const prev = markdownCache.get(key);
+  if (prev !== undefined) markdownCacheChars -= key.length + prev.length;
+  markdownCache.set(key, html);
+  markdownCacheChars += key.length + html.length;
+
+  while (markdownCacheChars > MARKDOWN_CACHE_MAX_CHARS) {
+    const oldest = markdownCache.keys().next().value;
+    if (oldest === undefined) break;
+    markdownCacheChars -= oldest.length + markdownCache.get(oldest)!.length;
+    markdownCache.delete(oldest);
+  }
+}
 
 // Wraps occurrences of `term` in <mark> within the text of already-sanitized
 // HTML (skips anything inside tags, and treats HTML entities like &amp; as
@@ -334,11 +350,7 @@ export function renderMarkdown(content: string, isEdited: boolean = false): stri
       ALLOWED_TAGS: ['p'],
       ALLOWED_ATTR: ['class'],
     });
-    markdownCache.set(cacheKey, sanitized);
-    if (markdownCache.size > 600) {
-      const firstKey = markdownCache.keys().next().value;
-      if (firstKey) markdownCache.delete(firstKey);
-    }
+    cacheMarkdown(cacheKey, sanitized);
     return sanitized;
   }
 
@@ -394,11 +406,7 @@ export function renderMarkdown(content: string, isEdited: boolean = false): stri
       'aria-label',
     ],
   });
-  markdownCache.set(cacheKey, sanitized);
-  if (markdownCache.size > 600) {
-    const firstKey = markdownCache.keys().next().value;
-    if (firstKey) markdownCache.delete(firstKey);
-  }
+  cacheMarkdown(cacheKey, sanitized);
   return sanitized;
 }
 

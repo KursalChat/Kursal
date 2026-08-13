@@ -16,7 +16,7 @@
   import Spinner from '$lib/components/Spinner.svelte';
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   import ShortcodeAutocomplete from './ShortcodeAutocomplete.svelte';
-  import { loadEmojiIndex, searchEmojis, applyTone, getTone, type Emoji } from '$lib/emoji';
+  import { loadEmojiIndex, searchEmojis, applyTone, getTone, type EmojiIndex } from '$lib/emoji';
   import { readInsets } from '$lib/utils/android-insets';
   import type { ContactResponse } from '$lib/types';
 
@@ -142,17 +142,24 @@
     };
   });
 
-  let scFlat = $state<Emoji[] | null>(null);
-  let scByShortcode = $state<Map<string, Emoji> | null>(null);
-  loadEmojiIndex().then((i) => {
-    scFlat = i.flat;
-    scByShortcode = i.byShortcode;
-  });
+  // Keep the whole index object referenced
+  let scIndex = $state.raw<EmojiIndex | null>(null);
+  let scLoading = false;
+
+  function ensureEmojiIndex() {
+    if (scIndex || scLoading) return;
+    scLoading = true;
+    loadEmojiIndex().then((i) => {
+      scIndex = i;
+      scLoading = false;
+    });
+  }
+
   let shortcodeQuery = $state<string | null>(null);
   let scSelected = $state(0);
   let scPos = $state<{ bottom: number; left: number } | null>(null);
   const scItems = $derived(
-    shortcodeQuery && scFlat ? searchEmojis(scFlat, shortcodeQuery).slice(0, 8) : []
+    shortcodeQuery && scIndex ? searchEmojis(scIndex.flat, shortcodeQuery).slice(0, 8) : []
   );
 
   function acceptShortcode() {
@@ -517,6 +524,7 @@
   const SC_RE = /(^|\s):([a-z0-9_+\-]{2,})$/;
   // A completed :shortcode: token (closing colon typed) → replace instantly.
   const SC_CLOSE_RE = /(^|\s):([a-z0-9_+\-]+):$/;
+  const SC_TRIGGER_RE = /(^|\s):[a-z0-9_+\-]*:?$/;
 
   function handleInput() {
     onInput();
@@ -527,11 +535,12 @@
     if (!composerEl) return;
     const before = composerEl.value.slice(0, composerEl.selectionStart);
 
-    // Exact `:name:` → emoji (e.g. ":orange:" becomes 🍊) the moment the
-    // closing colon is typed, if the name is an exact shortcode match.
+    if (SC_TRIGGER_RE.test(before)) ensureEmojiIndex();
+
+    // Exact `:name:` → emoji
     const exact = SC_CLOSE_RE.exec(before);
-    if (exact && scByShortcode) {
-      const hit = scByShortcode.get(exact[2]);
+    if (exact && scIndex) {
+      const hit = scIndex.byShortcode.get(exact[2]);
       if (hit) {
         const caret = composerEl.selectionStart;
         const start = caret - (exact[2].length + 2); // include both colons

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import QRCode from 'qrcode';
   import { Check, Copy, KeyRound, Link2, Share2 } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { log } from '$lib/utils/log';
@@ -92,6 +91,7 @@
 
   async function renderQr(value: string) {
     try {
+      const { default: QRCode } = await import('qrcode');
       qrDataUrl = await QRCode.toDataURL(value, {
         errorCorrectionLevel: 'L',
         margin: 4,

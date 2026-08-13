@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { scale } from 'svelte/transition';
-  import QRCode from 'qrcode';
   import { Copy } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { log } from '$lib/utils/log';
@@ -18,6 +17,7 @@
 
   onMount(async () => {
     try {
+      const { default: QRCode } = await import('qrcode');
       qrDataUrl = await QRCode.toDataURL(link, {
         errorCorrectionLevel: 'M',
         margin: 4,
