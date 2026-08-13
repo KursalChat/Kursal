@@ -299,7 +299,7 @@
     if (!browser || !contactId) return;
     await shareBusy.run(async () => {
       try {
-        await shareProfile(profileState.displayName, profileState.avatarBytes, contactId);
+        await shareProfile(contactId);
         const online = isOnlineStatus(contactsState.connectionStatus[contactId]);
         if (contact) contactsState.upsert({ ...contact, profileShared: true });
         notifications.push(
@@ -1992,7 +1992,7 @@
       <ScrollToBottomButton
         {unreadCount}
         name={contact.displayName}
-        avatar={contact.avatarBase64}
+        avatar={contact.avatarPath}
         onClick={jumpToLatest}
       />
     {/if}

@@ -271,7 +271,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
         user_id: UserId(user_id),
         peer_id: payload.peer_id.clone(),
         display_name: make_username(&payload.peer_id),
-        avatar_bytes: None,
+        avatar: None,
         identity_pub_key: identity_pub_key.clone(),
         dilithium_pub_key: payload.dilithium_pub_key.clone(),
         known_addresses: payload.relay_addresses,

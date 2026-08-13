@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{path::PathBuf, time::SystemTime};
 
+pub mod avatars;
 pub mod backup;
 pub mod conversation;
 mod db;
@@ -88,6 +89,7 @@ pub struct StorageUsage {
     pub logs_bytes: u64,
     pub db_bytes: u64,
     pub files_bytes: u64,
+    pub avatars_bytes: u64,
     pub per_contact: Vec<ContactUsage>,
 }
 impl StorageUsage {
@@ -110,6 +112,11 @@ pub fn get_storage_usage(
         .metadata()
         .map(|m| m.len())
         .map_err(KursalError::Io)?;
+
+    let avatars_bytes = match avatars::dir() {
+        Some(dir) => get_folder_size(dir.clone(), 1).unwrap_or(0),
+        None => 0,
+    };
 
     let mut files_bytes = 0u64;
 
@@ -160,6 +167,7 @@ pub fn get_storage_usage(
         logs_bytes,
         db_bytes,
         files_bytes,
+        avatars_bytes,
         per_contact,
     })
 }

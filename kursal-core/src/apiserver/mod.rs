@@ -189,7 +189,7 @@ impl Modify for AuthResponses {
         api_otp_generate, api_otp_fetch,
         api_ltc_export, api_ltc_import,
         api_nearby_start, api_nearby_stop, api_nearby_get, api_nearby_connect, api_nearby_accept, api_nearby_decline,
-        api_contacts, api_contact_security_code, api_contact_security_code_confirm, api_contact_share_profile, api_contact_get, api_contact_remove, api_contact_blocked_list, api_contact_block, api_contact_unblock,
+        api_contacts, api_contact_security_code, api_contact_security_code_confirm, api_contact_share_profile, api_contact_get, api_contact_avatar, api_contact_remove, api_contact_blocked_list, api_contact_block, api_contact_unblock,
         api_typing, api_messages_send, api_messages_get, api_message_delete_local, api_message_delete, api_message_pin, api_message_unpin, api_message_edit, api_message_reaction_add, api_message_reaction_remove, api_files_send, api_files_accept,
     ),
     components(schemas(
@@ -273,6 +273,7 @@ pub async fn run_server(
             post(api_contact_share_profile),
         )
         .route("/contact/{contact_id}", get(api_contact_get))
+        .route("/contact/{contact_id}/avatar", get(api_contact_avatar))
         .route("/contact/{contact_id}", delete(api_contact_remove))
         .route("/contacts/blocked", get(api_contact_blocked_list))
         .route("/contact/{contact_id}/block", post(api_contact_block))

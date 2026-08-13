@@ -137,6 +137,7 @@ fn backup_encrypt_decrypt_roundtrip() {
     let backup = KursalBackup {
         master_key: vec![1u8, 2, 3, 4, 5],
         database: vec![9u8; 64],
+        avatars: vec![("a".repeat(64), vec![5u8; 12])],
     };
     let password = b"correct horse battery".to_vec();
 
@@ -145,6 +146,7 @@ fn backup_encrypt_decrypt_roundtrip() {
 
     assert_eq!(restored.master_key, vec![1u8, 2, 3, 4, 5]);
     assert_eq!(restored.database, vec![9u8; 64]);
+    assert_eq!(restored.avatars, vec![("a".repeat(64), vec![5u8; 12])]);
 }
 
 #[test]
@@ -154,6 +156,7 @@ fn backup_wrong_password_fails() {
     let backup = KursalBackup {
         master_key: vec![7u8; 16],
         database: vec![3u8; 32],
+        avatars: Vec::new(),
     };
 
     let bytes = backup.serialize(b"right-password".to_vec()).unwrap();

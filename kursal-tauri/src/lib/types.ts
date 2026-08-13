@@ -7,7 +7,7 @@ export interface ContactResponse {
   profileShared: boolean;
   blocked: boolean;
   createdAt: number;
-  avatarBase64?: string | null; // base64 encoded webp string
+  avatarPath?: string | null; // absolute path to the stored webp file
   profileName?: string; // peer-chosen name; displayName may be a local alias
 }
 

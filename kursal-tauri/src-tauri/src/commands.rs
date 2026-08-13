@@ -24,9 +24,9 @@ use kursal_core::storage::filetransfer::{
 use kursal_core::storage::{
     AutoAcceptConfig, AutoDownloadConfig, Database, RelayConfig, SharedDatabase, SharedFileEntry,
     StorageUsage, api_server_config, delete_message_history_all, delete_message_history_for,
-    files_list_shared, files_revoke_shared, get_local_profile, get_local_user_id,
-    get_swarm_listening_port, get_swarm_mdns_enabled, reset_full_app, set_api_server_config,
-    set_new_api_server_password, set_swarm_listening_port, set_swarm_mdns_enabled,
+    files_list_shared, files_revoke_shared, get_local_user_id, get_swarm_listening_port,
+    get_swarm_mdns_enabled, reset_full_app, set_api_server_config, set_new_api_server_password,
+    set_swarm_listening_port, set_swarm_mdns_enabled,
 };
 use kursal_core::sync::LockExt;
 use std::collections::HashMap;
@@ -257,10 +257,16 @@ pub async fn get_local_user_id_hex(state: tauri::State<'_, AppState>) -> Result<
     Ok(hex::encode(uid.0))
 }
 
-setting_cmd!(get get_local_user_profile -> (String, Option<Vec<u8>>), get_local_profile);
+#[tauri::command]
+pub async fn get_local_user_profile(
+    state: tauri::State<'_, AppState>,
+) -> Result<(String, Option<String>)> {
+    Ok(cmd_wrapper::get_local_user_profile_path(AppStateWrapper(state)).await)
+}
 
-core_cmd!(broadcast_profile(display_name: String, avatar_bytes: Option<Vec<u8>>) -> ());
-core_cmd!(share_profile(display_name: String, avatar_bytes: Option<Vec<u8>>, contact_id: String) -> ());
+core_cmd!(set_local_user_avatar(avatar_bytes: Option<Vec<u8>>) -> Option<String>);
+core_cmd!(broadcast_profile(display_name: String) -> (), as broadcast_stored_profile);
+core_cmd!(share_profile(contact_id: String) -> (), as share_stored_profile);
 core_cmd!(delete_message_for_everyone(contact_id: String, message_id: String) -> bool);
 core_cmd!(pin_message(contact_id: String, message_id: String, pinned: bool) -> bool);
 core_cmd!(get_pinned_messages(contact_id: String) -> Vec<MessageResponse>);
@@ -466,11 +472,9 @@ setting_cmd!(set set_local_api_config(config: LocalApiConfig), set_api_server_co
 pub async fn generate_local_api_token(state: tauri::State<'_, AppState>) -> Result<String> {
     let db = state.db.clone();
 
-    let token = tokio::task::spawn_blocking(move || {
-        set_new_api_server_password(&db)
-    })
-    .await
-    .ok_kursal(KursalError::Crypto)??;
+    let token = tokio::task::spawn_blocking(move || set_new_api_server_password(&db))
+        .await
+        .ok_kursal(KursalError::Crypto)??;
     Ok(token)
 }
 

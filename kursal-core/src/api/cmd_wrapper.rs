@@ -17,8 +17,9 @@ use crate::{
     },
     network::NetworkManager,
     storage::{
-        Database, SharedDatabase, conversation, get_dilithium_pub, get_local_identity_pub,
-        get_local_profile, get_local_user_id, get_read_receipts_enabled, set_local_profile,
+        Database, SharedDatabase, avatars, conversation, get_dilithium_pub, get_local_avatar_bytes,
+        get_local_identity_pub, get_local_profile, get_local_user_id, get_read_receipts_enabled,
+        set_local_avatar, set_local_display_name,
     },
 };
 use std::collections::HashMap;
@@ -208,6 +209,18 @@ pub async fn get_contact<S: StateWrapper>(
     let contact = Contact::load(state.db(), &user_id)?;
 
     Ok(contact.map(ContactResponse::from))
+}
+
+pub async fn get_contact_avatar<S: StateWrapper>(
+    state: S,
+    contact_id: String,
+) -> Result<Option<Vec<u8>>> {
+    let user_id = parse_contact_id(&contact_id)?;
+
+    Ok(Contact::load(state.db(), &user_id)?
+        .and_then(|contact| contact.avatar)
+        .as_deref()
+        .and_then(avatars::read))
 }
 
 core_request!(remove_contact(contact_id: String) => RemoveContact -> ());
@@ -601,8 +614,25 @@ pub async fn get_local_user_id_hex<S: StateWrapper>(state: S) -> Result<String> 
 
 pub async fn get_local_user_profile<S: StateWrapper>(state: S) -> (String, Option<Vec<u8>>) {
     let db = state.db();
+    let (username, hash) = get_local_profile(db);
 
-    get_local_profile(db)
+    (username, hash.as_deref().and_then(avatars::read))
+}
+
+pub async fn get_local_user_profile_path<S: StateWrapper>(state: S) -> (String, Option<String>) {
+    let db = state.db();
+    let (username, hash) = get_local_profile(db);
+
+    (username, hash.as_deref().and_then(avatars::path_string))
+}
+
+pub async fn set_local_user_avatar<S: StateWrapper>(
+    state: S,
+    avatar_bytes: Option<Vec<u8>>,
+) -> Result<Option<String>> {
+    let hash = set_local_avatar(state.db(), avatar_bytes)?;
+
+    Ok(hash.as_deref().and_then(avatars::path_string))
 }
 
 pub async fn broadcast_profile<S: StateWrapper>(
@@ -610,9 +640,19 @@ pub async fn broadcast_profile<S: StateWrapper>(
     display_name: String,
     avatar_bytes: Option<Vec<u8>>,
 ) -> Result<()> {
+    set_local_avatar(state.db(), avatar_bytes)?;
+
+    broadcast_stored_profile(state, display_name).await
+}
+
+pub async fn broadcast_stored_profile<S: StateWrapper>(
+    state: S,
+    display_name: String,
+) -> Result<()> {
     let (reply_tx, reply_rx) = oneshot::channel();
 
-    set_local_profile(state.db(), display_name.clone(), avatar_bytes.clone())?;
+    set_local_display_name(state.db(), display_name.clone())?;
+    let avatar_bytes = get_local_avatar_bytes(state.db());
 
     state
         .core_cmd_tx()
@@ -625,6 +665,13 @@ pub async fn broadcast_profile<S: StateWrapper>(
         .ok_kursal(KursalError::Network)?;
 
     reply_rx.await.ok_kursal(KursalError::Network)?
+}
+
+pub async fn share_stored_profile<S: StateWrapper>(state: S, contact_id: String) -> Result<()> {
+    let (display_name, _) = get_local_profile(state.db());
+    let avatar_bytes = get_local_avatar_bytes(state.db());
+
+    share_profile(state, display_name, avatar_bytes, contact_id).await
 }
 
 core_request!(share_profile(display_name: String, avatar_bytes: Option<Vec<u8>>, contact_id: String) => ShareProfile -> ());

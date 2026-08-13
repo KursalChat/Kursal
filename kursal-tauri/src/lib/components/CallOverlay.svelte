@@ -149,7 +149,7 @@
               <canvas class="tile-media" bind:this={remoteCanvas}></canvas>
             {:else}
               <div class="tile-avatar">
-                <Avatar name={contact.displayName} src={contact.avatarBase64} size={96} />
+                <Avatar name={contact.displayName} src={contact.avatarPath} size={96} />
               </div>
             {/if}
             <span class="tile-name">{contact.displayName}</span>
@@ -167,7 +167,7 @@
               ></video>
             {:else}
               <div class="tile-avatar">
-                <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={96} />
+                <Avatar name={profileState.displayName} src={profileState.avatarPath} size={96} />
               </div>
             {/if}
             <span class="tile-name">{profileState.displayName} ({t('chat.call.you')})</span>
@@ -179,7 +179,7 @@
           <span class="ring r2"></span>
           <span class="ring r3"></span>
           <div class="avatar-core">
-            <Avatar name={contact.displayName} src={contact.avatarBase64} size={132} />
+            <Avatar name={contact.displayName} src={contact.avatarPath} size={132} />
             {#if isConnected && (callState.peerDeafened || callState.peerMuted)}
               <div
                 class="voice-badge"

@@ -12,7 +12,7 @@ fn make_contact(user_id: UserId) -> Contact {
         user_id,
         peer_id: "Test User".to_string(),
         display_name: "Test User".to_string(),
-        avatar_bytes: None,
+        avatar: None,
         identity_pub_key: vec![1u8; 32],
         dilithium_pub_key: vec![2u8; 32],
         known_addresses: vec!["/ip4/127.0.0.1/tcp/4001".to_string()],

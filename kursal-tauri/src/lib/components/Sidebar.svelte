@@ -395,7 +395,7 @@
             }}
           >
             <div class="contact-avatar">
-              <Avatar name={contact.displayName} src={contact.avatarBase64} size={42} />
+              <Avatar name={contact.displayName} src={contact.avatarPath} size={42} />
               <StatusDot
                 status={status ?? 'disconnected'}
                 label={getStatusLabel(status, contact.userId)}
@@ -498,7 +498,7 @@
   <div class="user-panel">
     <button class="user-identity" onclick={handleSettings} aria-label={t('layout.openSettings')}>
       <div class="user-avatar">
-        <Avatar name={profileState.displayName} src={profileState.avatarBase64} size={36} />
+        <Avatar name={profileState.displayName} src={profileState.avatarPath} size={36} />
         {#if totalUnread > 0}
           <span class="badge total">{totalUnread > 99 ? '99+' : totalUnread}</span>
         {/if}

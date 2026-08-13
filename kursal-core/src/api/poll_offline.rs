@@ -463,16 +463,19 @@ async fn dispatch_offline_kmessage(
                 return Ok(());
             }
             let name = profile.display_name;
-            let avatar = profile.avatar_bytes;
+            let avatar = profile
+                .avatar_bytes
+                .as_deref()
+                .and_then(|bytes| crate::storage::avatars::store(bytes).ok());
             if let Some(updated) = update_contact(&db, &contact.user_id, move |c| {
                 c.display_name = name;
-                c.avatar_bytes = avatar;
+                c.avatar = avatar;
                 true
             })
             .await?
             {
                 contact.display_name = updated.display_name.clone();
-                contact.avatar_bytes = updated.avatar_bytes.clone();
+                contact.avatar = updated.avatar.clone();
                 event_tx
                     .send(AppEvent::ContactUpdated { contact: updated })
                     .await

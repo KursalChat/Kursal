@@ -9,6 +9,8 @@ use crate::{
 use axum::{
     Json,
     extract::{Path, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
 };
 
 #[utoipa::path(
@@ -47,6 +49,30 @@ pub(crate) async fn api_contact_get(
         .await
         .map(Json)
         .map_err(Into::into)
+}
+
+#[utoipa::path(
+    get,
+    path = "/contact/{contact_id}/avatar",
+    tag = "Contacts",
+    params(
+        ("contact_id" = String, Path, description = "Contact ID"),
+    ),
+    responses(
+        (status = 200, description = "Contact avatar (WebP)", content_type = "image/webp"),
+        (status = 404, description = "Contact has no avatar", body = APIError)
+    )
+)]
+pub(crate) async fn api_contact_avatar(
+    State(state): State<APIAppState>,
+    Path(contact_id): Path<String>,
+) -> Result<Response> {
+    let avatar = cmd_wrapper::get_contact_avatar(state, contact_id).await?;
+
+    match avatar {
+        Some(bytes) => Ok(([(header::CONTENT_TYPE, "image/webp")], bytes).into_response()),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+    }
 }
 
 #[utoipa::path(

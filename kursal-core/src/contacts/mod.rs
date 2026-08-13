@@ -71,7 +71,7 @@ pub struct Contact {
     pub user_id: UserId,
     pub peer_id: String,
     pub display_name: String,
-    pub avatar_bytes: Option<Vec<u8>>,
+    pub avatar: Option<String>,
     pub identity_pub_key: Vec<u8>,
     pub dilithium_pub_key: Vec<u8>,
     pub known_addresses: Vec<String>,

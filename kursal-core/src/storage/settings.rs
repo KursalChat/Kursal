@@ -1,3 +1,4 @@
+use super::avatars;
 use super::db::{Database, TABLE_SETTINGS};
 use crate::MapKursalResult;
 use crate::{KursalError, Result, apiserver::LocalApiConfig};
@@ -419,7 +420,7 @@ pub fn set_video_quality(db: &Database, quality: u32) -> Result<()> {
     Ok(())
 }
 
-pub fn get_local_profile(db: &Database) -> (String, Option<Vec<u8>>) {
+pub fn get_local_profile(db: &Database) -> (String, Option<String>) {
     let default_username = "You".to_string();
     let username = match db.raw_read(TABLE_SETTINGS, "local_profile_username") {
         Ok(Some(bytes)) => std::str::from_utf8(&bytes)
@@ -428,28 +429,43 @@ pub fn get_local_profile(db: &Database) -> (String, Option<Vec<u8>>) {
         _ => default_username,
     };
 
-    let avatar = match db.raw_read(TABLE_SETTINGS, "local_profile_avatar") {
-        Ok(Some(bytes)) if !bytes.is_empty() => Some(bytes),
+    (username, get_local_avatar(db))
+}
+
+pub fn get_local_avatar(db: &Database) -> Option<String> {
+    match db.raw_read(TABLE_SETTINGS, avatars::LOCAL_PROFILE_AVATAR_KEY) {
+        Ok(Some(bytes)) => std::str::from_utf8(&bytes)
+            .ok()
+            .filter(|hash| !hash.is_empty())
+            .map(str::to_string),
+        _ => None,
+    }
+}
+
+pub fn get_local_avatar_bytes(db: &Database) -> Option<Vec<u8>> {
+    get_local_avatar(db).and_then(|hash| avatars::read(&hash))
+}
+
+pub fn set_local_avatar(db: &Database, avatar_bytes: Option<Vec<u8>>) -> Result<Option<String>> {
+    let hash = match avatar_bytes {
+        Some(bytes) if !bytes.is_empty() => Some(avatars::store(&bytes)?),
         _ => None,
     };
 
-    (username, avatar)
+    db.raw_write(
+        TABLE_SETTINGS,
+        avatars::LOCAL_PROFILE_AVATAR_KEY,
+        hash.as_deref().unwrap_or_default().as_bytes(),
+    )?;
+
+    Ok(hash)
 }
-pub fn set_local_profile(
-    db: &Database,
-    display_name: String,
-    avatar_bytes: Option<Vec<u8>>,
-) -> Result<()> {
+
+pub fn set_local_display_name(db: &Database, display_name: String) -> Result<()> {
     db.raw_write(
         TABLE_SETTINGS,
         "local_profile_username",
         display_name.as_bytes(),
-    )?;
-
-    db.raw_write(
-        TABLE_SETTINGS,
-        "local_profile_avatar",
-        &avatar_bytes.unwrap_or(Vec::with_capacity(0)),
     )?;
 
     Ok(())

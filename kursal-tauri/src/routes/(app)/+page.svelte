@@ -249,7 +249,7 @@
           {#each attention as row (row.contact.userId)}
             <button class="attention-row" onclick={() => goto('/chat/' + row.contact.userId)}>
               <div class="attention-avatar">
-                <Avatar name={row.contact.displayName} src={row.contact.avatarBase64} size={36} />
+                <Avatar name={row.contact.displayName} src={row.contact.avatarPath} size={36} />
                 <StatusDot
                   status={contactsState.connectionStatus[row.contact.userId] ?? 'disconnected'}
                 />

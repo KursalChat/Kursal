@@ -538,7 +538,7 @@
         // Save old values to compare, because upsert modifies Svelte 5 state in-place
         const oldPeerId = existing?.peerId;
         const oldName = existing?.displayName;
-        const oldAvatar = existing?.avatarBase64;
+        const oldAvatar = existing?.avatarPath;
 
         contactsState.upsert(payload);
 
@@ -552,7 +552,7 @@
         }
 
         const nameChanged = oldName && oldName !== newContact.displayName;
-        const avatarChanged = oldAvatar !== newContact.avatarBase64 && newContact.avatarBase64;
+        const avatarChanged = oldAvatar !== newContact.avatarPath && newContact.avatarPath;
 
         if (nameChanged && avatarChanged) {
           notifications.push(

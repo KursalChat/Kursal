@@ -369,7 +369,7 @@ async fn address_announce_updates_contact() {
         user_id: UserId([7u8; 32]),
         peer_id: "OldPeer".to_string(),
         display_name: "T".to_string(),
-        avatar_bytes: None,
+        avatar: None,
         identity_pub_key: vec![1u8; 32],
         dilithium_pub_key: vec![2u8; 32],
         known_addresses: vec!["/ip4/127.0.0.1/tcp/1".to_string()],

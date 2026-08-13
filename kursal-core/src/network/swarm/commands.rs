@@ -141,6 +141,7 @@ pub(super) async fn handle_swarm_command(
                 expires: expires
                     .and_then(|secs| Instant::now().checked_add(Duration::from_secs(secs))),
             };
+
             match swarm
                 .behaviour_mut()
                 .kad

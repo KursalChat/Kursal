@@ -317,7 +317,7 @@ pub async fn handle_fc_response(
         user_id: user_id.clone(),
         peer_id: response.peer_id.clone(),
         display_name: make_username(&response.peer_id),
-        avatar_bytes: None,
+        avatar: None,
         identity_pub_key: identity_key_bytes.clone(),
         dilithium_pub_key: response.dilithium_pub_key.clone(),
         known_addresses: response.relay_addresses.clone(),

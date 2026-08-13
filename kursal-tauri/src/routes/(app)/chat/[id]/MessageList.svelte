@@ -123,7 +123,7 @@
   {#if isEmpty}
     <EmptyChat
       name={contact.displayName}
-      avatar={contact.avatarBase64}
+      avatar={contact.avatarPath}
       verified={contact.verified}
       {sending}
       canMessage={!contact.blocked && !terminated}
@@ -199,8 +199,8 @@
                             ? contact.displayName
                             : profileState.displayName}
                           src={group.direction === 'received'
-                            ? contact.avatarBase64
-                            : profileState.avatarBase64}
+                            ? contact.avatarPath
+                            : profileState.avatarPath}
                           size={32}
                         />
                       {:else}
@@ -246,7 +246,7 @@
                 <div class="group-body" class:sent={group.direction === 'sent'}>
                   {#if group.direction === 'received'}
                     <div class="group-avatar">
-                      <Avatar name={contact.displayName} src={contact.avatarBase64} size={28} />
+                      <Avatar name={contact.displayName} src={contact.avatarPath} size={28} />
                     </div>
                   {/if}
                   <div class="group-messages" class:sent={group.direction === 'sent'}>
@@ -284,7 +284,7 @@
   {/if}
 
   {#if typingState.isTyping(contact.userId)}
-    <TypingIndicator name={contact.displayName} avatar={contact.avatarBase64} />
+    <TypingIndicator name={contact.displayName} avatar={contact.avatarPath} />
   {/if}
 
   <div class="composer-clearance" aria-hidden="true"></div>

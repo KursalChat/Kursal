@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { convertFileSrc } from '@tauri-apps/api/core';
   import type { ConnectionChangedPayload } from '$lib/types';
 
   let {
@@ -24,9 +25,7 @@
       .join('')
   );
 
-  const imgSrc = $derived(
-    src ? (src.startsWith('data:') ? src : `data:image/webp;base64,${src}`) : null
-  );
+  const imgSrc = $derived(src ? (src.startsWith('data:') ? src : convertFileSrc(src)) : null);
 
   const statusColor = $derived.by(() => {
     if (!status) return 'var(--text-muted)';

@@ -16,7 +16,7 @@
   type CodeStatus = 'idle' | 'creating' | 'ready' | 'expired' | 'used' | 'failed';
 
   const OTP_LINK_PREFIX = 'kursal://otp/';
-  const OTP_TTL_MS = 10 * 60 * 1000;
+  const OTP_TTL_MS = 9 * 60 * 1000;
 
   let otp = $state<string | null>(null);
   let qrDataUrl = $state<string | null>(null);

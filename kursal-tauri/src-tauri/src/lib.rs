@@ -565,6 +565,7 @@ pub fn run() {
             commands::get_local_peer_id,
             commands::get_local_user_id_hex,
             commands::get_local_user_profile,
+            commands::set_local_user_avatar,
             commands::broadcast_profile,
             commands::share_profile,
             commands::check_for_updates,

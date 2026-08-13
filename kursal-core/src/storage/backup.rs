@@ -29,10 +29,19 @@ impl KursalBackupFile {
     }
 }
 
+const BACKUP_VERSION: u8 = 1;
+
+#[derive(Deserialize)]
+struct KursalBackupV0 {
+    master_key: Vec<u8>,
+    database: Vec<u8>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct KursalBackup {
     pub master_key: Vec<u8>,
     pub database: Vec<u8>,
+    pub avatars: Vec<(String, Vec<u8>)>,
 }
 impl KursalBackup {
     pub fn serialize(&self, password: Vec<u8>) -> Result<Vec<u8>> {
@@ -64,7 +73,7 @@ impl KursalBackup {
             ciphertext,
             salt,
             nonce: nonce.to_vec(),
-            version: 0u8,
+            version: BACKUP_VERSION,
         }
         .serialize()
     }
@@ -92,6 +101,17 @@ impl KursalBackup {
                 .map_err(|_| KursalError::Crypto("Wrong password".to_string()))?,
         );
 
+        if file.version == 0 {
+            let legacy: KursalBackupV0 =
+                bincode::deserialize(plaintext.as_slice()).ok_kursal(KursalError::Storage)?;
+
+            return Ok(Self {
+                master_key: legacy.master_key,
+                database: legacy.database,
+                avatars: Vec::new(),
+            });
+        }
+
         bincode::deserialize(plaintext.as_slice()).ok_kursal(KursalError::Storage)
     }
 }
@@ -112,6 +132,7 @@ pub async fn generate_backup(
     let mut backup = KursalBackup {
         master_key,
         database,
+        avatars: super::avatars::read_all(),
     };
 
     let serialized = KursalFile::Backup(backup.serialize(password.into_bytes())?).serialize();
@@ -143,6 +164,9 @@ pub async fn load_backup(
     write(database_path, database)
         .await
         .map_err(KursalError::Io)?;
+
+    super::avatars::init(app_data_dir)?;
+    super::avatars::restore(std::mem::take(&mut backup.avatars))?;
 
     let hex_secret = Zeroizing::new(hex::encode(&backup.master_key));
     backup.master_key.zeroize();

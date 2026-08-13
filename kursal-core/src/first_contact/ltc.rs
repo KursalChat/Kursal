@@ -402,7 +402,7 @@ impl LtcState {
             display_name: make_username(&peer_id),
             peer_id,
             known_addresses,
-            avatar_bytes: None,
+            avatar: None,
             identity_pub_key: identity_key_bytes.clone(),
             dilithium_pub_key: payload.dilithium_pub_key.clone(),
             verified: false,

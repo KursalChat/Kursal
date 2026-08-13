@@ -88,7 +88,7 @@
     return contactsState.getById(id)?.displayName ?? '';
   }
   function contactAvatar(id: string): string | null | undefined {
-    return contactsState.getById(id)?.avatarBase64;
+    return contactsState.getById(id)?.avatarPath;
   }
   function fmtResultTime(ts: number): string {
     const d = new Date(ts);
@@ -119,7 +119,7 @@
         id: 'contact:' + c.userId,
         label: c.displayName,
         keywords: [c.displayName],
-        avatar: { name: c.displayName, src: c.avatarBase64 },
+        avatar: { name: c.displayName, src: c.avatarPath },
         run: () => nav('/chat/' + c.userId),
       }))
   );

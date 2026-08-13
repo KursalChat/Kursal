@@ -1,11 +1,9 @@
 import { getLocalUserProfile, getLocalPeerId, getLocalUserId } from '$lib/api/identity';
 import { log } from '$lib/utils/log';
-import { bytesToBase64 } from '$lib/utils/base64';
 
 function createProfileState() {
   let displayName = $state('You');
-  let avatarBase64 = $state<string | null>(null);
-  let avatarBytes = $state<number[] | null>(null);
+  let avatarPath = $state<string | null>(null);
   let peerId = $state<string | null>(null);
   let userId = $state<string | null>(null);
   let loading = $state(false);
@@ -18,13 +16,7 @@ function createProfileState() {
       const [storedName, storedAvatar] = await getLocalUserProfile();
       if (storedName) displayName = storedName;
 
-      if (storedAvatar && storedAvatar.length > 0) {
-        avatarBytes = storedAvatar;
-        avatarBase64 = bytesToBase64(storedAvatar);
-      } else {
-        avatarBytes = null;
-        avatarBase64 = null;
-      }
+      avatarPath = storedAvatar || null;
     } catch (e) {
       log.error('Failed to load user profile:', e);
     }
@@ -40,10 +32,9 @@ function createProfileState() {
     loading = false;
   }
 
-  function update(name: string, b64: string | null, bytes: number[] | null) {
+  function update(name: string, path: string | null) {
     displayName = name;
-    avatarBase64 = b64;
-    avatarBytes = bytes;
+    avatarPath = path;
   }
 
   async function refreshPeerId() {
@@ -58,11 +49,8 @@ function createProfileState() {
     get displayName() {
       return displayName;
     },
-    get avatarBase64() {
-      return avatarBase64;
-    },
-    get avatarBytes() {
-      return avatarBytes;
+    get avatarPath() {
+      return avatarPath;
     },
     get peerId() {
       return peerId;

@@ -6,7 +6,6 @@ use crate::{
         enums::{CallOutcome, Direction, KursalMessage, MessageStatus},
     },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -15,7 +14,7 @@ use utoipa::ToSchema;
 pub struct ContactResponse {
     pub user_id: String,
     pub display_name: String,
-    pub avatar_base64: Option<String>,
+    pub avatar_path: Option<String>,
     pub peer_id: String,
     pub known_addresses: Vec<String>,
     pub verified: bool,
@@ -29,7 +28,10 @@ impl From<Contact> for ContactResponse {
         Self {
             user_id: hex::encode(value.user_id.0),
             display_name: value.display_name,
-            avatar_base64: value.avatar_bytes.map(|b| BASE64.encode(b)),
+            avatar_path: value
+                .avatar
+                .as_deref()
+                .and_then(crate::storage::avatars::path_string),
             peer_id: value.peer_id,
             known_addresses: value.known_addresses,
             verified: value.verified,

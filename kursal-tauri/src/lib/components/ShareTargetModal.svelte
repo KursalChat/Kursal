@@ -79,7 +79,7 @@
     {:else}
       {#each filtered as c (c.userId)}
         <button class="st-row" onclick={() => onPick(c.userId)}>
-          <Avatar name={c.displayName} src={c.avatarBase64} size={34} />
+          <Avatar name={c.displayName} src={c.avatarPath} size={34} />
           <span class="st-name">{c.displayName}</span>
         </button>
       {/each}

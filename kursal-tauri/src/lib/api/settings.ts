@@ -44,6 +44,7 @@ export interface StorageUsage {
   logsBytes: number;
   dbBytes: number;
   filesBytes: number;
+  avatarsBytes: number;
   perContact: ContactUsage[];
 }
 
