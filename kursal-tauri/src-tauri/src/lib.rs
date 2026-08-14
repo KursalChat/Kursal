@@ -376,6 +376,8 @@ pub fn run() {
                 keychain_config
             });
 
+            app.manage(commands::NodeStatsState::default());
+
             #[cfg(target_os = "windows")]
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.with_webview(|webview| unsafe {
@@ -433,7 +435,6 @@ pub fn run() {
                     transfer_active: AtomicBool::new(false),
                     quit_when_idle: AtomicBool::new(false),
                     close_explainer_pending: AtomicBool::new(false),
-                    node_stats_task: StdMutex::new(None),
                 });
 
                 if bg_on {

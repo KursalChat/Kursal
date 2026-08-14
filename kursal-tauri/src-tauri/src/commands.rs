@@ -419,6 +419,9 @@ core_cmd!(get_network_status() -> NetworkStatusDto, as network_status);
 
 const NODE_STATS_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
 
+#[derive(Default)]
+pub struct NodeStatsState(pub std::sync::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>);
+
 async fn sample_node_stats() -> kursal_core::stats::NodeStats {
     tauri::async_runtime::spawn_blocking(kursal_core::stats::global_sample)
         .await
@@ -432,7 +435,7 @@ pub async fn get_node_stats() -> kursal_core::stats::NodeStats {
 
 #[tauri::command]
 pub async fn start_node_stats(app: tauri::AppHandle) -> Result<()> {
-    let bg = app.state::<crate::background::BackgroundState>();
+    let stats = app.state::<NodeStatsState>();
 
     let handle = app.clone();
     let task = tauri::async_runtime::spawn(async move {
@@ -446,7 +449,7 @@ pub async fn start_node_stats(app: tauri::AppHandle) -> Result<()> {
         }
     });
 
-    if let Some(previous) = bg.node_stats_task.lock_recover().replace(task) {
+    if let Some(previous) = stats.0.lock_recover().replace(task) {
         previous.abort();
     }
 
@@ -455,8 +458,8 @@ pub async fn start_node_stats(app: tauri::AppHandle) -> Result<()> {
 
 #[tauri::command]
 pub async fn stop_node_stats(app: tauri::AppHandle) -> Result<()> {
-    let bg = app.state::<crate::background::BackgroundState>();
-    if let Some(task) = bg.node_stats_task.lock_recover().take() {
+    let stats = app.state::<NodeStatsState>();
+    if let Some(task) = stats.0.lock_recover().take() {
         task.abort();
     }
 
