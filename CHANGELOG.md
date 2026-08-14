@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.7] - 2026-08-14
+
+### Bug Fixes
+
+- Bootstrap & kad fixes
+- Stats on the dashboard improvements
+- Expose health port on relay (4892)
+- Less active connections
+- Minor UI improvements & dependency bump
+- UI mobile keyboard flicker
+- Better QR code scanning for OTPs
+- Bluetooth speed & reliability
+
+### Performance
+
+- Split rust using feature cfg
+- Front general optimizations
+- Store avatars as files
+- Emoji rebuild (less disk usage)
+- Remove DB mutex, batch commits and cache
+- Faster OTP mining without compromising security
+
+### Documentation
+
+- Some docs in docs folder
+
+### CI
+
+- Allow longer commits bodies for dependabot...
+- Cache on dev branch
+
+### Miscellaneous
+
+- Backmerge release/0.1.0 into dev
+- Updated lockfile
+- Backmerge release/0.1.0 into dev
+
 ## [0.1.0-beta.6] - 2026-08-09
 
 ### Features
