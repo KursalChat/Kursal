@@ -1,7 +1,7 @@
 use super::avatars;
 use super::db::{Database, TABLE_SETTINGS};
 use crate::MapKursalResult;
-use crate::{KursalError, Result, apiserver::LocalApiConfig};
+use crate::{KursalError, Result, dto::LocalApiConfig};
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
 use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};

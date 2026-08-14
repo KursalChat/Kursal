@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::identity::keychain::KeychainConfig;
 
+#[cfg(feature = "apiserver")]
 mod apiserver;
 mod bootstrap;
 #[cfg(feature = "calls")]

@@ -12,7 +12,6 @@ use axum::{
     Router, middleware,
     routing::{any, delete, get, patch, post},
 };
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
@@ -20,13 +19,16 @@ use std::{
 };
 use tokio::sync::{Mutex, MutexGuard, broadcast, mpsc, oneshot};
 use tower_http::cors::CorsLayer;
+#[cfg(feature = "api-docs")]
+use utoipa::OpenApi;
 use utoipa::{
-    Modify, OpenApi,
+    Modify,
     openapi::{
         ContentBuilder, Ref, RefOr, ResponseBuilder,
         security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
     },
 };
+#[cfg(feature = "api-docs")]
 use utoipa_scalar::{Scalar, Servable};
 
 pub mod auth;
@@ -43,31 +45,7 @@ pub use types::APIError;
 
 pub(crate) type Result<T> = std::result::Result<T, APIError>;
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalApiConfig {
-    pub enabled: bool,
-    pub host_on_network: bool,
-    pub port: u16,
-}
-impl LocalApiConfig {
-    pub fn serialize(&self) -> crate::Result<Vec<u8>> {
-        bincode::serialize(self).map_err(Into::into)
-    }
-    pub fn deserialize(bytes: &[u8]) -> crate::Result<Self> {
-        bincode::deserialize(bytes).map_err(Into::into)
-    }
-}
-
-impl Default for LocalApiConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            host_on_network: false,
-            port: 4892,
-        }
-    }
-}
+pub use crate::dto::LocalApiConfig;
 
 #[derive(Clone)]
 pub struct CoreEventEmitter {
@@ -215,13 +193,17 @@ pub async fn run_server(
         "127.0.0.1"
     };
 
-    let mut openapi = ApiDoc::openapi();
-    openapi.servers = Some(vec![
-        utoipa::openapi::ServerBuilder::new()
-            .url(format!("http://{}:{}", host, api_config.port))
-            .description(Some("Local"))
-            .build(),
-    ]);
+    #[cfg(feature = "api-docs")]
+    let openapi = {
+        let mut openapi = ApiDoc::openapi();
+        openapi.servers = Some(vec![
+            utoipa::openapi::ServerBuilder::new()
+                .url(format!("http://{}:{}", host, api_config.port))
+                .description(Some("Local"))
+                .build(),
+        ]);
+        openapi
+    };
 
     let state = APIAppState {
         auth_token,
@@ -318,9 +300,12 @@ pub async fn run_server(
             auth_middleware,
         ));
 
-    let app = Router::new()
-        .merge(protected)
-        .merge(Scalar::with_url("/", openapi))
+    let app = Router::new().merge(protected);
+
+    #[cfg(feature = "api-docs")]
+    let app = app.merge(Scalar::with_url("/", openapi));
+
+    let app = app
         .layer(CorsLayer::new())
         .with_state(state)
         .into_make_service_with_connect_info::<SocketAddr>();

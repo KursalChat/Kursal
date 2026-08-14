@@ -11,7 +11,7 @@ fi
 
 echo "→ Generating ${SPEC}..."
 mkdir -p "$(dirname "$SPEC")"
-cargo run -q -p kursal-core --bin gen_api_docs -- --out "$SPEC"
+cargo run -q -p kursal-core --features apiserver --bin gen_api_docs -- --out "$SPEC"
 
 SPEC_ABS="$(cd "$(dirname "$SPEC")" && pwd)/$(basename "$SPEC")"
 REPO="$(git -C "$(dirname "$SPEC_ABS")" rev-parse --show-toplevel)"

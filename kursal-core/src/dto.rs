@@ -9,6 +9,33 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalApiConfig {
+    pub enabled: bool,
+    pub host_on_network: bool,
+    pub port: u16,
+}
+
+impl LocalApiConfig {
+    pub fn serialize(&self) -> crate::Result<Vec<u8>> {
+        bincode::serialize(self).map_err(Into::into)
+    }
+    pub fn deserialize(bytes: &[u8]) -> crate::Result<Self> {
+        bincode::deserialize(bytes).map_err(Into::into)
+    }
+}
+
+impl Default for LocalApiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host_on_network: false,
+            port: 4892,
+        }
+    }
+}
+
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactResponse {
