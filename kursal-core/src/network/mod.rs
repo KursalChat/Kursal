@@ -64,7 +64,11 @@ impl NetworkManager {
         let (chunk_tx, chunk_rx) = mpsc::channel(64);
         let identity = init_transport(db)?;
 
-        let port = get_swarm_listening_port(db);
+        let port = if cfg!(debug_assertions) {
+            0
+        } else {
+            get_swarm_listening_port(db)
+        };
         let relay_config = get_relay_config(db);
         let mdns_enabled = get_swarm_mdns_enabled(db);
 
@@ -74,7 +78,7 @@ impl NetworkManager {
             chunk_tx.clone(),
             relay_config,
             mdns_enabled,
-            port.unwrap_or(0u16),
+            port,
         )
         .await?;
 

@@ -466,7 +466,7 @@ pub async fn stop_node_stats(app: tauri::AppHandle) -> Result<()> {
     Ok(())
 }
 
-setting_cmd!(get get_listening_port -> Option<u16>, get_swarm_listening_port);
+setting_cmd!(get get_listening_port -> u16, get_swarm_listening_port);
 setting_cmd!(set set_listening_port(port: Option<u16>), set_swarm_listening_port);
 setting_cmd!(try get_local_api_config -> LocalApiConfig, api_server_config);
 setting_cmd!(set set_local_api_config(config: LocalApiConfig), set_api_server_config);

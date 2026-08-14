@@ -23,16 +23,14 @@
   import Toggle from './Toggle.svelte';
   import TextInput from './TextInput.svelte';
 
-  const DEFAULT_PORT = '4891';
   let relay = $state<RelayConfig>({ ...settingsState.relay });
   let relaySaving = $state(false);
   const relaySaved = flash();
   const dialed = flash();
   const copiedAddr = flashSet();
   const copiedExport = flash();
-  let port = $state<string>(
-    settingsState.listeningPort === null ? DEFAULT_PORT : String(settingsState.listeningPort)
-  );
+  const portText = (v: number | null) => (v ? String(v) : '');
+  let port = $state<string>(portText(settingsState.listeningPort));
   let portSaving = $state(false);
   let initialized = $state(settingsState.loaded);
 
@@ -40,8 +38,7 @@
     await settingsState.load();
     if (!initialized) {
       relay = { ...settingsState.relay };
-      port =
-        settingsState.listeningPort === null ? DEFAULT_PORT : String(settingsState.listeningPort);
+      port = portText(settingsState.listeningPort);
       initialized = true;
     }
     settingsState.loadNodes().catch((e) => notifyError(e));
@@ -53,10 +50,7 @@
       relay.maxConnections !== settingsState.relay.maxConnections ||
       relay.maxConnectionsPerIp !== settingsState.relay.maxConnectionsPerIp
   );
-  const portDirty = $derived(
-    port.trim() !==
-      (settingsState.listeningPort === null ? DEFAULT_PORT : String(settingsState.listeningPort))
-  );
+  const portDirty = $derived(port.trim() !== portText(settingsState.listeningPort));
   const nearby = $derived(settingsState.nearbyShare);
 
   $effect(() => {
