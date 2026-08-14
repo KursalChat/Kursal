@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.8] - 2026-08-14
+
+### Bug Fixes
+
+- Better UI update notifier
+
 ## [0.1.0-beta.7] - 2026-08-14
 
 ### Bug Fixes
@@ -13,11 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - UI bugs
 - Include webview in RAM usage
 - Listening port applied
-
-## [0.1.0-beta.7] - 2026-08-14
-
-### Bug Fixes
-
 - Bootstrap & kad fixes
 - Stats on the dashboard improvements
 - Expose health port on relay (4892)
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
+- Changelog
 - Changelog
 - Backmerge release/0.1.0 into dev
 - Updated lockfile
