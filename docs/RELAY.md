@@ -92,7 +92,16 @@ journalctl -u kursal-relay -f
 | `log_level`, `log_file`                      | Logging; leave `log_file` unset for stdout                                       |
 | `[health]`                                   | Local health endpoint, default `127.0.0.1:4892`                                  |
 
-Open **4891 TCP and UDP** in your firewall. The health port stays loopback.
+Open **4891 TCP and UDP** in your firewall. The health port (4892) can also optionally be exposed, which is recommended if you ask for your relay to be a bootstrap one. The health port exposes one HTTP /health path which returns the following:
+
+```json
+{
+  "status": "ok",
+  "peer_id": "some_peer_id",
+  "uptime_secs": 123,
+  "connections": 3
+}
+```
 
 ## Monitoring
 
@@ -136,4 +145,4 @@ bin/build-relay.sh --push   # additionally push ghcr images
 Stable, long-lived relays can be added to the default bootstrap list that
 ships with the app. Open an issue with your relay's multiaddr
 (`/dns4/relay.example.org/udp/4891/quic-v1/p2p/<peer-id>`) and how long you
-intend to run it.
+intend to run it. We then may add it to [bootstrap.json](../kursal-core/src/network/bootstrap.json) and on our [status page](https://status.kursal.chat).
