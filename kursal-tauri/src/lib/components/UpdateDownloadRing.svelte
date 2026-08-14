@@ -10,7 +10,8 @@
   const downloaded = $derived(updateDownloadState.downloaded);
   const total = $derived(updateDownloadState.total);
   const done = $derived(updateDownloadState.done);
-  const ratio = $derived(total ? Math.min(1, downloaded / total) : null);
+  const message = $derived(updateDownloadState.message);
+  const ratio = $derived(message ? 1 : total ? Math.min(1, downloaded / total) : null);
   const label = $derived(version ? t('updateDownload.titleVersion', { version }) : '');
 
   const INTRO_MS = 2600;
@@ -41,15 +42,17 @@
     return `${doneText} / ${(total / div).toFixed(decimals)} ${unit}`;
   }
 
-  const text = $derived(done ? t('updateDownload.installing') : intro ? label : sizeText());
+  const text = $derived(
+    message ?? (done ? t('updateDownload.installing') : intro ? label : sizeText()),
+  );
 </script>
 
 {#if updateDownloadState.active}
   <div
     class="update-ring"
-    class:expanded={intro || done}
+    class:expanded={intro || done || !!message}
     role="status"
-    aria-label={label || undefined}
+    aria-label={message ?? (label || undefined)}
     transition:fly={{ y: -8, duration: 160 }}
   >
     <svg class="ring" class:spin={ratio === null && !done} viewBox="0 0 20 20" aria-hidden="true">

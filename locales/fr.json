@@ -159,9 +159,6 @@
     "fileOpenCancel": "Annuler",
     "fileOpenConfirm": "Ouvrir",
     "fileOpenTitle": "Ouverture de {fileName}",
-    "noUpdatesConfirm": "OK",
-    "noUpdatesMessage": "Kursal est déjà sur la dernière version disponible.",
-    "noUpdatesTitle": "Vous êtes à jour",
     "updateAvailableCancel": "Plus tard",
     "updateAvailableConfirm": "Mettre à jour maintenant",
     "updateAvailableMessage": "Version {version} disponible. Vous êtes en {currentVersion}.",
@@ -1229,7 +1226,8 @@
   },
   "updateDownload": {
     "installing": "Installation…",
-    "titleVersion": "Téléchargement de {version}"
+    "titleVersion": "Téléchargement de {version}",
+    "upToDate": "À jour"
   },
   "winston": {
     "poke0": "salut",

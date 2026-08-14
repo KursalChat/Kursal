@@ -144,9 +144,6 @@
     "updateInstalledMessage": "Restart Kursal to apply the update? You can also restart later.",
     "updateInstalledConfirm": "Restart now",
     "updateInstalledCancel": "Later",
-    "noUpdatesTitle": "You're up to date",
-    "noUpdatesMessage": "Kursal is running the newest version available.",
-    "noUpdatesConfirm": "OK",
     "fileOpenTitle": "Opening {fileName}",
     "fileOpenConfirm": "Open",
     "fileOpenCancel": "Cancel",
@@ -173,7 +170,8 @@
   },
   "updateDownload": {
     "titleVersion": "Downloading {version}",
-    "installing": "Installing…"
+    "installing": "Installing…",
+    "upToDate": "Up to date"
   },
   "changelog": {
     "features": "New features",
