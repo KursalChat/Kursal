@@ -445,10 +445,6 @@
   .msg-group {
     margin-top: 6px;
   }
-  .msg-group:not(:has(:global(.msg-actions))) {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 64px;
-  }
   .msg-group + .msg-group {
     margin-top: 10px;
   }

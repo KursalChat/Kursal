@@ -185,7 +185,7 @@
 
   <main class="content" class:offline={isOffline}>
     {#if isOffline}
-      <div class="offline-banner" role="status">
+      <div class="offline-banner" role="status" data-tauri-drag-region>
         <span class="offline-dot"></span>
         <span>{t('layout.bannerOffline')}</span>
       </div>
@@ -225,8 +225,12 @@
     font-size: 12.5px;
     font-weight: 600;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-    pointer-events: none;
+    user-select: none;
+    cursor: default;
     animation: offline-banner-in 220ms ease;
+  }
+  .offline-banner > * {
+    pointer-events: none;
   }
   .offline-dot {
     width: 8px;
