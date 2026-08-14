@@ -43,7 +43,7 @@
   }
 
   const text = $derived(
-    message ?? (done ? t('updateDownload.installing') : intro ? label : sizeText()),
+    message ?? (done ? t('updateDownload.installing') : intro ? label : sizeText())
   );
 </script>
 

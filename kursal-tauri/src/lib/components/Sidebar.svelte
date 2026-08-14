@@ -577,7 +577,7 @@
       <span>{t('chat.call.systemDefault')}</span>
       {#if selected === null}<Check size={13} />{/if}
     </button>
-    {#each items as name (name)}
+    {#each items as name}
       <button class="ctl-opt" class:sel={selected === name} onclick={() => pickDevice(kind, name)}>
         <span>{name}</span>
         {#if selected === name}<Check size={13} />{/if}

@@ -45,8 +45,8 @@ type Buckets = Map<ChangeKind, string[]>;
 
 function addItem(buckets: Buckets, kind: ChangeKind, item: string) {
   const list = buckets.get(kind);
-  if (list) list.push(item);
-  else buckets.set(kind, [item]);
+  if (!list) buckets.set(kind, [item]);
+  else if (!list.includes(item)) list.push(item);
 }
 
 function toGroups(buckets: Buckets): ChangeGroup[] {
@@ -74,8 +74,10 @@ export function parseReleaseNotes(md: string): ChangeGroup[] {
 }
 
 export function parseChangelog(md: string): ChangelogEntry[] {
-  const entries: { entry: ChangelogEntry; buckets: Buckets }[] = [];
-  let current: { entry: ChangelogEntry; buckets: Buckets } | null = null;
+  type Section = { entry: ChangelogEntry; buckets: Buckets };
+  const entries: Section[] = [];
+  const byVersion = new Map<string, Section>();
+  let current: Section | null = null;
   let kind: ChangeKind | null = 'other';
 
   for (const line of md.split('\n')) {
@@ -84,12 +86,15 @@ export function parseChangelog(md: string): ChangelogEntry[] {
       current = null;
       kind = 'other';
       if (version[1].toLowerCase() !== 'unreleased') {
-        const buckets: Buckets = new Map();
-        current = {
-          entry: { version: version[1], date: version[2] ?? null, groups: [] },
-          buckets,
-        };
-        entries.push(current);
+        current = byVersion.get(version[1]) ?? null;
+        if (!current) {
+          current = {
+            entry: { version: version[1], date: version[2] ?? null, groups: [] },
+            buckets: new Map(),
+          };
+          byVersion.set(version[1], current);
+          entries.push(current);
+        }
       }
       continue;
     }

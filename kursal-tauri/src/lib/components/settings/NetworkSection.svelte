@@ -312,7 +312,7 @@
           })}
         </span>
       </div>
-      {#each nodes.defaults as addr (addr)}
+      {#each nodes.defaults as addr}
         <div class="node-row">
           <span
             class="node-dot {nodeState(addr)}"
@@ -375,7 +375,7 @@
       {#if nodes.custom.length === 0}
         <span class="node-empty">{t('settings.network.emptyCustomNodes')}</span>
       {:else}
-        {#each nodes.custom as addr (addr)}
+        {#each nodes.custom as addr}
           <div class="node-row">
             <span
               class="node-dot {nodeState(addr)}"
@@ -458,7 +458,7 @@
       {#if !status || status.listenAddresses.length === 0}
         <span class="node-empty">{t('settings.network.noListenAddresses')}</span>
       {:else}
-        {#each status.listenAddresses as addr (addr)}
+        {#each status.listenAddresses as addr}
           <div class="node-row">
             <AddressChip {addr} />
             <button
