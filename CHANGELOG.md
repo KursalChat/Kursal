@@ -28,8 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Remove DB mutex, batch commits and cache
 - Faster OTP mining without compromising security
 
+### Refactor
+
+- Dashboard stats state on mobile
+
 ### Documentation
 
+- Clarify RELAY hosting (health port and community)
 - Some docs in docs folder
 
 ### CI
