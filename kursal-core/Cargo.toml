@@ -117,6 +117,7 @@ apple-native-keyring-store = { workspace = true, features = [
     "keychain",
     "protected",
 ] }
+libc = { workspace = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
