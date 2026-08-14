@@ -32,7 +32,7 @@ install-hooks:
 # --- release ---
 
 # `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
-# See RELEASING.md
+# See docs/RELEASING.md
 
 # prepare a stable/beta release: branch from dev, bump+tag, build
 cut v:

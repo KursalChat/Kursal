@@ -28,4 +28,4 @@ type: short summary in imperative mood
 - subject ≤ 72 chars, no trailing period, imperative (`add`, not `added`)
 - breaking change: add `!` after the type (`feat!: ...`)
 
-A `commit-msg` git hook checks this locally; CI checks it again on every PR. See [CONTRIBUTING.md](CONTRIBUTING.md) to activate the hook.
+A `commit-msg` git hook checks this locally; CI checks it again on every PR. See [CONTRIBUTING.md](../CONTRIBUTING.md) to activate the hook.

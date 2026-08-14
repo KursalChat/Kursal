@@ -9,7 +9,7 @@
 ## Checklist
 
 - [ ] Targets `dev` (or `main` for release/hotfix only)
-- [ ] Commits follow [the commit format](../COMMITS.md)
+- [ ] Commits follow [the commit format](../docs/COMMITS.md)
 - [ ] CI (`checks`) is green
 - [ ] Translations updated in `kursal-tauri/src/lib/i18n/en.json` (if UI strings changed)
 - [ ] Self-tested locally

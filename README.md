@@ -55,7 +55,7 @@ Thank you for your interest in Kursal. If you want to contribute, you can! Eithe
 
 All coding contributions instructions are detailed in the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
-For running a relay, refer to the [RELAY.md](RELAY.md) file.
+For running a relay, refer to the [RELAY.md](./docs/RELAY.md) file.
 
 For translation contribution, you can help on our [Translate Page](https://translate.kursal.chat/engage/kursal/).
 
