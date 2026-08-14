@@ -6,7 +6,7 @@ use crate::{
 };
 use std::sync::Mutex as StdMutex;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
-use tokio::sync::{Mutex, MutexGuard, mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 
 pub struct AppState {
     pub db: SharedDatabase,
@@ -20,8 +20,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn db(&self) -> MutexGuard<'_, Database> {
-        self.db.0.lock().await
+    pub fn db(&self) -> &Database {
+        &self.db
     }
 }
 

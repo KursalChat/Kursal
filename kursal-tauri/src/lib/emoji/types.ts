@@ -24,14 +24,14 @@ export interface EmojiIndex {
   byShortcode: Map<string, Emoji>;
 }
 
-export interface RawEmoji {
-  hexcode: string;
-  label: string;
-  unicode: string;
-  tags?: string[];
-  group?: number;
-  skins?: { tone?: ToneId | ToneId[]; unicode: string; hexcode: string }[];
-}
+export type PackedEmoji = [
+  unicode: string,
+  label: string,
+  group: string,
+  tags: string[],
+  shortcodes: string[],
+  skins: [tone: ToneId, unicode: string][] | 0,
+];
 
 export const GROUP_META: { slug: string; label: string; icon: string }[] = [
   {

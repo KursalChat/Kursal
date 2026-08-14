@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { listen } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -28,6 +29,7 @@
   let connectStatus = $state<'idle' | 'loading'>('idle');
   let connectError = $state('');
   let dragging = $state(false);
+  let scanning = $state(false);
   let checkedWords = $state<string[]>([]);
   let wordIssues = $state<(string[] | null)[]>([]);
   let checkSeq = 0;
@@ -38,13 +40,20 @@
 
   function normalizeOtp(value: string): string {
     let s = value.trim();
-    if (s.startsWith(OTP_LINK_PREFIX)) s = s.slice(OTP_LINK_PREFIX.length);
+    if (s.toLowerCase().startsWith(OTP_LINK_PREFIX)) s = s.slice(OTP_LINK_PREFIX.length);
     try {
       s = decodeURIComponent(s);
     } catch {
       // leave as-is if not valid percent-encoding (e.g. raw pasted words)
     }
-    return stripNonWord(s).split(/\s+/).filter(Boolean).slice(0, OTP_WORD_COUNT).join(' ');
+    return s
+      .toLowerCase()
+      .replace(/[^a-z]+/g, ' ')
+      .trim()
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, OTP_WORD_COUNT)
+      .join(' ');
   }
 
   function typedWords(): string[] | null {
@@ -191,7 +200,7 @@
   }
 
   async function scanQr() {
-    if (!isMobile) return;
+    if (!isMobile || scanning) return;
     try {
       const { scan, Format, checkPermissions, requestPermissions } =
         await import('@tauri-apps/plugin-barcode-scanner');
@@ -202,22 +211,43 @@
         notifications.push(t('addContact.otp.cameraPermissionDenied'), 'error');
         return;
       }
+
+      scanning = true;
+      document.documentElement.classList.add('scanning');
       const result = await scan({
-        windowed: false,
+        windowed: true,
         formats: [Format.QRCode],
         cameraDirection: 'back',
       });
+      closeScanner();
       if (result?.content) {
         invite = normalizeOtp(result.content);
         await connectWithCode(true);
       }
     } catch (e) {
+      closeScanner();
       const msg = parseError(e).message;
       if (!msg.toLowerCase().includes('cancel')) {
         notifications.push(t('addContact.otp.qrScanError'), 'error');
         log.error('QR scan failed:', e);
       }
     }
+  }
+
+  function closeScanner() {
+    scanning = false;
+    document.documentElement.classList.remove('scanning');
+  }
+
+  async function cancelScan() {
+    if (!scanning) return;
+    try {
+      const { cancel } = await import('@tauri-apps/plugin-barcode-scanner');
+      await cancel();
+    } catch (e) {
+      log.error('QR scan cancel failed:', e);
+    }
+    closeScanner();
   }
 
   async function importCard(load: () => Promise<number[]>) {
@@ -316,10 +346,17 @@
     if (file) await importFromFile(file);
   }
 
-  onMount(() => {
-    const receiveCode = new URLSearchParams(window.location.search).get('receive');
-    if (receiveCode) invite = normalizeOtp(receiveCode);
+  let lastReceive = '';
+  $effect(() => {
+    const receive = $page.url.searchParams.get('receive') ?? '';
+    if (receive === lastReceive) return;
+    lastReceive = receive;
+    if (!receive) return;
+    invite = normalizeOtp(receive);
+    resetInviteFeedback();
+  });
 
+  onMount(() => {
     const unlisteners = [
       listen<{ paths: string[] }>('tauri://drag-enter', () => {
         dragging = true;
@@ -334,9 +371,18 @@
       }),
     ];
 
-    return () => unlisteners.forEach((p) => void p.then((off) => off()));
+    return () => {
+      unlisteners.forEach((p) => void p.then((off) => off()));
+      void cancelScan();
+    };
   });
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape') void cancelScan();
+  }}
+/>
 
 <div
   class="connect"
@@ -419,7 +465,60 @@
   </section>
 </div>
 
+{#if scanning}
+  <div class="scan-overlay">
+    <p class="scan-hint">{t('addContact.otp.scanHint')}</p>
+    <div class="scan-frame"></div>
+    <button class="scan-cancel" type="button" onclick={cancelScan}>
+      {t('common.cancel')}
+    </button>
+  </div>
+{/if}
+
 <style>
+  .scan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(var(--safe-top) + 28px) max(20px, var(--safe-right))
+      calc(var(--safe-bottom) + 32px) max(20px, var(--safe-left));
+    background: transparent;
+  }
+
+  .scan-hint {
+    margin: 0;
+    max-width: 320px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .scan-frame {
+    width: min(72vw, 280px);
+    aspect-ratio: 1;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 18px;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+  }
+
+  .scan-cancel {
+    padding: 13px 40px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
   .connect {
     position: relative;
     max-width: 620px;

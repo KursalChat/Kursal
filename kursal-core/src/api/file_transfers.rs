@@ -183,13 +183,7 @@ fn scan_completed_downloads(root: &Path) -> Vec<(String, String, String)> {
 }
 
 pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) -> Result<()> {
-    if db
-        .0
-        .lock()
-        .await
-        .raw_read(TABLE_FILE_TRANSFERS, BACKFILL_FLAG)?
-        .is_some()
-    {
+    if db.raw_read(TABLE_FILE_TRANSFERS, BACKFILL_FLAG)?.is_some() {
         return Ok(());
     }
 
@@ -198,10 +192,9 @@ pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) ->
         .await
         .unwrap_or_default();
 
-    let db_lock = db.0.lock().await;
     let mut recovered = 0usize;
     for (contact_hex, offer_hex, path) in found {
-        if db_lock
+        if db
             .raw_read(
                 TABLE_FILE_TRANSFERS,
                 &format!("recvprog:{contact_hex}:{offer_hex}"),
@@ -211,7 +204,7 @@ pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) ->
             continue;
         }
 
-        db_lock.raw_write(
+        db.raw_write(
             TABLE_FILE_TRANSFERS,
             &received_path_key(&contact_hex, &offer_hex),
             path.as_bytes(),
@@ -220,31 +213,30 @@ pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) ->
     }
 
     log::info!("[file] backfilled {recovered} completed download paths");
-    db_lock.raw_write(TABLE_FILE_TRANSFERS, BACKFILL_FLAG, &[1u8])?;
+    db.raw_write(TABLE_FILE_TRANSFERS, BACKFILL_FLAG, &[1u8])?;
 
     Ok(())
 }
 
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {
     let now = get_timestamp_secs()?;
-    let db_lock = db.0.lock().await;
 
-    let incoming = db_lock.raw_range(TABLE_FILE_TRANSFERS, "recv:", "recv;", None)?;
+    let incoming = db.raw_range(TABLE_FILE_TRANSFERS, "recv:", "recv;", None)?;
     for (key, bytes) in incoming {
         if let Ok(entry) = FileIncomingEntry::deserialize(&bytes)
             && now.saturating_sub(entry.created_at) > max_age_secs
         {
-            db_lock.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
+            db.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
         }
     }
 
-    let partial = db_lock.raw_range(TABLE_FILE_TRANSFERS, "recvprog:", "recvprog;", None)?;
+    let partial = db.raw_range(TABLE_FILE_TRANSFERS, "recvprog:", "recvprog;", None)?;
     for (key, bytes) in partial {
         if let Ok(entry) = FileReceiveEntry::deserialize(&bytes)
             && now.saturating_sub(entry.created_at) > max_age_secs
         {
             let _ = std::fs::remove_file(&entry.save_path);
-            db_lock.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
+            db.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
         }
     }
 
@@ -253,12 +245,11 @@ pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> R
 
 pub async fn remove_contact_transfers(db: SharedDatabase, contact_id: &UserId) -> Result<()> {
     let contact_hex = hex::encode(contact_id.0);
-    let db_lock = db.0.lock().await;
 
     for prefix in ["send", "recv", "recvprog", "recvpath"] {
         let start = format!("{prefix}:{contact_hex}:");
         let end = format!("{prefix}:{contact_hex};");
-        let entries = db_lock.raw_range(TABLE_FILE_TRANSFERS, &start, &end, None)?;
+        let entries = db.raw_range(TABLE_FILE_TRANSFERS, &start, &end, None)?;
 
         for (key, bytes) in entries {
             let offer_hex = key.rsplit(':').next().unwrap_or_default();
@@ -274,7 +265,7 @@ pub async fn remove_contact_transfers(db: SharedDatabase, contact_id: &UserId) -
                 let _ = std::fs::remove_file(&entry.save_path);
             }
 
-            db_lock.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
+            db.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
         }
     }
 
@@ -464,15 +455,14 @@ pub async fn apply_cancel(
     let recv_key = format!("recv:{contact_hex}:{offer_hex}");
 
     {
-        let db_lock = db.0.lock().await;
-        if let Ok(Some(bytes)) = db_lock.raw_read(TABLE_FILE_TRANSFERS, &prog_key)
+        if let Ok(Some(bytes)) = db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)
             && let Ok(entry) = FileReceiveEntry::deserialize(&bytes)
         {
             let _ = std::fs::remove_file(&entry.save_path);
         }
-        let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &prog_key);
-        let _ = db_lock.raw_delete(TABLE_FILE_TRANSFERS, &recv_key);
-        let _ = db_lock.raw_delete(
+        let _ = db.raw_delete(TABLE_FILE_TRANSFERS, &prog_key);
+        let _ = db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key);
+        let _ = db.raw_delete(
             TABLE_FILE_TRANSFERS,
             &received_path_key(&contact_hex, &offer_hex),
         );
@@ -533,13 +523,7 @@ pub async fn finalize_transfer(
         return Ok(());
     };
 
-    if db
-        .0
-        .lock()
-        .await
-        .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
-        .is_none()
-    {
+    if db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)?.is_none() {
         return Ok(());
     }
 
@@ -548,15 +532,12 @@ pub async fn finalize_transfer(
         .await
         .ok_kursal(KursalError::Storage)??;
 
-    {
-        let db_lock = db.0.lock().await;
-        db_lock.raw_delete(TABLE_FILE_TRANSFERS, &prog_key)?;
-        db_lock.raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
-    }
+    db.raw_delete(TABLE_FILE_TRANSFERS, &prog_key)?;
+    db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
 
     if actual_hash == entry.expected_hash {
         log::info!("[file] transfer {offer_hex} complete, hash ok");
-        db.0.lock().await.raw_write(
+        db.raw_write(
             TABLE_FILE_TRANSFERS,
             &received_path_key(&contact_hex, &offer_hex),
             entry.save_path.as_bytes(),
@@ -601,7 +582,7 @@ impl ActiveReceive {
             return Ok(());
         }
         self.file.flush().await.map_err(KursalError::Io)?;
-        db.0.lock().await.raw_write(
+        db.raw_write(
             TABLE_FILE_TRANSFERS,
             &self.prog_key,
             &self.entry.serialize()?,
@@ -670,7 +651,7 @@ async fn load_active(
     db: &SharedDatabase,
 ) -> Result<Option<ActiveReceive>> {
     let peer_id_str = from.to_base58();
-    let known = Contact::find_by_peer_id(&*db.0.lock().await, &peer_id_str)?;
+    let known = Contact::find_by_peer_id(db, &peer_id_str)?;
     let Some(contact) = known else {
         return Ok(None);
     };
@@ -683,11 +664,7 @@ async fn load_active(
         hex::encode(contact.user_id.0),
         hex::encode(transfer_id)
     );
-    let Some(entry_bytes) =
-        db.0.lock()
-            .await
-            .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?
-    else {
+    let Some(entry_bytes) = db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)? else {
         return Ok(None);
     };
     let entry = FileReceiveEntry::deserialize(&entry_bytes)?;
@@ -985,10 +962,7 @@ pub async fn resume_incoming_transfers(
     let prefix = format!("recvprog:{contact_hex}:");
     let end = format!("recvprog:{contact_hex};");
 
-    let entries =
-        db.0.lock()
-            .await
-            .raw_range(crate::storage::TABLE_FILE_TRANSFERS, &prefix, &end, None)?;
+    let entries = db.raw_range(crate::storage::TABLE_FILE_TRANSFERS, &prefix, &end, None)?;
 
     for (key, bytes) in entries {
         let Ok(entry) = FileReceiveEntry::deserialize(&bytes) else {

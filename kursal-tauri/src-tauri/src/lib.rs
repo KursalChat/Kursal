@@ -282,13 +282,12 @@ pub fn run() {
                 }
             };
             let (network, event_rx, bt_event_rx, chunk_rx) =
-                block_on(NetworkManager::new(&db.0.blocking_lock()))?;
+                block_on(NetworkManager::new(&db))?;
 
             // check for reset flags
             let db_clone = db.clone();
             let should_reset = block_on(async move {
-                let db_lock = db_clone.0.lock().await;
-                should_reset_full_app(&db_lock)
+                should_reset_full_app(&db_clone)
             });
             if should_reset {
                 if let Ok(cache_dir) = dirs::cache_dir() {
@@ -418,8 +417,8 @@ pub fn run() {
                 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
                 let bg_on = {
-                    let guard = db.0.blocking_lock();
-                    kursal_core::storage::get_background_mode(&guard)
+                    let guard = &*db;
+                    kursal_core::storage::get_background_mode(guard)
                 };
                 app.manage(BackgroundState {
                     explicit_quit: AtomicBool::new(false),
@@ -434,6 +433,7 @@ pub fn run() {
                     transfer_active: AtomicBool::new(false),
                     quit_when_idle: AtomicBool::new(false),
                     close_explainer_pending: AtomicBool::new(false),
+                    node_stats_task: StdMutex::new(None),
                 });
 
                 if bg_on {
@@ -455,7 +455,7 @@ pub fn run() {
 
                         interval.tick().await;
 
-                        if get_updater_enabled(&*db_clone.0.lock().await) {
+                        if get_updater_enabled(&db_clone) {
                             let _ = check_for_updates_impl(handle.clone(), false).await;
                         }
                     }
@@ -478,8 +478,8 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 log::info!("Starting API server...");
 
-                let api_config = api_server_config(&*db.0.lock().await);
-                let api_token = api_server_password(&*db.0.lock().await);
+                let api_config = api_server_config(&db);
+                let api_token = api_server_password(&db);
 
                 if let Ok(api_config) = api_config
                 && api_config.enabled
@@ -565,6 +565,7 @@ pub fn run() {
             commands::get_local_peer_id,
             commands::get_local_user_id_hex,
             commands::get_local_user_profile,
+            commands::set_local_user_avatar,
             commands::broadcast_profile,
             commands::share_profile,
             commands::check_for_updates,
@@ -624,6 +625,8 @@ pub fn run() {
             commands::dial_address,
             commands::get_network_status,
             commands::get_node_stats,
+            commands::start_node_stats,
+            commands::stop_node_stats,
             commands::get_listening_port,
             commands::set_listening_port,
             commands::get_local_api_config,
@@ -719,7 +722,7 @@ pub(crate) async fn check_for_updates_impl(
 
     let channel = {
         let state = app.state::<kursal_core::api::state::AppState>();
-        let guard = state.db().await;
+        let guard = state.db();
         kursal_core::storage::get_update_channel(&*guard)
     };
 

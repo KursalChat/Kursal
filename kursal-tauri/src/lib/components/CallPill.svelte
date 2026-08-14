@@ -34,7 +34,7 @@
   <div class="pill">
     <button class="grab" onclick={() => callState.maximize()} aria-label={t('chat.call.expand')}>
       <span class="ava" class:live>
-        <Avatar name={contact.displayName} src={contact.avatarBase64} size={28} />
+        <Avatar name={contact.displayName} src={contact.avatarPath} size={28} />
       </span>
       <span class="info">
         <span class="name">{contact.displayName}</span>

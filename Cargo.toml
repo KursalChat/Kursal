@@ -50,8 +50,6 @@ ble-peripheral-rust = "0.2.0"
 
 # Storage
 redb = "4.1.0"
-toml = "1.1.4"
-log4rs = { version = "1.4.0", features = ["gzip"] }
 keyring-core = "1.0.0"
 dirs = "6.0.0"
 android-native-keyring-store = "1.0.0"
@@ -65,13 +63,23 @@ tower-http = "0.7.0"
 utoipa = "5.5.0"
 utoipa-scalar = "0.3.0"
 
+# Audio
+audiopus = "0.2.0"
+cpal = "0.18.1"
+ringbuf = "0.5.1"
+webrtc-audio-processing = "2.1.0"
+objc2-avf-audio = "0.3.2"
+
 # Stats
-sysinfo = "0.39.6"
-prometheus-client = "0.23.1" # MUST match the version libp2p-metrics uses
+sysinfo = { version = "0.39.6", default-features = false }
+prometheus-client = "0.23.1"                               # MUST match the version libp2p-metrics uses
+
+# CLI
+toml = "1.1.4"
 ratatui = "0.30.2"
 
-# Misc
-emojis = "0.9.0"
+# Logging & telemetry
+log4rs = { version = "1.4.0", features = ["gzip"] }
 sentry = { version = "0.49.0", default-features = false, features = [
     "backtrace",
     "contexts",
@@ -81,16 +89,14 @@ sentry = { version = "0.49.0", default-features = false, features = [
     "rustls",
 ] }
 sentry-panic = "0.49.0"
+
+# Platform
 objc2-foundation = { version = "0.3.2", default-features = false }
 webview2-com = "0.38.2"
 windows = "0.61.3"
 
-# Audio
-audiopus = "0.2.0"
-cpal = "0.18.1"
-ringbuf = "0.5.1"
-webrtc-audio-processing = "2.1.0"
-objc2-avf-audio = "0.3.2"
+# Misc
+emojis = "0.9.0"
 
 # Tauri
 tauri-build = "2.6.3"

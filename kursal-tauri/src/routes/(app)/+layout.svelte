@@ -159,13 +159,13 @@
 </script>
 
 <div class="shell" class:chat-active={!!currentChatId}>
-  {#if uiState.mobileSidebarOpen}
-    <div
-      class="backdrop"
-      onclick={() => (uiState.mobileSidebarOpen = false)}
-      aria-hidden="true"
-    ></div>
-  {/if}
+  <div
+    class="backdrop"
+    class:shown={uiState.mobileSidebarOpen}
+    style={uiState.sidebarDrag !== null ? `opacity: ${uiState.sidebarDrag}; transition: none;` : ''}
+    onclick={() => (uiState.mobileSidebarOpen = false)}
+    aria-hidden="true"
+  ></div>
 
   <div class="mobile-bar" class:hidden={!!currentChatId} data-tauri-drag-region>
     <button
@@ -296,15 +296,13 @@
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
       z-index: 50;
-      animation: fadeIn 0.2s ease;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
     }
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
+    .backdrop.shown {
+      opacity: 1;
+      pointer-events: auto;
     }
 
     .mobile-bar {
@@ -353,6 +351,13 @@
     }
     .shell:not(.chat-active) .content.offline {
       padding-top: calc(var(--header-height) + 30px + var(--safe-top));
+    }
+    .shell.chat-active .content.offline {
+      padding-top: 30px;
+    }
+    .shell.chat-active .offline-banner {
+      top: 0;
+      padding-top: calc(6px + var(--safe-top));
     }
     .shell:not(.chat-active) .offline-banner {
       top: calc(var(--header-height) + var(--safe-top));

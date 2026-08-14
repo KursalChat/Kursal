@@ -143,7 +143,7 @@
 
     {#if contact}
       <div class="profile-content">
-        <Avatar name={contact.displayName} src={contact.avatarBase64} size={84} />
+        <Avatar name={contact.displayName} src={contact.avatarPath} size={84} />
         {#if editingName}
           <div class="name-row">
             <input

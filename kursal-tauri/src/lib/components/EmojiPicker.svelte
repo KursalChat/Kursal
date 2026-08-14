@@ -30,7 +30,7 @@
     autoFocus?: boolean;
   } = $props();
 
-  let index = $state<EmojiIndex | null>(null);
+  let index = $state.raw<EmojiIndex | null>(null);
   let tone = $state<ToneId>(getTone());
   let searchQuery = $state('');
   let activeCategory = $state('recent');

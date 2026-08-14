@@ -27,26 +27,31 @@ fn best_kind(
         .max_by_key(|k| k.rank())
 }
 
-fn drop_relayed_connections(
+fn prune_duplicate_connections(
     swarm: &mut Swarm<KursalBehaviour>,
     peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
     peer_streams: &PeerStreams,
     peer_id: PeerId,
     reason: &str,
 ) {
-    let relayed: Vec<ConnectionId> = peer_conns
-        .iter()
-        .filter_map(|(cid, (p, kind))| {
-            (*p == peer_id && *kind == ConnectionKind::Relay).then_some(*cid)
-        })
-        .collect();
-
-    if relayed.is_empty() {
+    if is_bootstrap_peer(&peer_id) {
         return;
     }
 
-    for cid in relayed {
-        log::info!("[conn] {reason}: closing relayed conn {cid:?} to {peer_id}");
+    let mut conns: Vec<(ConnectionId, ConnectionKind)> = peer_conns
+        .iter()
+        .filter_map(|(cid, (p, kind))| (*p == peer_id).then_some((*cid, *kind)))
+        .collect();
+
+    if conns.len() < 2 {
+        return;
+    }
+
+    conns.sort_by_key(|(cid, kind)| (std::cmp::Reverse(kind.rank()), *cid));
+    let (keep, _) = conns.remove(0);
+
+    for (cid, kind) in conns {
+        log::info!("[conn] {reason}: closing {kind:?} conn {cid:?} to {peer_id}, keeping {keep:?}");
         swarm.close_connection(cid);
     }
 
@@ -192,7 +197,7 @@ pub(super) async fn handle_swarm_event(
                 );
                 peer_conns.insert(connection_id, (e.remote_peer_id, ConnectionKind::HolePunch));
 
-                drop_relayed_connections(
+                prune_duplicate_connections(
                     swarm,
                     peer_conns,
                     peer_streams,
@@ -296,28 +301,24 @@ pub(super) async fn handle_swarm_event(
                 endpoint.get_remote_address()
             );
 
-            if kind == ConnectionKind::Direct {
-                let is_bootstrap = is_bootstrap_peer(&peer_id);
+            if kind == ConnectionKind::Direct && is_bootstrap_peer(&peer_id) {
+                let circuit_addr = endpoint
+                    .get_remote_address()
+                    .clone()
+                    .with(Protocol::P2pCircuit);
+                let _ = swarm.listen_on(circuit_addr);
 
-                if is_bootstrap {
-                    let circuit_addr = endpoint
-                        .get_remote_address()
-                        .clone()
-                        .with(Protocol::P2pCircuit);
-                    let _ = swarm.listen_on(circuit_addr);
-
-                    log::info!("[kad] Bootstrapping Kademlia with relay");
-                    let _ = swarm.behaviour_mut().kad.bootstrap();
-                } else {
-                    drop_relayed_connections(
-                        swarm,
-                        peer_conns,
-                        peer_streams,
-                        peer_id,
-                        "direct path available",
-                    );
-                }
+                log::info!("[kad] Bootstrapping Kademlia with relay");
+                let _ = swarm.behaviour_mut().kad.bootstrap();
             }
+
+            prune_duplicate_connections(
+                swarm,
+                peer_conns,
+                peer_streams,
+                peer_id,
+                "better path available",
+            );
 
             let via = best_kind(peer_conns, &peer_id).unwrap_or(kind);
             let _ = event_tx

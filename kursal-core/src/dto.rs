@@ -6,16 +6,42 @@ use crate::{
         enums::{CallOutcome, Direction, KursalMessage, MessageStatus},
     },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalApiConfig {
+    pub enabled: bool,
+    pub host_on_network: bool,
+    pub port: u16,
+}
+
+impl LocalApiConfig {
+    pub fn serialize(&self) -> crate::Result<Vec<u8>> {
+        bincode::serialize(self).map_err(Into::into)
+    }
+    pub fn deserialize(bytes: &[u8]) -> crate::Result<Self> {
+        bincode::deserialize(bytes).map_err(Into::into)
+    }
+}
+
+impl Default for LocalApiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host_on_network: false,
+            port: 4892,
+        }
+    }
+}
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactResponse {
     pub user_id: String,
     pub display_name: String,
-    pub avatar_base64: Option<String>,
+    pub avatar_path: Option<String>,
     pub peer_id: String,
     pub known_addresses: Vec<String>,
     pub verified: bool,
@@ -29,7 +55,10 @@ impl From<Contact> for ContactResponse {
         Self {
             user_id: hex::encode(value.user_id.0),
             display_name: value.display_name,
-            avatar_base64: value.avatar_bytes.map(|b| BASE64.encode(b)),
+            avatar_path: value
+                .avatar
+                .as_deref()
+                .and_then(crate::storage::avatars::path_string),
             peer_id: value.peer_id,
             known_addresses: value.known_addresses,
             verified: value.verified,

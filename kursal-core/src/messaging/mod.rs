@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     identity::UserId,
     messaging::enums::{Direction, KursalMessage, MessageId, MessageStatus},
-    storage::{Database, TABLE_FILE_TRANSFERS, TABLE_MESSAGES, TABLE_PINNED},
+    storage::{Database, TABLE_FILE_TRANSFERS, TABLE_MESSAGES, TABLE_PINNED, WriteBatch},
 };
 use serde::{Deserialize, Serialize};
 
@@ -33,18 +33,22 @@ pub struct StoredMessage {
 
 impl StoredMessage {
     pub fn save(&self, db: &Database) -> Result<()> {
+        let mut batch = db.batch()?;
+        self.save_into(&mut batch)?;
+        batch.commit()
+    }
+
+    pub(crate) fn save_into(&self, batch: &mut WriteBatch<'_>) -> Result<()> {
         let contact_id = hex::encode(self.contact_id.0);
         let message_id = hex::encode(self.id.0);
 
         let serialized = bincode::serialize(self)?;
 
-        db.raw_write(
+        batch.put(
             TABLE_MESSAGES,
             &format!("{contact_id}:{message_id}"),
             &serialized,
-        )?;
-
-        Ok(())
+        )
     }
 
     pub fn load(db: &Database, contact_id: &UserId, id: &MessageId) -> Result<Option<Self>> {
@@ -191,12 +195,15 @@ impl StoredMessage {
         if q.is_empty() {
             return Ok(vec![]);
         }
-        let mut out: Vec<Self> = db
-            .raw_readall(TABLE_MESSAGES)?
-            .into_iter()
-            .filter_map(|(_, bytes)| bincode::deserialize::<Self>(&bytes).ok())
-            .filter(|m| message_matches(m, &q))
-            .collect();
+        let mut out: Vec<Self> = Vec::new();
+        db.raw_scan_all(TABLE_MESSAGES, |_, bytes| {
+            if let Ok(message) = bincode::deserialize::<Self>(&bytes)
+                && message_matches(&message, &q)
+            {
+                out.push(message);
+            }
+            true
+        })?;
         out.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
         out.truncate(limit);
         Ok(out)

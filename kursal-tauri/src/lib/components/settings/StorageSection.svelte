@@ -543,6 +543,13 @@
       <span class="usage-value">{fmtBytes(usage.logsBytes)}</span>
     </SettingRow>
 
+    <SettingRow
+      title={t('settings.storage.avatarsRow')}
+      description={t('settings.storage.avatarsDescription')}
+    >
+      <span class="usage-value">{fmtBytes(usage.avatarsBytes)}</span>
+    </SettingRow>
+
     <div class="usage-stack">
       <div class="usage-row">
         <div class="usage-row-head">

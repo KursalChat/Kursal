@@ -14,7 +14,7 @@
   } from 'lucide-svelte';
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
   import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-  import { broadcastProfile } from '$lib/api/identity';
+  import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
   import { exportBackup, importBackup } from '$lib/api/backup';
   import { ensurePermission, getPermission, sendTestNotification } from '$lib/api/system-notify';
   import { profileState } from '$lib/state/profile.svelte';
@@ -41,8 +41,8 @@
   import { t } from '$lib/i18n';
 
   let displayName = $state('You');
-  let avatarBase64 = $state<string | null>(null);
-  let avatarBytes = $state<number[] | null>(null);
+  let avatarSrc = $state<string | null>(null);
+  let pendingAvatarBytes = $state<number[] | null | undefined>(undefined);
   let savingProfile = $state(false);
   let exporting = $state(false);
   let importing = $state(false);
@@ -70,8 +70,7 @@
   let sendingTest = $state(false);
 
   const profileDirty = $derived(
-    displayName.trim() !== profileState.displayName.trim() ||
-      avatarBase64 !== profileState.avatarBase64
+    displayName.trim() !== profileState.displayName.trim() || pendingAvatarBytes !== undefined
   );
 
   // Mirrors the backend's ProfileInfo::validate so the user sees the problem
@@ -87,23 +86,23 @@
   // Validate the trimmed value: surrounding spaces are dropped on save rather
   // than reported back to the user as an error.
   const profileError = $derived(
-    validateDisplayName(displayName.trim()) ?? validateAvatarBytes(avatarBytes)
+    validateDisplayName(displayName.trim()) ?? validateAvatarBytes(pendingAvatarBytes)
   );
   const profileErrorText = $derived(profileError ? t(PROFILE_ERROR_KEYS[profileError]) : '');
 
   onMount(async () => {
     await profileState.load();
     displayName = profileState.displayName;
-    avatarBase64 = profileState.avatarBase64;
-    avatarBytes = profileState.avatarBytes;
+    avatarSrc = profileState.avatarPath;
+    pendingAvatarBytes = undefined;
     preview = prefsState.notificationPreview;
     dnd = { ...prefsState.dnd };
     notifPermission = await getPermission(true);
   });
 
-  function handleAvatarChange(b64: string, bytes: number[]) {
-    avatarBase64 = b64;
-    avatarBytes = bytes;
+  function handleAvatarChange(dataUrl: string, bytes: number[]) {
+    avatarSrc = dataUrl;
+    pendingAvatarBytes = bytes;
   }
 
   async function saveProfile() {
@@ -114,8 +113,15 @@
     const nameToSave = displayName.trim();
     savingProfile = true;
     try {
-      await broadcastProfile(nameToSave, avatarBytes);
-      profileState.update(nameToSave, avatarBase64, avatarBytes);
+      const path =
+        pendingAvatarBytes === undefined
+          ? profileState.avatarPath
+          : await setLocalUserAvatar(pendingAvatarBytes);
+
+      await broadcastProfile(nameToSave);
+      profileState.update(nameToSave, path);
+      avatarSrc = path;
+      pendingAvatarBytes = undefined;
       profileSaved.trigger();
     } catch (e) {
       log.error(e);
@@ -127,8 +133,8 @@
 
   function resetProfile() {
     displayName = profileState.displayName;
-    avatarBase64 = profileState.avatarBase64;
-    avatarBytes = profileState.avatarBytes;
+    avatarSrc = profileState.avatarPath;
+    pendingAvatarBytes = undefined;
   }
 
   function resetExport() {
@@ -270,7 +276,7 @@
     <AvatarPicker onChange={handleAvatarChange}>
       {#snippet children(open)}
         <div class="avatar-wrap">
-          <Avatar name={displayName || 'You'} src={avatarBase64} size={72} />
+          <Avatar name={displayName || 'You'} src={avatarSrc} size={72} />
           <button
             type="button"
             class="avatar-edit"
@@ -296,13 +302,13 @@
           <span class="field-error">{profileErrorText}</span>
         {/if}
       </div>
-      {#if avatarBase64}
+      {#if avatarSrc}
         <button
           type="button"
           class="remove-avatar"
           onclick={() => {
-            avatarBase64 = null;
-            avatarBytes = null;
+            avatarSrc = null;
+            pendingAvatarBytes = null;
           }}
         >
           <Trash2 size={12} />

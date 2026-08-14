@@ -28,7 +28,7 @@ use crate::{
     },
     network::{
         NetworkManager,
-        swarm::{FILE_CHUNK_SIZE, SwarmHandle},
+        swarm::{FILE_CHUNK_SIZE, SwarmCommand, SwarmHandle},
     },
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS, file::KursalFile, filetransfer::hash_file,
@@ -74,9 +74,8 @@ pub async fn handle_core_command(
         }
 
         CoreCommand::GetLtcStatus { reply } => {
-            let db_lock = db.0.lock().await;
-            let result = LtcState::load(&db_lock)
-                .map(|opt| opt.and_then(|p| LtcState::dto_serialize(&p).ok()));
+            let result =
+                LtcState::load(&db).map(|opt| opt.and_then(|p| LtcState::dto_serialize(&p).ok()));
 
             reply.send(result).ok();
         }
@@ -147,8 +146,7 @@ pub async fn handle_core_command(
         CoreCommand::RepublishLtcPointer { reply } => {
             let swarm = network.lock().await.primary.clone();
             let result = {
-                let db_lock = db.0.lock().await;
-                match LtcState::load(&db_lock) {
+                match LtcState::load(&db) {
                     Ok(Some(state)) => state.dto_serialize(),
                     Ok(None) => Err(KursalError::Storage("No LTC currently stored".to_string())),
                     Err(err) => Err(err),
@@ -239,7 +237,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let now = get_timestamp_secs()?;
@@ -273,7 +271,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let msg = KursalMessage::Typing;
@@ -294,7 +292,7 @@ pub async fn handle_core_command(
             reply,
         } => {
             let result = async {
-                if !crate::storage::get_read_receipts_enabled(&*db.0.lock().await) {
+                if !crate::storage::get_read_receipts_enabled(&db) {
                     return Ok(());
                 }
 
@@ -303,7 +301,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let ids: Vec<MessageId> = message_ids
@@ -408,7 +406,7 @@ pub async fn handle_core_command(
         } => {
             let result = async {
                 let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-                let contacts = Contact::load_all(&*db.0.lock().await)?;
+                let contacts = Contact::load_all(&db)?;
 
                 for contact in contacts {
                     if contact.profile_shared {
@@ -438,7 +436,7 @@ pub async fn handle_core_command(
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
                 let user_id = UserId(user_id_bytes);
 
-                let existing = Contact::load(&*db.0.lock().await, &user_id)?;
+                let existing = Contact::load(&db, &user_id)?;
                 if let Some(contact) = existing {
                     let cmd_tx = network.lock().await.primary.cmd_tx.clone();
                     let _ = send_message(
@@ -449,10 +447,15 @@ pub async fn handle_core_command(
                         None,
                     )
                     .await;
+                    let _ = cmd_tx
+                        .send(SwarmCommand::ContactRemoved {
+                            peer_id: contact.peer_id.clone(),
+                        })
+                        .await;
                 }
 
                 remove_contact_transfers(db.clone(), &user_id).await?;
-                Contact::delete(&*db.0.lock().await, &user_id)?;
+                Contact::delete(&db, &user_id)?;
 
                 app_event_tx
                     .send(AppEvent::ContactRemoved {
@@ -486,7 +489,7 @@ pub async fn handle_core_command(
                     .map_err(|_| KursalError::Crypto("Invalid message id length".into()))?;
                 let msg_id = MessageId(id_bytes);
 
-                StoredMessage::delete(&*db.0.lock().await, &user_id, &msg_id)?;
+                StoredMessage::delete(&db, &user_id, &msg_id)?;
                 crate::messaging::offline::discard_queued(&db, &user_id, &msg_id).await?;
                 crate::messaging::offline::clear_pending_ack(&db, &user_id, &msg_id).await?;
 
@@ -515,27 +518,23 @@ pub async fn handle_core_command(
                     .map_err(|_| KursalError::Crypto("Invalid message id length".into()))?;
                 let msg_id = MessageId(id_bytes);
 
-                let contact = Contact::load(&*db.0.lock().await, &user_id)?
+                let contact = Contact::load(&db, &user_id)?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
-                let Some(mut message) =
-                    StoredMessage::load(&*db.0.lock().await, &user_id, &msg_id)?
-                else {
+                let Some(mut message) = StoredMessage::load(&db, &user_id, &msg_id)? else {
                     return Ok(());
                 };
                 let original_ts = message.timestamp;
                 message.status = MessageStatus::Sending;
-                message.save(&*db.0.lock().await)?;
+                message.save(&db)?;
                 let payload = message.payload;
 
                 let cmd_tx = network.lock().await.primary.cmd_tx.clone();
                 send_message(payload, &contact, db.clone(), &cmd_tx, Some(&app_event_tx)).await?;
 
-                if let Some(mut restored) =
-                    StoredMessage::load(&*db.0.lock().await, &user_id, &msg_id)?
-                {
+                if let Some(mut restored) = StoredMessage::load(&db, &user_id, &msg_id)? {
                     restored.timestamp = original_ts;
-                    restored.save(&*db.0.lock().await)?;
+                    restored.save(&db)?;
                 }
 
                 Ok(())
@@ -556,7 +555,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let message_id_bytes: [u8; 16] = hex::decode(&message_id)
@@ -592,7 +591,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let message_id_bytes: [u8; 16] = hex::decode(&message_id)
@@ -632,7 +631,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let message_id_bytes: [u8; 16] = hex::decode(&message_id)
@@ -669,7 +668,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let message_id_bytes: [u8; 16] = hex::decode(&message_id)
@@ -709,7 +708,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let message_id_bytes: [u8; 16] = hex::decode(&message_id)
@@ -746,7 +745,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &UserId(user_id_bytes))?
+                let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
                 let metadata = std::fs::metadata(&file_path).map_err(KursalError::Io)?;
@@ -806,7 +805,7 @@ pub async fn handle_core_command(
                     size_bytes,
                 };
 
-                db.0.lock().await.raw_write(
+                db.raw_write(
                     TABLE_FILE_TRANSFERS,
                     &format!("send:{contact_id}:{}", hex::encode(offer_id.0)),
                     &entry.serialize().ok_kursal(KursalError::Storage)?,
@@ -846,9 +845,7 @@ pub async fn handle_core_command(
                 let prog_key = format!("recvprog:{contact_id}:{offer_id}");
 
                 let entry_bytes =
-                    db.0.lock()
-                        .await
-                        .raw_read(TABLE_FILE_TRANSFERS, &recv_key)?
+                    db.raw_read(TABLE_FILE_TRANSFERS, &recv_key)?
                         .ok_or(KursalError::Storage(
                             "Could not find file offer".to_string(),
                         ))?;
@@ -870,10 +867,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid offer id length".into()))?;
 
-                let existing_prog =
-                    db.0.lock()
-                        .await
-                        .raw_read(TABLE_FILE_TRANSFERS, &prog_key)?;
+                let existing_prog = db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)?;
 
                 let (my_random, received_chunks) = if let Some(bytes) = existing_prog {
                     let prog = FileReceiveEntry::deserialize(&bytes)?;
@@ -892,9 +886,7 @@ pub async fn handle_core_command(
                         let actual = tokio::task::spawn_blocking(move || hash_file(&hash_path))
                             .await
                             .ok_kursal(KursalError::Storage)??;
-                        db.0.lock()
-                            .await
-                            .raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
+                        db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
                         if actual == entry.hash {
                             app_event_tx
                                 .send(AppEvent::FileReceived {
@@ -934,16 +926,12 @@ pub async fn handle_core_command(
                         expected_hash: entry.hash,
                         created_at: get_timestamp_secs()?,
                     };
-                    db.0.lock().await.raw_write(
-                        TABLE_FILE_TRANSFERS,
-                        &prog_key,
-                        &prog.serialize()?,
-                    )?;
+                    db.raw_write(TABLE_FILE_TRANSFERS, &prog_key, &prog.serialize()?)?;
 
                     (my_random, received_chunks)
                 };
 
-                let contact = Contact::load(&*db.0.lock().await, &contact_uid)?
+                let contact = Contact::load(&db, &contact_uid)?
                     .ok_or_else(|| KursalError::Identity("Unknown contact".to_string()))?;
 
                 let cmd_tx = network.lock().await.primary.cmd_tx.clone();
@@ -985,7 +973,7 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid offer id length".into()))?;
 
-                let contact = Contact::load(&*db.0.lock().await, &contact_uid)?
+                let contact = Contact::load(&db, &contact_uid)?
                     .ok_or_else(|| KursalError::Identity("Unknown contact".to_string()))?;
 
                 apply_cancel(db.clone(), &contact_uid, offer_id_bytes, &app_event_tx).await?;
@@ -1027,7 +1015,7 @@ pub async fn handle_core_command(
                     .map_err(|_| KursalError::Crypto("Invalid contact id length".into()))?;
                 let user_id = UserId(user_id_bytes);
 
-                if Contact::load(&*db.0.lock().await, &user_id)?.is_none() {
+                if Contact::load(&db, &user_id)?.is_none() {
                     return Err(KursalError::Storage("Contact not found".into()));
                 }
 
@@ -1162,10 +1150,10 @@ pub async fn handle_core_command(
         CoreCommand::SetAudioDevice { kind, name, reply } => {
             let result = crate::call::manager::set_audio_device(kind.clone(), name.clone()).await;
             if result.is_ok() {
-                let guard = db.0.lock().await;
+                let guard = &*db;
                 let _ = match kind.as_str() {
-                    "input" => crate::storage::set_audio_input_device(&guard, name),
-                    "output" => crate::storage::set_audio_output_device(&guard, name),
+                    "input" => crate::storage::set_audio_input_device(guard, name),
+                    "output" => crate::storage::set_audio_output_device(guard, name),
                     _ => Ok(()),
                 };
             }

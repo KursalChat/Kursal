@@ -19,7 +19,7 @@
 {#if visible && contact}
   <div class="incoming" role="dialog" aria-modal="false" aria-label={t('chat.call.incoming')}>
     <span class="ava">
-      <Avatar name={contact.displayName} src={contact.avatarBase64} size={40} />
+      <Avatar name={contact.displayName} src={contact.avatarPath} size={40} />
     </span>
     <div class="meta">
       <span class="name">{contact.displayName}</span>

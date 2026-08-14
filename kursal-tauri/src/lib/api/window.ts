@@ -37,6 +37,7 @@ export async function requestAttention(on: boolean) {
 }
 
 export async function setBadgeCount(count?: number) {
+  if (isMobile) return;
   let label = count && count > 0 ? count : undefined;
 
   if (OS == 'windows') {

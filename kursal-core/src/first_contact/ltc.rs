@@ -68,7 +68,7 @@ impl LtcState {
             Self::revoke_ltc(db.clone(), cmd_tx).await.ok();
         }
 
-        let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+        let dilithium_pub_key = get_dilithium_pub(&db)?;
 
         let created_at = get_timestamp_secs()?;
         let expires_at = ttl_secs
@@ -91,9 +91,7 @@ impl LtcState {
             pointer_failed: false,
         };
 
-        db.0.lock()
-            .await
-            .raw_write(TABLE_LTC_CACHE, "ltc_current", &state.serialize()?)?;
+        db.raw_write(TABLE_LTC_CACHE, "ltc_current", &state.serialize()?)?;
 
         Ok(state)
     }
@@ -103,17 +101,15 @@ impl LtcState {
         max_uses: Option<u32>,
         ttl_secs: Option<u64>,
     ) -> Result<LtcStatusDto> {
-        let db_lock = db.0.lock().await;
-
-        let mut state = Self::load(&db_lock)?
-            .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?;
+        let mut state =
+            Self::load(&db)?.ok_or(KursalError::Storage("No LTC currently stored".to_string()))?;
 
         state.max_uses = max_uses;
 
         let now = get_timestamp_secs()?;
         state.expires_at = ttl_secs.map(|t| now.saturating_add(t)).unwrap_or(u64::MAX);
 
-        state.save(&db_lock)?;
+        state.save(&db)?;
 
         Self::dto_serialize(&state)
     }
@@ -194,9 +190,9 @@ impl LtcState {
         enabled: bool,
     ) -> Result<LtcStatusDto> {
         let (dto, stale_tag) = {
-            let lock = db.0.lock().await;
+            let lock = &*db;
 
-            let mut state = Self::load(&lock)?
+            let mut state = Self::load(lock)?
                 .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?;
 
             state.follow_rotation = enabled;
@@ -205,7 +201,7 @@ impl LtcState {
                 state.pointer_published_at = None;
                 state.pointer_failed = false;
             }
-            state.save(&lock)?;
+            state.save(lock)?;
 
             (state.dto_serialize()?, stale_tag)
         };
@@ -226,8 +222,8 @@ impl LtcState {
 
     pub async fn revoke_ltc(db: SharedDatabase, cmd_tx: &mpsc::Sender<SwarmCommand>) -> Result<()> {
         let stale_tag = {
-            let lock = db.0.lock().await;
-            let loaded = Self::load(&lock);
+            let lock = &*db;
+            let loaded = Self::load(lock);
 
             let mut stale_tag = None;
             if let Ok(Some(previous)) = loaded {
@@ -260,9 +256,7 @@ impl LtcState {
 
     pub async fn export_ltc(db: SharedDatabase, swarm: &SwarmHandle) -> Result<Vec<u8>> {
         let state = {
-            let db_lock = db.0.lock().await;
-            Self::load(&db_lock)?
-                .ok_or(KursalError::Storage("No LTC currently stored".to_string()))?
+            Self::load(&db)?.ok_or(KursalError::Storage("No LTC currently stored".to_string()))?
         };
 
         let peer_id = swarm.peer_id.to_base58();
@@ -323,7 +317,7 @@ impl LtcState {
         );
 
         let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-        let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+        let dilithium_pub_key = get_dilithium_pub(&db)?;
 
         // now build bundle back
         let response = ContactResponse {
@@ -408,7 +402,7 @@ impl LtcState {
             display_name: make_username(&peer_id),
             peer_id,
             known_addresses,
-            avatar_bytes: None,
+            avatar: None,
             identity_pub_key: identity_key_bytes.clone(),
             dilithium_pub_key: payload.dilithium_pub_key.clone(),
             verified: false,
@@ -419,7 +413,7 @@ impl LtcState {
                 .await?,
         };
 
-        contact.save(&*db.0.lock().await)?;
+        contact.save(&db)?;
 
         Ok(contact)
     }
@@ -430,8 +424,8 @@ impl LtcState {
         event_tx: mpsc::Sender<AppEvent>,
     ) -> Result<()> {
         let (tag, payload_id) = {
-            let lock = db.0.lock().await;
-            match Self::load(&lock)? {
+            let lock = &*db;
+            match Self::load(lock)? {
                 Some(state) if state.follow_rotation => (state.rendezvous_tag(), state.payload_id),
                 _ => return Ok(()),
             }
@@ -448,7 +442,7 @@ impl LtcState {
             signature: Vec::new(),
         };
 
-        let secret = get_dilithium_secret(&*db.0.lock().await)?;
+        let secret = get_dilithium_secret(&db)?;
         pointer.sign(&tag, secret)?;
 
         let record = DHTRecord::new(tag.to_vec(), pointer.serialize()?, seq, true).await?;
@@ -471,15 +465,15 @@ impl LtcState {
         );
 
         let status = {
-            let lock = db.0.lock().await;
-            match Self::load(&lock)? {
+            let lock = &*db;
+            match Self::load(lock)? {
                 // Replaced or revoked while the put was in flight.
                 Some(mut state) if state.payload_id == payload_id => {
                     state.pointer_failed = !landed;
                     if landed {
                         state.pointer_published_at = Some(seq);
                     }
-                    state.save(&lock)?;
+                    state.save(lock)?;
                     Some(state.dto_serialize()?)
                 }
                 _ => None,
@@ -562,8 +556,7 @@ async fn deliver_response(
 }
 
 async fn drop_half_open_session(db: &SharedDatabase, remote_address: &ProtocolAddress) {
-    let db_lock = db.0.lock().await;
-    if let Err(err) = db_lock.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
+    if let Err(err) = db.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
         log::warn!("[ltc] could not drop the half-open session: {err}");
     }
 }

@@ -68,7 +68,7 @@ pub fn hash_otp(otp: &str) -> Result<[u8; 32]> {
         argon2::Version::V0x13,
         ParamsBuilder::new()
             .m_cost(256 * 1024)
-            .t_cost(2)
+            .t_cost(1)
             .p_cost(1)
             .output_len(32)
             .build()
@@ -120,12 +120,10 @@ pub async fn build_otp_payload(
         .pre_key_id
         .ok_or_else(|| KursalError::Crypto("OTP bundle missing one-time prekey".to_string()))?
         .into();
-    db.0.lock()
-        .await
-        .raw_write(TABLE_SETTINGS, "otp_prekey_id", &prekey_id.to_be_bytes())?;
+    db.raw_write(TABLE_SETTINGS, "otp_prekey_id", &prekey_id.to_be_bytes())?;
     let bundle = bundle_data.serialize()?;
     let peer_id = swarm.peer_id.to_base58();
-    let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+    let dilithium_pub_key = get_dilithium_pub(&db)?;
 
     let payload = OtpPayload {
         payload_id,
@@ -159,13 +157,10 @@ pub async fn publish_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> 
         .await
         .ok_kursal(KursalError::Network)?;
 
-    {
-        let db_lock = db.0.lock().await;
-        db_lock.raw_write(TABLE_SETTINGS, "otp_published_at", &timestamp.to_be_bytes())?;
-        db_lock.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)?;
-        db_lock.raw_write(TABLE_SETTINGS, "otp_dht_key", &dht_key)?;
-        db_lock.raw_delete(TABLE_SETTINGS, "otp_consumed_id")?;
-    }
+    db.raw_write(TABLE_SETTINGS, "otp_published_at", &timestamp.to_be_bytes())?;
+    db.raw_write(TABLE_SETTINGS, "otp_pending_id", &payload_id.0)?;
+    db.raw_write(TABLE_SETTINGS, "otp_dht_key", &dht_key)?;
+    db.raw_delete(TABLE_SETTINGS, "otp_consumed_id")?;
 
     Ok(())
 }
@@ -270,13 +265,13 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
     let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
 
     let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-    let dilithium_pub_key = get_dilithium_pub(&*db.0.lock().await)?;
+    let dilithium_pub_key = get_dilithium_pub(&db)?;
 
     let contact = Contact {
         user_id: UserId(user_id),
         peer_id: payload.peer_id.clone(),
         display_name: make_username(&payload.peer_id),
-        avatar_bytes: None,
+        avatar: None,
         identity_pub_key: identity_pub_key.clone(),
         dilithium_pub_key: payload.dilithium_pub_key.clone(),
         known_addresses: payload.relay_addresses,
@@ -344,7 +339,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
 
     match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
         Ok(Ok(Ok(()))) => {
-            contact.save(&*db.0.lock().await)?;
+            contact.save(&db)?;
             Ok(contact)
         }
         Ok(Ok(Err(reason))) => {
@@ -363,8 +358,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
 }
 
 async fn rollback_handshake(db: &SharedDatabase, remote_address: &ProtocolAddress) {
-    let db_lock = db.0.lock().await;
-    if let Err(err) = db_lock.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
+    if let Err(err) = db.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
         log::warn!("[otp] could not drop the half-open session: {err}");
     }
 }

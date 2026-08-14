@@ -96,7 +96,7 @@
           disabled={!!sendingTo}
           onclick={() => forward(c.userId, c.displayName)}
         >
-          <Avatar name={c.displayName} src={c.avatarBase64} size={34} />
+          <Avatar name={c.displayName} src={c.avatarPath} size={34} />
           <span class="fw-name">{c.displayName}</span>
           {#if sendingTo === c.userId}
             <Spinner size={14} />

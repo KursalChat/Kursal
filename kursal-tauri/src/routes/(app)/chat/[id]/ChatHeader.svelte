@@ -38,7 +38,7 @@
       onclick={onOpenProfile}
       aria-label={t('chat.header.viewProfile')}
     >
-      <Avatar name={contact.displayName} src={contact.avatarBase64} size={34} {status} showStatus />
+      <Avatar name={contact.displayName} src={contact.avatarPath} size={34} {status} showStatus />
       <div class="header-info">
         <div class="header-name-row">
           <span class="header-name">{contact.displayName}</span>

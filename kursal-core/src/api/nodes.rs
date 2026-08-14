@@ -40,14 +40,14 @@ pub async fn add_custom_node(
     let normalized = parsed.to_string();
 
     {
-        let guard = db.0.lock().await;
-        let mut nodes = get_custom_nodes(&guard);
+        let guard = &*db;
+        let mut nodes = get_custom_nodes(guard);
         let is_default = default_node_strings().contains(&normalized);
         if is_default || nodes.contains(&normalized) {
             return Err(KursalError::Network("duplicate_node".to_string()));
         }
         nodes.push(normalized);
-        set_custom_nodes(&guard, nodes)?;
+        set_custom_nodes(guard, nodes)?;
     }
 
     let _ = cmd_tx.send(SwarmCommand::AddNode(parsed)).await;
@@ -55,12 +55,12 @@ pub async fn add_custom_node(
 }
 
 pub async fn remove_custom_node(addr: String, db: SharedDatabase) -> Result<()> {
-    let guard = db.0.lock().await;
-    let mut nodes = get_custom_nodes(&guard);
+    let guard = &*db;
+    let mut nodes = get_custom_nodes(guard);
     let before = nodes.len();
     nodes.retain(|n| *n != addr);
     if nodes.len() != before {
-        set_custom_nodes(&guard, nodes)?;
+        set_custom_nodes(guard, nodes)?;
     }
     Ok(())
 }

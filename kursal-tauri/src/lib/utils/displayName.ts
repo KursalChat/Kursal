@@ -4,7 +4,7 @@
 
 export const DISPLAY_NAME_MIN = 3;
 export const DISPLAY_NAME_MAX = 32;
-export const MAX_PROFILE_AVATAR_LEN = 128 * 1000;
+export const MAX_PROFILE_AVATAR_LEN = 256 * 1000;
 
 // Rust `char::is_alphanumeric()` is Alphabetic || numeric (Nd/Nl/No).
 const ALLOWED_CHAR = /[\p{Alphabetic}\p{Nd}\p{Nl}\p{No} ._'-]/u;

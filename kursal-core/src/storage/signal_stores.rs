@@ -12,22 +12,38 @@ use libsignal_protocol::{
     SignedPreKeyRecord, SignedPreKeyStore,
 };
 use std::{array::TryFromSliceError, sync::Arc};
-use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
 #[derive(Clone)]
-pub struct SharedDatabase(pub Arc<Mutex<Database>>);
+pub struct SharedDatabase(pub Arc<Database>);
+
+impl std::ops::Deref for SharedDatabase {
+    type Target = Database;
+
+    fn deref(&self) -> &Database {
+        &self.0
+    }
+}
+
 impl SharedDatabase {
     pub fn from_db(db: Database) -> SharedDatabase {
-        SharedDatabase(Arc::new(Mutex::new(db)))
+        SharedDatabase(Arc::new(db))
+    }
+
+    pub async fn blocking<T, F>(&self, work: F) -> Result<T>
+    where
+        F: FnOnce(&Database) -> Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let db = self.0.clone();
+
+        tokio::task::spawn_blocking(move || work(&db))
+            .await
+            .map_err(|err| KursalError::Storage(err.to_string()))?
     }
 
     pub async fn read_session(&self, address: &ProtocolAddress) -> Result<Option<SessionRecord>> {
-        let bytes = self
-            .0
-            .lock()
-            .await
-            .raw_read(TABLE_SESSIONS, &address.to_string())?;
+        let bytes = self.0.raw_read(TABLE_SESSIONS, &address.to_string())?;
 
         match bytes {
             None => Ok(None),
@@ -49,8 +65,6 @@ impl SessionStore for SharedDatabase {
     ) -> libsignal_protocol::error::Result<Option<SessionRecord>> {
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_SESSIONS, &address.to_string())
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -72,8 +86,6 @@ impl SessionStore for SharedDatabase {
         let bytes = Zeroizing::new(record.serialize()?);
 
         self.0
-            .lock()
-            .await
             .raw_write(TABLE_SESSIONS, &address.to_string(), &bytes)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -86,8 +98,6 @@ impl IdentityKeyStore for SharedDatabase {
     async fn get_identity_key_pair(&self) -> libsignal_protocol::error::Result<IdentityKeyPair> {
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_IDENTITY_KEYS, "local_identity")
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -107,8 +117,6 @@ impl IdentityKeyStore for SharedDatabase {
     async fn get_local_registration_id(&self) -> libsignal_protocol::error::Result<u32> {
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_SETTINGS, "registration_id")
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -136,8 +144,6 @@ impl IdentityKeyStore for SharedDatabase {
 
         let previous = self
             .0
-            .lock()
-            .await
             .raw_write(TABLE_IDENTITY_KEYS, &address.to_string(), &bytes)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -179,8 +185,6 @@ impl IdentityKeyStore for SharedDatabase {
     ) -> libsignal_protocol::error::Result<Option<IdentityKey>> {
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_IDENTITY_KEYS, &address.to_string())
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -204,8 +208,6 @@ impl PreKeyStore for SharedDatabase {
 
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_PRE_KEYS, &key)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -231,8 +233,6 @@ impl PreKeyStore for SharedDatabase {
         let bytes = Zeroizing::new(record.serialize()?);
 
         self.0
-            .lock()
-            .await
             .raw_write(TABLE_PRE_KEYS, &key, &bytes)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -246,8 +246,6 @@ impl PreKeyStore for SharedDatabase {
         let key = format!("prekey_{}", u32::from(prekey_id));
 
         self.0
-            .lock()
-            .await
             .raw_delete(TABLE_PRE_KEYS, &key)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -265,8 +263,6 @@ impl SignedPreKeyStore for SharedDatabase {
 
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_SIGNED_PRE_KEYS, &key)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -292,8 +288,6 @@ impl SignedPreKeyStore for SharedDatabase {
         let bytes = Zeroizing::new(record.serialize()?);
 
         self.0
-            .lock()
-            .await
             .raw_write(TABLE_SIGNED_PRE_KEYS, &key, &bytes)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -311,8 +305,6 @@ impl KyberPreKeyStore for SharedDatabase {
 
         let bytes = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_KYBER_PRE_KEYS, &key)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -338,8 +330,6 @@ impl KyberPreKeyStore for SharedDatabase {
         let bytes = Zeroizing::new(record.serialize()?);
 
         self.0
-            .lock()
-            .await
             .raw_write(TABLE_KYBER_PRE_KEYS, &key, &bytes)
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 
@@ -356,8 +346,6 @@ impl KyberPreKeyStore for SharedDatabase {
 
         let is_last_resort = self
             .0
-            .lock()
-            .await
             .raw_read(TABLE_SETTINGS, &format!("kyber_lastresort_{id}"))
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?
             .is_some();
@@ -367,8 +355,6 @@ impl KyberPreKeyStore for SharedDatabase {
         }
 
         self.0
-            .lock()
-            .await
             .raw_delete(TABLE_KYBER_PRE_KEYS, &format!("kyber_prekey_{id}"))
             .map_err(|err| SignalProtocolError::InvalidArgument(err.to_string()))?;
 

@@ -3,6 +3,7 @@ pub mod errors;
 pub mod logging;
 pub use errors::{KursalError, MapKursalResult, Result};
 
+#[cfg(feature = "apiserver")]
 pub mod apiserver;
 #[cfg(feature = "calls")]
 pub mod call;

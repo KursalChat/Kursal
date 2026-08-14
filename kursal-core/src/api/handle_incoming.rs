@@ -67,7 +67,7 @@ pub async fn handle_incoming(
             return Ok(());
         }
         Ok(WireMessage::Terminate) => {
-            let known = Contact::find_by_peer_id(&*db.clone().0.lock().await, &peer_id_str)?;
+            let known = Contact::find_by_peer_id(&db, &peer_id_str)?;
             if let Some(contact) = known {
                 mark_terminated(&db, &contact.user_id, true, event_tx).await?;
             }
@@ -80,7 +80,7 @@ pub async fn handle_incoming(
         }
     };
 
-    let known = Contact::find_by_peer_id(&*db.clone().0.lock().await, &peer_id_str)?;
+    let known = Contact::find_by_peer_id(&db, &peer_id_str)?;
     let Some(contact) = known else {
         reply_terminate_once(from, cmd_tx).await;
         return Ok(());
@@ -150,7 +150,7 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&*db.clone().0.lock().await)?;
+            stored.save(&db)?;
 
             event_tx
                 .send(AppEvent::MessageReceived {
@@ -171,30 +171,32 @@ pub async fn handle_incoming(
                 &db,
             )
             .await?;
-            crate::messaging::offline::clear_pending_ack(
-                &db,
-                &contact.user_id,
-                &receipt.message_id,
-            )
-            .await?;
-
-            let loaded = StoredMessage::load(
-                &*db.clone().0.lock().await,
+            let mut batch = db.batch()?;
+            crate::messaging::offline::clear_pending_ack_into(
+                &mut batch,
                 &contact.user_id,
                 &receipt.message_id,
             )?;
-            if let Some(mut message) = loaded {
+
+            let mut confirmed = None;
+            if let Some(mut message) =
+                StoredMessage::load(&db, &contact.user_id, &receipt.message_id)?
+            {
                 message.status = if via_mailbox {
                     MessageStatus::OfflineDelivered
                 } else {
                     MessageStatus::Delivered
                 };
-                message.save(&*db.clone().0.lock().await)?;
+                message.save_into(&mut batch)?;
+                confirmed = Some(message.id);
+            }
+            batch.commit()?;
 
+            if let Some(message_id) = confirmed {
                 event_tx
                     .send(AppEvent::DeliveryConfirmed {
                         contact_id: contact.user_id,
-                        message_id: message.id,
+                        message_id,
                     })
                     .await
                     .ok_kursal(KursalError::Network)?;
@@ -203,21 +205,19 @@ pub async fn handle_incoming(
 
         KursalMessage::ReadReceipt(receipt) => {
             let mut confirmed = Vec::with_capacity(receipt.message_ids.len());
+            let mut batch = db.batch()?;
             for message_id in receipt.message_ids {
-                let loaded = StoredMessage::load(
-                    &*db.clone().0.lock().await,
-                    &contact.user_id,
-                    &message_id,
-                )?;
+                let loaded = StoredMessage::load(&db, &contact.user_id, &message_id)?;
                 if let Some(mut message) = loaded
                     && matches!(message.direction, Direction::Sent)
                     && !matches!(message.status, MessageStatus::Read)
                 {
                     message.status = MessageStatus::Read;
-                    message.save(&*db.clone().0.lock().await)?;
+                    message.save_into(&mut batch)?;
                     confirmed.push(message_id);
                 }
             }
+            batch.commit()?;
             if !confirmed.is_empty() {
                 event_tx
                     .send(AppEvent::MessagesRead {
@@ -249,16 +249,16 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&*db.0.lock().await)?;
+            stored.save(&db)?;
 
             let mut autodownload = None;
-            let auto_accept = get_auto_accept_config(&*db.0.lock().await);
+            let auto_accept = get_auto_accept_config(&db);
 
             if auto_accept.size_cap_bytes >= size_bytes
                 && ((auto_accept.mode == "verified" && contact.verified)
                     || auto_accept.mode == "all")
             {
-                let auto_config = get_auto_download_config(&*db.0.lock().await);
+                let auto_config = get_auto_download_config(&db);
 
                 let contact_hex = hex::encode(contact.user_id.0);
 
@@ -298,7 +298,7 @@ pub async fn handle_incoming(
                 created_at: now,
             };
 
-            db.0.lock().await.raw_write(
+            db.raw_write(
                 TABLE_FILE_TRANSFERS,
                 &format!(
                     "recv:{}:{}",
@@ -329,10 +329,7 @@ pub async fn handle_incoming(
                 hex::encode(file.offer_id.0)
             );
 
-            let stored =
-                db.0.lock()
-                    .await
-                    .raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
+            let stored = db.raw_read(TABLE_FILE_TRANSFERS, &send_key)?;
 
             let Some(file_entry_bytes) = stored else {
                 log::info!(
@@ -356,11 +353,7 @@ pub async fn handle_incoming(
 
             let now = get_timestamp_secs()?;
             file_entry.last_accessed_at = Some(now);
-            db.0.lock().await.raw_write(
-                TABLE_FILE_TRANSFERS,
-                &send_key,
-                &file_entry.serialize()?,
-            )?;
+            db.raw_write(TABLE_FILE_TRANSFERS, &send_key, &file_entry.serialize()?)?;
 
             spawn_send_file_chunks(
                 contact,
@@ -398,11 +391,14 @@ pub async fn handle_incoming(
             }
 
             let name = profile.display_name;
-            let avatar = profile.avatar_bytes;
+            let avatar = profile
+                .avatar_bytes
+                .as_deref()
+                .and_then(|bytes| crate::storage::avatars::store(bytes).ok());
             if let Some(updated) =
                 crate::messaging::offline::update_contact(&db, &contact.user_id, move |c| {
                     c.display_name = name;
-                    c.avatar_bytes = avatar;
+                    c.avatar = avatar;
                     true
                 })
                 .await?
@@ -464,11 +460,11 @@ pub(crate) async fn mark_terminated(
 ) -> Result<()> {
     let contact_hex = hex::encode(contact_id.0);
     {
-        let guard = db.0.lock().await;
-        if get_contact_terminated(&guard, &contact_hex) == terminated {
+        let guard = db;
+        if get_contact_terminated(guard, &contact_hex) == terminated {
             return Ok(());
         }
-        set_contact_terminated(&guard, &contact_hex, terminated)?;
+        set_contact_terminated(guard, &contact_hex, terminated)?;
     }
 
     event_tx

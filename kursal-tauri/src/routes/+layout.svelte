@@ -296,7 +296,6 @@
       const root = document.documentElement.style;
       if (vv) {
         root.setProperty('--app-height', `${vv.height}px`);
-        root.setProperty('--vv-top', `${vv.offsetTop}px`);
         const covered = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
         root.setProperty('--kb-overlap', `${Math.max(0, getImeInset() - covered)}px`);
       }
@@ -337,14 +336,6 @@
     document.addEventListener('gesturestart', blockGesture);
     document.addEventListener('gesturechange', blockGesture);
     document.addEventListener('gestureend', blockGesture);
-
-    let lastTouchEnd = 0;
-    const blockDoubleTap = (e: TouchEvent) => {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 350) e.preventDefault();
-      lastTouchEnd = now;
-    };
-    document.addEventListener('touchend', blockDoubleTap, { passive: false });
 
     void contactsState.load();
     void messagesState.hydrate();
@@ -547,7 +538,7 @@
         // Save old values to compare, because upsert modifies Svelte 5 state in-place
         const oldPeerId = existing?.peerId;
         const oldName = existing?.displayName;
-        const oldAvatar = existing?.avatarBase64;
+        const oldAvatar = existing?.avatarPath;
 
         contactsState.upsert(payload);
 
@@ -561,7 +552,7 @@
         }
 
         const nameChanged = oldName && oldName !== newContact.displayName;
-        const avatarChanged = oldAvatar !== newContact.avatarBase64 && newContact.avatarBase64;
+        const avatarChanged = oldAvatar !== newContact.avatarPath && newContact.avatarPath;
 
         if (nameChanged && avatarChanged) {
           notifications.push(
@@ -688,7 +679,6 @@
       document.removeEventListener('gesturestart', blockGesture);
       document.removeEventListener('gesturechange', blockGesture);
       document.removeEventListener('gestureend', blockGesture);
-      document.removeEventListener('touchend', blockDoubleTap);
       backgroundUnread = 0;
       refreshTitle();
       void Promise.all(unlistenPromises).then((fns) => {

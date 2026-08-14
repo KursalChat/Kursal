@@ -13,6 +13,11 @@ workspace = true
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "gen_api_docs"
+path = "src/bin/gen_api_docs.rs"
+required-features = ["apiserver"]
+
 [features]
 default = ["calls", "ble"]
 calls = [
@@ -23,42 +28,43 @@ calls = [
     "dep:objc2-avf-audio",
 ]
 ble = ["dep:btleplug", "dep:ble-peripheral-rust"]
+apiserver = ["dep:axum", "dep:tower-http"]
+api-docs = ["apiserver", "dep:utoipa-scalar"]
 
 [dependencies]
-thiserror = { workspace = true }
-anyhow = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-bincode = { workspace = true }
-zeroize = { workspace = true, features = ["derive"] }
+# Async
 tokio = { workspace = true, features = ["fs"] }
 tokio-util = { workspace = true }
 tokio-stream = { workspace = true }
+futures = { workspace = true }
 async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+bincode = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
-futures = { workspace = true }
+
+# Errors & logging
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 log = { workspace = true }
 log4rs = { workspace = true }
-rayon = { workspace = true }
-emojis = { workspace = true }
-sysinfo = { workspace = true }
-prometheus-client = { workspace = true }
-subtle = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 
 # Crypto
 argon2 = { workspace = true }
 aes-gcm = { workspace = true }
+chacha20poly1305 = { workspace = true }
 hkdf = { workspace = true }
 sha2 = { workspace = true }
 blake2 = { workspace = true }
 rand = { workspace = true }
-uuid = { workspace = true, features = ["v7"] }
+subtle = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
 libsignal-protocol = { workspace = true }
 pqcrypto-dilithium = { workspace = true }
 pqcrypto-traits = { workspace = true }
-chacha20poly1305 = { workspace = true }
 
 # Network
 libp2p = { workspace = true }
@@ -70,33 +76,35 @@ redb = { workspace = true }
 keyring-core = { workspace = true }
 
 # API
-axum = { workspace = true, features = ["ws"] }
-tower-http = { workspace = true, features = ["cors"] }
+axum = { workspace = true, features = ["ws"], optional = true }
+tower-http = { workspace = true, features = ["cors"], optional = true }
 utoipa = { workspace = true }
-utoipa-scalar = { workspace = true, features = ["axum"] }
-tokio-tungstenite = { workspace = true }
+utoipa-scalar = { workspace = true, features = ["axum"], optional = true }
 
 # Audio
 audiopus = { workspace = true, optional = true }
 cpal = { workspace = true, optional = true }
 ringbuf = { workspace = true, optional = true }
 
+# Stats
+sysinfo = { workspace = true, features = ["system"] }
+prometheus-client = { workspace = true }
+
+# Misc
+clap = { workspace = true, features = ["derive"] }
+uuid = { workspace = true, features = ["v7"] }
+emojis = { workspace = true }
+rayon = { workspace = true }
+
 [dev-dependencies]
 dirs = { workspace = true }
 
+# TODO: remove that
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+libp2p = { workspace = true, features = ["mdns"] }
+
 [target.'cfg(not(target_os = "android"))'.dependencies]
 ble-peripheral-rust = { workspace = true, optional = true }
-
-[target.'cfg(target_os = "android")'.dependencies]
-android-native-keyring-store = { workspace = true }
-ndk-context = "0.1.1"
-jni = "0.19.0"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = { workspace = true, features = [
-    "keychain",
-    "protected",
-] }
 
 # Echo cancellation / noise suppression (software AEC3 + NS). Its bundled
 # C++/meson build does NOT cross-compile, so we only enable it where the
@@ -104,8 +112,11 @@ apple-native-keyring-store = { workspace = true, features = [
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 webrtc-audio-processing = { workspace = true, features = ["bundled"], optional = true }
 
-[target.'cfg(not(target_os = "ios"))'.dependencies]
-libp2p = { workspace = true, features = ["mdns"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { workspace = true, features = [
+    "keychain",
+    "protected",
+] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
@@ -115,6 +126,11 @@ objc2-avf-audio = { workspace = true, optional = true, features = [
     "AVAudioSession",
     "AVAudioSessionTypes",
 ] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = { workspace = true }
+ndk-context = "0.1.1"
+jni = "0.19.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = { workspace = true }

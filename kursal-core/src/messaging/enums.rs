@@ -236,7 +236,7 @@ pub struct AddressAnnounce {
     pub addresses: Vec<String>,
 }
 
-pub const MAX_PROFILE_AVATAR_LEN: usize = 128 * 1000; // 128 KB
+pub const MAX_PROFILE_AVATAR_LEN: usize = 256 * 1000; // 256 KB
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProfileInfo {
     pub display_name: String,

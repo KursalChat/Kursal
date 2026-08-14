@@ -6,8 +6,7 @@
   import { ZoomIn, ZoomOut, X, Check } from 'lucide-svelte';
   import Button from './Button.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
-
-  const MAX_AVATAR_BYTES = 200 * 1024;
+  import { MAX_PROFILE_AVATAR_LEN } from '$lib/utils/displayName';
 
   let {
     file,
@@ -15,12 +14,12 @@
     onCancel,
   }: {
     file: Blob;
-    onConfirm: (base64: string, bytes: number[]) => void;
+    onConfirm: (dataUrl: string, bytes: number[]) => void;
     onCancel: () => void;
   } = $props();
 
   const VIEWPORT = 260;
-  const OUTPUT_SIZE = 256;
+  const OUTPUT_SIZE = 512;
 
   let img = $state<HTMLImageElement | null>(null);
   let blobUrl = $state<string | null>(null);
@@ -139,18 +138,18 @@
       let dataUrl = canvas.toDataURL('image/webp', quality);
       let b64 = dataUrl.split(',')[1];
       let bytes = Array.from(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
-      while (bytes.length > MAX_AVATAR_BYTES && quality > 0.3) {
+      while (bytes.length > MAX_PROFILE_AVATAR_LEN && quality > 0.3) {
         quality -= 0.1;
         dataUrl = canvas.toDataURL('image/webp', quality);
         b64 = dataUrl.split(',')[1];
         bytes = Array.from(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
       }
-      if (bytes.length > MAX_AVATAR_BYTES) {
+      if (bytes.length > MAX_PROFILE_AVATAR_LEN) {
         notifications.push(t('avatar.errorTooLarge'), 'error');
         processing = false;
         return;
       }
-      onConfirm(b64, bytes);
+      onConfirm(dataUrl, bytes);
     } catch (e) {
       log.error('Crop failed', e);
       notifications.push(t('avatar.errorProcess'), 'error');

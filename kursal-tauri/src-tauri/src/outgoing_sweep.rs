@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 pub async fn sweep(db: SharedDatabase, app_data_dir: &Path) {
-    let shared = match files_list_shared(&*db.0.lock().await) {
+    let shared = match files_list_shared(&db) {
         Ok(shared) => shared,
         Err(err) => {
             log::warn!("Outgoing sweep skipped, could not list shares: {err}");

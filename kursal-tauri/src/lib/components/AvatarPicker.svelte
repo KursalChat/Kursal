@@ -11,7 +11,7 @@
     onChange,
     children,
   }: {
-    onChange: (base64: string, bytes: number[]) => void;
+    onChange: (dataUrl: string, bytes: number[]) => void;
     children: Snippet<[() => void]>;
   } = $props();
 
@@ -41,8 +41,8 @@
     }
   }
 
-  function handleConfirm(b64: string, bytes: number[]) {
-    onChange(b64, bytes);
+  function handleConfirm(dataUrl: string, bytes: number[]) {
+    onChange(dataUrl, bytes);
     cropBlob = null;
   }
 

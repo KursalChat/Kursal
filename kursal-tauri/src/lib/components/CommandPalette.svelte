@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Command } from 'bits-ui';
   import { goto } from '$app/navigation';
   import {
     Search,
@@ -39,12 +38,15 @@
   let mode = $state<'default' | 'messages'>('default');
   let messageResults = $state<MessageResponse[]>([]);
   let searchSeq = 0;
+  let selectedId = $state<string | null>(null);
+  let listEl = $state<HTMLDivElement | null>(null);
 
   $effect(() => {
     if (!open) {
       search = '';
       mode = 'default';
       messageResults = [];
+      selectedId = null;
     }
   });
 
@@ -73,11 +75,13 @@
     mode = 'messages';
     search = '';
     messageResults = [];
+    selectedId = null;
   }
   function exitMessageSearch() {
     mode = 'default';
     search = '';
     messageResults = [];
+    selectedId = null;
   }
   function jumpToMessage(m: MessageResponse) {
     onClose();
@@ -88,7 +92,7 @@
     return contactsState.getById(id)?.displayName ?? '';
   }
   function contactAvatar(id: string): string | null | undefined {
-    return contactsState.getById(id)?.avatarBase64;
+    return contactsState.getById(id)?.avatarPath;
   }
   function fmtResultTime(ts: number): string {
     const d = new Date(ts);
@@ -119,7 +123,7 @@
         id: 'contact:' + c.userId,
         label: c.displayName,
         keywords: [c.displayName],
-        avatar: { name: c.displayName, src: c.avatarBase64 },
+        avatar: { name: c.displayName, src: c.avatarPath },
         run: () => nav('/chat/' + c.userId),
       }))
   );
@@ -250,12 +254,67 @@
     { id: 'actions', heading: t('commandPalette.groupActions'), items: actions },
   ]);
 
+  function matches(it: Cmd, query: string): boolean {
+    if (it.label.toLowerCase().includes(query)) return true;
+    return it.keywords.some((k) => k.toLowerCase().includes(query));
+  }
+
+  const visibleGroups = $derived.by(() => {
+    const q = search.trim().toLowerCase();
+    return groups
+      .map((g) => ({
+        ...g,
+        items: q ? g.items.filter((it) => matches(it, q)) : g.items,
+      }))
+      .filter((g) => g.items.length > 0);
+  });
+
+  const rows = $derived<{ id: string; run: () => void }[]>(
+    mode === 'messages'
+      ? messageResults.map((m) => ({ id: m.id, run: () => jumpToMessage(m) }))
+      : visibleGroups.flatMap((g) => g.items)
+  );
+
+  const selectedKey = $derived.by(() => {
+    if (rows.length === 0) return null;
+    if (selectedId && rows.some((r) => r.id === selectedId)) return selectedId;
+    return rows[0].id;
+  });
+
+  $effect(() => {
+    if (!selectedKey) return;
+    listEl?.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' });
+  });
+
+  function move(delta: number) {
+    if (rows.length === 0) return;
+    const cur = rows.findIndex((r) => r.id === selectedKey);
+    selectedId = rows[(cur + delta + rows.length) % rows.length].id;
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
       if (mode === 'messages') exitMessageSearch();
       else onClose();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      move(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      move(-1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      if (rows.length) selectedId = rows[0].id;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (rows.length) selectedId = rows[rows.length - 1].id;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      rows.find((r) => r.id === selectedKey)?.run();
     }
   }
 </script>
@@ -263,12 +322,7 @@
 {#if open}
   <div class="cp-backdrop" onclick={onClose} role="presentation"></div>
   <div class="cp-wrap" onkeydown={onKeydown} use:trapFocus role="dialog" tabindex="0">
-    <Command.Root
-      class="cp"
-      label={t('commandPalette.ariaLabel')}
-      loop
-      shouldFilter={mode === 'default'}
-    >
+    <div class="cp">
       <div class="cp-input-row">
         {#if mode === 'messages'}
           <button
@@ -282,15 +336,32 @@
         {:else}
           <Search size={16} />
         {/if}
-        <Command.Input
-          bind:value={search}
+        <input
           class="cp-input"
+          type="text"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls="cp-list"
+          aria-activedescendant={selectedKey ? 'cp-opt-' + selectedKey : undefined}
+          aria-label={t('commandPalette.ariaLabel')}
+          bind:value={search}
+          oninput={() => (selectedId = null)}
           placeholder={mode === 'messages'
             ? t('commandPalette.searchMessagesPlaceholder')
             : t('commandPalette.placeholder')}
         />
       </div>
-      <Command.List class="cp-list">
+      <div
+        class="cp-list"
+        id="cp-list"
+        role="listbox"
+        aria-label={t('commandPalette.ariaLabel')}
+        bind:this={listEl}
+      >
         {#if mode === 'messages'}
           {#if !search.trim()}
             <div class="cp-empty">{t('commandPalette.searchMessagesHint')}</div>
@@ -298,7 +369,18 @@
             <div class="cp-empty">{t('commandPalette.empty')}</div>
           {:else}
             {#each messageResults as m (m.id)}
-              <Command.Item value={m.id} onSelect={() => jumpToMessage(m)} class="cp-item">
+              <button
+                class="cp-item"
+                type="button"
+                role="option"
+                tabindex="-1"
+                id={'cp-opt-' + m.id}
+                aria-selected={selectedKey === m.id}
+                data-selected={selectedKey === m.id ? '' : undefined}
+                onclick={() => jumpToMessage(m)}
+                onmousedown={(e) => e.preventDefault()}
+                onmousemove={() => (selectedId = m.id)}
+              >
                 <Avatar
                   name={contactName(m.contactId)}
                   src={contactAvatar(m.contactId)}
@@ -311,39 +393,42 @@
                   </span>
                   <span class="cp-label">{m.content}</span>
                 </div>
-              </Command.Item>
+              </button>
             {/each}
           {/if}
+        {:else if rows.length === 0}
+          <div class="cp-empty">{t('commandPalette.empty')}</div>
         {:else}
-          <Command.Empty class="cp-empty">{t('commandPalette.empty')}</Command.Empty>
-          {#each groups as g (g.id)}
-            {#if g.items.length}
-              <Command.Group class="cp-group">
-                <Command.GroupHeading class="cp-heading">{g.heading}</Command.GroupHeading>
-                <Command.GroupItems>
-                  {#each g.items as it (it.id)}
-                    <Command.Item
-                      value={it.id}
-                      keywords={it.keywords}
-                      onSelect={it.run}
-                      class="cp-item"
-                    >
-                      {#if it.avatar}
-                        <Avatar name={it.avatar.name} src={it.avatar.src} size={22} />
-                      {:else if it.icon}
-                        {@const Icon = it.icon}
-                        <span class="cp-icon"><Icon size={16} /></span>
-                      {/if}
-                      <span class="cp-label">{it.label}</span>
-                    </Command.Item>
-                  {/each}
-                </Command.GroupItems>
-              </Command.Group>
-            {/if}
+          {#each visibleGroups as g (g.id)}
+            <div class="cp-group">
+              <div class="cp-heading">{g.heading}</div>
+              {#each g.items as it (it.id)}
+                <button
+                  class="cp-item"
+                  type="button"
+                  role="option"
+                  tabindex="-1"
+                  id={'cp-opt-' + it.id}
+                  aria-selected={selectedKey === it.id}
+                  data-selected={selectedKey === it.id ? '' : undefined}
+                  onclick={it.run}
+                  onmousedown={(e) => e.preventDefault()}
+                  onmousemove={() => (selectedId = it.id)}
+                >
+                  {#if it.avatar}
+                    <Avatar name={it.avatar.name} src={it.avatar.src} size={22} />
+                  {:else if it.icon}
+                    {@const Icon = it.icon}
+                    <span class="cp-icon"><Icon size={16} /></span>
+                  {/if}
+                  <span class="cp-label">{it.label}</span>
+                </button>
+              {/each}
+            </div>
           {/each}
         {/if}
-      </Command.List>
-    </Command.Root>
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -377,7 +462,7 @@
     }
   }
 
-  :global(.cp) {
+  .cp {
     display: flex;
     flex-direction: column;
     max-height: min(60vh, 480px, calc(86vh - var(--safe-top) - var(--safe-bottom)));
@@ -397,8 +482,9 @@
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  :global(.cp-input) {
+  .cp-input {
     flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     outline: none;
@@ -406,26 +492,26 @@
     font-size: 15px;
     font-family: inherit;
   }
-  :global(.cp-input)::placeholder {
+  .cp-input::placeholder {
     color: var(--text-muted);
   }
-  :global(.cp-input:focus),
-  :global(.cp-input:focus-visible) {
+  .cp-input:focus,
+  .cp-input:focus-visible {
     outline: none;
     box-shadow: none;
   }
 
-  :global(.cp-list) {
+  .cp-list {
     overflow-y: auto;
     padding: 6px;
   }
-  :global(.cp-empty) {
+  .cp-empty {
     padding: 28px 16px;
     text-align: center;
     color: var(--text-muted);
     font-size: 13px;
   }
-  :global(.cp-heading) {
+  .cp-heading {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -433,9 +519,11 @@
     color: var(--text-muted);
     padding: 10px 10px 4px;
   }
-  :global(.cp-item) {
+  .cp-item {
     display: flex;
+    width: 100%;
     align-items: center;
+    text-align: left;
     gap: 10px;
     padding: 8px 10px;
     border-radius: var(--radius-md);
@@ -444,7 +532,7 @@
     cursor: pointer;
     user-select: none;
   }
-  :global(.cp-item[data-selected]) {
+  .cp-item[data-selected] {
     background: var(--accent-dim);
     color: var(--accent-hover);
   }
@@ -457,7 +545,7 @@
     color: var(--text-secondary);
     flex-shrink: 0;
   }
-  :global(.cp-item[data-selected]) .cp-icon {
+  .cp-item[data-selected] .cp-icon {
     color: var(--accent-hover);
   }
   .cp-label {

@@ -544,6 +544,21 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  touch-action: manipulation;
+}
+
+html.scanning,
+html.scanning body,
+html.scanning #svelte {
+  background: transparent;
+}
+
+html.scanning #svelte > * {
+  visibility: hidden;
+}
+
+html.scanning .scan-overlay {
+  visibility: visible;
 }
 
 html {
@@ -561,7 +576,7 @@ html {
  * the whole viewport - no gap when shrunk, no clipping when enlarged. */
 body {
   position: fixed;
-  top: calc(var(--vv-top, 0px) / var(--zoom, 1));
+  top: 0;
   left: 0;
   width: calc(100vw / var(--zoom, 1));
   height: calc(var(--app-height, 100dvh) / var(--zoom, 1));

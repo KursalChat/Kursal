@@ -48,7 +48,7 @@ async fn contact_response(peer: &SharedDatabase, payload_id: MessageId) -> Conta
         payload_id,
         pre_key_bundle: bundle.serialize().unwrap(),
         peer_id: PeerId::random().to_base58(),
-        dilithium_pub_key: get_dilithium_pub(&*peer.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(peer).unwrap(),
         relay_addresses: vec![],
         mailbox_kem_ct: vec![],
         mailbox_kem_prekey_id: 0,
@@ -64,13 +64,13 @@ fn responder_id(response: &ContactResponse) -> UserId {
 }
 
 async fn contact_saved(db: &SharedDatabase, response: &ContactResponse) -> bool {
-    Contact::load(&*db.0.lock().await, &responder_id(response))
+    Contact::load(db, &responder_id(response))
         .unwrap()
         .is_some()
 }
 
 async fn load_state(db: &SharedDatabase) -> Option<LtcState> {
-    LtcState::load(&*db.0.lock().await).unwrap()
+    LtcState::load(db).unwrap()
 }
 
 async fn uses(db: &SharedDatabase) -> u32 {
@@ -146,7 +146,7 @@ async fn ltc_full_session_roundtrip() {
         payload_id: MessageId::new(),
         peer_id: "alice".to_string(),
         pre_key_bundle: alice_bundle.serialize().unwrap(),
-        dilithium_pub_key: get_dilithium_pub(&*alice.0.lock().await).unwrap(),
+        dilithium_pub_key: get_dilithium_pub(&alice).unwrap(),
         relay_addresses: vec![],
         created_at: now,
         expires_at: now + 604800,
@@ -244,7 +244,7 @@ async fn ltc_create_replaces_the_previous_code_and_prunes_its_kyber_prekey() {
     assert_ne!(first.payload_id, second.payload_id);
     assert_ne!(first.kyber_pre_key_id, second.kyber_pre_key_id);
 
-    let lock = alice.0.lock().await;
+    let lock = &*alice;
     let old = lock
         .raw_read(
             TABLE_KYBER_PRE_KEYS,
@@ -275,9 +275,6 @@ async fn ltc_revoke_prunes_the_kyber_prekey() {
         .unwrap();
 
     let stored = alice
-        .0
-        .lock()
-        .await
         .raw_read(
             TABLE_KYBER_PRE_KEYS,
             &format!("kyber_prekey_{}", state.kyber_pre_key_id),
@@ -454,7 +451,7 @@ async fn ltc_expired_code_is_rejected() {
         .unwrap();
 
     state.expires_at = get_timestamp_secs().unwrap() - 1;
-    state.save(&*alice.0.lock().await).unwrap();
+    state.save(&alice).unwrap();
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
@@ -591,12 +588,10 @@ async fn ltc_response_replay_ignored() {
         .unwrap();
 
     let stored_peer_id = response.peer_id.clone();
-    let mut contact = Contact::load(&*alice.0.lock().await, &bob_user_id)
-        .unwrap()
-        .unwrap();
+    let mut contact = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
     contact.verified = true;
     contact.offline.send_counter = 5;
-    contact.save(&*alice.0.lock().await).unwrap();
+    contact.save(&alice).unwrap();
 
     handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
         .await
@@ -609,9 +604,7 @@ async fn ltc_response_replay_ignored() {
         .await
         .unwrap();
 
-    let reloaded = Contact::load(&*alice.0.lock().await, &bob_user_id)
-        .unwrap()
-        .unwrap();
+    let reloaded = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
     assert!(reloaded.verified);
     assert_eq!(reloaded.offline.send_counter, 5);
     assert_eq!(reloaded.peer_id, stored_peer_id);
@@ -648,7 +641,7 @@ async fn signed_pointer(
         signature: vec![],
     };
 
-    let secret = get_dilithium_secret(&*signer.0.lock().await).unwrap();
+    let secret = get_dilithium_secret(signer).unwrap();
     pointer.sign(tag, secret).unwrap();
 
     pointer
@@ -740,7 +733,7 @@ async fn ltc_pointer_signature_roundtrip_and_tampering() {
     let alice = make_peer(&env, "ltc_ptr_sign").await;
     let mallory = make_peer(&env, "ltc_ptr_mallory").await;
 
-    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let alice_pub = get_dilithium_pub(&alice).unwrap();
     let payload_id = MessageId::new();
     let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
     let peer = PeerId::random().to_base58();
@@ -772,7 +765,7 @@ async fn ltc_pointer_fetch_keeps_the_highest_seq() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_ptr_seq").await;
 
-    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let alice_pub = get_dilithium_pub(&alice).unwrap();
     let payload_id = MessageId::new();
     let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
 
@@ -807,7 +800,7 @@ async fn ltc_pointer_fetch_discards_forged_and_foreign_records() {
     let alice = make_peer(&env, "ltc_ptr_forged").await;
     let mallory = make_peer(&env, "ltc_ptr_forger").await;
 
-    let alice_pub = get_dilithium_pub(&*alice.0.lock().await).unwrap();
+    let alice_pub = get_dilithium_pub(&alice).unwrap();
     let payload_id = MessageId::new();
     let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
 

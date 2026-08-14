@@ -194,20 +194,29 @@ pub async fn dispatch_events(
     }
     {
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-        let custom_nodes = crate::storage::get_custom_nodes(&*db.0.lock().await);
+        let custom_nodes = crate::storage::get_custom_nodes(&db);
         for addr_str in custom_nodes {
             if let Ok(addr) = addr_str.parse::<libp2p::Multiaddr>() {
                 let _ = cmd_tx.send(SwarmCommand::AddNode(addr)).await;
             }
         }
+
+        match crate::contacts::Contact::load_all(&db) {
+            Ok(contacts) => {
+                for contact in contacts {
+                    let _ = cmd_tx.send(SwarmCommand::ContactAdded { contact }).await;
+                }
+            }
+            Err(err) => log::warn!("[swarm] contact seeding failed: {err}"),
+        }
     }
     #[cfg(feature = "calls")]
     {
         let (input, output) = {
-            let guard = db.0.lock().await;
+            let guard = &*db;
             (
-                crate::storage::get_audio_input_device(&guard),
-                crate::storage::get_audio_output_device(&guard),
+                crate::storage::get_audio_input_device(guard),
+                crate::storage::get_audio_output_device(guard),
             )
         };
         if input.is_some() {

@@ -354,7 +354,7 @@
   {:else}
     {#each blocked as c}
       <SettingRow title={c.displayName} description={c.userId.slice(0, 24) + '…'}>
-        <Avatar name={c.displayName} src={c.avatarBase64} size={28} />
+        <Avatar name={c.displayName} src={c.avatarPath} size={28} />
         <Button variant="secondary" onclick={() => handleUnblock(c.userId)}>
           <ShieldOff size={13} />
           {t('settings.privacy.unblockButton')}

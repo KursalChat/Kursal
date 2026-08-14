@@ -162,6 +162,8 @@
     onMediaResize,
   }: Props = $props();
 
+  const localFileReady = $derived(msg.direction === 'sent' || !transferInProgress);
+
   // Long messages render clamped so a wall of text can't blow up the list.
   // Tracked by id so a recycled component never inherits another expansion.
   const FOLD_THRESHOLD = 1000;
@@ -181,7 +183,7 @@
     // Re-runs when the transfer completes: the first check can land before the
     // destination file is created.
     void mediaVersion;
-    if (!path || transferInProgress) {
+    if (!path || !localFileReady) {
       pathMissing = false;
       return;
     }
@@ -216,7 +218,7 @@
       !!fd &&
       !!path &&
       !pathMissing &&
-      !transferInProgress &&
+      localFileReady &&
       isTextFilename(fd.filename) &&
       fd.sizeBytes <= TEXT_PREVIEW_MAX_BYTES;
     if (!eligible || !path) {
@@ -500,7 +502,7 @@
         <div class="msg-content" class:selectable={!isCoarsePointer}>
           {#if msg.fileDetails}
             {@const autoPath =
-              msg.fileDetails.autodownloadPath && !transferInProgress && !pathMissing
+              msg.fileDetails.autodownloadPath && localFileReady && !pathMissing
                 ? msg.fileDetails.autodownloadPath
                 : null}
             {@const mediaKind = autoPath

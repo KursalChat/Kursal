@@ -70,34 +70,46 @@
   import { appFocusState } from '$lib/state/appFocus.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
   import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
-  import { getNodeStats } from '$lib/api/settings';
+  import { listen } from '@tauri-apps/api/event';
+  import { getNodeStats, startNodeStats, stopNodeStats } from '$lib/api/settings';
   import { formatFileSize } from './chat/[id]/chat-utils';
   import type { ContactResponse } from '$lib/types';
   import { t } from '$lib/i18n';
 
+  function applyStats(s: NodeStats) {
+    nodeStats = s;
+    if (s.memBytes > 0) {
+      pushSample('cpu', s.cpuPercent);
+      pushSample('mem', s.memBytes);
+    }
+    pushSample('in', s.rateIn);
+    pushSample('out', s.rateOut);
+  }
+
   $effect(() => {
     if (!appFocusState.focused) return;
     let cancelled = false;
-    const poll = async () => {
-      try {
-        const s = await getNodeStats();
-        if (cancelled) return;
-        nodeStats = s;
-        pushSample('cpu', s.cpuPercent);
-        pushSample('mem', s.memBytes);
-        pushSample('in', s.rateIn);
-        pushSample('out', s.rateOut);
-      } catch {
+
+    // One immediate sample so the tiles aren't blank until the first tick.
+    void getNodeStats()
+      .then((s) => !cancelled && applyStats(s))
+      .catch(() => {
         if (!cancelled) nodeStats = null;
-      }
-    };
-    void poll();
-    const timer = setInterval(poll, 2000);
+      });
+
+    const unlisten = listen<NodeStats>('node_stats', ({ payload }) => {
+      if (!cancelled) applyStats(payload);
+    });
+    void startNodeStats().catch(() => {});
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      void unlisten.then((fn) => fn()).catch(() => {});
+      void stopNodeStats().catch(() => {});
     };
   });
+
+  const processStatsAvailable = $derived(!!nodeStats && nodeStats.memBytes > 0);
 
   const greetingKey = (() => {
     const h = new Date().getHours();
@@ -190,17 +202,23 @@
         </svg>
         <span class="tile-scale">{t('home.tileScale', { max: ceilLabel })}</span>
       {/snippet}
-      <section class="tile-grid" aria-label={t('home.statusHeading')}>
-        <div class="tile">
-          <span class="tile-label">{t('home.tileCpu')}</span>
-          <span class="tile-value">{nodeStats.cpuPercent.toFixed(1)}%</span>
-          {@render sparkline('cpu', `${series.cpu.ceil}%`)}
-        </div>
-        <div class="tile">
-          <span class="tile-label">{t('home.tileMem')}</span>
-          <span class="tile-value">{formatFileSize(nodeStats.memBytes)}</span>
-          {@render sparkline('mem', formatFileSize(series.mem.ceil))}
-        </div>
+      <section
+        class="tile-grid"
+        class:net-only={!processStatsAvailable}
+        aria-label={t('home.statusHeading')}
+      >
+        {#if processStatsAvailable}
+          <div class="tile">
+            <span class="tile-label">{t('home.tileCpu')}</span>
+            <span class="tile-value">{nodeStats.cpuPercent.toFixed(1)}%</span>
+            {@render sparkline('cpu', `${series.cpu.ceil}%`)}
+          </div>
+          <div class="tile">
+            <span class="tile-label">{t('home.tileMem')}</span>
+            <span class="tile-value">{formatFileSize(nodeStats.memBytes)}</span>
+            {@render sparkline('mem', formatFileSize(series.mem.ceil))}
+          </div>
+        {/if}
         <div class="tile">
           <span class="tile-label">{t('home.tileDown')}</span>
           <span class="tile-value">{formatFileSize(Math.round(nodeStats.rateIn)) || '0 B'}/s</span>
@@ -231,7 +249,7 @@
           {#each attention as row (row.contact.userId)}
             <button class="attention-row" onclick={() => goto('/chat/' + row.contact.userId)}>
               <div class="attention-avatar">
-                <Avatar name={row.contact.displayName} src={row.contact.avatarBase64} size={36} />
+                <Avatar name={row.contact.displayName} src={row.contact.avatarPath} size={36} />
                 <StatusDot
                   status={contactsState.connectionStatus[row.contact.userId] ?? 'disconnected'}
                 />
@@ -433,6 +451,9 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
+  }
+  .tile-grid.net-only {
+    grid-template-columns: repeat(2, 1fr);
   }
   .tile {
     display: flex;

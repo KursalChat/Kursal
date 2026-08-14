@@ -1,17 +1,21 @@
-use crate::{
-    config::RelayConfig,
-    swarm::{RelaySnapshot, spawn_relay_swarm},
-};
+use crate::{config::RelayConfig, swarm::spawn_relay_swarm};
 use clap::Parser;
 use kursal_core::logging::init_logging;
-use kursal_core::stats::{StatsCollector, new_shared_registry};
+use kursal_core::stats::new_shared_registry;
 use std::path::PathBuf;
+
+#[cfg(feature = "tui")]
+use crate::swarm::RelaySnapshot;
+#[cfg(feature = "tui")]
+use kursal_core::stats::StatsCollector;
+#[cfg(feature = "tui")]
 use tokio::sync::watch;
 
 pub mod config;
 pub mod health;
 pub mod identity;
 pub mod swarm;
+#[cfg(feature = "tui")]
 pub mod tui;
 
 #[derive(Parser, Debug)]
@@ -71,20 +75,31 @@ pub async fn run(
 
     let registry = new_shared_registry();
 
-    if tui {
-        let (snapshot_tx, snapshot_rx) = watch::channel(RelaySnapshot::default());
-        let swarm_task = tokio::spawn(spawn_relay_swarm(
-            relay_config,
-            keypair_path,
-            registry.clone(),
-            Some(snapshot_tx),
-        ));
+    #[cfg(feature = "tui")]
+    {
+        if tui {
+            let (snapshot_tx, snapshot_rx) = watch::channel(RelaySnapshot::default());
+            let swarm_task = tokio::spawn(spawn_relay_swarm(
+                relay_config,
+                keypair_path,
+                registry.clone(),
+                Some(snapshot_tx),
+            ));
 
-        let collector = StatsCollector::new(registry);
-        let ui = tokio::task::spawn_blocking(move || tui::run(snapshot_rx, collector));
-        let _ = ui.await;
-        swarm_task.abort();
-    } else {
+            let collector = StatsCollector::new(registry);
+            let ui = tokio::task::spawn_blocking(move || tui::run(snapshot_rx, collector));
+            let _ = ui.await;
+            swarm_task.abort();
+        } else {
+            spawn_relay_swarm(relay_config, keypair_path, registry, None).await?;
+        }
+    }
+
+    #[cfg(not(feature = "tui"))]
+    {
+        if tui {
+            return Err("this build has no terminal dashboard (`tui` feature disabled)".into());
+        }
         spawn_relay_swarm(relay_config, keypair_path, registry, None).await?;
     }
 

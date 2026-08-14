@@ -2,7 +2,6 @@ use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
     api::file_transfers::FileTransferEntry,
-    contacts::Contact,
     crypto::{DEVICE_ID, derive_key},
     identity::UserId,
     storage::filetransfer::{get_auto_download_storage_for, get_folder_size},
@@ -13,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{path::PathBuf, time::SystemTime};
 
+pub mod avatars;
 pub mod backup;
 pub mod conversation;
 mod db;
@@ -89,6 +89,7 @@ pub struct StorageUsage {
     pub logs_bytes: u64,
     pub db_bytes: u64,
     pub files_bytes: u64,
+    pub avatars_bytes: u64,
     pub per_contact: Vec<ContactUsage>,
 }
 impl StorageUsage {
@@ -112,13 +113,17 @@ pub fn get_storage_usage(
         .map(|m| m.len())
         .map_err(KursalError::Io)?;
 
+    let avatars_bytes = match avatars::dir() {
+        Some(dir) => get_folder_size(dir.clone(), 1).unwrap_or(0),
+        None => 0,
+    };
+
     let mut files_bytes = 0u64;
 
-    let contacts = Contact::load_all(db)?;
-    let mut per_contact = Vec::with_capacity(contacts.len());
-    for contact in contacts.into_iter() {
-        let contact_id = hex::encode(contact.user_id.0);
-
+    // The contact table is keyed by the hex user id
+    let contact_ids = db.raw_keys(TABLE_CONTACTS, "")?;
+    let mut per_contact = Vec::with_capacity(contact_ids.len());
+    for contact_id in contact_ids {
         let contact_files_bytes = get_auto_download_storage_for(&app_data_dir, &contact_id)?;
 
         let read_txn = db.inner.begin_read().ok_kursal(KursalError::Storage)?;
@@ -162,6 +167,7 @@ pub fn get_storage_usage(
         logs_bytes,
         db_bytes,
         files_bytes,
+        avatars_bytes,
         per_contact,
     })
 }

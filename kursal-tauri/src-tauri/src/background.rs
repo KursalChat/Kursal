@@ -23,6 +23,7 @@ pub struct BackgroundState {
     pub transfer_active: AtomicBool,
     pub quit_when_idle: AtomicBool,
     pub close_explainer_pending: AtomicBool,
+    pub node_stats_task: StdMutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 pub enum PendingSignal {

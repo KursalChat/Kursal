@@ -179,7 +179,7 @@ pub async fn session_initiate(
     )
     .ok_kursal(KursalError::Storage)?;
 
-    let local_address = get_local_address(&*db.0.lock().await)?;
+    let local_address = get_local_address(&db)?;
 
     let mut rng = OsRng.unwrap_err();
     process_prekey_bundle(

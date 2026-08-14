@@ -40,7 +40,7 @@ pub async fn message_send(
     let lock = session_lock(remote_address);
     let _guard = lock.lock().await;
 
-    let local_address = get_local_address(&*db.0.lock().await)?;
+    let local_address = get_local_address(&db)?;
 
     let mut rng = OsRng.unwrap_err();
     let encrypted = message_encrypt(
@@ -66,7 +66,7 @@ pub async fn message_receive(
     let lock = session_lock(remote_address);
     let _guard = lock.lock().await;
 
-    let local_address = get_local_address(&*db.0.lock().await)?;
+    let local_address = get_local_address(&db)?;
 
     if let Ok(msg) = SignalMessage::try_from(ciphertext) {
         let mut rng = OsRng.unwrap_err();

@@ -5,7 +5,7 @@
   import Avatar from '$lib/components/Avatar.svelte';
   import AvatarPicker from '$lib/components/AvatarPicker.svelte';
   import { Upload, X } from 'lucide-svelte';
-  import { broadcastProfile } from '$lib/api/identity';
+  import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
   import { profileState } from '$lib/state/profile.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { isMobile } from '$lib/api/window';
@@ -44,7 +44,7 @@
   let saving = $state(false);
 
   let displayName = $state('');
-  let avatarBase64 = $state<string | null>(null);
+  let avatarPreview = $state<string | null>(null);
   let avatarBytes = $state<number[] | null>(null);
   let nameInput = $state<HTMLInputElement>();
 
@@ -101,13 +101,13 @@
     return text.split('').map((ch, i) => ({ ch, delay: i * step }));
   }
 
-  function handleAvatarChange(b64: string, bytes: number[]) {
-    avatarBase64 = b64;
+  function handleAvatarChange(dataUrl: string, bytes: number[]) {
+    avatarPreview = dataUrl;
     avatarBytes = bytes;
   }
 
   function removeAvatar() {
-    avatarBase64 = null;
+    avatarPreview = null;
     avatarBytes = null;
   }
 
@@ -126,8 +126,9 @@
     }
     saving = true;
     try {
-      await broadcastProfile(name, avatarBytes);
-      profileState.update(name, avatarBase64, avatarBytes);
+      const path = await setLocalUserAvatar(avatarBytes);
+      await broadcastProfile(name);
+      profileState.update(name, path);
     } catch (e) {
       log.error('Profile save failed', e);
       notifications.push(t('onboarding.screen5.errorBroadcastFailed'), 'error');
@@ -215,12 +216,12 @@
               tabindex={showForm ? 0 : -1}
               onclick={open}
             >
-              <Avatar name={displayName.trim() || '?'} src={avatarBase64} size={88} />
-              <div class="avatar-overlay" class:filled={!!avatarBase64}>
+              <Avatar name={displayName.trim() || '?'} src={avatarPreview} size={88} />
+              <div class="avatar-overlay" class:filled={!!avatarPreview}>
                 <Upload size={18} strokeWidth={2.2} />
               </div>
             </button>
-            {#if avatarBase64}
+            {#if avatarPreview}
               <button
                 type="button"
                 class="avatar-remove"

@@ -9,7 +9,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { log } from '$lib/utils/log';
-  import { onMount, tick, untrack } from 'svelte';
+  import { flushSync, onMount, tick, untrack } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { stat } from '@tauri-apps/plugin-fs';
@@ -161,6 +161,7 @@
   const completedFileTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let isCoarsePointer = $state(false);
   let listEl = $state<HTMLElement | null>(null);
+  let revealId = $state<string | null>(null);
   let composerEl = $state<HTMLTextAreaElement | null>(null);
   let composerHostEl = $state<HTMLElement | null>(null);
   let composerHeight = $state(76);
@@ -299,7 +300,7 @@
     if (!browser || !contactId) return;
     await shareBusy.run(async () => {
       try {
-        await shareProfile(profileState.displayName, profileState.avatarBytes, contactId);
+        await shareProfile(contactId);
         const online = isOnlineStatus(contactsState.connectionStatus[contactId]);
         if (contact) contactsState.upsert({ ...contact, profileShared: true });
         notifications.push(
@@ -663,6 +664,15 @@
 
   const messageGroups = $derived(buildMessageGroups(visibleMessages, peerOnline, firstUnreadId));
 
+  const keepMountedIds = $derived(
+    contactId
+      ? [
+          ...messagesState.pinnedFor(contactId).map((m) => m.id),
+          ...messagesState.delayedUnseenFor(contactId),
+        ]
+      : []
+  );
+
   const transferPercentFor = (transferId: string): number =>
     transferPercent(messagesState.transferProgressFor(transferId));
   const isTransferDoneFor = (transferId: string): boolean =>
@@ -806,6 +816,10 @@
   }
 
   function scrollToMessage(id: string): boolean {
+    if (revealId !== id) {
+      revealId = id;
+      flushSync();
+    }
     const el = listEl?.querySelector<HTMLElement>(`[data-msg-id="${id}"]`);
     if (!el) return false;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1036,6 +1050,7 @@
     if (!id) return;
     untrack(() => messagesState.enterChat(id));
     bottomAtMark = null;
+    revealId = null;
     const jump = uiState.pendingMessageJump;
     const wantJump = !!jump && jump.contactId === id;
     if (wantJump) {
@@ -1895,6 +1910,8 @@
       }}
       onVerify={openSecurityCodeModal}
       onViewPinned={(id) => void jumpToPinned(id)}
+      {keepMountedIds}
+      {revealId}
     >
       {#snippet msgBubble(msg: MessageResponse, mi: number, groupLen: number, flatMode: boolean)}
         {@const repliedMessage = msg.replyTo ? (messageIndex.get(msg.replyTo) ?? null) : null}
@@ -1992,7 +2009,7 @@
       <ScrollToBottomButton
         {unreadCount}
         name={contact.displayName}
-        avatar={contact.avatarBase64}
+        avatar={contact.avatarPath}
         onClick={jumpToLatest}
       />
     {/if}

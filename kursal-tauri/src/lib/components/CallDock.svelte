@@ -37,7 +37,7 @@
         title={t('chat.call.expand')}
       >
         <span class="ava" class:live={isConnected && callState.remoteLevel > 0.05}>
-          <Avatar name={contact.displayName} src={contact.avatarBase64} size={26} />
+          <Avatar name={contact.displayName} src={contact.avatarPath} size={26} />
           {#if isConnected && callState.peerDeafened}
             <span class="vs-badge" title={t('chat.call.peerDeafened')}>
               <HeadphoneOff size={10} />

@@ -4,6 +4,25 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>kursal</string>
+			</array>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>chat.kursal.file</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>Kursal</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -16,10 +35,59 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kursal</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>kursal</string>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1.0.0</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Kursal needs this to turn &quot;Open at login&quot; on or off.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Kursal uses Bluetooth to discover nearby devices.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_p2p._udp</string>
+		<string>_p2p._tcp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Kursal uses the camera to scan QR codes when adding a new contact and during video calls with your contacts.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Kursal saves received files to your Desktop when you choose it.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Kursal reads files you pick so you can send them, and writes files you receive.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Kursal saves received files to your Downloads folder.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate with biometric to unlock the app.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kursal uses your local network to discover nearby peers for direct, encrypted peer-to-peer messaging.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Kursal uses the microphone only during voice calls with your contacts.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kursal needs access to your photos so you can pick a photo.</string>
+	<key>NSRequiresAquaSystemAppearance</key>
+	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -40,41 +108,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Kursal uses your local network to discover nearby peers for direct, encrypted peer-to-peer messaging.</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_p2p._udp</string>
-		<string>_p2p._tcp</string>
-	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>Kursal uses the camera to scan QR codes when adding a new contact and during video calls with your contacts.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Kursal needs access to your photos so you can pick a profile picture.</string>
-	<key>NSDocumentsFolderUsageDescription</key>
-	<string>Kursal reads files you pick so you can send them, and writes files you receive.</string>
-	<key>NSDownloadsFolderUsageDescription</key>
-	<string>Kursal saves received files to your Downloads folder.</string>
-	<key>NSDesktopFolderUsageDescription</key>
-	<string>Kursal saves received files to your Desktop when you choose it.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Kursal uses the microphone only during voice calls with your contacts.</string>
-	<key>NSRequiresAquaSystemAppearance</key>
-	<false/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoadsInWebContent</key>
-		<true/>
-	</dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Kursal uses Bluetooth to discover nearby devices.</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>kursal</string>
+			<string>chat.kursal.file</string>
 			<key>UTTypeDescription</key>
 			<string>Kursal data file</string>
 			<key>UTTypeConformsTo</key>
@@ -91,42 +129,6 @@
 				<string>application/octet-stream</string>
 			</dict>
 		</dict>
-	</array>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>kursal</string>
-			</array>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>kursal</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>Kursal</string>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-		</dict>
-	</array>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Authenticate with biometric to unlock the app.</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>kursal</string>
-			</array>
-			<key>CFBundleURLName</key>
-			<string>kursal</string>
-		</dict>
-	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
 	</array>
 </dict>
 </plist>

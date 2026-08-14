@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import QRCode from 'qrcode';
   import { Check, Copy, KeyRound, Link2, Share2 } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { log } from '$lib/utils/log';
@@ -16,7 +15,7 @@
   type CodeStatus = 'idle' | 'creating' | 'ready' | 'expired' | 'used' | 'failed';
 
   const OTP_LINK_PREFIX = 'kursal://otp/';
-  const OTP_TTL_MS = 10 * 60 * 1000;
+  const OTP_TTL_MS = 9 * 60 * 1000;
 
   let otp = $state<string | null>(null);
   let qrDataUrl = $state<string | null>(null);
@@ -59,7 +58,7 @@
   });
 
   function buildOtpLink(value: string): string {
-    return OTP_LINK_PREFIX + encodeURIComponent(value);
+    return OTP_LINK_PREFIX + value.trim().split(/\s+/).join('-');
   }
 
   function stopCountdown() {
@@ -92,11 +91,12 @@
 
   async function renderQr(value: string) {
     try {
+      const { default: QRCode } = await import('qrcode');
       qrDataUrl = await QRCode.toDataURL(value, {
-        errorCorrectionLevel: 'M',
-        margin: 1,
-        width: 420,
-        color: { dark: '#0f172a', light: '#f8fafc' },
+        errorCorrectionLevel: 'L',
+        margin: 4,
+        width: 640,
+        color: { dark: '#000000', light: '#ffffff' },
       });
     } catch (e) {
       qrDataUrl = null;
@@ -248,7 +248,7 @@
 
   .qr,
   .qr-placeholder {
-    width: min(240px, 100%);
+    width: min(320px, 100%);
     aspect-ratio: 1;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
