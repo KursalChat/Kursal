@@ -39,6 +39,7 @@
   import Checkbox from './Checkbox.svelte';
   import TextInput from './TextInput.svelte';
   import LogViewerModal from './LogViewerModal.svelte';
+  import { clearLogs } from '$lib/api/logs';
   import { t, dateLocale } from '$lib/i18n';
 
   let shared = $state<SharedFileEntry[]>([]);
@@ -187,6 +188,27 @@
   }
 
   let logViewerOpen = $state(false);
+  let logsClearing = $state(false);
+
+  async function handleClearLogs() {
+    const ok = await confirmDialog({
+      title: t('settings.storage.clearLogsConfirmTitle'),
+      message: t('settings.storage.clearLogsConfirmMessage'),
+      detail: t('settings.storage.clearLogsConfirmDetail'),
+      confirmLabel: t('settings.storage.clearLogsConfirm'),
+      tone: 'danger',
+    });
+    if (!ok) return;
+    logsClearing = true;
+    try {
+      const freed = await clearLogs();
+      if (usage) usage = { ...usage, logsBytes: Math.max(0, usage.logsBytes - freed) };
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      logsClearing = false;
+    }
+  }
 
   // Mobile app storage is sandboxed: no file manager can open these paths, so
   // the in-app viewer is the only way to read logs there.
@@ -541,6 +563,10 @@
       description={t('settings.storage.logsDescription')}
     >
       <span class="usage-value">{fmtBytes(usage.logsBytes)}</span>
+      <button class="clear-btn" onclick={handleClearLogs} disabled={logsClearing}>
+        <Trash2 size={12} />
+        {t('settings.storage.clearLogs')}
+      </button>
     </SettingRow>
 
     <SettingRow
@@ -806,6 +832,29 @@
   .revoke-btn:hover {
     background: var(--danger-dim);
     border-color: rgba(248, 113, 113, 0.35);
+  }
+  .clear-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .clear-btn:hover:not(:disabled) {
+    background: var(--danger-dim);
+    border-color: rgba(248, 113, 113, 0.35);
+    color: var(--danger);
+  }
+  .clear-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .bulk-revoke-btn {
     display: inline-flex;

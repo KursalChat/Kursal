@@ -1055,6 +1055,11 @@
       "openFilesFolder": "Open files folder",
       "openLogFolder": "Open log folder",
       "viewLogs": "View logs",
+      "clearLogs": "Clear logs",
+      "clearLogsConfirmTitle": "Clear logs?",
+      "clearLogsConfirmMessage": "All archived and active log files are deleted.",
+      "clearLogsConfirmDetail": "Diagnostics for past issues will be lost. New entries keep being written.",
+      "clearLogsConfirm": "Clear",
       "logViewer": {
         "title": "Logs",
         "fileLabel": "Log file",
