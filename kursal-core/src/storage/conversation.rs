@@ -1,8 +1,6 @@
 use super::db::{Database, TABLE_CONVERSATION};
 use crate::Result;
 
-// TODO: remove this in next version, like just migrate once
-const MIGRATED_KEY: &str = "!read_cursor_migrated";
 const PENDING_SYNC_DELETE: u8 = 1u8;
 
 fn suffix_after_prefix(key: &str, prefix: &str) -> Option<String> {
@@ -135,28 +133,6 @@ pub fn clear_pending_sync_for(db: &Database, contact_id: &str) -> Result<Vec<Str
     batch.commit()?;
 
     Ok(finalized_deletes)
-}
-
-pub fn read_cursors_migrated(db: &Database) -> bool {
-    matches!(
-        db.raw_read(TABLE_CONVERSATION, MIGRATED_KEY),
-        Ok(Some(bytes)) if bytes == [1u8]
-    )
-}
-
-pub fn seed_read_cursors(db: &Database, cursors: &[(String, String)]) -> Result<()> {
-    let mut entries: Vec<(String, Vec<u8>)> = cursors
-        .iter()
-        .map(|(contact_id, message_id)| {
-            (
-                format!("read_cursor:{contact_id}"),
-                message_id.as_bytes().to_vec(),
-            )
-        })
-        .collect();
-    entries.push((MIGRATED_KEY.to_string(), vec![1u8]));
-
-    db.raw_write_many(TABLE_CONVERSATION, &entries)
 }
 
 pub fn delete_for_contact(db: &Database, contact_id: &str) -> Result<()> {

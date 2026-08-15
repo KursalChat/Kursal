@@ -1238,8 +1238,10 @@
   }
 
   .sync-slot {
-    padding: 4px 14px 6px;
     min-width: 0;
+  }
+  .sync-slot :global(.offline-sync) {
+    margin: 4px 14px 6px;
   }
 
   @media (max-width: 768px) {

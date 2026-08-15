@@ -414,16 +414,6 @@ pub async fn get_unread_summary<S: StateWrapper>(state: S) -> Result<Vec<UnreadD
     let db = state.db();
     let contacts = Contact::load_all(db)?;
 
-    if !conversation::read_cursors_migrated(db) {
-        let mut cursors = Vec::with_capacity(contacts.len());
-        for contact in &contacts {
-            if let Some(newest) = newest_received(db, &contact.user_id)? {
-                cursors.push((hex::encode(contact.user_id.0), hex::encode(newest.0)));
-            }
-        }
-        conversation::seed_read_cursors(db, &cursors)?;
-    }
-
     contacts
         .iter()
         .map(|contact| unread_entry(db, &contact.user_id))

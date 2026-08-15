@@ -164,12 +164,6 @@ pub async fn dispatch_events(
     let status_map: Arc<Mutex<HashMap<UserId, ConnectionStatus>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
-    if let Err(err) =
-        crate::api::file_transfers::backfill_received_paths(db.clone(), app_data_dir).await
-    {
-        log::warn!("[file] download path backfill failed: {err}");
-    }
-
     {
         let db = db.clone();
         let event_tx = app_event_tx.clone();

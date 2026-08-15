@@ -347,27 +347,27 @@ impl Database {
             .collect())
     }
 
-    pub(crate) fn raw_write_many(
-        &self,
-        table: TableDefinition<&str, &[u8]>,
-        entries: &[(String, Vec<u8>)],
-    ) -> Result<()> {
-        if entries.is_empty() {
-            return Ok(());
-        }
+    // pub(crate) fn raw_write_many(
+    //     &self,
+    //     table: TableDefinition<&str, &[u8]>,
+    //     entries: &[(String, Vec<u8>)],
+    // ) -> Result<()> {
+    //     if entries.is_empty() {
+    //         return Ok(());
+    //     }
 
-        let write_txn = self.inner.begin_write()?;
-        {
-            let mut table = write_txn.open_table(table)?;
-            for (key, value) in entries {
-                let enc_value = stream_encrypt(&self.key, value)?;
-                table.insert(key.as_str(), enc_value.as_slice())?;
-            }
-        }
-        write_txn.commit()?;
+    //     let write_txn = self.inner.begin_write()?;
+    //     {
+    //         let mut table = write_txn.open_table(table)?;
+    //         for (key, value) in entries {
+    //             let enc_value = stream_encrypt(&self.key, value)?;
+    //             table.insert(key.as_str(), enc_value.as_slice())?;
+    //         }
+    //     }
+    //     write_txn.commit()?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub(crate) fn raw_last_key(
         &self,
