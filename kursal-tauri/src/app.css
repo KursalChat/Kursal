@@ -565,7 +565,7 @@ html {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   touch-action: pan-x pan-y;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

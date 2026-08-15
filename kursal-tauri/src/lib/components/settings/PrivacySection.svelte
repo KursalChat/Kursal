@@ -229,6 +229,8 @@
     if (!second) return;
     deleting = true;
     try {
+      localStorage.clear();
+      sessionStorage.clear();
       await deleteAllLocalData();
     } catch (e) {
       notifyError(e);

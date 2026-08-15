@@ -340,8 +340,14 @@
   }
 
   @media (max-width: 640px) {
+    .head {
+      flex-wrap: wrap;
+    }
+
     .who {
-      display: none;
+      order: 3;
+      flex: 1 0 100%;
+      margin-top: 4px;
     }
 
     .status {
