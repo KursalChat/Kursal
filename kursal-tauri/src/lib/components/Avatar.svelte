@@ -27,6 +27,9 @@
 
   const imgSrc = $derived(src ? (src.startsWith('data:') ? src : convertFileSrc(src)) : null);
 
+  let failedSrc = $state<string | null>(null);
+  const showImg = $derived(!!imgSrc && failedSrc !== imgSrc);
+
   const statusColor = $derived.by(() => {
     if (!status) return 'var(--text-muted)';
     switch (status) {
@@ -51,10 +54,15 @@
   <div
     class="avatar"
     style="width:{size}px;height:{size}px;font-size:{size * 0.38}px;
-           {imgSrc ? '' : `background:hsl(${hue},45%,30%);color:hsl(${hue},70%,85%)`}"
+           {showImg ? '' : `background:hsl(${hue},45%,30%);color:hsl(${hue},70%,85%)`}"
   >
-    {#if imgSrc}
-      <img src={imgSrc} alt="{name}'s avatar" draggable="false" />
+    {#if showImg}
+      <img
+        src={imgSrc}
+        alt="{name}'s avatar"
+        draggable="false"
+        onerror={() => (failedSrc = imgSrc)}
+      />
     {:else}
       {initials || '?'}
     {/if}
