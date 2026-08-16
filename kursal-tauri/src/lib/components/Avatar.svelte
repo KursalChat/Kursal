@@ -25,7 +25,13 @@
       .join('')
   );
 
-  const imgSrc = $derived(src ? (src.startsWith('data:') ? src : convertFileSrc(src)) : null);
+  const imgSrc = $derived.by(() => {
+    if (!src) return null;
+    if (src.startsWith('data:')) return src;
+    const q = src.lastIndexOf('?');
+    if (q === -1) return convertFileSrc(src);
+    return convertFileSrc(src.slice(0, q)) + src.slice(q);
+  });
 
   let failedSrc = $state<string | null>(null);
   const showImg = $derived(!!imgSrc && failedSrc !== imgSrc);

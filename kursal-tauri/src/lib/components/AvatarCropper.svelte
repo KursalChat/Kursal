@@ -20,6 +20,8 @@
 
   const VIEWPORT = 260;
   const OUTPUT_SIZE = 512;
+  const SIZE_LADDER = [OUTPUT_SIZE, 384, 256, 192, 128];
+  const QUALITY_LADDER = [0.85, 0.7, 0.55, 0.4];
 
   let img = $state<HTMLImageElement | null>(null);
   let blobUrl = $state<string | null>(null);
@@ -119,37 +121,67 @@
     setScale(v);
   }
 
+  function cropTo(size: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('No 2D context');
+    ctx.imageSmoothingQuality = 'high';
+    const source = VIEWPORT / scaleVal;
+    ctx.drawImage(img!, -tx / scaleVal, -ty / scaleVal, source, source, 0, 0, size, size);
+    return canvas;
+  }
+
+  function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Encoding failed'))),
+        type,
+        quality
+      );
+    });
+  }
+
+  function toDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
   async function handleConfirm() {
     if (!img) return;
     processing = true;
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = OUTPUT_SIZE;
-      canvas.height = OUTPUT_SIZE;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('No 2D context');
-      const sx = -tx / scaleVal;
-      const sy = -ty / scaleVal;
-      const sw = VIEWPORT / scaleVal;
-      const sh = VIEWPORT / scaleVal;
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+      const probe = await encode(cropTo(OUTPUT_SIZE), 'image/webp', QUALITY_LADDER[0]);
+      const type = probe.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
 
-      let quality = 0.85;
-      let dataUrl = canvas.toDataURL('image/webp', quality);
-      let b64 = dataUrl.split(',')[1];
-      let bytes = Array.from(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
-      while (bytes.length > MAX_PROFILE_AVATAR_LEN && quality > 0.3) {
-        quality -= 0.1;
-        dataUrl = canvas.toDataURL('image/webp', quality);
-        b64 = dataUrl.split(',')[1];
-        bytes = Array.from(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+      let best = probe.type === type && probe.size <= MAX_PROFILE_AVATAR_LEN ? probe : null;
+
+      if (!best) {
+        search: for (const size of SIZE_LADDER) {
+          const canvas = cropTo(size);
+          for (const quality of QUALITY_LADDER) {
+            const blob = await encode(canvas, type, quality);
+            if (blob.size <= MAX_PROFILE_AVATAR_LEN) {
+              best = blob;
+              break search;
+            }
+          }
+        }
       }
-      if (bytes.length > MAX_PROFILE_AVATAR_LEN) {
+
+      if (!best) {
         notifications.push(t('avatar.errorTooLarge'), 'error');
         processing = false;
         return;
       }
-      onConfirm(dataUrl, bytes);
+
+      const bytes = Array.from(new Uint8Array(await best.arrayBuffer()));
+      onConfirm(await toDataUrl(best), bytes);
     } catch (e) {
       log.error('Crop failed', e);
       notifications.push(t('avatar.errorProcess'), 'error');

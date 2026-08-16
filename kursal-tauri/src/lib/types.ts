@@ -7,7 +7,7 @@ export interface ContactResponse {
   profileShared: boolean;
   blocked: boolean;
   createdAt: number;
-  avatarPath?: string | null; // absolute path to the stored webp file
+  avatarPath?: string | null; // absolute path to <userId>.webp, with a `?v=<mtime>` cache buster
   profileName?: string; // peer-chosen name; displayName may be a local alias
 }
 

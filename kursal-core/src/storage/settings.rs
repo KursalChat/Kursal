@@ -442,18 +442,20 @@ pub fn get_local_avatar_bytes(db: &Database) -> Option<Vec<u8>> {
 }
 
 pub fn set_local_avatar(db: &Database, avatar_bytes: Option<Vec<u8>>) -> Result<Option<String>> {
-    let hash = match avatar_bytes {
-        Some(bytes) if !bytes.is_empty() => Some(avatars::store(&bytes)?),
+    let name = match avatar_bytes {
+        Some(bytes) if !bytes.is_empty() => {
+            Some(avatars::store(&super::get_local_user_id(db)?, &bytes)?)
+        }
         _ => None,
     };
 
     db.raw_write(
         TABLE_SETTINGS,
         avatars::LOCAL_PROFILE_AVATAR_KEY,
-        hash.as_deref().unwrap_or_default().as_bytes(),
+        name.as_deref().unwrap_or_default().as_bytes(),
     )?;
 
-    Ok(hash)
+    Ok(name)
 }
 
 pub fn set_local_display_name(db: &Database, display_name: String) -> Result<()> {
