@@ -301,4 +301,5 @@ overflow-checks = false
 overflow-checks = false
 
 [profile.dev]
+debug = "line-tables-only"
 incremental = true

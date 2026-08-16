@@ -1,6 +1,13 @@
-export type Locale = 'en' | 'fr';
+const LOCALE_IDS = ['en', 'fr'] as const;
 
-export const LOCALES: { id: Locale; label: string }[] = [
-  { id: 'en', label: 'English' },
-  { id: 'fr', label: 'Français' },
-];
+export type Locale = (typeof LOCALE_IDS)[number];
+
+function nativeName(id: Locale): string {
+  const name = new Intl.DisplayNames([id], { type: 'language' }).of(id) ?? id;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+export const LOCALES: { id: Locale; label: string }[] = LOCALE_IDS.map((id) => ({
+  id,
+  label: nativeName(id),
+}));
