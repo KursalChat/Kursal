@@ -9,30 +9,47 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
-  private val startupPermsRequestCode = 4242
   private val insets = InsetsBridge()
   private val bars = BarsBridge()
+  private val perms = PermsBridge()
   private var webView: WebView? = null
+
+  private class PermRequest(val token: String, val permissions: Array<String>)
+
+  private val permQueue = ArrayDeque<PermRequest>()
+  private var permInFlight: PermRequest? = null
+  private var nextPermToken = 0
+
+  private val permLauncher =
+    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+      val done = permInFlight
+      permInFlight = null
+      if (done != null) {
+        val granted = result.isNotEmpty() && result.values.all { it }
+        if (granted && done.permissions.contains(Manifest.permission.BLUETOOTH_ADVERTISE)) {
+          startConnectionService()
+        }
+        replyPermission(done.token, granted)
+      }
+      launchNextPermission()
+    }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
     super.onCreate(savedInstanceState)
     goEdgeToEdge()
-    requestStartupPermissions()
     startConnectionService()
     takeShareIntent(intent)
   }
 
-  // Android 15+ forces edge-to-edge and ignores all of this. Below it the
-  // window stops at the system bars instead, so the app renders inside opaque
-  // status/navigation bands and the inset listener only ever reports zeroes.
+  // Android 15+ forces edge-to-edge and ignores all of this
   @Suppress("DEPRECATION")
   private fun goEdgeToEdge() {
     WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -44,8 +61,6 @@ class MainActivity : TauriActivity() {
       window.isNavigationBarContrastEnforced = false
     }
 
-    // ALWAYS matches what 15+ defaults to, so a side cutout in landscape is
-    // drawn into rather than letterboxed. The web layer pads around it.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
       val mode =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -74,6 +89,7 @@ class MainActivity : TauriActivity() {
     this.webView = webView
     webView.addJavascriptInterface(insets, "__kursalInsets")
     webView.addJavascriptInterface(bars, "__kursalBars")
+    webView.addJavascriptInterface(perms, "__kursalPerms")
 
     ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
       val barInsets = windowInsets.getInsets(
@@ -128,31 +144,59 @@ class MainActivity : TauriActivity() {
     fun read(): String = "$top,$right,$bottom,$left,$ime"
   }
 
-  // Android only allows one permission request in flight: issuing separate
-  // requestPermissions() calls back to back silently drops all but the first,
-  // which is how RECORD_AUDIO ended up never being asked for.
-  private fun requestStartupPermissions() {
-    val wanted = mutableListOf<String>()
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      wanted.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-      wanted.add(Manifest.permission.BLUETOOTH_CONNECT)
-      wanted.add(Manifest.permission.BLUETOOTH_SCAN)
-    } else {
-      wanted.add(Manifest.permission.ACCESS_FINE_LOCATION)
+  private fun permissionsFor(group: String): Array<String> =
+    when (group) {
+      "bluetooth" ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          arrayOf(
+            Manifest.permission.BLUETOOTH_ADVERTISE,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.BLUETOOTH_SCAN,
+          )
+        } else {
+          arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+      "microphone" -> arrayOf(Manifest.permission.RECORD_AUDIO)
+      else -> emptyArray()
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      wanted.add(Manifest.permission.POST_NOTIFICATIONS)
-    }
+  private fun launchNextPermission() {
+    if (permInFlight != null) return
+    val next = permQueue.removeFirstOrNull() ?: return
+    permInFlight = next
+    permLauncher.launch(next.permissions)
+  }
 
-    wanted.add(Manifest.permission.RECORD_AUDIO)
-
-    val missing = wanted.filter {
-      ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+  private fun replyPermission(token: String, granted: Boolean) {
+    runOnUiThread {
+      webView?.evaluateJavascript(
+        "window.__kursalOnPerms && window.__kursalOnPerms('$token', $granted)",
+        null,
+      )
     }
-    if (missing.isNotEmpty()) {
-      ActivityCompat.requestPermissions(this, missing.toTypedArray(), startupPermsRequestCode)
+  }
+
+  inner class PermsBridge {
+    @JavascriptInterface
+    fun has(group: String): Boolean =
+      permissionsFor(group).all {
+        ContextCompat.checkSelfPermission(this@MainActivity, it) ==
+          PackageManager.PERMISSION_GRANTED
+      }
+
+    @JavascriptInterface
+    fun request(group: String): String {
+      val token = (nextPermToken++).toString()
+      val wanted = permissionsFor(group)
+      if (wanted.isEmpty() || has(group)) {
+        replyPermission(token, true)
+        return token
+      }
+      runOnUiThread {
+        permQueue.addLast(PermRequest(token, wanted))
+        launchNextPermission()
+      }
+      return token
     }
   }
 

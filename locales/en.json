@@ -448,6 +448,7 @@
     },
     "nearby": {
       "wifiDisabledDescription": "Nearby Share is disabled in Settings, so mDNS over Wi-Fi is off. Only Bluetooth discovery is active, and only while this page is open.",
+      "bluetoothDeniedDescription": "Bluetooth permission was denied, so only Wi-Fi discovery is active. Check system permissions to find peers over Bluetooth.",
       "yourName": "You appear as {name}",
       "startingDiscovery": "Starting discovery…",
       "found": "{count} found",
@@ -733,6 +734,7 @@
       "cameraOff": "Stop camera",
       "cameraDenied": "Camera blocked",
       "cameraDeniedToast": "Camera access was denied. Check system permissions.",
+      "micDeniedToast": "Microphone access is required for calls. Check system permissions.",
       "videoUnavailableToast": "Video is unavailable for this call.",
       "videoUnsupported": "Video calls are not supported on this device.",
       "peerMuted": "Muted",

@@ -1,14 +1,17 @@
 package chat.kursal
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 class P2pForegroundService : Service() {
   companion object {
@@ -30,18 +33,29 @@ class P2pForegroundService : Service() {
         .build()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(
-        NOTIF_ID,
-        notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or
-          ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-      )
+      startForeground(NOTIF_ID, notification, serviceTypes())
     } else {
       startForeground(NOTIF_ID, notification)
     }
 
     return START_STICKY
   }
+
+  private fun serviceTypes(): Int {
+    var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermission()) {
+      types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+    }
+    return types
+  }
+
+  private fun hasBluetoothPermission(): Boolean =
+    listOf(
+      Manifest.permission.BLUETOOTH_ADVERTISE,
+      Manifest.permission.BLUETOOTH_CONNECT,
+      Manifest.permission.BLUETOOTH_SCAN,
+    )
+      .any { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
 
   private fun createChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -20,6 +20,7 @@ import {
   startVideo as apiStartVideo,
   stopVideo as apiStopVideo,
 } from '$lib/api/call';
+import { ensurePermission } from '$lib/api/permissions';
 import { VideoReceiver, VideoSender, videoSupported } from '$lib/call/video';
 import { playSound, stopSound } from '$lib/audio/sounds';
 import { clearCallNotification, notifyCall } from '$lib/api/system-notify';
@@ -374,6 +375,10 @@ function createCallState() {
 
   async function start(targetContactId: string) {
     if (status !== 'idle') return;
+    if (!(await ensurePermission('microphone'))) {
+      notifications.push(t('chat.call.micDeniedToast'), 'error');
+      return;
+    }
     contactId = targetContactId;
     status = 'ringing_out';
     expanded = true;
@@ -396,6 +401,13 @@ function createCallState() {
   }
 
   async function accept() {
+    if (!callId || status !== 'ringing_in') return;
+    if (!(await ensurePermission('microphone'))) {
+      notifications.push(t('chat.call.micDeniedToast'), 'error');
+      await decline();
+      return;
+    }
+
     if (!callId || status !== 'ringing_in') return;
     try {
       await apiAccept(callId);
