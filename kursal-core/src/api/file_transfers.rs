@@ -29,7 +29,6 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 
-pub const MAX_FILE_TRANSFER_BYTES: u64 = 100 * 1024 * 1024 * 1024;
 pub const STALE_TRANSFER_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
 const PROGRESS_LOG_EVERY: u64 = 1000;
 const PROGRESS_EVENTS_PER_TRANSFER: u64 = 2000;

@@ -5,8 +5,8 @@ use crate::{
     api::{
         AppEvent, CoreCommand,
         file_transfers::{
-            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, MAX_FILE_TRANSFER_BYTES,
-            apply_cancel, remove_contact_transfers, stage_outgoing,
+            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, apply_cancel,
+            remove_contact_transfers, stage_outgoing,
         },
         send_message, send_message_tracked,
     },
@@ -31,7 +31,9 @@ use crate::{
         swarm::{FILE_CHUNK_SIZE, SwarmCommand, SwarmHandle},
     },
     storage::{
-        SharedDatabase, TABLE_FILE_TRANSFERS, file::KursalFile, filetransfer::hash_file,
+        SharedDatabase, TABLE_FILE_TRANSFERS,
+        file::KursalFile,
+        filetransfer::{available_space, hash_file},
         get_timestamp_secs,
     },
 };
@@ -852,10 +854,6 @@ pub async fn handle_core_command(
 
                 let entry = FileIncomingEntry::deserialize(&entry_bytes)?;
 
-                if entry.file_size > MAX_FILE_TRANSFER_BYTES {
-                    return Err(KursalError::Storage("File too large".to_string()));
-                }
-
                 let user_id_bytes: [u8; 32] = hex::decode(&contact_id)
                     .ok_kursal(KursalError::Crypto)?
                     .try_into()
@@ -877,6 +875,15 @@ pub async fn handle_core_command(
                         usize::try_from(entry.file_size.div_ceil(FILE_CHUNK_SIZE as u64))
                             .ok_kursal(KursalError::Storage)?;
                     let bitset_len = chunk_count.div_ceil(8);
+
+                    if let Some(available) = available_space(Path::new(&save_path))
+                        && entry.file_size > available
+                    {
+                        return Err(KursalError::InsufficientSpace {
+                            needed: entry.file_size,
+                            available,
+                        });
+                    }
 
                     let file = std::fs::File::create(&save_path).map_err(KursalError::Io)?;
                     file.set_len(entry.file_size).map_err(KursalError::Io)?;

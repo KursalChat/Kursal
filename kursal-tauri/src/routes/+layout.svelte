@@ -24,7 +24,7 @@
   import { frontendReady } from '$lib/api/identity';
   import { OS, isMobile } from '$lib/api/window';
   import { acceptFileOffer } from '$lib/api/messages';
-  import { notifyError } from '$lib/utils/errors';
+  import { notifyError, parseError } from '$lib/utils/errors';
   import { clearOtpSession } from '$lib/utils/otpSession';
   import {
     handleBackendDialog,
@@ -609,7 +609,12 @@
             await acceptFileOffer(payload.contactId, payload.offerId, payload.autodownload);
           } catch (e) {
             messagesState.setAutodownloadPath(payload.offerId, payload.contactId, null);
-            notifyError(e, 'fileTransfer.errorAutoDownload');
+            notifyError(
+              e,
+              parseError(e).code === 'insufficient_space'
+                ? 'fileTransfer.errorNoSpace'
+                : 'fileTransfer.errorAutoDownload'
+            );
           }
         }
       })

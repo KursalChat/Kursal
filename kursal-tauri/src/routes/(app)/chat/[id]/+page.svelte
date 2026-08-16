@@ -49,6 +49,7 @@
     prepareOfferFromFile,
     prepareOfferFromBytes,
     exportToDevice,
+    resolveAcceptDestination,
   } from '$lib/utils/file-transfer-paths';
   import type { PickerMode } from '$lib/utils/file-transfer-paths';
   import type { MessageResponse, SharePayload } from '$lib/types';
@@ -1612,14 +1613,26 @@
       return;
     fileOfferActionState[msg.id] = 'accepting';
     try {
-      const savePath = await resolveDownloadPath(msg.contactId, msg.id, msg.fileDetails.filename);
+      const savePath = await resolveAcceptDestination(
+        msg.contactId,
+        msg.id,
+        msg.fileDetails.filename,
+        msg.fileDetails.sizeBytes
+      );
+      if (!savePath) {
+        fileOfferActionState[msg.id] = 'idle';
+        return;
+      }
       await acceptFileOffer(msg.contactId, msg.id, savePath);
       messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';
     } catch (e) {
       fileOfferActionState[msg.id] = 'idle';
+      const err = parseError(e);
       notifications.push(
-        t('chat.conversation.errorAcceptFile', { error: parseError(e).message }),
+        err.code === 'insufficient_space'
+          ? t('chat.conversation.errorNoSpace')
+          : t('chat.conversation.errorAcceptFile', { error: err.message }),
         'error'
       );
       log.error('Accept file offer failed', e);

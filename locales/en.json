@@ -127,6 +127,7 @@
   },
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
+    "errorNoSpace": "Auto-download failed: not enough free space.",
     "transferFailed": "File transfer failed integrity check and was discarded"
   },
   "backendDialog": {
@@ -510,6 +511,7 @@
       "unreadBarMarkReadHint": "Mark this conversation read (Shift+Esc)",
       "errorExportFile": "Couldn't save the file to that location.",
       "errorAcceptFile": "Failed to accept file.",
+      "errorNoSpace": "Not enough free space to download this file.",
       "errorDownloadAll": "Couldn't download {count} image(s).",
       "errorOpenFile": "Failed to open file.",
       "errorPrepareFile": "Failed to prepare file.",

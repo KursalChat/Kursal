@@ -14,6 +14,8 @@ pub enum KursalError {
     Identity(String),
     #[error("master key does not match this database")]
     KeyMismatch,
+    #[error("not enough free space: {needed} bytes needed, {available} available")]
+    InsufficientSpace { needed: u64, available: u64 },
 
     // Typed external sources: just use `?`
     #[error("IO error: {0}")]

@@ -609,6 +609,7 @@ pub fn run() {
             commands::set_read_receipts_enabled,
             commands::get_storage_usage,
             commands::resolve_download_path,
+            commands::available_space,
             commands::get_auto_download_config,
             commands::set_auto_download_config,
             commands::get_auto_accept_config,

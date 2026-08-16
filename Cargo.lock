@@ -4497,6 +4497,7 @@ dependencies = [
  "utoipa-scalar",
  "uuid",
  "webrtc-audio-processing",
+ "windows 0.61.3",
  "windows-native-keyring-store",
  "zeroize",
 ]

@@ -81,6 +81,52 @@ pub fn download_path(
     incoming_offer_dir(app_data_dir, contact_hex, offer_hex).join(sanitize_filename(filename))
 }
 
+fn existing_ancestor(path: &Path) -> Option<&Path> {
+    path.ancestors().find(|p| p.exists())
+}
+
+#[cfg(unix)]
+#[allow(clippy::unnecessary_cast)]
+pub fn available_space(path: &Path) -> Option<u64> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let dir = existing_ancestor(path)?;
+    let c_dir = CString::new(dir.as_os_str().as_bytes()).ok()?;
+    let mut stat = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+
+    if unsafe { libc::statvfs(c_dir.as_ptr(), stat.as_mut_ptr()) } != 0 {
+        return None;
+    }
+
+    let stat = unsafe { stat.assume_init() };
+    (stat.f_bavail as u64).checked_mul(stat.f_frsize as u64)
+}
+
+#[cfg(windows)]
+pub fn available_space(path: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+    use windows::core::PCWSTR;
+
+    let dir = existing_ancestor(path)?;
+    let wide: Vec<u16> = dir
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut available = 0u64;
+
+    unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&mut available), None, None) }.ok()?;
+
+    Some(available)
+}
+
+#[cfg(not(any(unix, windows)))]
+pub fn available_space(_path: &Path) -> Option<u64> {
+    None
+}
+
 pub const OUTGOING_PENDING: &str = "pending";
 
 pub fn outgoing_root(app_data_dir: &Path) -> PathBuf {

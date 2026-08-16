@@ -42,6 +42,7 @@ impl From<KursalError> for CommandError {
             KursalError::Io(_) => "io",
             KursalError::Misc(_) => "unknown",
             KursalError::KeyMismatch => "key mismatch",
+            KursalError::InsufficientSpace { .. } => "insufficient_space",
         };
         Self::new(code, e.to_string())
     }

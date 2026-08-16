@@ -1,6 +1,9 @@
 import { copyFile, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { createOutgoingPendingPath } from '$lib/api/messages';
+import { availableSpace, createOutgoingPendingPath, resolveDownloadPath } from '$lib/api/messages';
+import { isMobile } from '$lib/api/window';
+
+export const LARGE_FILE_PROMPT_BYTES = 5 * 1024 * 1024 * 1024;
 
 function isUriPath(path: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(path);
@@ -118,6 +121,31 @@ export async function prepareOfferFromBytes(
   filename: string
 ): Promise<PreparedFile> {
   return { backendPath: await stagePendingBytes(bytes, filename), filename };
+}
+
+export function needsDestinationPrompt(sizeBytes: number, freeBytes: number | null): boolean {
+  if (sizeBytes > LARGE_FILE_PROMPT_BYTES) return true;
+  return freeBytes !== null && sizeBytes > freeBytes;
+}
+
+/**
+ * Destination for a manually accepted file. Returns null when the picker is
+ * dismissed, which cancels the accept.
+ */
+export async function resolveAcceptDestination(
+  contactId: string,
+  offerId: string,
+  filename: string,
+  sizeBytes: number
+): Promise<string | null> {
+  const fallback = await resolveDownloadPath(contactId, offerId, filename);
+  if (isMobile) return fallback;
+
+  const free = await availableSpace(fallback).catch(() => null);
+  if (!needsDestinationPrompt(sizeBytes, free)) return fallback;
+
+  const target = extractPath(await save({ defaultPath: sanitizeFilename(filename) }));
+  return target || null;
 }
 
 /**

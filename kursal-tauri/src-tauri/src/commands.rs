@@ -359,6 +359,13 @@ pub async fn resolve_download_path(
     Ok(path.to_string_lossy().into_owned())
 }
 
+#[tauri::command]
+pub async fn available_space(path: String) -> Result<Option<u64>> {
+    Ok(kursal_core::storage::filetransfer::available_space(
+        std::path::Path::new(&path),
+    ))
+}
+
 setting_cmd!(get get_auto_download_config -> AutoDownloadConfig, kursal_core::storage::get_auto_download_config);
 setting_cmd!(set set_auto_download_config(config: AutoDownloadConfig), kursal_core::storage::set_auto_download_config);
 setting_cmd!(get get_auto_accept_config -> AutoAcceptConfig, kursal_core::storage::get_auto_accept_config);
