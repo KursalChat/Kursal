@@ -1257,7 +1257,13 @@
       max-width: 86vw;
       z-index: 60;
       transform: translateX(-100%);
-      transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+      transition:
+        transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: none;
+    }
+    .sidebar.open,
+    .sidebar.dragging {
       box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
     }
     .sidebar.open {
