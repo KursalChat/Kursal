@@ -167,7 +167,7 @@
     aria-hidden="true"
   ></div>
 
-  <div class="mobile-bar" class:hidden={!!currentChatId} data-tauri-drag-region>
+  <div class="mobile-bar" class:hidden={!!currentChatId} data-tauri-drag-region="deep">
     <button
       class="mobile-menu"
       onclick={() => (uiState.mobileSidebarOpen = true)}
@@ -328,6 +328,9 @@
     .mobile-bar.hidden {
       display: none;
     }
+    :global(html.mac) .mobile-bar {
+      padding-left: 78px;
+    }
     .mobile-menu {
       width: 40px;
       height: 40px;
@@ -341,8 +344,14 @@
       background: var(--bg-hover);
     }
     .mobile-title {
-      flex: 1;
-      text-align: center;
+      position: absolute;
+      left: 50%;
+      top: var(--safe-top);
+      bottom: 0;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
       font-size: 16px;
       font-weight: 700;
     }

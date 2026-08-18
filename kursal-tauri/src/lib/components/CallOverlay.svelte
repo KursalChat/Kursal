@@ -479,7 +479,6 @@
     transform: scale(calc(1 + var(--lvl, 0) * 1.15));
     opacity: calc(0.03 + var(--lvl, 0) * 0.25);
   }
-  /* ringing phases have no audio yet: breathe on a timer instead */
   .avatar-wrap.ringing .ring {
     animation: ring-pulse 1.8s ease-out infinite;
   }

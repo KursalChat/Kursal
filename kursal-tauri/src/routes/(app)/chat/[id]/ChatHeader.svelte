@@ -24,7 +24,7 @@
   const statusLabel = $derived(connectionLabel(status, contactsState.lastSeenAt(contact.userId)));
 </script>
 
-<header class="chat-header" data-tauri-drag-region>
+<header class="chat-header" data-tauri-drag-region="deep">
   <div class="header-left">
     <button
       class="menu-btn"
@@ -129,6 +129,9 @@
   @media (max-width: 768px) {
     .menu-btn {
       display: flex;
+    }
+    :global(html.mac) .chat-header {
+      padding-left: 78px;
     }
   }
 
