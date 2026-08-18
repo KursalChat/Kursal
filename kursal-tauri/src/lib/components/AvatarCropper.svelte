@@ -7,6 +7,7 @@
   import Button from './Button.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { MAX_PROFILE_AVATAR_LEN } from '$lib/utils/displayName';
+  import { canvasHasAlpha, pickAvatarMimeType } from '$lib/utils/avatarFormat';
 
   let {
     file,
@@ -156,8 +157,10 @@
     if (!img) return;
     processing = true;
     try {
-      const probe = await encode(cropTo(OUTPUT_SIZE), 'image/webp', QUALITY_LADDER[0]);
-      const type = probe.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+      const baseCanvas = cropTo(OUTPUT_SIZE);
+      const baseHasAlpha = canvasHasAlpha(baseCanvas);
+      const type = pickAvatarMimeType(baseHasAlpha);
+      const probe = await encode(baseCanvas, type, QUALITY_LADDER[0]);
 
       let best = probe.type === type && probe.size <= MAX_PROFILE_AVATAR_LEN ? probe : null;
 
