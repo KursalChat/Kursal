@@ -10,7 +10,11 @@ export const MAX_PROFILE_AVATAR_LEN = 256 * 1000;
 const ALLOWED_CHAR = /[\p{Alphabetic}\p{Nd}\p{Nl}\p{No} ._'-]/u;
 
 export type DisplayNameError =
-  'empty' | 'length' | 'edgeWhitespace' | 'unsupportedChars' | 'avatarTooLarge';
+  | 'empty'
+  | 'length'
+  | 'edgeWhitespace'
+  | 'unsupportedChars'
+  | 'avatarTooLarge';
 
 /** Returns an i18n suffix key for the first broken rule, or null when valid. */
 export function validateDisplayName(name: string): DisplayNameError | null {
