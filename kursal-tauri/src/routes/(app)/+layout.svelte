@@ -73,7 +73,7 @@
           const removedId = e.payload.peerId;
           contactsState.remove(removedId);
           if (currentChatId === removedId) {
-            goto('/chat', { replaceState: true });
+            goto('/', { replaceState: true });
           }
         });
         if (disposed) fn();

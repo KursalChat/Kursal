@@ -467,14 +467,6 @@
     }
   },
   "chat": {
-    "empty": {
-      "mascotAlt": "Kursal Mascot",
-      "hasContactsHeading": "Select a conversation",
-      "hasContactsBody": "Pick a contact from the sidebar to start chatting. All your messages are end-to-end encrypted.",
-      "noContactsHeading": "Welcome to Kursal",
-      "noContactsBody": "Add your first contact to start sending encrypted messages.",
-      "addContactButton": "Add a contact"
-    },
     "header": {
       "openSidebar": "Open sidebar",
       "viewProfile": "View profile",

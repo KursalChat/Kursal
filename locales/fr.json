@@ -375,14 +375,6 @@
       "you": "Vous"
     },
     "delayedMessages": "Aller à {count} plus tôt",
-    "empty": {
-      "addContactButton": "Ajouter un contact",
-      "hasContactsBody": "Choisissez un contact dans la barre latérale. Tous vos messages sont chiffrés de bout en bout.",
-      "hasContactsHeading": "Sélectionner une conversation",
-      "mascotAlt": "Mascotte Kursal",
-      "noContactsBody": "Ajoutez votre premier contact pour envoyer des messages chiffrés.",
-      "noContactsHeading": "Bienvenue sur Kursal"
-    },
     "fileConfirm": {
       "cancel": "Annuler",
       "captionAriaLabel": "Message à envoyer avec le fichier",

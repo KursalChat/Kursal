@@ -1027,7 +1027,7 @@
       contactMissingTimer = setTimeout(() => {
         if (contactId && !contactsState.getById(contactId)) {
           notifications.push(t('chat.conversation.errorContactNotFound'), 'error');
-          goto('/chat', { replaceState: true });
+          goto('/', { replaceState: true });
         }
       }, 100);
     }

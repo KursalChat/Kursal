@@ -13,7 +13,7 @@
     {#if $page.error?.message}
       <p class="detail">{$page.error.message}</p>
     {/if}
-    <button class="back-btn" onclick={() => goto('/chat')}>
+    <button class="back-btn" onclick={() => goto('/')}>
       <Home size={15} />
       {t('error.backToChats')}
     </button>

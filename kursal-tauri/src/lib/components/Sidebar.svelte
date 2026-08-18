@@ -276,7 +276,7 @@
     try {
       await removeContact(userId);
       contactsState.remove(userId);
-      if (currentChatId === userId) goto('/chat', { replaceState: true });
+      if (currentChatId === userId) goto('/', { replaceState: true });
     } catch (e) {
       log.error('delete contact failed', e);
     }
