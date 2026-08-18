@@ -27,3 +27,4 @@ kursal-tauri/src-tauri/gen/android/keystore.properties
 # temporary
 CLAUDE.md
 docs/ignore
+assets/store

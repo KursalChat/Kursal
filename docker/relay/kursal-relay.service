@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/kursal-relay
+ExecStart=/usr/local/bin/kursal-relay --default-config
 WorkingDirectory=/var/lib/kursal-relay
 StateDirectory=kursal-relay
 DynamicUser=yes
