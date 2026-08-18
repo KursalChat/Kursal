@@ -22,6 +22,7 @@
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
   import { flash } from '$lib/utils/flash.svelte';
+  import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
@@ -117,10 +118,11 @@
         pendingAvatarBytes === undefined
           ? profileState.avatarPath
           : await setLocalUserAvatar(pendingAvatarBytes);
+      const refreshedPath = withAvatarCacheBust(path);
 
       await broadcastProfile(nameToSave);
-      profileState.update(nameToSave, path);
-      avatarSrc = path;
+      profileState.update(nameToSave, refreshedPath);
+      avatarSrc = refreshedPath;
       pendingAvatarBytes = undefined;
       profileSaved.trigger();
     } catch (e) {

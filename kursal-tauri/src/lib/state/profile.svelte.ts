@@ -1,4 +1,5 @@
 import { getLocalUserProfile, getLocalPeerId, getLocalUserId } from '$lib/api/identity';
+import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
 import { log } from '$lib/utils/log';
 
 function createProfileState() {
@@ -16,7 +17,7 @@ function createProfileState() {
       const [storedName, storedAvatar] = await getLocalUserProfile();
       if (storedName) displayName = storedName;
 
-      avatarPath = storedAvatar || null;
+      avatarPath = withAvatarCacheBust(storedAvatar || null);
     } catch (e) {
       log.error('Failed to load user profile:', e);
     }
@@ -34,7 +35,7 @@ function createProfileState() {
 
   function update(name: string, path: string | null) {
     displayName = name;
-    avatarPath = path;
+    avatarPath = withAvatarCacheBust(path);
   }
 
   async function refreshPeerId() {
