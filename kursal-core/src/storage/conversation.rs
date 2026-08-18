@@ -40,6 +40,23 @@ pub fn set_marked_unread(db: &Database, contact_id: &str, value: bool) -> Result
     Ok(())
 }
 
+pub fn get_profile_stale(db: &Database, contact_id: &str) -> bool {
+    matches!(
+        db.raw_read(TABLE_CONVERSATION, &format!("profile_stale:{contact_id}")),
+        Ok(Some(bytes)) if bytes == [1u8]
+    )
+}
+
+pub fn set_profile_stale(db: &Database, contact_id: &str, value: bool) -> Result<()> {
+    let key = format!("profile_stale:{contact_id}");
+    if value {
+        db.raw_write(TABLE_CONVERSATION, &key, &[1u8])?;
+    } else {
+        db.raw_delete(TABLE_CONVERSATION, &key)?;
+    }
+    Ok(())
+}
+
 pub fn get_delayed_unseen(db: &Database, contact_id: &str) -> Vec<String> {
     match db.raw_read(TABLE_CONVERSATION, &format!("delayed_unseen:{contact_id}")) {
         Ok(Some(bytes)) => bincode::deserialize(&bytes).unwrap_or_default(),
@@ -139,6 +156,7 @@ pub fn delete_for_contact(db: &Database, contact_id: &str) -> Result<()> {
     db.raw_delete(TABLE_CONVERSATION, &format!("read_cursor:{contact_id}"))?;
     db.raw_delete(TABLE_CONVERSATION, &format!("marked_unread:{contact_id}"))?;
     db.raw_delete(TABLE_CONVERSATION, &format!("delayed_unseen:{contact_id}"))?;
+    db.raw_delete(TABLE_CONVERSATION, &format!("profile_stale:{contact_id}"))?;
     db.raw_delete_prefix(TABLE_CONVERSATION, &format!("pending_sync:{contact_id}:"))?;
     Ok(())
 }
@@ -147,6 +165,7 @@ pub fn delete_all(db: &Database) -> Result<()> {
     db.raw_delete_prefix(TABLE_CONVERSATION, "read_cursor:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "marked_unread:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "delayed_unseen:")?;
+    db.raw_delete_prefix(TABLE_CONVERSATION, "profile_stale:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "pending_sync:")?;
     Ok(())
 }

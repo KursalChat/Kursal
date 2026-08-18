@@ -2,7 +2,7 @@ use crate::{
     api::{
         AppEvent, ConnectionStatus, PollTrigger,
         file_transfers::{STALE_TRANSFER_MAX_AGE_SECS, cleanup_stale_transfers},
-        poll_contact_offline,
+        poll_contact_offline, resend_stale_profile,
     },
     contacts::Contact,
     first_contact::ltc::LtcState,
@@ -303,6 +303,8 @@ pub(super) async fn periodic_offline_poll(
             {
                 log::warn!("[offline] periodic flush failed: {err}");
             }
+
+            resend_stale_profile(&contact.user_id, db.clone(), &cmd_tx, Some(&event_tx)).await;
 
             if do_republish
                 && let Err(err) = republish_pending(&contact.user_id, &cmd_tx, db.clone()).await

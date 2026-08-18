@@ -8,7 +8,7 @@ use crate::{
             FileIncomingEntry, FileReceiveEntry, FileTransferEntry, apply_cancel,
             remove_contact_transfers, stage_outgoing,
         },
-        send_message, send_message_tracked,
+        send_message, send_message_tracked, share_profile_with,
     },
     contacts::Contact,
     crypto::stream::derive_stream_key,
@@ -22,8 +22,8 @@ use crate::{
         StoredMessage,
         enums::{
             FileAccept, FileCancel, FileOffer, KursalMessage, MessageDelete, MessageEdit,
-            MessageId, MessagePin, MessageStatus, ProfileInfo, ReactionAdd, ReactionRemove,
-            ReadReceipt, TextMessage,
+            MessageId, MessagePin, MessageStatus, ReactionAdd, ReactionRemove, ReadReceipt,
+            TextMessage,
         },
     },
     network::{
@@ -385,14 +385,16 @@ pub async fn handle_core_command(
                 .await?
                 .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
-                let msg = KursalMessage::ProfileUpdate(ProfileInfo {
+                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+                share_profile_with(
+                    &contact,
                     display_name,
                     avatar_bytes,
-                });
-
-                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-                let _ =
-                    send_message(msg, &contact, db.clone(), &cmd_tx, Some(&app_event_tx)).await?;
+                    db.clone(),
+                    &cmd_tx,
+                    Some(&app_event_tx),
+                )
+                .await;
 
                 Ok(())
             }
@@ -412,14 +414,15 @@ pub async fn handle_core_command(
 
                 for contact in contacts {
                     if contact.profile_shared {
-                        let msg = KursalMessage::ProfileUpdate(ProfileInfo {
-                            display_name: display_name.clone(),
-                            avatar_bytes: avatar_bytes.clone(),
-                        });
-
-                        let _ =
-                            send_message(msg, &contact, db.clone(), &cmd_tx, Some(&app_event_tx))
-                                .await?;
+                        share_profile_with(
+                            &contact,
+                            display_name.clone(),
+                            avatar_bytes.clone(),
+                            db.clone(),
+                            &cmd_tx,
+                            Some(&app_event_tx),
+                        )
+                        .await;
                     }
                 }
 

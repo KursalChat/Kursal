@@ -273,3 +273,24 @@ fn typing_indicators_roundtrip() {
     set_typing_indicators_enabled(&db, true).unwrap();
     assert!(get_typing_indicators_enabled(&db));
 }
+
+#[test]
+fn profile_stale_roundtrip() {
+    use crate::storage::conversation::{delete_for_contact, get_profile_stale, set_profile_stale};
+
+    let env = TestEnv::new();
+    let db = setup_db(&env, "profile_stale", [9u8; 32]);
+
+    assert!(!get_profile_stale(&db, "abcd"));
+
+    set_profile_stale(&db, "abcd", true).unwrap();
+    assert!(get_profile_stale(&db, "abcd"));
+    assert!(!get_profile_stale(&db, "efgh"));
+
+    set_profile_stale(&db, "abcd", false).unwrap();
+    assert!(!get_profile_stale(&db, "abcd"));
+
+    set_profile_stale(&db, "abcd", true).unwrap();
+    delete_for_contact(&db, "abcd").unwrap();
+    assert!(!get_profile_stale(&db, "abcd"));
+}
