@@ -3,21 +3,11 @@ set shell := ["bash", "-uc"]
 version := `./bin/version.sh`
 website := "~/Code/Kursal-Website/static"
 homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
-
-install_frontend_deps := if path_exists("kursal-tauri/node_modules") == "true" {
-    "true"
-} else {
-    "cd kursal-tauri && bun install --frozen-lockfile"
-}
+install_frontend_deps := if path_exists("kursal-tauri/node_modules") == "true" { "true" } else { "cd kursal-tauri && bun install --frozen-lockfile" }
 
 # @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
-tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" {
-    "bun run --cwd kursal-tauri tauri"
-} else if path_exists("kursal-tauri/node_modules") == "false" {
-    "cd kursal-tauri && bun install --frozen-lockfile && bun run tauri"
-} else {
-    "cargo tauri"
-}
+
+tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" { "bun run --cwd kursal-tauri tauri" } else if path_exists("kursal-tauri/node_modules") == "false" { "cd kursal-tauri && bun install --frozen-lockfile && bun run tauri" } else { "cargo tauri" }
 
 # list recipes
 default:
@@ -38,7 +28,6 @@ install-hooks:
     echo "✓ git hooks installed"
 
 # --- release ---
-
 # `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
 # See docs/RELEASING.md
 
@@ -143,6 +132,14 @@ format-frontend:
 
 format-rust:
     cargo fmt -p kursal-cli -p kursal-core -p kursal-app
+
+check-format: check-format-frontend check-format-rust
+
+check-format-frontend:
+    cd kursal-tauri && bun run format:check
+
+check-format-rust:
+    cargo fmt -p kursal-cli -p kursal-core -p kursal-app -- --check
 
 # --- checks ---
 verify: check-rust (check-frontend "--strict")
