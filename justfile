@@ -34,7 +34,7 @@ install-dev-tools:
 
 install-hooks:
     git config core.hooksPath .githooks
-    chmod +x .githooks/pre-push .githooks/commit-msg
+    chmod +x .githooks/pre-push .githooks/commit-msg .githooks/pre-commit
     echo "✓ git hooks installed"
 
 # --- release ---
