@@ -6,16 +6,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.9] - 2026-08-19
+
+### Features
+
+- New icon! well just has a background now
+- Unlimited file size (+ ask to save)
+
+### Bug Fixes
+
+- Remove useless /chat page
+- Pending UI state shows on intentional dial only
+- Offline profile sharing waits for contact being online (large avatars)
+- Desktop phone loadout drag
+- Transparent avatars
+- UI avatar updating everywhere
+- Defer android permissions prompt
+- Toggle camera mirroring
+- Size issue + store self-avatar on disk
+- Language loading improvement (+ coverage %)
+- Small UI fixes + deps bump
+- Clearing logs
+- Avatar fallback
+- Cooldown presence dial loop
+
+### CI
+
+- Pre-commit check-format
+- Pre-commit formatting
+- Autodownload node modules & default relay config
+
+### Styling
+
+- Using oxfmt instead of prettier
+
+### Miscellaneous
+
+- Kursal is now on OpenCollective!
+- Remove migration code
+
 ## [0.1.0-beta.8] - 2026-08-14
 
 ### Bug Fixes
 
+- Svelte #each unique issues
 - Better UI update notifier
-
-## [0.1.0-beta.7] - 2026-08-14
-
-### Bug Fixes
-
 - UI bugs
 - Include webview in RAM usage
 - Listening port applied
