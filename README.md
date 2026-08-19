@@ -24,20 +24,24 @@ For a full technical description, read the [Whitepaper](https://kursal.chat/kurs
 
 ## Features
 
-Curious about Kursal? We listed and compared our features on our [Comparison page](https://kursal.chat/compare).
+- **No account** - no phone number, no email.
+- **File transfers** - no file size limit!
+- **Delivers offline** — messages wait in an encrypted mailbox until your contact comes back.
+
+Curious how that compares to other messengers? See our [Comparison page](https://kursal.chat/compare).
 
 ## Installation
 
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://kursal.chat | bash
+curl -fsSL https://kursal.chat/install.sh | bash
 ```
 
 **Windows** (PowerShell)
 
 ```powershell
-powershell -c "irm kursal.chat | iex"
+powershell -c "irm kursal.chat/install.ps1 | iex"
 ```
 
 Or [download manually](https://app.kursal.chat).
@@ -51,15 +55,16 @@ We're a small team, but you can follow what features we're building on the [prog
 
 ## Contributing
 
-Thank you for your interest in Kursal. If you want to contribute, you can! Either by running a relay, translating or by coding.
+Every kind of help counts.
 
-All coding contributions instructions are detailed in the [CONTRIBUTING.md](CONTRIBUTING.md) file.
-
-For running a relay, refer to the [RELAY.md](./docs/RELAY.md) file.
-
-For translation contribution, you can help on our [Translate Page](https://translate.kursal.chat/engage/kursal/).
+- **Code** — Rust core, Svelte frontend. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Run a relay** — more relays means a faster, harder-to-censor network. See [RELAY.md](./docs/RELAY.md).
+- **Translate** — no coding needed, on [our Weblate](https://translate.kursal.chat/engage/kursal/).
+- **Report a vulnerability** — please read [SECURITY.md](SECURITY.md) first.
+- **Donate** — on [OpenCollective](https://opencollective.com/kursal).
 
 [![Translation status](https://translate.kursal.chat/widget/kursal/multi-auto.svg)](https://translate.kursal.chat/engage/kursal/)
+[![Backers](https://opencollective.com/kursal/backers.svg?width=890)](https://opencollective.com/kursal)
 
 ## Star History
 
