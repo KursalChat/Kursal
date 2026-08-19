@@ -136,7 +136,7 @@ cargo build -p kursal-cli --release   # target/release/kursal-relay
 or reproduce the release artifacts (Docker required):
 
 ```sh
-bin/build-relay.sh          # image + dist/kursal-relay-<version>-linux-x86_64.tar.gz
+bin/build-relay.sh          # image + dist/kursal-relay-linux-x86_64.tar.gz
 bin/build-relay.sh --push   # additionally push ghcr images
 ```
 

@@ -2,18 +2,14 @@ use crate::{
     KursalError, Result,
     contacts::Contact,
     identity::UserId,
-    messaging::offline::OfflineState,
-    storage::{Database, TABLE_CONTACTS, TABLE_SETTINGS, get_local_user_id},
+    storage::{Database, TABLE_SETTINGS},
 };
-use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::UNIX_EPOCH;
 
 pub const LOCAL_PROFILE_AVATAR_KEY: &str = "local_profile_avatar";
-const MIGRATED_KEY: &str = "!avatars_migrated";
-const MIGRATED_USER_ID_KEY: &str = "!avatars_by_user";
 const EXTENSIONS: [&str; 3] = ["webp", "jpg", "png"];
 
 static AVATAR_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -127,124 +123,6 @@ pub fn restore(avatars: Vec<(String, Vec<u8>)>) -> Result<()> {
         };
         std::fs::write(path, bytes).map_err(KursalError::Io)?;
     }
-
-    Ok(())
-}
-
-#[derive(Deserialize)]
-struct LegacyContact {
-    user_id: UserId,
-    peer_id: String,
-    display_name: String,
-    avatar_bytes: Option<Vec<u8>>,
-    identity_pub_key: Vec<u8>,
-    dilithium_pub_key: Vec<u8>,
-    known_addresses: Vec<String>,
-    verified: bool,
-    profile_shared: bool,
-    blocked: bool,
-    created_at: u64,
-    offline: OfflineState,
-}
-
-fn adopt_legacy_bytes(user_id: &UserId, bytes: &[u8]) -> Option<String> {
-    if bytes.is_empty() {
-        return None;
-    }
-
-    match std::str::from_utf8(bytes) {
-        Ok(text) if is_hash(text) => Some(text.to_string()),
-        _ => store(user_id, bytes).ok(),
-    }
-}
-
-fn legacy_path(hash: &str) -> Option<PathBuf> {
-    if !is_hash(hash) {
-        return None;
-    }
-
-    Some(dir()?.join(format!("{hash}.webp")))
-}
-
-fn rename_to_user_id(user_id: &UserId, hash: &str) -> Option<String> {
-    let bytes = std::fs::read(legacy_path(hash)?).ok()?;
-
-    store(user_id, &bytes).ok()
-}
-
-pub fn migrate(db: &Database) -> Result<()> {
-    if matches!(db.raw_read(TABLE_SETTINGS, MIGRATED_KEY), Ok(Some(_))) {
-        return Ok(());
-    }
-
-    for (key, bytes) in db.raw_readall(TABLE_CONTACTS)? {
-        let legacy = match bincode::deserialize::<LegacyContact>(&bytes) {
-            Ok(legacy) => legacy,
-            Err(err) => {
-                log::warn!("[avatars] skipping undeserializable contact {key}: {err}");
-                continue;
-            }
-        };
-
-        let contact = Contact {
-            avatar: legacy
-                .avatar_bytes
-                .as_deref()
-                .and_then(|bytes| adopt_legacy_bytes(&legacy.user_id, bytes)),
-            user_id: legacy.user_id,
-            peer_id: legacy.peer_id,
-            display_name: legacy.display_name,
-            identity_pub_key: legacy.identity_pub_key,
-            dilithium_pub_key: legacy.dilithium_pub_key,
-            known_addresses: legacy.known_addresses,
-            verified: legacy.verified,
-            profile_shared: legacy.profile_shared,
-            blocked: legacy.blocked,
-            created_at: legacy.created_at,
-            offline: legacy.offline,
-        };
-
-        db.raw_write(TABLE_CONTACTS, &key, &contact.serialize()?)?;
-    }
-
-    if let Ok(Some(bytes)) = db.raw_read(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY) {
-        let local = get_local_user_id(db)?;
-        let stored = adopt_legacy_bytes(&local, &bytes).unwrap_or_default();
-        db.raw_write(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY, stored.as_bytes())?;
-    }
-
-    db.raw_write(TABLE_SETTINGS, MIGRATED_KEY, &[1u8])?;
-
-    Ok(())
-}
-
-pub fn migrate_to_user_ids(db: &Database) -> Result<()> {
-    if matches!(
-        db.raw_read(TABLE_SETTINGS, MIGRATED_USER_ID_KEY),
-        Ok(Some(_))
-    ) {
-        return Ok(());
-    }
-
-    for mut contact in Contact::load_all(db)? {
-        let Some(hash) = contact.avatar.clone().filter(|value| is_hash(value)) else {
-            continue;
-        };
-
-        contact.avatar = rename_to_user_id(&contact.user_id, &hash);
-        contact.save(db)?;
-    }
-
-    if let Ok(Some(bytes)) = db.raw_read(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY)
-        && let Ok(hash) = std::str::from_utf8(&bytes)
-        && is_hash(hash)
-    {
-        let local = get_local_user_id(db)?;
-        let renamed = rename_to_user_id(&local, hash).unwrap_or_default();
-        db.raw_write(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY, renamed.as_bytes())?;
-    }
-
-    db.raw_write(TABLE_SETTINGS, MIGRATED_USER_ID_KEY, &[1u8])?;
 
     Ok(())
 }
