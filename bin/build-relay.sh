@@ -70,7 +70,7 @@ for dir in dist/raw/linux_*; do
   arch=${dir##*_}
   arch=${arch/amd64/x86_64}
   arch=${arch/arm64/aarch64}
-  tarball="dist/kursal-relay-$VERSION-linux-$arch.tar.gz"
+  tarball="dist/kursal-relay-linux-$arch.tar.gz"
   tar -czf "$tarball" -C "$dir" kursal-relay
   shasum -a 256 "$tarball" | tee "$tarball.sha256"
 done

@@ -111,7 +111,7 @@ publish-release:
 publish-relay:
     orb start || echo "orb start failed, continuing anyway"
     ./bin/build-relay.sh --push
-    gh release upload v{{ version }} ./dist/kursal-relay-{{ version }}-linux-*.tar.gz ./dist/kursal-relay-{{ version }}-linux-*.tar.gz.sha256 --clobber
+    gh release upload v{{ version }} ./dist/kursal-relay-linux-*.tar.gz ./dist/kursal-relay-linux-*.tar.gz.sha256 --clobber
 
 publish-beta-manifest:
     mkdir -p build
