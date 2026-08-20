@@ -138,7 +138,7 @@ function createSettingsState() {
   }
   async function setPort(v: number | null) {
     const prev = listeningPort;
-    listeningPort = v;
+    listeningPort = v ?? 0;
     try {
       await setListeningPort(v);
     } catch (e) {

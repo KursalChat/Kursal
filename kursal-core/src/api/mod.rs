@@ -16,6 +16,7 @@ pub mod handle_incoming;
 pub mod message_apply;
 pub mod nodes;
 pub mod poll_offline;
+pub mod profile_share;
 pub mod send_message;
 pub mod state;
 
@@ -23,6 +24,7 @@ pub use address_announce::apply_address_announce;
 pub use handle_core_command::handle_core_command;
 pub use handle_incoming::handle_incoming;
 pub use poll_offline::{PollTrigger, poll_contact_offline};
+pub use profile_share::{resend_stale_profile, share_profile_with};
 pub use send_message::{send_message, send_message_tracked};
 
 #[derive(Clone, PartialEq, Eq)]

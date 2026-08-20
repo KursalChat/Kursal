@@ -22,6 +22,7 @@ pub(super) async fn handle_swarm_command(
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
     pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
+    intentional_dials: &mut HashMap<ConnectionId, PeerId>,
     listen_addresses: &mut HashSet<Multiaddr>,
     nearby_enabled: &mut bool,
     stream_control: &mut libp2p_stream::Control,
@@ -43,8 +44,14 @@ pub(super) async fn handle_swarm_command(
                     .addresses(addresses)
                     .condition(PeerCondition::NotDialing)
                     .build();
-                if let Err(err) = swarm.dial(opts) {
-                    log::debug!("[mDNS] local dial to {peer_id} failed: {err:?}");
+                let connection_id = opts.connection_id();
+                match swarm.dial(opts) {
+                    Ok(()) => {
+                        intentional_dials.insert(connection_id, peer_id);
+                    }
+                    Err(err) => {
+                        log::debug!("[mDNS] local dial to {peer_id} failed: {err:?}");
+                    }
                 }
             }
         }
@@ -56,8 +63,14 @@ pub(super) async fn handle_swarm_command(
                 .addresses(addresses)
                 .condition(PeerCondition::DisconnectedAndNotDialing)
                 .build();
-            if let Err(err) = swarm.dial(opts) {
-                log::debug!("[presence] dial to {peer_id} skipped: {err:?}");
+            let connection_id = opts.connection_id();
+            match swarm.dial(opts) {
+                Ok(()) => {
+                    intentional_dials.insert(connection_id, peer_id);
+                }
+                Err(err) => {
+                    log::debug!("[presence] dial to {peer_id} skipped: {err:?}");
+                }
             }
         }
         SwarmCommand::AddNode(addr) => {

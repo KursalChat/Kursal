@@ -127,6 +127,7 @@
   },
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
+    "errorNoSpace": "Auto-download failed: not enough free space.",
     "transferFailed": "File transfer failed integrity check and was discarded"
   },
   "backendDialog": {
@@ -144,9 +145,6 @@
     "updateInstalledMessage": "Restart Kursal to apply the update? You can also restart later.",
     "updateInstalledConfirm": "Restart now",
     "updateInstalledCancel": "Later",
-    "noUpdatesTitle": "You're up to date",
-    "noUpdatesMessage": "Kursal is running the newest version available.",
-    "noUpdatesConfirm": "OK",
     "fileOpenTitle": "Opening {fileName}",
     "fileOpenConfirm": "Open",
     "fileOpenCancel": "Cancel",
@@ -173,7 +171,8 @@
   },
   "updateDownload": {
     "titleVersion": "Downloading {version}",
-    "installing": "Installing…"
+    "installing": "Installing…",
+    "upToDate": "Up to date"
   },
   "changelog": {
     "features": "New features",
@@ -449,6 +448,7 @@
     },
     "nearby": {
       "wifiDisabledDescription": "Nearby Share is disabled in Settings, so mDNS over Wi-Fi is off. Only Bluetooth discovery is active, and only while this page is open.",
+      "bluetoothDeniedDescription": "Bluetooth permission was denied, so only Wi-Fi discovery is active. Check system permissions to find peers over Bluetooth.",
       "yourName": "You appear as {name}",
       "startingDiscovery": "Starting discovery…",
       "found": "{count} found",
@@ -467,14 +467,6 @@
     }
   },
   "chat": {
-    "empty": {
-      "mascotAlt": "Kursal Mascot",
-      "hasContactsHeading": "Select a conversation",
-      "hasContactsBody": "Pick a contact from the sidebar to start chatting. All your messages are end-to-end encrypted.",
-      "noContactsHeading": "Welcome to Kursal",
-      "noContactsBody": "Add your first contact to start sending encrypted messages.",
-      "addContactButton": "Add a contact"
-    },
     "header": {
       "openSidebar": "Open sidebar",
       "viewProfile": "View profile",
@@ -512,6 +504,7 @@
       "unreadBarMarkReadHint": "Mark this conversation read (Shift+Esc)",
       "errorExportFile": "Couldn't save the file to that location.",
       "errorAcceptFile": "Failed to accept file.",
+      "errorNoSpace": "Not enough free space to download this file.",
       "errorDownloadAll": "Couldn't download {count} image(s).",
       "errorOpenFile": "Failed to open file.",
       "errorPrepareFile": "Failed to prepare file.",
@@ -733,6 +726,7 @@
       "cameraOff": "Stop camera",
       "cameraDenied": "Camera blocked",
       "cameraDeniedToast": "Camera access was denied. Check system permissions.",
+      "micDeniedToast": "Microphone access is required for calls. Check system permissions.",
       "videoUnavailableToast": "Video is unavailable for this call.",
       "videoUnsupported": "Video calls are not supported on this device.",
       "peerMuted": "Muted",
@@ -1057,6 +1051,11 @@
       "openFilesFolder": "Open files folder",
       "openLogFolder": "Open log folder",
       "viewLogs": "View logs",
+      "clearLogs": "Clear logs",
+      "clearLogsConfirmTitle": "Clear logs?",
+      "clearLogsConfirmMessage": "All archived and active log files are deleted.",
+      "clearLogsConfirmDetail": "Diagnostics for past issues will be lost. New entries keep being written.",
+      "clearLogsConfirm": "Clear",
       "logViewer": {
         "title": "Logs",
         "fileLabel": "Log file",

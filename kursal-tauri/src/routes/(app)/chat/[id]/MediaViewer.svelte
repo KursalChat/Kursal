@@ -274,7 +274,7 @@
       onclick={(e) => e.stopPropagation()}
       role="presentation"
     >
-      {#each items as it, i (it.path)}
+      {#each items as it, i}
         <button
           class="thumb"
           class:active={i === index}

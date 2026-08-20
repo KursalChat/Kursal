@@ -5,10 +5,10 @@ use crate::{
     api::{
         AppEvent, CoreCommand,
         file_transfers::{
-            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, MAX_FILE_TRANSFER_BYTES,
-            apply_cancel, remove_contact_transfers, stage_outgoing,
+            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, apply_cancel,
+            remove_contact_transfers, stage_outgoing,
         },
-        send_message, send_message_tracked,
+        send_message, send_message_tracked, share_profile_with,
     },
     contacts::Contact,
     crypto::stream::derive_stream_key,
@@ -22,8 +22,8 @@ use crate::{
         StoredMessage,
         enums::{
             FileAccept, FileCancel, FileOffer, KursalMessage, MessageDelete, MessageEdit,
-            MessageId, MessagePin, MessageStatus, ProfileInfo, ReactionAdd, ReactionRemove,
-            ReadReceipt, TextMessage,
+            MessageId, MessagePin, MessageStatus, ReactionAdd, ReactionRemove, ReadReceipt,
+            TextMessage,
         },
     },
     network::{
@@ -31,7 +31,9 @@ use crate::{
         swarm::{FILE_CHUNK_SIZE, SwarmCommand, SwarmHandle},
     },
     storage::{
-        SharedDatabase, TABLE_FILE_TRANSFERS, file::KursalFile, filetransfer::hash_file,
+        SharedDatabase, TABLE_FILE_TRANSFERS,
+        file::KursalFile,
+        filetransfer::{available_space, hash_file},
         get_timestamp_secs,
     },
 };
@@ -383,14 +385,16 @@ pub async fn handle_core_command(
                 .await?
                 .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
 
-                let msg = KursalMessage::ProfileUpdate(ProfileInfo {
+                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+                share_profile_with(
+                    &contact,
                     display_name,
                     avatar_bytes,
-                });
-
-                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-                let _ =
-                    send_message(msg, &contact, db.clone(), &cmd_tx, Some(&app_event_tx)).await?;
+                    db.clone(),
+                    &cmd_tx,
+                    Some(&app_event_tx),
+                )
+                .await;
 
                 Ok(())
             }
@@ -410,14 +414,15 @@ pub async fn handle_core_command(
 
                 for contact in contacts {
                     if contact.profile_shared {
-                        let msg = KursalMessage::ProfileUpdate(ProfileInfo {
-                            display_name: display_name.clone(),
-                            avatar_bytes: avatar_bytes.clone(),
-                        });
-
-                        let _ =
-                            send_message(msg, &contact, db.clone(), &cmd_tx, Some(&app_event_tx))
-                                .await?;
+                        share_profile_with(
+                            &contact,
+                            display_name.clone(),
+                            avatar_bytes.clone(),
+                            db.clone(),
+                            &cmd_tx,
+                            Some(&app_event_tx),
+                        )
+                        .await;
                     }
                 }
 
@@ -852,10 +857,6 @@ pub async fn handle_core_command(
 
                 let entry = FileIncomingEntry::deserialize(&entry_bytes)?;
 
-                if entry.file_size > MAX_FILE_TRANSFER_BYTES {
-                    return Err(KursalError::Storage("File too large".to_string()));
-                }
-
                 let user_id_bytes: [u8; 32] = hex::decode(&contact_id)
                     .ok_kursal(KursalError::Crypto)?
                     .try_into()
@@ -877,6 +878,15 @@ pub async fn handle_core_command(
                         usize::try_from(entry.file_size.div_ceil(FILE_CHUNK_SIZE as u64))
                             .ok_kursal(KursalError::Storage)?;
                     let bitset_len = chunk_count.div_ceil(8);
+
+                    if let Some(available) = available_space(Path::new(&save_path))
+                        && entry.file_size > available
+                    {
+                        return Err(KursalError::InsufficientSpace {
+                            needed: entry.file_size,
+                            available,
+                        });
+                    }
 
                     let file = std::fs::File::create(&save_path).map_err(KursalError::Io)?;
                     file.set_len(entry.file_size).map_err(KursalError::Io)?;

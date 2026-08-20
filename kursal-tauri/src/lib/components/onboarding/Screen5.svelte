@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '$lib/i18n';
+  import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
   import { log } from '$lib/utils/log';
   import Winston from './Winston.svelte';
   import Avatar from '$lib/components/Avatar.svelte';
@@ -127,8 +128,9 @@
     saving = true;
     try {
       const path = await setLocalUserAvatar(avatarBytes);
+      const refreshedPath = withAvatarCacheBust(path);
       await broadcastProfile(name);
-      profileState.update(name, path);
+      profileState.update(name, refreshedPath);
     } catch (e) {
       log.error('Profile save failed', e);
       notifications.push(t('onboarding.screen5.errorBroadcastFailed'), 'error');

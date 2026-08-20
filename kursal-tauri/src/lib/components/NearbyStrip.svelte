@@ -12,6 +12,7 @@
     acceptNearby,
     declineNearby,
   } from '$lib/api/nearby';
+  import { ensurePermission } from '$lib/api/permissions';
   import { nearbyState } from '$lib/state/nearby.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
@@ -21,6 +22,7 @@
 
   let connecting = $state<Set<string>>(new Set());
   let declining = $state<Set<string>>(new Set());
+  let bluetoothDenied = $state(false);
   let pollInterval: ReturnType<typeof setInterval> | null = null;
 
   const mdnsDisabled = $derived(settingsState.loaded && !settingsState.nearbyShare);
@@ -40,6 +42,7 @@
     } catch (e) {
       log.error('Settings load failed:', e);
     }
+    bluetoothDenied = !(await ensurePermission('bluetooth'));
     try {
       const sessionName = await startNearby();
       nearbyState.active = true;
@@ -128,6 +131,10 @@
 
   {#if mdnsDisabled}
     <p class="warn">{t('addContact.nearby.wifiDisabledDescription')}</p>
+  {/if}
+
+  {#if bluetoothDenied}
+    <p class="warn">{t('addContact.nearby.bluetoothDeniedDescription')}</p>
   {/if}
 
   {#if total > 0}
@@ -340,8 +347,14 @@
   }
 
   @media (max-width: 640px) {
+    .head {
+      flex-wrap: wrap;
+    }
+
     .who {
-      display: none;
+      order: 3;
+      flex: 1 0 100%;
+      margin-top: 4px;
     }
 
     .status {

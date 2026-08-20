@@ -31,11 +31,11 @@ git push -u origin feature/my-thing
 # open a PR into dev, let CI pass, squash-merge
 ```
 
-`release/*` and `hotfix/*` flows live in [RELEASING.md](RELEASING.md).
+`release/*` and `hotfix/*` flows live in [RELEASING.md](./docs/RELEASING.md).
 
 ## Commit format
 
-`type: subject` - full rules and examples in [COMMITS.md](COMMITS.md). Enforced locally (git hook) and in CI.
+`type: subject` - full rules and examples in [COMMITS.md](./docs/COMMITS.md). Enforced locally (git hook) and in CI.
 
 ## Merge strategy
 

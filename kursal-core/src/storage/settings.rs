@@ -331,22 +331,17 @@ pub fn set_peer_rotation_interval(db: &Database, value: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn get_swarm_listening_port(db: &Database) -> Option<u16> {
-    if cfg!(debug_assertions) {
-        return None;
-    }
-
+pub fn get_swarm_listening_port(db: &Database) -> u16 {
     db.raw_read(TABLE_SETTINGS, "swarm_listening_port")
         .ok()
         .flatten()
         .and_then(|b| b.try_into().ok().map(u16::from_be_bytes))
+        .unwrap_or(4891)
 }
 pub fn set_swarm_listening_port(db: &Database, port: Option<u16>) -> Result<()> {
-    if let Some(port) = port {
-        db.raw_write(TABLE_SETTINGS, "swarm_listening_port", &port.to_be_bytes())?;
-    } else {
-        db.raw_delete(TABLE_SETTINGS, "swarm_listening_port")?;
-    }
+    let port = port.unwrap_or(0);
+
+    db.raw_write(TABLE_SETTINGS, "swarm_listening_port", &port.to_be_bytes())?;
 
     Ok(())
 }
@@ -447,18 +442,20 @@ pub fn get_local_avatar_bytes(db: &Database) -> Option<Vec<u8>> {
 }
 
 pub fn set_local_avatar(db: &Database, avatar_bytes: Option<Vec<u8>>) -> Result<Option<String>> {
-    let hash = match avatar_bytes {
-        Some(bytes) if !bytes.is_empty() => Some(avatars::store(&bytes)?),
+    let name = match avatar_bytes {
+        Some(bytes) if !bytes.is_empty() => {
+            Some(avatars::store(&super::get_local_user_id(db)?, &bytes)?)
+        }
         _ => None,
     };
 
     db.raw_write(
         TABLE_SETTINGS,
         avatars::LOCAL_PROFILE_AVATAR_KEY,
-        hash.as_deref().unwrap_or_default().as_bytes(),
+        name.as_deref().unwrap_or_default().as_bytes(),
     )?;
 
-    Ok(hash)
+    Ok(name)
 }
 
 pub fn set_local_display_name(db: &Database, display_name: String) -> Result<()> {

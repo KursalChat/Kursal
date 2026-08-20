@@ -3,7 +3,7 @@ members = ["kursal-cli", "kursal-core", "kursal-tauri/src-tauri"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0-beta.6"
+version = "0.1.0-beta.9"
 authors = ["Kodeur_Kubik <kubik@kursal.chat>", "Arlo <arlo@kursal.chat>"]
 edition = "2024"
 license = "AGPL-3.0-only"
@@ -301,4 +301,5 @@ overflow-checks = false
 overflow-checks = false
 
 [profile.dev]
+debug = "line-tables-only"
 incremental = true

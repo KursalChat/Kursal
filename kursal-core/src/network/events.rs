@@ -3,7 +3,7 @@ use crate::{
     KursalError, Result,
     api::{
         AppEvent, ConnectionStatus, PollTrigger, file_transfers::resume_incoming_transfers,
-        handle_incoming, poll_contact_offline,
+        handle_incoming, poll_contact_offline, resend_stale_profile,
     },
     contacts::Contact,
     crypto::{DEVICE_ID, messages::message_send},
@@ -451,6 +451,20 @@ pub(super) async fn handle_internal_network_event(
                     event_tx_for_resume,
                 );
                 if !was_connected {
+                    let contact_id_for_profile = contact_id.clone();
+                    let cmd_tx_for_profile = cmd_tx.clone();
+                    let db_for_profile = db_clone.clone();
+                    let event_tx_for_profile = app_event_tx.clone();
+                    tokio::task::spawn_local(async move {
+                        resend_stale_profile(
+                            &contact_id_for_profile,
+                            db_for_profile,
+                            &cmd_tx_for_profile,
+                            Some(&event_tx_for_profile),
+                        )
+                        .await;
+                    });
+
                     tokio::task::spawn_local(async move {
                         if let Err(err) = poll_contact_offline(
                             contact_id,

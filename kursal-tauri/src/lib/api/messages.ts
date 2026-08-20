@@ -66,6 +66,9 @@ export const resolveDownloadPath = (
   filename: string
 ): Promise<string> => invoke('resolve_download_path', { contactId, offerId, filename });
 
+export const availableSpace = (path: string): Promise<number | null> =>
+  invoke('available_space', { path });
+
 export const cancelFileTransfer = (contactId: string, offerId: string): Promise<void> =>
   invoke('cancel_file_transfer', { contactId, offerId });
 

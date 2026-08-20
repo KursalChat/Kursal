@@ -16,7 +16,13 @@
   import AdvancedSection from '$lib/components/settings/AdvancedSection.svelte';
 
   type Category =
-    'account' | 'appearance' | 'privacy' | 'calls' | 'network' | 'storage' | 'advanced';
+    | 'account'
+    | 'appearance'
+    | 'privacy'
+    | 'calls'
+    | 'network'
+    | 'storage'
+    | 'advanced';
 
   let activeCategory = $state<Category>('account');
   let bodyEl = $state<HTMLElement | null>(null);

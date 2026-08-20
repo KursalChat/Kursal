@@ -51,7 +51,6 @@ pub async fn init(
     ensure_identity(&mut db)?;
 
     crate::storage::avatars::init(app_data_dir)?;
-    crate::storage::avatars::migrate(&db)?;
     crate::storage::avatars::prune_unreferenced(&db)?;
 
     Ok(SharedDatabase::from_db(db))

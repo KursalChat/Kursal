@@ -14,10 +14,20 @@ const createOutgoingPendingPath = vi.fn(async (filename: string) => {
 
 vi.mock('@tauri-apps/plugin-fs', () => ({ copyFile, readFile, writeFile }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
-vi.mock('$lib/api/messages', () => ({ createOutgoingPendingPath }));
+vi.mock('$lib/api/messages', () => ({
+  createOutgoingPendingPath,
+  resolveDownloadPath: vi.fn(),
+  availableSpace: vi.fn(),
+}));
+vi.mock('$lib/api/window', () => ({ isMobile: false, OS: 'macos' }));
 
-const { filenameFromPath, prepareOfferFromBytes, prepareOfferSourcePath } =
-  await import('./file-transfer-paths');
+const {
+  filenameFromPath,
+  prepareOfferFromBytes,
+  prepareOfferSourcePath,
+  needsDestinationPrompt,
+  LARGE_FILE_PROMPT_BYTES,
+} = await import('./file-transfer-paths');
 
 describe('filenameFromPath', () => {
   it("returns 'file' for empty input", () => {
@@ -87,5 +97,30 @@ describe('pending staging', () => {
 
     expect(createOutgoingPendingPath).toHaveBeenCalledWith('note.txt');
     expect(writeFile).toHaveBeenCalledWith(staged.backendPath, new Uint8Array([1]));
+  });
+});
+
+describe('needsDestinationPrompt', () => {
+  const GB = 1024 * 1024 * 1024;
+
+  it('sends an ordinary file to the download folder', () => {
+    expect(needsDestinationPrompt(4 * GB, 500 * GB)).toBe(false);
+  });
+
+  it('asks where to put a file past the threshold even with room for it', () => {
+    expect(needsDestinationPrompt(LARGE_FILE_PROMPT_BYTES + 1, 500 * GB)).toBe(true);
+  });
+
+  it('asks when the download folder cannot hold the file', () => {
+    expect(needsDestinationPrompt(2 * GB, GB)).toBe(true);
+  });
+
+  it('treats an exact fit as fitting', () => {
+    expect(needsDestinationPrompt(GB, GB)).toBe(false);
+  });
+
+  // An unreadable free-space figure must not turn every accept into a picker.
+  it('does not prompt on a size it cannot check', () => {
+    expect(needsDestinationPrompt(2 * GB, null)).toBe(false);
   });
 });

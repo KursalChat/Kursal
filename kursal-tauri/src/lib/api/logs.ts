@@ -1,5 +1,5 @@
 import { appLogDir, join } from '@tauri-apps/api/path';
-import { open, readDir, stat, SeekMode } from '@tauri-apps/plugin-fs';
+import { open, readDir, remove, stat, writeTextFile, SeekMode } from '@tauri-apps/plugin-fs';
 
 const TAIL_BYTES = 200_000;
 
@@ -33,6 +33,26 @@ export async function listLogFiles(): Promise<LogFile[]> {
       })
   );
   return files.sort((a, b) => b.modifiedMs - a.modifiedMs);
+}
+
+export async function clearLogs(): Promise<number> {
+  const dir = await appLogDir();
+  const entries = await readDir(dir);
+  let freed = 0;
+
+  for (const entry of entries) {
+    if (!entry.isFile) continue;
+    const archive = entry.name.endsWith('.gz');
+    if (!archive && !entry.name.endsWith('.log')) continue;
+
+    const path = await join(dir, entry.name);
+    freed += Number((await stat(path)).size ?? 0);
+
+    if (archive) await remove(path);
+    else await writeTextFile(path, '');
+  }
+
+  return freed;
 }
 
 export async function readLogTail(path: string): Promise<LogTail> {

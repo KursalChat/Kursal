@@ -65,6 +65,7 @@ pub(super) async fn handle_swarm_event(
     pending_queries: &mut HashMap<libp2p::kad::QueryId, mpsc::Sender<Vec<u8>>>,
     pending_puts: &mut HashMap<libp2p::kad::QueryId, oneshot::Sender<bool>>,
     pending_dials: &mut HashMap<ConnectionId, oneshot::Sender<std::result::Result<(), String>>>,
+    intentional_dials: &mut HashMap<ConnectionId, PeerId>,
     listen_addresses: &mut HashSet<Multiaddr>,
     swarm: &mut Swarm<KursalBehaviour>,
     #[allow(unused_variables)] nearby_enabled: bool,
@@ -284,6 +285,7 @@ pub(super) async fn handle_swarm_event(
             if let Some(tx) = pending_dials.remove(&connection_id) {
                 let _ = tx.send(Ok(()));
             }
+            intentional_dials.remove(&connection_id);
             let is_relayed_check = endpoint.is_relayed()
                 || endpoint
                     .get_remote_address()
@@ -403,9 +405,12 @@ pub(super) async fn handle_swarm_event(
 
         SwarmEvent::Dialing {
             peer_id: Some(peer_id),
+            connection_id,
             ..
         } => {
-            if best_kind(peer_conns, &peer_id).is_none() {
+            if intentional_dials.contains_key(&connection_id)
+                && best_kind(peer_conns, &peer_id).is_none()
+            {
                 let _ = event_tx
                     .send(NetworkEvent::ConnectionPending { peer_id })
                     .await;
@@ -419,6 +424,7 @@ pub(super) async fn handle_swarm_event(
             ..
         } => {
             let requested = pending_dials.remove(&connection_id);
+            let intended = intentional_dials.remove(&connection_id);
             let peer = peer_id.map_or_else(|| "unknown".to_string(), |id| id.to_string());
             let summary = dial_error_summary(&error);
 
@@ -429,7 +435,7 @@ pub(super) async fn handle_swarm_event(
                 log::debug!("[swarm] dial failed peer={peer} error={summary}");
             }
 
-            if let Some(peer_id) = peer_id
+            if let Some(peer_id) = peer_id.or(intended)
                 && best_kind(peer_conns, &peer_id).is_none()
             {
                 let _ = event_tx

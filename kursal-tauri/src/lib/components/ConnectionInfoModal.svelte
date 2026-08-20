@@ -89,7 +89,7 @@
         <p class="addr-empty">{t('connectionInfo.noAddresses')}</p>
       {:else}
         <ul class="addr-list">
-          {#each addresses as addr (addr)}
+          {#each addresses as addr}
             <li class="addr-row">
               <AddressChip {addr} />
               <button

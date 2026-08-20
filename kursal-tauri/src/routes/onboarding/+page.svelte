@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
+  import { ensurePermission } from '$lib/api/system-notify';
   import Screen1 from '$lib/components/onboarding/Screen1.svelte';
   import Screen2 from '$lib/components/onboarding/Screen2.svelte';
   import Screen3 from '$lib/components/onboarding/Screen3.svelte';
@@ -9,8 +10,9 @@
 
   let screen = $state(1);
 
-  function finish() {
+  async function finish() {
     localStorage.setItem('kursal_onboarded', 'done');
+    await ensurePermission().catch(() => false);
     goto('/');
   }
 

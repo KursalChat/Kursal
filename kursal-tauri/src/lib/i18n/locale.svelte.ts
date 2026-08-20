@@ -19,17 +19,17 @@ function flatten(obj: unknown, prefix = '', out: Dict = new Map()): Dict {
 
 const enDict = flatten(en);
 
-type Translated = Exclude<Locale, 'en'>;
+const files = import.meta.glob<{ default: unknown }>('../../../../locales/*.json');
 
-const loaders: Record<Translated, () => Promise<{ default: unknown }>> = {
-  fr: () => import('../../../../locales/fr.json'),
-};
+const loaders: Partial<Record<Locale, () => Promise<{ default: unknown }>>> = Object.fromEntries(
+  Object.entries(files).map(([path, load]) => [path.split('/').pop()!.replace('.json', ''), load])
+);
 
 const dicts = $state<Partial<Record<Locale, Dict>>>({ en: enDict });
 
 async function loadDict(id: Locale): Promise<void> {
   if (dicts[id]) return;
-  const loader = loaders[id as Translated];
+  const loader = loaders[id];
   if (!loader) return;
   try {
     dicts[id] = flatten((await loader()).default);
@@ -54,6 +54,35 @@ function detect(): Locale {
 
 const initial = detect();
 let current = $state<Locale>(initial);
+
+const percentages = $state<Partial<Record<Locale, number>>>({});
+
+function coverage(dict: Dict): number {
+  let done = 0;
+  for (const key of enDict.keys()) {
+    if (dict.get(key)) done++;
+  }
+  return Math.floor((done / enDict.size) * 100);
+}
+
+export async function loadTranslationPercentages(): Promise<void> {
+  await Promise.all(
+    LOCALES.map(async ({ id }) => {
+      if (percentages[id] !== undefined || id == 'en') return;
+      const loader = loaders[id];
+      if (!loader) return;
+      try {
+        percentages[id] = coverage(flatten((await loader()).default));
+      } catch {
+        percentages[id] = 0;
+      }
+    })
+  );
+}
+
+export function translationPercentage(id: Locale): number | undefined {
+  return percentages[id];
+}
 
 export const localeReady = loadDict(initial);
 

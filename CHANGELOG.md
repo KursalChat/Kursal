@@ -6,6 +6,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.9] - 2026-08-19
+
+### Features
+
+- New icon! well just has a background now
+- Unlimited file size (+ ask to save)
+
+### Bug Fixes
+
+- Remove useless /chat page
+- Pending UI state shows on intentional dial only
+- Offline profile sharing waits for contact being online (large avatars)
+- Desktop phone loadout drag
+- Transparent avatars
+- UI avatar updating everywhere
+- Defer android permissions prompt
+- Toggle camera mirroring
+- Size issue + store self-avatar on disk
+- Language loading improvement (+ coverage %)
+- Small UI fixes + deps bump
+- Clearing logs
+- Avatar fallback
+- Cooldown presence dial loop
+
+### CI
+
+- Pre-commit check-format
+- Pre-commit formatting
+- Autodownload node modules & default relay config
+
+### Styling
+
+- Using oxfmt instead of prettier
+
+### Miscellaneous
+
+- Kursal is now on OpenCollective!
+- Remove migration code
+
+## [0.1.0-beta.8] - 2026-08-14
+
+### Bug Fixes
+
+- Svelte #each unique issues
+- Better UI update notifier
+- UI bugs
+- Include webview in RAM usage
+- Listening port applied
+- Bootstrap & kad fixes
+- Stats on the dashboard improvements
+- Expose health port on relay (4892)
+- Less active connections
+- Minor UI improvements & dependency bump
+- UI mobile keyboard flicker
+- Better QR code scanning for OTPs
+- Bluetooth speed & reliability
+
+### Performance
+
+- Split rust using feature cfg
+- Front general optimizations
+- Store avatars as files
+- Emoji rebuild (less disk usage)
+- Remove DB mutex, batch commits and cache
+- Faster OTP mining without compromising security
+
+### Refactor
+
+- Dashboard stats state on mobile
+
+### Documentation
+
+- Clarify RELAY hosting (health port and community)
+- Some docs in docs folder
+
+### CI
+
+- Allow longer commits bodies for dependabot...
+- Cache on dev branch
+
+### Miscellaneous
+
+- Changelog
+- Changelog
+- Backmerge release/0.1.0 into dev
+- Updated lockfile
+- Backmerge release/0.1.0 into dev
+
 ## [0.1.0-beta.6] - 2026-08-09
 
 ### Features

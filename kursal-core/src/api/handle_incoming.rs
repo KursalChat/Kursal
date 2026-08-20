@@ -394,7 +394,7 @@ pub async fn handle_incoming(
             let avatar = profile
                 .avatar_bytes
                 .as_deref()
-                .and_then(|bytes| crate::storage::avatars::store(bytes).ok());
+                .and_then(|bytes| crate::storage::avatars::store(&contact.user_id, bytes).ok());
             if let Some(updated) =
                 crate::messaging::offline::update_contact(&db, &contact.user_id, move |c| {
                     c.display_name = name;

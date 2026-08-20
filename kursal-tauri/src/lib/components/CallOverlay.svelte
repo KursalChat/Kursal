@@ -11,11 +11,13 @@
     Info,
     Video,
     VideoOff,
+    FlipHorizontal2,
   } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import Avatar from '$lib/components/Avatar.svelte';
   import { callState } from '$lib/state/call.svelte';
   import { contactsState } from '$lib/state/contacts.svelte';
+  import { prefsState } from '$lib/state/prefs.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { qualityKey, khz } from '$lib/utils/callQuality';
   import { createCallElapsed } from '$lib/utils/callElapsed.svelte';
@@ -100,6 +102,13 @@
     if (!callState.localVideo) localAr = DEFAULT_AR;
   });
 
+  const remoteTileAr = $derived(
+    callState.remoteVideo ? remoteAr : callState.localVideo ? localAr : DEFAULT_AR
+  );
+  const localTileAr = $derived(
+    callState.localVideo ? localAr : callState.remoteVideo ? remoteAr : DEFAULT_AR
+  );
+
   const cameraLabel = $derived(
     callState.cameraDenied
       ? t('chat.call.cameraDenied')
@@ -144,7 +153,7 @@
 
       {#if videoMode}
         <div class="tiles">
-          <div class="tile" style="--tile-ar:{remoteAr}">
+          <div class="tile" style="--tile-ar:{remoteTileAr}">
             {#if callState.remoteVideo}
               <canvas class="tile-media" bind:this={remoteCanvas}></canvas>
             {:else}
@@ -154,17 +163,25 @@
             {/if}
             <span class="tile-name">{contact.displayName}</span>
           </div>
-          <div class="tile" style="--tile-ar:{localAr}">
+          <div class="tile" style="--tile-ar:{localTileAr}">
             {#if callState.localVideo}
               <!-- svelte-ignore a11y_media_has_caption -->
               <video
-                class="tile-media mirrored"
+                class="tile-media"
+                class:mirrored={prefsState.mirrorSelfView}
                 bind:this={selfVideoEl}
                 muted
                 playsinline
                 onloadedmetadata={() =>
                   (localAr = clampAr(selfVideoEl?.videoWidth ?? 0, selfVideoEl?.videoHeight ?? 0))}
               ></video>
+              <button
+                class="tile-btn"
+                aria-pressed={prefsState.mirrorSelfView}
+                onclick={() => prefsState.toggleMirrorSelfView()}
+              >
+                <FlipHorizontal2 size={14} />
+              </button>
             {:else}
               <div class="tile-avatar">
                 <Avatar name={profileState.displayName} src={profileState.avatarPath} size={96} />
@@ -462,7 +479,6 @@
     transform: scale(calc(1 + var(--lvl, 0) * 1.15));
     opacity: calc(0.03 + var(--lvl, 0) * 0.25);
   }
-  /* ringing phases have no audio yet: breathe on a timer instead */
   .avatar-wrap.ringing .ring {
     animation: ring-pulse 1.8s ease-out infinite;
   }
@@ -493,6 +509,7 @@
   }
   .tile {
     position: relative;
+    width: 100%;
     aspect-ratio: var(--tile-ar, 16 / 9);
     max-width: calc(60vh * var(--tile-ar, 1.7778));
     margin-inline: auto;
@@ -517,6 +534,34 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+  .tile-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    opacity: 0.55;
+    transition:
+      opacity var(--transition),
+      color var(--transition);
+  }
+  .tile-btn:hover {
+    opacity: 1;
+    color: var(--text-primary);
+  }
+  @supports (background: color-mix(in srgb, red 50%, transparent)) {
+    .tile-btn {
+      background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    }
   }
   .tile-name {
     position: absolute;

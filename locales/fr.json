@@ -159,9 +159,6 @@
     "fileOpenCancel": "Annuler",
     "fileOpenConfirm": "Ouvrir",
     "fileOpenTitle": "Ouverture de {fileName}",
-    "noUpdatesConfirm": "OK",
-    "noUpdatesMessage": "Kursal est déjà sur la dernière version disponible.",
-    "noUpdatesTitle": "Vous êtes à jour",
     "updateAvailableCancel": "Plus tard",
     "updateAvailableConfirm": "Mettre à jour maintenant",
     "updateAvailableMessage": "Version {version} disponible. Vous êtes en {currentVersion}.",
@@ -378,14 +375,6 @@
       "you": "Vous"
     },
     "delayedMessages": "Aller à {count} plus tôt",
-    "empty": {
-      "addContactButton": "Ajouter un contact",
-      "hasContactsBody": "Choisissez un contact dans la barre latérale. Tous vos messages sont chiffrés de bout en bout.",
-      "hasContactsHeading": "Sélectionner une conversation",
-      "mascotAlt": "Mascotte Kursal",
-      "noContactsBody": "Ajoutez votre premier contact pour envoyer des messages chiffrés.",
-      "noContactsHeading": "Bienvenue sur Kursal"
-    },
     "fileConfirm": {
       "cancel": "Annuler",
       "captionAriaLabel": "Message à envoyer avec le fichier",
@@ -1097,6 +1086,11 @@
       "autoDownloadDescription": "L'acceptation auto s'arrête quand ce quota est atteint.",
       "avatarsDescription": "Photos de profil pour vous et vos contacts.",
       "avatarsRow": "Avatars",
+      "clearLogs": "Vider les journaux",
+      "clearLogsConfirm": "Vider",
+      "clearLogsConfirmDetail": "Les diagnostics des problèmes passés seront perdus. Les nouvelles entrées continuent d'être écrites.",
+      "clearLogsConfirmMessage": "Tous les journaux archivés et actifs sont supprimés.",
+      "clearLogsConfirmTitle": "Vider les journaux ?",
       "computeUsageButton": "Calculer l'utilisation",
       "computeUsageMessage": "Calcule l'utilisation en scannant les fichiers et messages de chaque contact. Peut prendre du temps.",
       "databaseSection": "Base de données",
@@ -1229,7 +1223,8 @@
   },
   "updateDownload": {
     "installing": "Installation…",
-    "titleVersion": "Téléchargement de {version}"
+    "titleVersion": "Téléchargement de {version}",
+    "upToDate": "À jour"
   },
   "winston": {
     "poke0": "salut",

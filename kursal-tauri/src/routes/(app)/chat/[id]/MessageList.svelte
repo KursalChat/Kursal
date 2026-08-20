@@ -233,15 +233,17 @@
     <div class="loading-older"><Spinner size={16} /></div>
   {/if}
   {#if isEmpty}
-    <EmptyChat
-      name={contact.displayName}
-      avatar={contact.avatarPath}
-      verified={contact.verified}
-      {sending}
-      canMessage={!contact.blocked && !terminated}
-      {onSayHi}
-      {onVerify}
-    />
+    <div class="empty-host">
+      <EmptyChat
+        name={contact.displayName}
+        avatar={contact.avatarPath}
+        verified={contact.verified}
+        {sending}
+        canMessage={!contact.blocked && !terminated}
+        {onSayHi}
+        {onVerify}
+      />
+    </div>
   {:else}
     <div class="msg-spacer"></div>
 
@@ -445,10 +447,6 @@
   .msg-group {
     margin-top: 6px;
   }
-  .msg-group:not(:has(:global(.msg-actions))) {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 64px;
-  }
   .msg-group + .msg-group {
     margin-top: 10px;
   }
@@ -464,6 +462,11 @@
 
   .msg-spacer {
     margin-top: auto;
+  }
+
+  .empty-host {
+    flex: 1 0 auto;
+    display: flex;
   }
   /* Real element (not padding) reserving room under the last message for the
      floating composer + queue bar. WebKit drops bottom padding from a scroll

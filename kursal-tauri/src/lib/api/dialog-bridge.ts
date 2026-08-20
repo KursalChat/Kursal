@@ -57,13 +57,6 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
         confirmLabel: t('backendDialog.updateInstalledConfirm'),
         cancelLabel: t('backendDialog.updateInstalledCancel'),
       };
-    case 'no_updates':
-      return {
-        ...base,
-        title: t('backendDialog.noUpdatesTitle'),
-        message: t('backendDialog.noUpdatesMessage'),
-        confirmLabel: t('backendDialog.noUpdatesConfirm'),
-      };
     case 'file_open_confirm':
       return {
         ...base,
@@ -90,6 +83,11 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
 }
 
 export async function handleBackendDialog(p: BackendDialogPayload): Promise<void> {
+  if (p.kind === 'no_updates') {
+    updateDownloadState.notice(t('updateDownload.upToDate'));
+    await dialogRespond(p.id, true);
+    return;
+  }
   if (p.kind === 'update_installed') updateDownloadState.reset();
   const confirmed = await confirmDialog(buildOptions(p));
   if (p.kind === 'update_available') {

@@ -2,10 +2,6 @@ import type { MessageResponse } from '$lib/types';
 import { log } from '$lib/utils/log';
 import { flushContact, pendingSyncKey } from '$lib/utils/pendingSync';
 import {
-  clearLegacyConversationState,
-  readLegacyConversationState,
-} from '$lib/utils/legacyConversationStore';
-import {
   getMessages,
   getMessagesAfter,
   getMessagesAround,
@@ -918,30 +914,6 @@ function createMessagesState() {
     delayedUnseen = {};
   }
 
-  async function migrateLegacy() {
-    const legacy = readLegacyConversationState();
-    if (!legacy) return;
-
-    for (const [contactId, ids] of Object.entries(legacy.delayedUnseen)) {
-      delayedUnseen = { ...delayedUnseen, [contactId]: ids };
-      await setDelayedUnseen(contactId, ids);
-    }
-
-    const anchors: [string, string | null][] = [
-      ...Object.entries(legacy.firstUnread),
-      ...legacy.unreadOnly.map((contactId): [string, null] => [contactId, null]),
-    ];
-    for (const [contactId, anchor] of anchors) {
-      const entry = await markContactUnread(contactId, anchor);
-      unreadByContact[contactId] = entry.count;
-      unreadCapped[contactId] = entry.capped;
-      if (entry.firstUnread) firstUnreadByContact[contactId] = entry.firstUnread;
-      await setContactMarkedUnread(contactId, false);
-    }
-
-    clearLegacyConversationState();
-  }
-
   // Seeds unread, delayed-unseen and pending-sync from the core on startup.
   async function hydrate() {
     const [unread, delayed, pending] = await Promise.allSettled([
@@ -970,8 +942,6 @@ function createMessagesState() {
     } else {
       log.error('Failed to load pending-sync', pending.reason);
     }
-
-    await migrateLegacy().catch((e) => log.error('Legacy conversation migration failed', e));
   }
 
   return {

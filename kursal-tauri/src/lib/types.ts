@@ -7,7 +7,7 @@ export interface ContactResponse {
   profileShared: boolean;
   blocked: boolean;
   createdAt: number;
-  avatarPath?: string | null; // absolute path to the stored webp file
+  avatarPath?: string | null; // absolute path to <userId>.webp, with a `?v=<mtime>` cache buster
   profileName?: string; // peer-chosen name; displayName may be a local alias
 }
 
@@ -36,7 +36,13 @@ export interface MessageResponse {
   // confirmed, awaiting fetch), delivered (peer reachable directly), offline_delivered
   // (peer fetched via DHT), failed (gave up).
   status:
-    'sending' | 'delivered' | 'failed' | 'queued' | 'queued_in_dht' | 'offline_delivered' | 'read';
+    | 'sending'
+    | 'delivered'
+    | 'failed'
+    | 'queued'
+    | 'queued_in_dht'
+    | 'offline_delivered'
+    | 'read';
   // Received messages only: true when fetched via the DHT-backed offline channel
   // rather than a live connection. Session-only, not persisted, so it won't
   // reappear on history reload; same degradation as offline_delivered.
@@ -208,7 +214,12 @@ export interface UpdateDownloadProgressPayload {
 }
 
 export type CallStatus =
-  'idle' | 'ringing_out' | 'ringing_in' | 'connecting' | 'connected' | 'ended';
+  | 'idle'
+  | 'ringing_out'
+  | 'ringing_in'
+  | 'connecting'
+  | 'connected'
+  | 'ended';
 
 export interface CallIncomingPayload {
   callId: string;

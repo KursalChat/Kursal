@@ -4,11 +4,13 @@ function createUpdateDownloadState() {
   let downloaded = $state(0);
   let total = $state<number | null>(null);
   let done = $state(false);
+  let message = $state<string | null>(null);
   let installTimer: ReturnType<typeof setTimeout> | undefined;
 
   function start(v: string | null) {
     clearTimeout(installTimer);
     active = true;
+    message = null;
     version = v;
     downloaded = 0;
     total = null;
@@ -30,6 +32,17 @@ function createUpdateDownloadState() {
     installTimer = setTimeout(reset, 60_000);
   }
 
+  function notice(text: string) {
+    clearTimeout(installTimer);
+    active = true;
+    message = text;
+    version = null;
+    downloaded = 0;
+    total = null;
+    done = false;
+    installTimer = setTimeout(reset, 4_000);
+  }
+
   function reset() {
     clearTimeout(installTimer);
     active = false;
@@ -37,6 +50,7 @@ function createUpdateDownloadState() {
     downloaded = 0;
     total = null;
     done = false;
+    message = null;
   }
 
   return {
@@ -55,9 +69,13 @@ function createUpdateDownloadState() {
     get done() {
       return done;
     },
+    get message() {
+      return message;
+    },
     start,
     setProgress,
     finish,
+    notice,
     reset,
   };
 }

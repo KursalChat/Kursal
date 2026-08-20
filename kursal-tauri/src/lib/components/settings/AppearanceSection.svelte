@@ -1,6 +1,14 @@
 <script lang="ts">
   import { Sun, Moon, Monitor, Check, Languages } from 'lucide-svelte';
-  import { t, locale, LOCALES, type Locale } from '$lib/i18n';
+  import { onMount } from 'svelte';
+  import {
+    t,
+    locale,
+    LOCALES,
+    translationPercentage,
+    loadTranslationPercentages,
+    type Locale,
+  } from '$lib/i18n';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
     appearanceState,
@@ -27,6 +35,8 @@
       desc: t('settings.appearance.messageLayoutFlatDesc'),
     },
   ]);
+
+  onMount(loadTranslationPercentages);
 
   async function openTranslate() {
     try {
@@ -93,7 +103,10 @@
   >
     <Select
       value={locale.current}
-      options={LOCALES.map((l: { id: Locale; label: string }) => ({ value: l.id, label: l.label }))}
+      options={LOCALES.map((l: { id: Locale; label: string }) => {
+        const percent = translationPercentage(l.id);
+        return { value: l.id, label: percent === undefined ? l.label : `${l.label} (${percent}%)` };
+      })}
       onchange={(v) => locale.set(v as Locale)}
     />
   </SettingRow>

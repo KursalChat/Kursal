@@ -3,13 +3,11 @@ set shell := ["bash", "-uc"]
 version := `./bin/version.sh`
 website := "~/Code/Kursal-Website/static"
 homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
+install_frontend_deps := if path_exists("kursal-tauri/node_modules") == "true" { "true" } else { "cd kursal-tauri && bun install --frozen-lockfile" }
 
 # @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
-tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" {
-    "bun run --cwd kursal-tauri tauri"
-} else {
-    "cargo tauri"
-}
+
+tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" { "bun run --cwd kursal-tauri tauri" } else if path_exists("kursal-tauri/node_modules") == "false" { "cd kursal-tauri && bun install --frozen-lockfile && bun run tauri" } else { "cargo tauri" }
 
 # list recipes
 default:
@@ -22,17 +20,16 @@ dev id="0":
 
 install-dev-tools:
     install-hooks
-    cd kursal-tauri && bun install --frozen-lockfile && cd ..
+    {{ install_frontend_deps }}
 
 install-hooks:
     git config core.hooksPath .githooks
-    chmod +x .githooks/pre-push .githooks/commit-msg
+    chmod +x .githooks/pre-push .githooks/commit-msg .githooks/pre-commit
     echo "✓ git hooks installed"
 
 # --- release ---
-
 # `just cut <v>` (prepare+build, local) -> test -> `just ship <v>`.
-# See RELEASING.md
+# See docs/RELEASING.md
 
 # prepare a stable/beta release: branch from dev, bump+tag, build
 cut v:
@@ -75,7 +72,8 @@ build-abseil:
     ./bin/build-abseil.sh
 
 build-frontend:
-    cd kursal-tauri && bun install --frozen-lockfile && bun run build
+    {{ install_frontend_deps }}
+    cd kursal-tauri && bun run build
 
 build-win: build-opus build-frontend
     ./bin/build-win.sh
@@ -113,7 +111,7 @@ publish-release:
 publish-relay:
     orb start || echo "orb start failed, continuing anyway"
     ./bin/build-relay.sh --push
-    gh release upload v{{ version }} ./dist/kursal-relay-{{ version }}-linux-*.tar.gz ./dist/kursal-relay-{{ version }}-linux-*.tar.gz.sha256 --clobber
+    gh release upload v{{ version }} ./dist/kursal-relay-linux-*.tar.gz ./dist/kursal-relay-linux-*.tar.gz.sha256 --clobber
 
 publish-beta-manifest:
     mkdir -p build
@@ -134,6 +132,14 @@ format-frontend:
 
 format-rust:
     cargo fmt -p kursal-cli -p kursal-core -p kursal-app
+
+check-format: check-format-frontend check-format-rust
+
+check-format-frontend:
+    cd kursal-tauri && bun run format:check
+
+check-format-rust:
+    cargo fmt -p kursal-cli -p kursal-core -p kursal-app -- --check
 
 # --- checks ---
 verify: check-rust (check-frontend "--strict")

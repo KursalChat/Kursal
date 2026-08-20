@@ -16,9 +16,7 @@ use crate::{
     network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, str_to_multiaddr},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
-        filetransfer::{
-            hash_file, incoming_root, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename,
-        },
+        filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
         get_timestamp_secs, image_metadata,
     },
 };
@@ -31,7 +29,6 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 
-pub const MAX_FILE_TRANSFER_BYTES: u64 = 100 * 1024 * 1024 * 1024;
 pub const STALE_TRANSFER_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
 const PROGRESS_LOG_EVERY: u64 = 1000;
 const PROGRESS_EVENTS_PER_TRANSFER: u64 = 2000;
@@ -143,79 +140,6 @@ pub async fn stage_outgoing(
 pub fn remove_outgoing_offer(app_data_dir: &Path, contact_hex: &str, offer_hex: &str) {
     let dir = outgoing_offer_dir(app_data_dir, contact_hex, offer_hex);
     let _ = std::fs::remove_dir_all(dir);
-}
-
-// TODO: remove migration in next version
-const BACKFILL_FLAG: &str = "!recvpath_backfilled";
-
-fn scan_completed_downloads(root: &Path) -> Vec<(String, String, String)> {
-    let Ok(contacts) = std::fs::read_dir(root) else {
-        return Vec::new();
-    };
-
-    let mut found = Vec::new();
-    for contact in contacts.flatten() {
-        let contact_hex = contact.file_name().to_string_lossy().into_owned();
-        let Ok(offers) = std::fs::read_dir(contact.path()) else {
-            continue;
-        };
-
-        for offer in offers.flatten() {
-            let offer_hex = offer.file_name().to_string_lossy().into_owned();
-            let Some(file) = std::fs::read_dir(offer.path())
-                .ok()
-                .and_then(|mut entries| {
-                    entries.find_map(|e| e.ok().filter(|e| e.path().is_file()))
-                })
-            else {
-                continue;
-            };
-
-            found.push((
-                contact_hex.clone(),
-                offer_hex,
-                file.path().to_string_lossy().into_owned(),
-            ));
-        }
-    }
-
-    found
-}
-
-pub async fn backfill_received_paths(db: SharedDatabase, app_data_dir: &Path) -> Result<()> {
-    if db.raw_read(TABLE_FILE_TRANSFERS, BACKFILL_FLAG)?.is_some() {
-        return Ok(());
-    }
-
-    let root = incoming_root(app_data_dir);
-    let found = tokio::task::spawn_blocking(move || scan_completed_downloads(&root))
-        .await
-        .unwrap_or_default();
-
-    let mut recovered = 0usize;
-    for (contact_hex, offer_hex, path) in found {
-        if db
-            .raw_read(
-                TABLE_FILE_TRANSFERS,
-                &format!("recvprog:{contact_hex}:{offer_hex}"),
-            )?
-            .is_some()
-        {
-            continue;
-        }
-
-        db.raw_write(
-            TABLE_FILE_TRANSFERS,
-            &received_path_key(&contact_hex, &offer_hex),
-            path.as_bytes(),
-        )?;
-        recovered += 1;
-    }
-
-    log::info!("[file] backfilled {recovered} completed download paths");
-    db.raw_write(TABLE_FILE_TRANSFERS, BACKFILL_FLAG, &[1u8])?;
-
-    Ok(())
 }
 
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {

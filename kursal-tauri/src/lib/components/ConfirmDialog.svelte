@@ -109,7 +109,7 @@
             <div class="section">
               <span class="section-title">{s.title}</span>
               <ul>
-                {#each s.items as item (item)}
+                {#each s.items as item}
                   <li>{item}</li>
                 {/each}
               </ul>

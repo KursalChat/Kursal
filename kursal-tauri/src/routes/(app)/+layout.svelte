@@ -73,7 +73,7 @@
           const removedId = e.payload.peerId;
           contactsState.remove(removedId);
           if (currentChatId === removedId) {
-            goto('/chat', { replaceState: true });
+            goto('/', { replaceState: true });
           }
         });
         if (disposed) fn();
@@ -167,7 +167,7 @@
     aria-hidden="true"
   ></div>
 
-  <div class="mobile-bar" class:hidden={!!currentChatId} data-tauri-drag-region>
+  <div class="mobile-bar" class:hidden={!!currentChatId} data-tauri-drag-region="deep">
     <button
       class="mobile-menu"
       onclick={() => (uiState.mobileSidebarOpen = true)}
@@ -185,7 +185,7 @@
 
   <main class="content" class:offline={isOffline}>
     {#if isOffline}
-      <div class="offline-banner" role="status">
+      <div class="offline-banner" role="status" data-tauri-drag-region>
         <span class="offline-dot"></span>
         <span>{t('layout.bannerOffline')}</span>
       </div>
@@ -225,8 +225,12 @@
     font-size: 12.5px;
     font-weight: 600;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-    pointer-events: none;
+    user-select: none;
+    cursor: default;
     animation: offline-banner-in 220ms ease;
+  }
+  .offline-banner > * {
+    pointer-events: none;
   }
   .offline-dot {
     width: 8px;
@@ -324,6 +328,9 @@
     .mobile-bar.hidden {
       display: none;
     }
+    :global(html.mac) .mobile-bar {
+      padding-left: 78px;
+    }
     .mobile-menu {
       width: 40px;
       height: 40px;
@@ -337,8 +344,14 @@
       background: var(--bg-hover);
     }
     .mobile-title {
-      flex: 1;
-      text-align: center;
+      position: absolute;
+      left: 50%;
+      top: var(--safe-top);
+      bottom: 0;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
       font-size: 16px;
       font-weight: 700;
     }

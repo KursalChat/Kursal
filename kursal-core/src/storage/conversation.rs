@@ -1,8 +1,6 @@
 use super::db::{Database, TABLE_CONVERSATION};
 use crate::Result;
 
-// TODO: remove this in next version, like just migrate once
-const MIGRATED_KEY: &str = "!read_cursor_migrated";
 const PENDING_SYNC_DELETE: u8 = 1u8;
 
 fn suffix_after_prefix(key: &str, prefix: &str) -> Option<String> {
@@ -38,6 +36,23 @@ pub fn set_marked_unread(db: &Database, contact_id: &str, value: bool) -> Result
         db.raw_write_deferred(TABLE_CONVERSATION, &key, &[1u8])?;
     } else {
         db.raw_delete_deferred(TABLE_CONVERSATION, &key)?;
+    }
+    Ok(())
+}
+
+pub fn get_profile_stale(db: &Database, contact_id: &str) -> bool {
+    matches!(
+        db.raw_read(TABLE_CONVERSATION, &format!("profile_stale:{contact_id}")),
+        Ok(Some(bytes)) if bytes == [1u8]
+    )
+}
+
+pub fn set_profile_stale(db: &Database, contact_id: &str, value: bool) -> Result<()> {
+    let key = format!("profile_stale:{contact_id}");
+    if value {
+        db.raw_write(TABLE_CONVERSATION, &key, &[1u8])?;
+    } else {
+        db.raw_delete(TABLE_CONVERSATION, &key)?;
     }
     Ok(())
 }
@@ -137,32 +152,11 @@ pub fn clear_pending_sync_for(db: &Database, contact_id: &str) -> Result<Vec<Str
     Ok(finalized_deletes)
 }
 
-pub fn read_cursors_migrated(db: &Database) -> bool {
-    matches!(
-        db.raw_read(TABLE_CONVERSATION, MIGRATED_KEY),
-        Ok(Some(bytes)) if bytes == [1u8]
-    )
-}
-
-pub fn seed_read_cursors(db: &Database, cursors: &[(String, String)]) -> Result<()> {
-    let mut entries: Vec<(String, Vec<u8>)> = cursors
-        .iter()
-        .map(|(contact_id, message_id)| {
-            (
-                format!("read_cursor:{contact_id}"),
-                message_id.as_bytes().to_vec(),
-            )
-        })
-        .collect();
-    entries.push((MIGRATED_KEY.to_string(), vec![1u8]));
-
-    db.raw_write_many(TABLE_CONVERSATION, &entries)
-}
-
 pub fn delete_for_contact(db: &Database, contact_id: &str) -> Result<()> {
     db.raw_delete(TABLE_CONVERSATION, &format!("read_cursor:{contact_id}"))?;
     db.raw_delete(TABLE_CONVERSATION, &format!("marked_unread:{contact_id}"))?;
     db.raw_delete(TABLE_CONVERSATION, &format!("delayed_unseen:{contact_id}"))?;
+    db.raw_delete(TABLE_CONVERSATION, &format!("profile_stale:{contact_id}"))?;
     db.raw_delete_prefix(TABLE_CONVERSATION, &format!("pending_sync:{contact_id}:"))?;
     Ok(())
 }
@@ -171,6 +165,7 @@ pub fn delete_all(db: &Database) -> Result<()> {
     db.raw_delete_prefix(TABLE_CONVERSATION, "read_cursor:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "marked_unread:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "delayed_unseen:")?;
+    db.raw_delete_prefix(TABLE_CONVERSATION, "profile_stale:")?;
     db.raw_delete_prefix(TABLE_CONVERSATION, "pending_sync:")?;
     Ok(())
 }

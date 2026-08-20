@@ -414,6 +414,7 @@ impl SwarmHandle {
                 ConnectionId,
                 oneshot::Sender<std::result::Result<(), String>>,
             > = HashMap::new();
+            let mut intentional_dials: HashMap<ConnectionId, PeerId> = HashMap::new();
             let mut listen_addresses: HashSet<Multiaddr> = HashSet::new();
             let mut nearby_enabled = false;
             let mut mdns_peers: HashMap<PeerId, Multiaddr> = HashMap::new();
@@ -441,7 +442,7 @@ impl SwarmHandle {
 
             loop {
                 tokio::select! {
-                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &peer_streams, &validated_tx).await,
+                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &peer_streams, &validated_tx).await,
                     Some(record) = validated_rx.recv() => {
                         if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
                             log::debug!("[kad] validated record not stored: {err:?}");
@@ -458,7 +459,7 @@ impl SwarmHandle {
 
                                 log::info!("Nearby enabled ({} known mdns peers)", mdns_peers.len());
                             },
-                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
+                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
                             None => break
                         }
                     }

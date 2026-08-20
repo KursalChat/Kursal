@@ -299,7 +299,7 @@
                 <div class="group" data-kind={group.kind}>
                   <span class="group-title">{groupLabel(group.kind)}</span>
                   <ul>
-                    {#each group.items as item (item)}
+                    {#each group.items as item}
                       <li>{item}</li>
                     {/each}
                   </ul>
@@ -327,7 +327,7 @@
                           <div class="group" data-kind={group.kind}>
                             <span class="group-title">{groupLabel(group.kind)}</span>
                             <ul>
-                              {#each group.items as item (item)}
+                              {#each group.items as item}
                                 <li>{item}</li>
                               {/each}
                             </ul>
@@ -350,6 +350,7 @@
   .home {
     flex: 1;
     overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
     padding: 24px max(24px, var(--safe-right)) calc(24px + var(--safe-bottom))
       max(24px, var(--safe-left));
     display: flex;

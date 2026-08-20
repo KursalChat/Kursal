@@ -23,7 +23,6 @@ pub struct BackgroundState {
     pub transfer_active: AtomicBool,
     pub quit_when_idle: AtomicBool,
     pub close_explainer_pending: AtomicBool,
-    pub node_stats_task: StdMutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 pub enum PendingSignal {
@@ -156,18 +155,17 @@ pub fn close_to_background(app: &AppHandle, until_idle: bool) {
     }
 }
 
+fn tray_icon() -> Image<'static> {
+    tauri::include_image!("icons/tray.png")
+}
+
 pub fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     if app.tray_by_id(TRAY_ID).is_some() {
         return Ok(());
     }
 
-    let Some(icon) = app.default_window_icon().cloned() else {
-        log::error!("[tray] no default window icon, skipping tray setup");
-        return Ok(());
-    };
-
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon)
+        .icon(tray_icon())
         .tooltip("Kursal")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -290,14 +288,13 @@ fn apply_tray(
     )?;
     tray.set_menu(Some(menu))?;
 
-    if let Some(base) = app.default_window_icon() {
-        let (w, h) = (base.width(), base.height());
-        let mut rgba = base.rgba().to_vec();
-        if unread > 0 {
-            stamp_dot(&mut rgba, w, h);
-        }
-        tray.set_icon(Some(Image::new_owned(rgba, w, h)))?;
+    let base = tray_icon();
+    let (w, h) = (base.width(), base.height());
+    let mut rgba = base.rgba().to_vec();
+    if unread > 0 {
+        stamp_dot(&mut rgba, w, h);
     }
+    tray.set_icon(Some(Image::new_owned(rgba, w, h)))?;
 
     Ok(())
 }

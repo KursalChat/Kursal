@@ -276,7 +276,7 @@
     try {
       await removeContact(userId);
       contactsState.remove(userId);
-      if (currentChatId === userId) goto('/chat', { replaceState: true });
+      if (currentChatId === userId) goto('/', { replaceState: true });
     } catch (e) {
       log.error('delete contact failed', e);
     }
@@ -577,7 +577,7 @@
       <span>{t('chat.call.systemDefault')}</span>
       {#if selected === null}<Check size={13} />{/if}
     </button>
-    {#each items as name (name)}
+    {#each items as name}
       <button class="ctl-opt" class:sel={selected === name} onclick={() => pickDevice(kind, name)}>
         <span>{name}</span>
         {#if selected === name}<Check size={13} />{/if}
@@ -1238,8 +1238,10 @@
   }
 
   .sync-slot {
-    padding: 4px 14px 6px;
     min-width: 0;
+  }
+  .sync-slot :global(.offline-sync) {
+    margin: 4px 14px 6px;
   }
 
   @media (max-width: 768px) {
@@ -1255,7 +1257,13 @@
       max-width: 86vw;
       z-index: 60;
       transform: translateX(-100%);
-      transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+      transition:
+        transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: none;
+    }
+    .sidebar.open,
+    .sidebar.dragging {
       box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
     }
     .sidebar.open {

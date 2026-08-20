@@ -25,7 +25,16 @@
       .join('')
   );
 
-  const imgSrc = $derived(src ? (src.startsWith('data:') ? src : convertFileSrc(src)) : null);
+  const imgSrc = $derived.by(() => {
+    if (!src) return null;
+    if (src.startsWith('data:')) return src;
+    const q = src.lastIndexOf('?');
+    if (q === -1) return convertFileSrc(src);
+    return convertFileSrc(src.slice(0, q)) + src.slice(q);
+  });
+
+  let failedSrc = $state<string | null>(null);
+  const showImg = $derived(!!imgSrc && failedSrc !== imgSrc);
 
   const statusColor = $derived.by(() => {
     if (!status) return 'var(--text-muted)';
@@ -51,10 +60,15 @@
   <div
     class="avatar"
     style="width:{size}px;height:{size}px;font-size:{size * 0.38}px;
-           {imgSrc ? '' : `background:hsl(${hue},45%,30%);color:hsl(${hue},70%,85%)`}"
+           {showImg ? '' : `background:hsl(${hue},45%,30%);color:hsl(${hue},70%,85%)`}"
   >
-    {#if imgSrc}
-      <img src={imgSrc} alt="{name}'s avatar" draggable="false" />
+    {#if showImg}
+      <img
+        src={imgSrc}
+        alt="{name}'s avatar"
+        draggable="false"
+        onerror={() => (failedSrc = imgSrc)}
+      />
     {:else}
       {initials || '?'}
     {/if}

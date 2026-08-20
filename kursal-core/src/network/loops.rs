@@ -2,7 +2,7 @@ use crate::{
     api::{
         AppEvent, ConnectionStatus, PollTrigger,
         file_transfers::{STALE_TRANSFER_MAX_AGE_SECS, cleanup_stale_transfers},
-        poll_contact_offline,
+        poll_contact_offline, resend_stale_profile,
     },
     contacts::Contact,
     first_contact::ltc::LtcState,
@@ -32,6 +32,8 @@ const OFFLINE_SWEEP_COOLDOWN_SECS: u64 = 10 * 60;
 const OFFLINE_REPUBLISH_SECS: u64 = 3 * 60 * 60;
 const OFFLINE_POLL_STAGGER_MS: u64 = 1000;
 const PRESENCE_DIAL_INTERVAL_SECS: u64 = 3 * 60;
+const PRESENCE_DIAL_MAX_BACKOFF_SECS: u64 = 30 * 60;
+const PRESENCE_DIAL_MAX_DOUBLINGS: u32 = 8;
 const PRESENCE_DIAL_STAGGER_MS: u64 = 250;
 const RELAY_RESERVE_INTERVAL_SECS: u64 = 30;
 const PRESENCE_SYNC_INTERVAL_SECS: u64 = 10;
@@ -144,11 +146,39 @@ pub(super) async fn relay_reserve_loop(network: Arc<Mutex<NetworkManager>>) {
     }
 }
 
+struct DialBackoff {
+    failures: u32,
+    next_attempt: tokio::time::Instant,
+}
+
+impl DialBackoff {
+    fn fresh(now: tokio::time::Instant) -> Self {
+        Self {
+            failures: 0,
+            next_attempt: now,
+        }
+    }
+
+    fn defer(&mut self, now: tokio::time::Instant) {
+        self.failures = self.failures.saturating_add(1);
+        let doublings = self
+            .failures
+            .min(PRESENCE_DIAL_MAX_DOUBLINGS)
+            .saturating_sub(1);
+        let delay = PRESENCE_DIAL_INTERVAL_SECS
+            .saturating_mul(1u64 << doublings)
+            .min(PRESENCE_DIAL_MAX_BACKOFF_SECS);
+        self.next_attempt = now + Duration::from_secs(delay);
+    }
+}
+
 pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<NetworkManager>>) {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     let mut interval = tokio::time::interval(Duration::from_secs(PRESENCE_DIAL_INTERVAL_SECS));
     interval.tick().await;
+
+    let mut backoff: HashMap<PeerId, DialBackoff> = HashMap::new();
 
     loop {
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
@@ -161,10 +191,20 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
             }
         };
 
+        let peer_kinds = crate::network::swarm::get_peer_connection_kinds(&cmd_tx).await;
+        let mut roster: HashSet<PeerId> = HashSet::new();
+
         for contact in contacts {
             let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
                 continue;
             };
+            roster.insert(peer_id);
+
+            if peer_kinds.contains_key(&peer_id) {
+                backoff.remove(&peer_id);
+                continue;
+            }
+
             let addresses: Vec<libp2p::Multiaddr> = contact
                 .known_addresses
                 .iter()
@@ -173,11 +213,23 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
             if addresses.is_empty() {
                 continue;
             }
+
+            let now = tokio::time::Instant::now();
+            let state = backoff
+                .entry(peer_id)
+                .or_insert_with(|| DialBackoff::fresh(now));
+            if state.next_attempt > now {
+                continue;
+            }
+            state.defer(now);
+
             let _ = cmd_tx
                 .send(SwarmCommand::DialPeer { peer_id, addresses })
                 .await;
             tokio::time::sleep(Duration::from_millis(PRESENCE_DIAL_STAGGER_MS)).await;
         }
+
+        backoff.retain(|peer_id, _| roster.contains(peer_id));
 
         interval.tick().await;
     }
@@ -251,6 +303,8 @@ pub(super) async fn periodic_offline_poll(
             {
                 log::warn!("[offline] periodic flush failed: {err}");
             }
+
+            resend_stale_profile(&contact.user_id, db.clone(), &cmd_tx, Some(&event_tx)).await;
 
             if do_republish
                 && let Err(err) = republish_pending(&contact.user_id, &cmd_tx, db.clone()).await
