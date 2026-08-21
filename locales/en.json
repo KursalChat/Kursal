@@ -268,47 +268,41 @@
     "contactAvatarUpdated": "{name} updated their profile picture"
   },
   "onboarding": {
-    "stepProgress": "Step {current} of {total}",
     "skip": "Skip",
-    "screen1": {
+    "back": "Back",
+    "hello": {
       "heading": "Hi. I'm Winston.",
       "subtitle": "And I believe privacy is fundamental.",
-      "continue": "Continue",
+      "cta": "Show me",
       "skip": "I know what I'm doing",
       "skipTooltip": "you probably don't! follow the guide :p"
     },
-    "screen2": {
-      "line1": "Today, your messages are not yours.",
-      "line2": "Stored. Scanned. Sold.",
-      "line3": "You don't own what you say anymore.",
-      "cta": "Discover Kursal"
+    "middleman": {
+      "lead": "Your messages go through a company first.",
+      "note": "They hold them and ask you to trust them.",
+      "cta": "So what's different?"
     },
-    "screen3": {
-      "line1": "Your message goes straight to them.",
-      "line2": "Encrypted before it leaves your device.",
-      "line3": "Only they can read it.",
-      "cta": "Next"
+    "direct": {
+      "lead": "Kursal hands it straight across.",
+      "note": "Sealed before it leaves. Nothing in the middle to break into.",
+      "cta": "And my account?"
     },
-    "screen4": {
-      "line1": "No server to hack.",
-      "line2": "No database to leak.",
-      "line3": "We don't store your messages. We never see them.",
-      "cta": "Next",
-      "serverOnline": "ONLINE",
-      "serverError": "ERROR · 0xDEAD",
-      "serverOffline": "OFFLINE"
+    "noAccounts": {
+      "lead": "There is no account.",
+      "note": "No email, no password. You add someone by trading eight words.",
+      "cta": "Set me up"
     },
-    "screen5": {
-      "line1": "This is what private actually looks like.",
-      "line2": "Let's make it yours.",
-      "cta": "Let's go",
-      "namePlaceholder": "Your username",
+    "profile": {
+      "lead": "So, who are you?",
+      "note": "Only people you add will see this.",
+      "greeting": "Hey, {name}!",
+      "namePlaceholder": "Your name",
       "nameHint": "You can change this later in Settings.",
       "uploadPhoto": "Upload a photo",
       "removePhoto": "Remove photo",
       "errorPickName": "Pick a name first",
-      "errorBroadcastFailed": "Saved locally but broadcast failed",
       "saving": "Saving…",
+      "cta": "Let's go",
       "consentPrefix": "By continuing, you agree to the",
       "consentLink": "Terms of Service"
     }
@@ -723,6 +717,8 @@
       "cameraOff": "Stop camera",
       "cameraDenied": "Camera blocked",
       "cameraDeniedToast": "Camera access was denied. Check system permissions.",
+      "selectCamera": "Select camera",
+      "mirrorSelfView": "Mirror self view",
       "micDeniedToast": "Microphone access is required for calls. Check system permissions.",
       "videoUnavailableToast": "Video is unavailable for this call.",
       "videoUnsupported": "Video calls are not supported on this device.",
