@@ -9,7 +9,6 @@ export interface AppLockConfig {
 }
 
 export interface RelayConfig {
-  enabled: boolean;
   maxConnections: number;
   maxConnectionsPerIp: number;
 }
@@ -99,10 +98,18 @@ export const removeCustomNode = (addr: string): Promise<void> =>
   invoke('remove_custom_node', { addr });
 export const dialAddress = (addr: string): Promise<void> => invoke('dial_address', { addr });
 
+export type Reachability = 'checking' | 'private' | 'public';
+
 export interface NetworkStatus {
   peerCount: number;
   connectedPeers: string[];
   listenAddresses: string[];
+  reachability: Reachability;
+  dhtServer: boolean;
+  relayActive: boolean;
+  reservations: number;
+  circuits: number;
+  port: number;
 }
 export const getNetworkStatus = (): Promise<NetworkStatus> => invoke('get_network_status');
 

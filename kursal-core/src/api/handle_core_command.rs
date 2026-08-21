@@ -1079,8 +1079,11 @@ pub async fn handle_core_command(
             reply.send(result).ok();
         }
         CoreCommand::NetworkStatus { reply } => {
-            let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-            let result = crate::api::nodes::network_status(cmd_tx).await;
+            let (cmd_tx, port) = {
+                let guard = network.lock().await;
+                (guard.primary.cmd_tx.clone(), guard.primary.port)
+            };
+            let result = crate::api::nodes::network_status(cmd_tx, port).await;
             reply.send(result).ok();
         }
 

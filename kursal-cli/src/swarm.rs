@@ -11,6 +11,7 @@ use kursal_core::{
         bootstrap::bootstrap_peers,
         kademlia::{KAD_MAX_PACKET, KAD_VALIDATED_QUEUE, KursalKadStore, spawn_record_validation},
         limiter::ConnectionLimiter,
+        swarm::relay_provider_key,
     },
 };
 use libp2p::{
@@ -37,6 +38,7 @@ pub struct KursalBehaviour {
     pub relay: libp2p::relay::Behaviour,
     pub kad: libp2p::kad::Behaviour<KursalKadStore>,
     pub identify: libp2p::identify::Behaviour,
+    pub autonat: libp2p::autonat::v2::server::Behaviour,
     pub limiter: ConnectionLimiter,
     pub ping: libp2p::ping::Behaviour,
 }
@@ -183,6 +185,7 @@ pub async fn spawn_relay_swarm(
                     identify,
                     kad,
                     relay,
+                    autonat: libp2p::autonat::v2::server::Behaviour::default(),
                     limiter,
                     ping,
                 })
@@ -270,12 +273,24 @@ pub async fn spawn_relay_swarm(
     let (validated_tx, mut validated_rx) =
         mpsc::channel::<libp2p::kad::Record>(KAD_VALIDATED_QUEUE);
 
+    let mut advertised = false;
+    let mut advertise = tokio::time::interval(Duration::from_secs(30));
+
     loop {
         tokio::select! {
             event = swarm.select_next_some() => handle_swarm_event(event, &mut swarm, &mut state, &validated_tx).await,
             Some(record) = validated_rx.recv() => {
                 if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
                     log::debug!("[kad] validated record not stored: {err:?}");
+                }
+            }
+            _ = advertise.tick(), if !advertised => {
+                match swarm.behaviour_mut().kad.start_providing(relay_provider_key()) {
+                    Ok(_) => {
+                        advertised = true;
+                        log::info!("[relay] advertising as a relay provider in the DHT");
+                    }
+                    Err(err) => log::debug!("[relay] provider advertisement deferred: {err:?}"),
                 }
             }
             _ = tokio::signal::ctrl_c() => {
@@ -410,6 +425,7 @@ pub enum KursalBehaviourEvent {
     Relay(libp2p::relay::Event),
     Kad(libp2p::kad::Event),
     Identify(libp2p::identify::Event),
+    Autonat(libp2p::autonat::v2::server::Event),
     Limiter(Infallible),
     Ping(libp2p::ping::Event),
 }
@@ -427,6 +443,11 @@ impl From<libp2p::kad::Event> for KursalBehaviourEvent {
 impl From<libp2p::identify::Event> for KursalBehaviourEvent {
     fn from(value: libp2p::identify::Event) -> Self {
         Self::Identify(value)
+    }
+}
+impl From<libp2p::autonat::v2::server::Event> for KursalBehaviourEvent {
+    fn from(value: libp2p::autonat::v2::server::Event) -> Self {
+        Self::Autonat(value)
     }
 }
 impl From<Infallible> for KursalBehaviourEvent {

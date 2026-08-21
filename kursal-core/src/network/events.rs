@@ -18,7 +18,7 @@ use crate::{
     },
     network::{
         NetworkManager,
-        swarm::{ConnectionKind, NetworkEvent, SwarmCommand},
+        swarm::{ConnectionKind, NetworkEvent, Reachability, SwarmCommand},
     },
     storage::SharedDatabase,
 };
@@ -572,6 +572,20 @@ pub(super) async fn handle_internal_network_event(
         }
 
         NetworkEvent::DhtFetchResult { .. } => { /* nothing happens here */ }
+
+        NetworkEvent::ReachabilityChanged { reachability } => {
+            app_event_tx
+                .send(AppEvent::ReachabilityChanged {
+                    reachability: match reachability {
+                        Reachability::Checking => "checking",
+                        Reachability::Private => "private",
+                        Reachability::Public => "public",
+                    }
+                    .to_string(),
+                })
+                .await
+                .ok();
+        }
 
         NetworkEvent::SendFailed { peer_id } => {
             let peer_id_str = peer_id.to_base58();

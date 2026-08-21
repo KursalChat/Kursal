@@ -1,10 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
-  import { platform } from '@tauri-apps/plugin-os';
-  import { Network } from 'lucide-svelte';
   import { t } from '$lib/i18n';
-  import { settingsState } from '$lib/state/settings.svelte';
 
   const SLOT_COUNT = 3;
 
@@ -18,8 +13,7 @@
     line1: 5600,
     line2: 7200,
     line3: 8900,
-    relay: 10100,
-    button: 10800,
+    button: 10100,
   };
 
   type Props = {
@@ -38,31 +32,7 @@
   let showLine1 = $state(false);
   let showLine2 = $state(false);
   let showLine3 = $state(false);
-  let showRelay = $state(false);
   let showButton = $state(false);
-
-  let isMobile = $state(false);
-  let relayEnabled = $state(true);
-
-  onMount(() => {
-    try {
-      const p = platform();
-      isMobile = p === 'android' || p === 'ios';
-    } catch {
-      isMobile = false;
-    }
-    if (isMobile) relayEnabled = false;
-    void settingsState.load();
-  });
-
-  function handleNext() {
-    if (!isMobile) {
-      void settingsState
-        .setRelay({ ...settingsState.relay, enabled: relayEnabled })
-        .catch((e) => log.error('Failed to save relay config', e));
-    }
-    onNext();
-  }
 
   $effect(() => {
     const timers = [
@@ -75,7 +45,6 @@
       setTimeout(() => (showLine1 = true), T.line1),
       setTimeout(() => (showLine2 = true), T.line2),
       setTimeout(() => (showLine3 = true), T.line3),
-      setTimeout(() => (showRelay = true), T.relay),
       setTimeout(() => (showButton = true), T.button),
     ];
     return () => timers.forEach(clearTimeout);
@@ -202,37 +171,8 @@
     </div>
   </div>
 
-  {#if !isMobile}
-    <div class="relay-card" class:show={showRelay} aria-hidden={!showRelay}>
-      <div class="relay-icon" aria-hidden="true">
-        <Network size={18} strokeWidth={2.2} />
-      </div>
-      <div class="relay-text">
-        <div class="relay-title">{t('onboarding.screen4.relayCardTitle')}</div>
-        <div class="relay-desc">{t('onboarding.screen4.relayCardDescription')}</div>
-      </div>
-      <div class="relay-toggle-wrap">
-        {#if !relayEnabled}
-          <span class="relay-sad" aria-hidden="true">{t('onboarding.screen4.relaySadFace')}</span>
-        {/if}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={relayEnabled}
-          aria-label={t('onboarding.screen4.relayCardTitle')}
-          class="relay-toggle"
-          data-on={relayEnabled}
-          tabindex={showRelay ? 0 : -1}
-          onclick={() => (relayEnabled = !relayEnabled)}
-        >
-          <span class="relay-thumb"></span>
-        </button>
-      </div>
-    </div>
-  {/if}
-
   <div class="actions" class:show={showButton}>
-    <button class="next" onclick={handleNext} tabindex={showButton ? 0 : -1}>
+    <button class="next" onclick={onNext} tabindex={showButton ? 0 : -1}>
       <span>{t('onboarding.screen4.cta')}</span>
       <svg
         width="18"
@@ -725,123 +665,6 @@
     }
   }
 
-  .relay-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    width: min(400px, 100%);
-    padding: 14px 16px;
-    border-radius: var(--radius-md);
-    background: rgba(14, 22, 50, 0.55);
-    border: 1px solid rgba(123, 163, 247, 0.22);
-    box-shadow:
-      0 0 0 1px rgba(123, 163, 247, 0.08),
-      0 8px 24px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(8px);
-    opacity: 0;
-    transform: translateY(8px);
-    pointer-events: none;
-    transition:
-      opacity 600ms ease,
-      transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .relay-card.show {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-  .relay-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-md);
-    background: linear-gradient(135deg, rgba(46, 91, 215, 0.35), rgba(123, 163, 247, 0.18));
-    color: #a5c4ff;
-    flex-shrink: 0;
-  }
-  .relay-text {
-    flex: 1;
-    min-width: 0;
-  }
-  .relay-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #e8eeff;
-    letter-spacing: 0.005em;
-    margin-bottom: 2px;
-  }
-  .relay-desc {
-    font-size: 12px;
-    color: rgba(200, 215, 255, 0.62);
-    line-height: 1.4;
-  }
-  .relay-toggle-wrap {
-    position: relative;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-  }
-  .relay-sad {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 13px;
-    font-weight: 700;
-    color: #ffb07a;
-    text-shadow: 0 0 8px rgba(255, 122, 61, 0.45);
-    pointer-events: none;
-    animation: sadDrop 320ms cubic-bezier(0.22, 1, 0.36, 1);
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-  @keyframes sadDrop {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-  }
-  .relay-toggle {
-    position: relative;
-    width: 40px;
-    height: 24px;
-    border-radius: var(--radius-md);
-    background: rgba(20, 26, 48, 0.85);
-    border: 1px solid rgba(123, 163, 247, 0.25);
-    padding: 0;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition:
-      background 180ms ease,
-      border-color 180ms ease,
-      box-shadow 180ms ease;
-  }
-  .relay-toggle[data-on='true'] {
-    background: linear-gradient(135deg, #2e5bd7 0%, #1e50e5 100%);
-    border-color: rgba(123, 163, 247, 0.6);
-    box-shadow: 0 0 14px rgba(46, 91, 215, 0.45);
-  }
-  .relay-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .relay-toggle[data-on='true'] .relay-thumb {
-    transform: translateX(16px);
-  }
-
   .actions {
     display: flex;
     gap: 12px;
@@ -909,16 +732,6 @@
       height: 72px;
       right: 6%;
       bottom: 8px;
-    }
-    .relay-card {
-      padding: 12px;
-      gap: 10px;
-    }
-    .relay-title {
-      font-size: 12px;
-    }
-    .relay-desc {
-      font-size: 11px;
     }
   }
 </style>

@@ -1,5 +1,6 @@
 use super::{
-    ConnectionKind, PeerStreams, STREAM_PROTOCOL, StreamWrite, SwarmCommand, lock_peer_streams,
+    ConnectionKind, ContributionStatus, PeerStreams, Reachability, STREAM_PROTOCOL, StreamWrite,
+    SwarmCommand, lock_peer_streams,
 };
 use crate::MapKursalResult;
 use crate::{KursalError, Result};
@@ -62,6 +63,25 @@ pub async fn get_peer_connection_kinds(
     rx.await.unwrap_or_default()
 }
 
+pub async fn get_contribution(cmd_tx: &mpsc::Sender<SwarmCommand>) -> ContributionStatus {
+    let unknown = ContributionStatus {
+        reachability: Reachability::Checking,
+        dht_server: false,
+        relay_active: false,
+        reservations: 0,
+        circuits: 0,
+    };
+    let (tx, rx) = oneshot::channel();
+    if cmd_tx
+        .send(SwarmCommand::GetContribution { reply_tx: tx })
+        .await
+        .is_err()
+    {
+        return unknown;
+    }
+    rx.await.unwrap_or(unknown)
+}
+
 pub async fn get_all_listen_addrs(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Vec<Multiaddr> {
     let (tx, rx) = oneshot::channel();
     if cmd_tx
@@ -90,8 +110,18 @@ pub async fn get_listen_addrs(cmd_tx: &mpsc::Sender<SwarmCommand>) -> Result<Vec
         .collect())
 }
 
-fn is_circuit(addr: &Multiaddr) -> bool {
+pub fn reserved_relay_count(listen_addresses: &std::collections::HashSet<Multiaddr>) -> usize {
+    listen_addresses.iter().filter(|a| is_circuit(a)).count()
+}
+
+pub fn is_circuit(addr: &Multiaddr) -> bool {
     addr.iter().any(|proto| proto == Protocol::P2pCircuit)
+}
+
+pub fn any_public_address<'a>(addrs: impl Iterator<Item = &'a Multiaddr>) -> bool {
+    addrs
+        .into_iter()
+        .any(|addr| !is_circuit(addr) && is_routable_multiaddr(addr))
 }
 
 pub fn str_to_multiaddr(addresses: &[String]) -> Result<Vec<Multiaddr>> {
@@ -146,6 +176,19 @@ pub async fn open_peer_stream(
 
     lock_peer_streams(peer_streams).insert(peer_id, tx.clone());
     Some(tx)
+}
+
+pub fn peer_of(addr: &Multiaddr) -> Option<PeerId> {
+    match addr.iter().last() {
+        Some(Protocol::P2p(id)) => Some(id),
+        _ => None,
+    }
+}
+
+pub fn is_node_peer(node_addrs: &[Multiaddr], peer_id: &PeerId) -> bool {
+    node_addrs
+        .iter()
+        .any(|addr| peer_of(addr).as_ref() == Some(peer_id))
 }
 
 pub fn dial_error_summary(error: &DialError) -> String {

@@ -1,8 +1,9 @@
 use super::{
-    CALL_PROTOCOL, ConnectionKind, KursalBehaviour, PeerStreams, SwarmCommand, VIDEO_PROTOCOL,
-    helpers::open_peer_stream, lock_peer_streams,
+    CALL_PROTOCOL, ConnectionKind, ContributionStatus, KursalBehaviour, MAX_RELAY_RESERVATIONS,
+    PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL, best_relay_candidates,
+    helpers::{open_peer_stream, peer_of, reserved_relay_count},
+    lock_peer_streams, relay_provider_key,
 };
-use crate::network::bootstrap::bootstrap_peers;
 use libp2p::{
     Multiaddr, PeerId, Swarm,
     multiaddr::Protocol,
@@ -28,6 +29,9 @@ pub(super) async fn handle_swarm_command(
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
     peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    node_addrs: &mut Vec<Multiaddr>,
+    discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
+    contribution: &ContributionStatus,
 ) {
     match cmd {
         SwarmCommand::Shutdown | SwarmCommand::EnableNearby => {} // handled in the loop itself
@@ -74,20 +78,23 @@ pub(super) async fn handle_swarm_command(
             }
         }
         SwarmCommand::AddNode(addr) => {
-            if let Some(Protocol::P2p(peer_id)) = addr.iter().last() {
+            if let Some(peer_id) = peer_of(&addr) {
                 swarm.behaviour_mut().limiter.protect(peer_id);
                 swarm
                     .behaviour_mut()
                     .kad
                     .add_address(&peer_id, addr.clone());
+                if !node_addrs.contains(&addr) {
+                    node_addrs.push(addr.clone());
+                }
             }
             if let Err(err) = swarm.dial(addr) {
                 log::warn!("[node] custom node dial failed: {err:?}");
             }
         }
         SwarmCommand::EnsureRelayReservations => {
-            for addr in bootstrap_peers() {
-                let Some(Protocol::P2p(relay_id)) = addr.iter().last() else {
+            for addr in node_addrs.clone() {
+                let Some(relay_id) = peer_of(&addr) else {
                     continue;
                 };
                 let reserved = listen_addresses.iter().any(|a| {
@@ -259,15 +266,53 @@ pub(super) async fn handle_swarm_command(
             }
             let _ = reply_tx.send(best);
         }
+        SwarmCommand::DiscoverRelays => {
+            for candidate in discovered_relays.values_mut() {
+                candidate.decay();
+            }
+
+            let reserved = reserved_relay_count(listen_addresses);
+            if reserved >= MAX_RELAY_RESERVATIONS {
+                return;
+            }
+
+            let wanted = MAX_RELAY_RESERVATIONS.saturating_sub(reserved);
+            for peer_id in best_relay_candidates(discovered_relays, wanted) {
+                if swarm.is_connected(&peer_id) {
+                    continue;
+                }
+                let opts = DialOpts::peer_id(peer_id)
+                    .condition(PeerCondition::DisconnectedAndNotDialing)
+                    .build();
+                if let Err(err) = swarm.dial(opts) {
+                    log::debug!("[relay] discovered relay dial skipped: {err:?}");
+                }
+            }
+            let query = swarm
+                .behaviour_mut()
+                .kad
+                .get_providers(relay_provider_key());
+            log::info!("[relay] querying DHT for relay providers query={query:?}");
+        }
+        SwarmCommand::GetContribution { reply_tx } => {
+            let mut status = *contribution;
+            status.dht_server = swarm.behaviour_mut().kad.mode() == libp2p::kad::Mode::Server;
+            status.relay_active = swarm.behaviour().relay_server.is_enabled();
+            let _ = reply_tx.send(status);
+        }
         SwarmCommand::OpenStream {
             peer_id,
             addresses,
             reply,
         } => {
             let connected = swarm.is_connected(&peer_id);
-            if !connected {
-                for addr in addresses {
-                    let _ = swarm.dial(addr);
+            if !connected && !addresses.is_empty() {
+                let opts = DialOpts::peer_id(peer_id)
+                    .addresses(addresses)
+                    .condition(PeerCondition::DisconnectedAndNotDialing)
+                    .build();
+                if let Err(err) = swarm.dial(opts) {
+                    log::debug!("[stream] pre-dial to {peer_id} skipped: {err:?}");
                 }
             }
 

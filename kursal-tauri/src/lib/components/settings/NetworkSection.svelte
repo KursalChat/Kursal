@@ -2,10 +2,13 @@
   import { onMount } from 'svelte';
   import { Save, Plus, Trash2, RefreshCw, Copy, Share2, Check } from 'lucide-svelte';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { listen } from '@tauri-apps/api/event';
+  import { platform } from '@tauri-apps/plugin-os';
   import ShareModal from '$lib/components/ShareModal.svelte';
   import {
     dialAddress,
     getNetworkStatus,
+    type Reachability,
     type RelayConfig,
     type NetworkStatus,
   } from '$lib/api/settings';
@@ -33,21 +36,34 @@
   let port = $state<string>(portText(settingsState.listeningPort));
   let portSaving = $state(false);
   let initialized = $state(settingsState.loaded);
+  let isMobile = $state(false);
 
-  onMount(async () => {
-    await settingsState.load();
-    if (!initialized) {
-      relay = { ...settingsState.relay };
-      port = portText(settingsState.listeningPort);
-      initialized = true;
+  onMount(() => {
+    try {
+      const p = platform();
+      isMobile = p === 'android' || p === 'ios';
+    } catch {
+      isMobile = false;
     }
-    settingsState.loadNodes().catch((e) => notifyError(e));
-    refreshStatus();
+
+    const unlisten = listen('reachability_changed', () => void refreshStatus());
+
+    void (async () => {
+      await settingsState.load();
+      if (!initialized) {
+        relay = { ...settingsState.relay };
+        port = portText(settingsState.listeningPort);
+        initialized = true;
+      }
+      settingsState.loadNodes().catch((e) => notifyError(e));
+      refreshStatus();
+    })();
+
+    return () => void unlisten.then((off) => off());
   });
 
   const relayDirty = $derived(
-    relay.enabled !== settingsState.relay.enabled ||
-      relay.maxConnections !== settingsState.relay.maxConnections ||
+    relay.maxConnections !== settingsState.relay.maxConnections ||
       relay.maxConnectionsPerIp !== settingsState.relay.maxConnectionsPerIp
   );
   const portDirty = $derived(port.trim() !== portText(settingsState.listeningPort));
@@ -247,6 +263,10 @@
   const overallState = $derived(
     !status ? 'connecting' : status.peerCount > 0 ? 'online' : 'offline'
   );
+  // including these strings here so that "unused translation" works
+  // settings.network.reachability_checking settings.network.reachability_private settings.network.reachability_public
+  // settings.network.reachTitle_checking settings.network.reachTitle_private settings.network.reachTitle_public
+  const reachability = $derived<Reachability>(status?.reachability ?? 'checking');
   const stateLabel = $derived(
     overallState === 'online'
       ? t('settings.network.stateOnline')
@@ -507,22 +527,35 @@
   </div>
 </CollapsibleCard>
 
-<CollapsibleCard
-  title={t('settings.network.relayCard')}
-  description={t('settings.network.relayDescription')}
-  bind:open={relayOpen}
->
-  <SettingRow
-    title={t('settings.network.runAsRelayRow')}
-    description={t('settings.network.runAsRelayDescription')}
+{#if !isMobile}
+  <CollapsibleCard
+    title={t('settings.network.relayCard')}
+    description={t('settings.network.relayDescription')}
+    bind:open={relayOpen}
   >
-    <Toggle
-      checked={relay.enabled}
-      onchange={(v) => (relay = { ...relay, enabled: v })}
-      ariaLabel={t('settings.network.runAsRelayAriaLabel')}
-    />
-  </SettingRow>
-  {#if relay.enabled}
+    {#snippet right()}
+      <span class="summary-pill" class:ok={reachability === 'public'}>
+        {t(`settings.network.reachability_${reachability}`)}
+      </span>
+    {/snippet}
+
+    <div class="reach" data-state={reachability}>
+      <span class="reach-dot"></span>
+      <div class="reach-text">
+        <span class="reach-title">{t(`settings.network.reachTitle_${reachability}`)}</span>
+        <span class="reach-desc">
+          {reachability === 'public'
+            ? t('settings.network.reachDescPublic', {
+                circuits: String(status?.circuits ?? 0),
+                reservations: String(status?.reservations ?? 0),
+              })
+            : reachability === 'private'
+              ? t('settings.network.reachDescPrivate', { port: String(status?.port ?? 0) })
+              : t('settings.network.reachDescChecking')}
+        </span>
+      </div>
+    </div>
+
     <SettingRow
       title={t('settings.network.maxConnectionsRow')}
       description={t('settings.network.maxConnectionsDescription')}
@@ -549,19 +582,19 @@
         onchange={(v) => (relay = { ...relay, maxConnectionsPerIp: Number(v) || 0 })}
       />
     </SettingRow>
-  {/if}
-  {#snippet footer()}
-    <Button
-      onclick={saveRelay}
-      loading={relaySaving}
-      success={relaySaved.active}
-      disabled={!relayDirty}
-    >
-      <Save size={13} />
-      {t('settings.network.saveRelayButton')}
-    </Button>
-  {/snippet}
-</CollapsibleCard>
+    {#snippet footer()}
+      <Button
+        onclick={saveRelay}
+        loading={relaySaving}
+        success={relaySaved.active}
+        disabled={!relayDirty}
+      >
+        <Save size={13} />
+        {t('settings.network.saveRelayButton')}
+      </Button>
+    {/snippet}
+  </CollapsibleCard>
+{/if}
 
 {#if shareLink}
   <ShareModal
@@ -809,6 +842,49 @@
   }
   .refresh-btn :global(.spin) {
     animation: node-spin 0.9s linear infinite;
+  }
+
+  .reach {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .reach-dot {
+    flex-shrink: 0;
+    margin-top: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .reach[data-state='public'] .reach-dot {
+    background: var(--success);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 20%, transparent);
+  }
+  .reach[data-state='private'] .reach-dot {
+    background: var(--warning);
+  }
+  .reach[data-state='checking'] .reach-dot {
+    background: var(--warning);
+    animation: net-pulse 1.2s ease-in-out infinite;
+  }
+  .reach-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .reach-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .reach-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.45;
   }
 
   .summary-pill {

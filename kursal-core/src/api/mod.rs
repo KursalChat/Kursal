@@ -137,6 +137,9 @@ pub enum AppEvent {
         online: bool,
         peer_count: usize,
     },
+    ReachabilityChanged {
+        reachability: String,
+    },
     OfflineBundlePublished {
         contact_id: UserId,
         message_ids: Vec<MessageId>,

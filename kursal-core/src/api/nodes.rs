@@ -4,7 +4,10 @@ use crate::{
     dto::{NetworkStatusDto, NodesResponse},
     network::{
         bootstrap::default_node_strings,
-        swarm::{SwarmCommand, get_all_listen_addrs, get_connected_peers, is_routable_multiaddr},
+        swarm::{
+            Reachability, SwarmCommand, get_all_listen_addrs, get_connected_peers,
+            get_contribution, is_routable_multiaddr,
+        },
     },
     storage::{Database, SharedDatabase, get_custom_nodes, set_custom_nodes},
 };
@@ -65,13 +68,28 @@ pub async fn remove_custom_node(addr: String, db: SharedDatabase) -> Result<()> 
     Ok(())
 }
 
-pub async fn network_status(cmd_tx: mpsc::Sender<SwarmCommand>) -> Result<NetworkStatusDto> {
+pub async fn network_status(
+    cmd_tx: mpsc::Sender<SwarmCommand>,
+    port: u16,
+) -> Result<NetworkStatusDto> {
     let peers = get_connected_peers(&cmd_tx).await;
     let addrs = get_all_listen_addrs(&cmd_tx).await;
+    let contribution = get_contribution(&cmd_tx).await;
     Ok(NetworkStatusDto {
         peer_count: peers.len(),
         connected_peers: peers.iter().map(|p| p.to_string()).collect(),
         listen_addresses: addrs.iter().map(|a| a.to_string()).collect(),
+        reachability: match contribution.reachability {
+            Reachability::Checking => "checking",
+            Reachability::Private => "private",
+            Reachability::Public => "public",
+        }
+        .to_string(),
+        dht_server: contribution.dht_server,
+        relay_active: contribution.relay_active,
+        reservations: contribution.reservations,
+        circuits: contribution.circuits,
+        port,
     })
 }
 

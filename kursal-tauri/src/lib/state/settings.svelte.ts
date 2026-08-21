@@ -30,7 +30,6 @@ import {
 } from '$lib/api/settings';
 
 const DEFAULT_RELAY: RelayConfig = {
-  enabled: false,
   maxConnections: 100,
   maxConnectionsPerIp: 10,
 };

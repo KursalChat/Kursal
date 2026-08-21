@@ -617,7 +617,6 @@ fn fake_swarm(peer_id: PeerId, cmd_tx: mpsc::Sender<SwarmCommand>) -> SwarmHandl
         peer_id,
         cmd_tx,
         relay_config: RelayConfig {
-            enabled: false,
             max_connections: 0,
             max_connections_per_ip: 0,
         },

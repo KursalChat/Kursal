@@ -33,6 +33,7 @@ libp2p = { version = "0.56.0", features = [
     "quic",
     "relay",
     "dcutr",
+    "autonat",
     "kad",
     "mdns",
     "noise",

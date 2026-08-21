@@ -441,6 +441,15 @@ pub async fn handle_core_event(
                 }),
             );
         }
+        AppEvent::ReachabilityChanged { reachability } => {
+            emitter(
+                handle,
+                api_handle,
+                "reachability_changed",
+                serde_json::json!({ "reachability": reachability }),
+            );
+        }
+
         AppEvent::OfflineBundlePublished {
             contact_id,
             message_ids,

@@ -18,6 +18,7 @@ mod messaging;
 mod nearby;
 mod offline;
 mod otp;
+mod relay_discovery;
 mod stats;
 mod storage;
 

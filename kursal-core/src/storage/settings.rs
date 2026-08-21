@@ -231,7 +231,6 @@ opt_string_setting!(
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayConfig {
-    pub enabled: bool,
     pub max_connections: u32,
     pub max_connections_per_ip: u32,
 }
@@ -277,10 +276,9 @@ impl AutoDownloadConfig {
 bincode_setting!(
     get_relay_config,
     set_relay_config,
-    "relay_config",
+    "relay_config_v2",
     RelayConfig,
     default: RelayConfig {
-        enabled: false,
         max_connections: 100u32,
         max_connections_per_ip: 10u32,
     }

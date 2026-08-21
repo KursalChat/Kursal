@@ -304,6 +304,12 @@ pub struct NetworkStatusDto {
     pub peer_count: usize,
     pub connected_peers: Vec<String>,
     pub listen_addresses: Vec<String>,
+    pub reachability: String,
+    pub dht_server: bool,
+    pub relay_active: bool,
+    pub reservations: usize,
+    pub circuits: usize,
+    pub port: u16,
 }
 
 #[derive(Serialize, Clone, ToSchema)]
