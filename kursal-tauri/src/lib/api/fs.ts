@@ -27,3 +27,7 @@ export function pathExists(path: string): Promise<boolean> {
     queueMicrotask(flush);
   });
 }
+
+export const openLogFolder = (): Promise<void> => invoke('open_log_folder');
+
+export const openFilesFolder = (): Promise<void> => invoke('open_files_folder');

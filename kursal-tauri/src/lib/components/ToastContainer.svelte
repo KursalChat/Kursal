@@ -65,23 +65,31 @@
     box-shadow: 0 8px 18px rgba(2, 6, 23, 0.24);
   }
 
-  .container:not(:hover) .toast {
-    --depth: calc(var(--stack-count) - var(--stack-index) - 1);
-    transform: translateY(calc(var(--depth) * 6px)) scale(calc(1 - var(--depth) * 0.02));
-    opacity: calc(1 - var(--depth) * 0.12);
+  @media (hover: hover) {
+    .container:not(:hover) .toast {
+      --depth: calc(var(--stack-count) - var(--stack-index) - 1);
+      transform: translateY(calc(var(--depth) * 6px)) scale(calc(1 - var(--depth) * 0.02));
+      opacity: calc(1 - var(--depth) * 0.12);
+    }
   }
 
-  .container:not(:hover) .toast + .toast {
-    margin-top: -38px;
+  @media (hover: hover) {
+    .container:not(:hover) .toast + .toast {
+      margin-top: -38px;
+    }
   }
 
-  .container:not(:hover) .toast:not(:last-child) {
-    pointer-events: none;
+  @media (hover: hover) {
+    .container:not(:hover) .toast:not(:last-child) {
+      pointer-events: none;
+    }
   }
 
-  .container:hover .toast {
-    transform: none;
-    opacity: 1;
+  @media (hover: hover) {
+    .container:hover .toast {
+      transform: none;
+      opacity: 1;
+    }
   }
 
   .toast.success {
@@ -113,8 +121,10 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-  .toast-action:hover {
-    color: var(--accent-hover);
+  @media (hover: hover) {
+    .toast-action:hover {
+      color: var(--accent-hover);
+    }
   }
   .toast-dismiss {
     flex-shrink: 0;
@@ -123,8 +133,10 @@
     line-height: 1;
     padding: 0;
   }
-  .toast-dismiss:hover {
-    opacity: 1;
+  @media (hover: hover) {
+    .toast-dismiss:hover {
+      opacity: 1;
+    }
   }
 
   @media (max-width: 640px) {

@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { readRaw, writeRaw } from '$lib/utils/storage';
 
 export type WinstonTipId = 'autostart' | 'fileOffer' | 'offlineMessages' | 'verifyContact';
 
@@ -48,11 +49,11 @@ function createWinstonTips() {
   let onCta: (() => void) | null = null;
 
   function hasSeen(id: WinstonTipId): boolean {
-    return browser && localStorage.getItem(seenKey(id)) === 'done';
+    return readRaw(seenKey(id)) === 'done';
   }
 
   function markSeen(id: WinstonTipId) {
-    if (browser) localStorage.setItem(seenKey(id), 'done');
+    writeRaw(seenKey(id), 'done');
   }
 
   // One-shot: ignored if already seen or another tip is showing. A suppressed

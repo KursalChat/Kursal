@@ -41,7 +41,7 @@
 
   .status {
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     color: var(--accent);
     letter-spacing: 0.08em;
@@ -49,7 +49,7 @@
 
   h1 {
     margin: 0;
-    font-size: 24px;
+    font-size: var(--text-2xl);
     font-weight: 700;
     color: var(--text-primary);
   }
@@ -64,7 +64,7 @@
   .detail {
     margin: 4px 0 0;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-family: var(--font-mono);
     word-break: break-word;
   }
@@ -78,11 +78,13 @@
     border-radius: var(--radius-md);
     background: var(--accent-solid);
     color: #fff;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     transition: background var(--transition);
   }
-  .back-btn:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .back-btn:hover {
+      background: var(--accent-hover);
+    }
   }
 </style>

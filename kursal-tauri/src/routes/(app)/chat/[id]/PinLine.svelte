@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Pin, PinOff } from 'lucide-svelte';
   import { t } from '$lib/i18n';
-  import { formatTime } from './chat-utils';
+  import { formatTime } from '$lib/utils/dateFormat.svelte';
 
   interface Props {
     pinned: boolean;
@@ -35,7 +35,7 @@
     align-self: center;
     margin: 10px auto;
     padding: 5px 14px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     background: var(--bg-secondary);
     border: 1px solid var(--border-light);
@@ -57,18 +57,20 @@
   }
   .pin-line-view {
     padding: 0;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--accent-hover);
     text-decoration: underline;
     text-underline-offset: 2px;
   }
-  .pin-line-view:hover {
-    color: var(--accent);
+  @media (hover: hover) {
+    .pin-line-view:hover {
+      color: var(--accent);
+    }
   }
   .pin-line-time {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
+    font-size: var(--text-2xs);
   }
 </style>

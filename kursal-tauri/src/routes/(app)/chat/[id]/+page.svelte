@@ -60,6 +60,7 @@
   import Spinner from '$lib/components/Spinner.svelte';
   import { busy } from '$lib/utils/busy.svelte';
   import { notifyError, parseError } from '$lib/utils/errors';
+  import { copyText } from '$lib/utils/clipboard';
   import SecurityCodeModal from '$lib/components/SecurityCodeModal.svelte';
   import ConnectionInfoModal from '$lib/components/ConnectionInfoModal.svelte';
   import ProfileModal from '$lib/components/ProfileModal.svelte';
@@ -93,7 +94,12 @@
     PICKER_W,
   } from './chat-utils';
   import type { EmojiPickerPos } from './chat-utils';
-  import { buildMessageGroups, sortByOfflineTier } from './chat-grouping';
+  import {
+    buildMessageGroups,
+    sortByOfflineTier,
+    isStackableImage,
+    imageRuns,
+  } from './chat-grouping';
 
   const shareBusy = busy();
 
@@ -313,8 +319,7 @@
           'success'
         );
       } catch (e) {
-        notifications.push(t('chat.conversation.errorProfileShare'), 'error');
-        log.error(e);
+        notifyError(e, 'chat.conversation.errorProfileShare');
       }
     });
   }
@@ -808,12 +813,10 @@
 
   async function copyMessageText(msg: MessageResponse) {
     actionSheetMsgId = null;
-    try {
-      await navigator.clipboard.writeText(msg.content);
-      messageFlash.trigger(msg.id);
-    } catch {
-      notifications.push(t('chat.conversation.errorCopy'), 'error');
-    }
+    await copyText(msg.content, {
+      flash: { trigger: () => messageFlash.trigger(msg.id) },
+      errorKey: 'chat.conversation.errorCopy',
+    });
   }
 
   function scrollToMessage(id: string): boolean {
@@ -1234,6 +1237,11 @@
         for (const node of mut.addedNodes) {
           if (node instanceof Element) ro.observe(node);
         }
+        // ResizeObserver holds a strong reference to each observed target, so a
+        // paginated conversation would retain every row it ever mounted.
+        for (const node of mut.removedNodes) {
+          if (node instanceof Element) ro.unobserve(node);
+        }
       }
     });
     mo.observe(el, { childList: true });
@@ -1379,8 +1387,7 @@
         inputText = '';
         editingMessageId = null;
       } catch (e) {
-        notifications.push(t('chat.conversation.errorEditMessage'), 'error');
-        log.error('Edit failed:', e);
+        notifyError(e, 'chat.conversation.errorEditMessage');
       } finally {
         sending = false;
       }
@@ -1410,17 +1417,7 @@
     }
 
     const cid = contactId;
-    const pendingId = crypto.randomUUID().replace(/-/g, '');
-    messagesState.appendOptimistic({
-      id: pendingId,
-      contactId: cid,
-      direction: 'sent',
-      content: text,
-      status: 'sending',
-      timestamp: Date.now(),
-      receivedTimestamp: Date.now(),
-      replyTo,
-    });
+    const pendingId = messagesState.appendPendingText(cid, text, replyTo);
 
     void haptics.impact('medium');
 
@@ -1526,17 +1523,7 @@
 
   // Caption rides along with a file offer but is sent as its own text message.
   function sendCaption(cid: string, text: string) {
-    const pendingId = crypto.randomUUID().replace(/-/g, '');
-    messagesState.appendOptimistic({
-      id: pendingId,
-      contactId: cid,
-      direction: 'sent',
-      content: text,
-      status: 'sending',
-      timestamp: Date.now(),
-      receivedTimestamp: Date.now(),
-      replyTo: null,
-    });
+    const pendingId = messagesState.appendPendingText(cid, text);
     void sendText(cid, text, null)
       .then((realId) => messagesState.replaceId(pendingId, cid, realId))
       .catch((e) => {
@@ -1673,8 +1660,7 @@
     try {
       await flushOffline(cid);
     } catch (e) {
-      notifications.push(t('chat.offlineQueue.retryError'), 'error');
-      log.error('Queue flush: backend retry failed', e);
+      notifyError(e, 'chat.offlineQueue.retryError');
     } finally {
       flushingQueue = false;
     }
@@ -1736,35 +1722,14 @@
     swipeOffset = null;
   }
 
-  const STACK_MIN = 4;
+  const stackable = (m: MessageResponse) =>
+    isStackableImage(
+      m,
+      (filename) => mediaKindFromFilename(filename) === 'image',
+      (msg) => messagesState.reactionsFor(msg.id, msg.contactId).length > 0
+    );
 
-  function isStackableImage(m: MessageResponse): boolean {
-    if (!m.fileDetails) return false;
-    if (mediaKindFromFilename(m.fileDetails.filename) !== 'image') return false;
-    if (m.replyTo || m.pinned) return false;
-    if (m.status === 'failed') return false;
-    if (messagesState.reactionsFor(m.id, m.contactId).length > 0) return false;
-    return true;
-  }
-
-  function imageRuns(msgs: MessageResponse[]): { msgs: MessageResponse[]; startIdx: number }[] {
-    const runs: { msgs: MessageResponse[]; startIdx: number }[] = [];
-    let i = 0;
-    while (i < msgs.length) {
-      if (isStackableImage(msgs[i])) {
-        let j = i;
-        while (j < msgs.length && isStackableImage(msgs[j])) j++;
-        if (j - i >= STACK_MIN) {
-          runs.push({ msgs: msgs.slice(i, j), startIdx: i });
-          i = j;
-          continue;
-        }
-      }
-      runs.push({ msgs: [msgs[i]], startIdx: i });
-      i++;
-    }
-    return runs;
-  }
+  const groupImageRuns = (msgs: MessageResponse[]) => imageRuns(msgs, stackable);
 
   // Accepts every not-yet-downloaded image in a stack. Like a single download
   // this prompts for nothing: each file lands in the app's download folder.
@@ -1908,7 +1873,7 @@
       {sending}
       {terminated}
       onScroll={handleScroll}
-      {imageRuns}
+      imageRuns={groupImageRuns}
       onOpenStackImage={openStackImage}
       onDownloadStack={downloadStack}
       onStackContextMenu={(e, m) => {
@@ -2272,14 +2237,6 @@
   @supports (background: color-mix(in srgb, red 50%, transparent)) {
     .drop-overlay {
       background: color-mix(in srgb, var(--surface) 85%, transparent);
-    }
-  }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
     }
   }
   .drop-overlay-inner {

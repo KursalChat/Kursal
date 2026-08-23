@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { notifyError } from '$lib/utils/errors';
   import { notifications } from '$lib/state/notifications.svelte';
   import { ltcState } from '$lib/state/ltc.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -28,8 +28,7 @@
       await ltcState.create(newMaxUses, newTtl);
       notifications.push(t('addContact.ltc.created'), 'success');
     } catch (e) {
-      notifications.push(t('addContact.ltc.createError'), 'error');
-      log.error('Creating the LTC failed:', e);
+      notifyError(e, 'addContact.ltc.createError');
     } finally {
       creating = false;
     }
@@ -73,7 +72,7 @@
     gap: 7px;
     align-items: flex-start;
     margin: 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     line-height: 1.5;
     color: var(--text-muted);
   }

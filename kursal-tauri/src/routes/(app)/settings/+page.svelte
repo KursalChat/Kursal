@@ -3,7 +3,19 @@
   import { page } from '$app/state';
   import { goto, beforeNavigate } from '$app/navigation';
   import { fade } from 'svelte/transition';
-  import { User, Palette, ShieldCheck, Phone, Wifi, HardDrive, Zap, Search } from 'lucide-svelte';
+  import {
+    User,
+    Palette,
+    ShieldCheck,
+    Phone,
+    Wifi,
+    HardDrive,
+    Zap,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+  } from 'lucide-svelte';
+  import * as haptics from '$lib/utils/haptics';
   import { t, tEn } from '$lib/i18n';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import { settingsDirty } from '$lib/state/settingsDirty.svelte';
@@ -26,6 +38,10 @@
 
   let activeCategory = $state<Category>('account');
   let bodyEl = $state<HTMLElement | null>(null);
+  let compact = $state(false);
+  let detail = $state(false);
+
+  const COMPACT_QUERY = '(max-width: 900px)';
 
   const CATEGORIES: Category[] = [
     'account',
@@ -39,12 +55,18 @@
 
   onMount(() => {
     settingsDirty.value = false;
+    const mq = window.matchMedia(COMPACT_QUERY);
+    compact = mq.matches;
+    const onChange = (e: MediaQueryListEvent) => (compact = e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   });
 
   $effect(() => {
     const cat = page.url.searchParams.get('cat');
     if (cat && CATEGORIES.includes(cat as Category)) {
       activeCategory = cat as Category;
+      detail = true;
     }
   });
 
@@ -59,12 +81,76 @@
   }
 
   async function switchCategory(id: Category): Promise<boolean> {
-    if (id === activeCategory) return true;
-    if (settingsDirty.value && !(await confirmDiscard())) return false;
-    settingsDirty.value = false;
-    activeCategory = id;
+    if (id !== activeCategory) {
+      if (settingsDirty.value && !(await confirmDiscard())) return false;
+      settingsDirty.value = false;
+      activeCategory = id;
+    }
+    detail = true;
     return true;
   }
+
+  async function leaveDetail() {
+    if (settingsDirty.value && !(await confirmDiscard())) return;
+    settingsDirty.value = false;
+    detail = false;
+  }
+
+  const EDGE_ZONE = 28;
+  const SWIPE_COMPLETE = 72;
+  let dragX = $state(0);
+  let dragging = $state(false);
+  let dragFrom = 0;
+  let dragFromY = 0;
+
+  // Edge-only so the gesture never fights a slider or segmented control
+  // sitting inside a section.
+  function onSwipeStart(e: TouchEvent) {
+    if (pane !== 'detail') return;
+    const touch = e.touches[0];
+    if (touch.clientX > EDGE_ZONE) return;
+    dragFrom = touch.clientX;
+    dragFromY = touch.clientY;
+    dragging = true;
+  }
+
+  function onSwipeMove(e: TouchEvent) {
+    if (!dragging) return;
+    const touch = e.touches[0];
+    if (Math.abs(touch.clientY - dragFromY) > 40) {
+      dragging = false;
+      dragX = 0;
+      return;
+    }
+    dragX = Math.max(0, touch.clientX - dragFrom);
+  }
+
+  function onSwipeEnd() {
+    if (!dragging) return;
+    dragging = false;
+    const complete = dragX > SWIPE_COMPLETE;
+    dragX = 0;
+    if (!complete) return;
+    void haptics.impact('light');
+    void leaveDetail();
+  }
+
+  // Bound imperatively so the move listener stays passive: this is a scroll
+  // container, and a blocking touchmove would cost it a frame on every drag.
+  $effect(() => {
+    const el = bodyEl;
+    if (!el) return;
+    el.addEventListener('touchstart', onSwipeStart, { passive: true });
+    el.addEventListener('touchmove', onSwipeMove, { passive: true });
+    el.addEventListener('touchend', onSwipeEnd);
+    el.addEventListener('touchcancel', onSwipeEnd);
+    return () => {
+      el.removeEventListener('touchstart', onSwipeStart);
+      el.removeEventListener('touchmove', onSwipeMove);
+      el.removeEventListener('touchend', onSwipeEnd);
+      el.removeEventListener('touchcancel', onSwipeEnd);
+    };
+  });
 
   // Guard route changes away from settings (clicking a contact, etc.) so
   // unsaved edits aren't silently dropped. switchCategory covers same-page
@@ -272,6 +358,8 @@
 
   const searching = $derived(settingsQuery.trim().length >= SEARCH_MIN);
 
+  const pane = $derived(!compact ? 'wide' : detail ? 'detail' : searching ? 'search' : 'list');
+
   function flash(el: Element) {
     el.classList.remove('setting-flash');
     // Force reflow so re-adding the class restarts the CSS animation.
@@ -303,10 +391,17 @@
 
 <div class="settings">
   <header class="settings-header" data-tauri-drag-region>
-    <h2><span class="prompt">~/</span>{t('settings.heading')}</h2>
+    {#if pane === 'detail'}
+      <button class="back-btn" onclick={leaveDetail} aria-label={t('common.back')}>
+        <ChevronLeft size={20} />
+      </button>
+      <h2>{categoryById[activeCategory].label}</h2>
+    {:else}
+      <h2><span class="prompt">~/</span>{t('settings.heading')}</h2>
+    {/if}
   </header>
 
-  <div class="settings-layout">
+  <div class="settings-layout" data-pane={pane}>
     <nav class="sidenav" aria-label={t('settings.categoriesAriaLabel')}>
       <div class="settings-search">
         <Search size={14} />
@@ -323,17 +418,25 @@
         {#each categories as cat (cat.id)}
           <button
             class="nav-item"
-            data-active={!searching && activeCategory === cat.id}
+            data-active={!compact && !searching && activeCategory === cat.id}
             onclick={() => switchCategory(cat.id)}
           >
             <cat.icon size={15} />
-            <span>{cat.label}</span>
+            <span class="nav-label">{cat.label}</span>
+            {#if compact}
+              <span class="nav-chevron"><ChevronRight size={15} /></span>
+            {/if}
           </button>
         {/each}
       </div>
     </nav>
 
-    <section class="settings-body" bind:this={bodyEl}>
+    <section
+      class="settings-body"
+      class:dragging
+      style={dragX ? `transform: translateX(${dragX}px)` : ''}
+      bind:this={bodyEl}
+    >
       <div class="settings-content">
         {#if searching}
           <div class="search-results" in:fade={{ duration: 140 }}>
@@ -411,7 +514,29 @@
     margin: 0;
     font-size: var(--text-lg);
     font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    margin-left: -8px;
+    margin-right: 2px;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+  }
+  .back-btn:active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
   .prompt {
     color: var(--accent);
     font-weight: 600;
@@ -469,7 +594,7 @@
     border: none;
     outline: none;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .settings-search input::placeholder {
     color: var(--text-muted);
@@ -481,7 +606,7 @@
     gap: 10px;
     padding: 8px 12px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 500;
     color: var(--text-secondary);
     text-align: left;
@@ -493,16 +618,18 @@
   .nav-item :global(svg) {
     flex-shrink: 0;
   }
-  .nav-item span {
+  .nav-label {
     min-width: 0;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .nav-item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .nav-item[data-active='true'] {
     background: var(--accent-dim);
@@ -519,6 +646,10 @@
     overflow-y: auto;
     padding: 36px max(32px, var(--safe-right)) calc(96px + var(--safe-bottom))
       max(32px, var(--safe-left));
+    transition: transform 190ms ease;
+  }
+  .settings-body.dragging {
+    transition: none;
   }
 
   .settings-content {
@@ -541,7 +672,7 @@
     margin: 0;
     padding: 8px 4px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .result-item {
     display: flex;
@@ -556,9 +687,11 @@
       background var(--transition),
       border-color var(--transition);
   }
-  .result-item:hover {
-    background: var(--bg-hover);
-    border-color: var(--accent-selected);
+  @media (hover: hover) {
+    .result-item:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-selected);
+    }
   }
   .result-icon {
     flex-shrink: 0;
@@ -572,12 +705,12 @@
     min-width: 0;
   }
   .result-label {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
   .result-category {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
   }
 
@@ -611,31 +744,68 @@
     }
     .sidenav {
       width: 100%;
-      padding: 10px max(12px, var(--safe-right)) 10px max(12px, var(--safe-left));
-      border-right: none;
-      border-bottom: 1px solid var(--border);
-      gap: 8px;
-      overflow-y: visible;
+      flex: 1;
+      min-height: 0;
+      padding: 12px max(12px, var(--safe-right)) calc(84px + var(--safe-bottom))
+        max(12px, var(--safe-left));
+      box-shadow: none;
+      gap: 10px;
     }
     .nav-items {
-      flex-direction: row;
-      overflow-x: auto;
-      gap: 4px;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    .nav-items::-webkit-scrollbar {
-      display: none;
+      gap: 0;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
     }
     .nav-item {
+      padding: 13px 14px;
+      font-size: var(--text-md);
+      gap: 12px;
+      border-radius: 0;
+      color: var(--text-primary);
+    }
+    .nav-item + .nav-item {
+      box-shadow: inset 0 1px 0 var(--border-light);
+    }
+    /* A tint reads better than the global press dim on a grouped row, so it
+     * has to opt out of the opacity that app.css applies to every button. */
+    .nav-item:active {
+      background: var(--bg-hover);
+      opacity: 1;
+    }
+    .nav-item :global(svg) {
+      color: var(--text-secondary);
+    }
+    .nav-chevron {
+      display: flex;
       flex-shrink: 0;
+    }
+    .nav-chevron :global(svg) {
+      color: var(--text-muted);
+      opacity: 0.7;
     }
     .settings-search {
       margin-bottom: 0;
+      padding: 10px 11px;
     }
     .settings-body {
-      padding: 24px max(16px, var(--safe-right)) calc(84px + var(--safe-bottom))
+      padding: 20px max(16px, var(--safe-right)) calc(84px + var(--safe-bottom))
         max(16px, var(--safe-left));
+    }
+
+    [data-pane='detail'] .sidenav {
+      display: none;
+    }
+    [data-pane='list'] .settings-body {
+      display: none;
+    }
+    [data-pane='search'] .nav-items {
+      display: none;
+    }
+    [data-pane='search'] .sidenav {
+      flex: 0 0 auto;
+      padding-bottom: 12px;
     }
   }
 </style>

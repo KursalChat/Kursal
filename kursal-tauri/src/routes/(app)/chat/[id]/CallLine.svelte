@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Phone } from 'lucide-svelte';
-  import { callRecordLabel, formatTime, isMissedCall, type CallRecord } from './chat-utils';
+  import { formatTime } from '$lib/utils/dateFormat.svelte';
+  import { callRecordLabel, isMissedCall, type CallRecord } from './chat-utils';
 
   interface Props {
     rec: CallRecord;
@@ -26,7 +27,7 @@
     align-self: center;
     margin: 10px auto;
     padding: 5px 14px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     background: var(--bg-secondary);
     border: 1px solid var(--border-light);
@@ -57,6 +58,6 @@
   .call-line-time {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
+    font-size: var(--text-2xs);
   }
 </style>

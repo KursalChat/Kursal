@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Save, Plus, Trash2, RefreshCw, Copy, Share2, Check } from 'lucide-svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { Save, Plus, RefreshCw, Copy, Check } from 'lucide-svelte';
   import { listen } from '@tauri-apps/api/event';
-  import { platform } from '@tauri-apps/plugin-os';
+  import { isMobile } from '$lib/api/window';
+  import { copyText } from '$lib/utils/clipboard';
   import ShareModal from '$lib/components/ShareModal.svelte';
   import {
     dialAddress,
@@ -20,6 +20,7 @@
   import { flash, flashSet } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import AddressChip from '$lib/components/AddressChip.svelte';
+  import NodeRow from './NodeRow.svelte';
   import SettingCard from './SettingCard.svelte';
   import CollapsibleCard from './CollapsibleCard.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -36,16 +37,8 @@
   let port = $state<string>(portText(settingsState.listeningPort));
   let portSaving = $state(false);
   let initialized = $state(settingsState.loaded);
-  let isMobile = $state(false);
 
   onMount(() => {
-    try {
-      const p = platform();
-      isMobile = p === 'android' || p === 'ios';
-    } catch {
-      isMobile = false;
-    }
-
     const unlisten = listen('reachability_changed', () => void refreshStatus());
 
     void (async () => {
@@ -215,23 +208,13 @@
   }
 
   async function copyAddr(addr: string) {
-    try {
-      await writeText(addr);
-      copiedAddr.trigger(addr);
-    } catch (e) {
-      notifyError(e);
-    }
+    if (await copyText(addr)) copiedAddr.trigger(addr);
   }
 
   async function exportNodes() {
     const text = nodes.custom.join('\n');
     if (text.length === 0) return;
-    try {
-      await writeText(text);
-      copiedExport.trigger();
-    } catch (e) {
-      notifyError(e);
-    }
+    await copyText(text, { flash: copiedExport });
   }
 
   async function importNodes() {
@@ -332,21 +315,8 @@
           })}
         </span>
       </div>
-      {#each nodes.defaults as addr}
-        <div class="node-row">
-          <span
-            class="node-dot {nodeState(addr)}"
-            title={t(`settings.network.nodeState_${nodeState(addr)}`)}
-          ></span>
-          <AddressChip {addr} />
-          <button
-            class="node-remove"
-            aria-label={t('settings.network.shareNodeAriaLabel')}
-            onclick={() => shareNode(addr)}
-          >
-            <Share2 size={14} />
-          </button>
-        </div>
+      {#each nodes.defaults as addr (addr)}
+        <NodeRow {addr} state={nodeState(addr)} onShare={() => shareNode(addr)} />
       {/each}
     </div>
 
@@ -395,28 +365,13 @@
       {#if nodes.custom.length === 0}
         <span class="node-empty">{t('settings.network.emptyCustomNodes')}</span>
       {:else}
-        {#each nodes.custom as addr}
-          <div class="node-row">
-            <span
-              class="node-dot {nodeState(addr)}"
-              title={t(`settings.network.nodeState_${nodeState(addr)}`)}
-            ></span>
-            <AddressChip {addr} />
-            <button
-              class="node-remove"
-              aria-label={t('settings.network.shareNodeAriaLabel')}
-              onclick={() => shareNode(addr)}
-            >
-              <Share2 size={14} />
-            </button>
-            <button
-              class="node-remove danger"
-              aria-label={t('settings.network.removeNodeAriaLabel')}
-              onclick={() => removeNode(addr)}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+        {#each nodes.custom as addr (addr)}
+          <NodeRow
+            {addr}
+            state={nodeState(addr)}
+            onShare={() => shareNode(addr)}
+            onRemove={() => removeNode(addr)}
+          />
         {/each}
       {/if}
     </div>
@@ -478,7 +433,7 @@
       {#if !status || status.listenAddresses.length === 0}
         <span class="node-empty">{t('settings.network.noListenAddresses')}</span>
       {:else}
-        {#each status.listenAddresses as addr}
+        {#each status.listenAddresses as addr (addr)}
           <div class="node-row">
             <AddressChip {addr} />
             <button
@@ -618,46 +573,14 @@
     margin-top: 12px;
   }
   .node-group-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .node-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-input);
-    transition: border-color var(--transition);
-  }
-  .node-row:hover {
-    border-color: var(--accent-selected, var(--border));
-  }
-  .node-remove {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    padding: 4px;
-    border-radius: var(--radius-sm, 6px);
-    transition: color var(--transition);
-  }
-  .node-remove.confirmed {
-    color: var(--success);
-  }
-  .node-remove:hover {
-    color: var(--accent);
-  }
-  .node-remove.danger:hover {
-    color: var(--danger, #e5484d);
-  }
   .node-empty {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
   }
   .node-add {
@@ -681,31 +604,13 @@
     gap: 2px;
   }
   .connect-once-title {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
   .connect-once-desc {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
-  }
-  .node-dot {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-secondary);
-  }
-  .node-dot.up {
-    background: var(--success, #30a46c);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success, #30a46c) 22%, transparent);
-  }
-  .node-dot.down {
-    background: var(--danger, #e5484d);
-  }
-  .node-dot.unknown {
-    background: var(--text-secondary);
-    opacity: 0.5;
   }
   .node-group-head {
     display: flex;
@@ -721,13 +626,15 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--accent);
     transition: opacity var(--transition);
   }
-  .node-link:hover {
-    opacity: 0.8;
+  @media (hover: hover) {
+    .node-link:hover {
+      opacity: 0.8;
+    }
   }
   .node-link.confirmed {
     color: var(--success);
@@ -751,7 +658,7 @@
     color: var(--text-primary);
     padding: 8px 10px;
     font-family: var(--font-mono, monospace);
-    font-size: 12px;
+    font-size: var(--text-xs);
     outline: none;
   }
   .node-import-area:focus {
@@ -813,7 +720,7 @@
     letter-spacing: -0.01em;
   }
   .net-sub {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -822,7 +729,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-secondary);
     padding: 6px 10px;
@@ -833,9 +740,11 @@
       color var(--transition),
       border-color var(--transition);
   }
-  .refresh-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--accent-selected);
+  @media (hover: hover) {
+    .refresh-btn:hover:not(:disabled) {
+      color: var(--text-primary);
+      border-color: var(--accent-selected);
+    }
   }
   .refresh-btn:disabled {
     opacity: 0.5;
@@ -877,18 +786,18 @@
     min-width: 0;
   }
   .reach-title {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
   .reach-desc {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.45;
   }
 
   .summary-pill {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     color: var(--text-secondary);
     background: var(--bg-subtle, rgba(127, 127, 127, 0.12));
@@ -902,7 +811,7 @@
   }
   .summary-muted {
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
@@ -922,12 +831,12 @@
     min-width: 0;
   }
   .field-title {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
   .field-desc {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.45;
   }

@@ -320,33 +320,25 @@
     margin-bottom: 4px;
   }
   h2 {
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     margin: 0;
   }
   .hint {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     margin: 0 0 14px;
   }
   .icon-btn {
     width: 28px;
     height: 28px;
-    border-radius: var(--radius-md);
-    background: transparent;
     border: 1px solid transparent;
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition:
-      background var(--transition),
-      color var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .viewport {
     position: relative;

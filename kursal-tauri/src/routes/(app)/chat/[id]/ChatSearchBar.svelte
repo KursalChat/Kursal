@@ -106,7 +106,7 @@
     border: 1px solid var(--border);
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--text-sm);
     outline: none;
     transition: border-color var(--transition);
   }
@@ -117,7 +117,7 @@
     display: none;
   }
   .search-count {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     white-space: nowrap;
     padding: 0 4px;
@@ -139,9 +139,11 @@
       background var(--transition),
       color var(--transition);
   }
-  .nav-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .nav-btn:disabled {
     opacity: 0.35;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { log } from '$lib/utils/log';
+  import { notifyError } from '$lib/utils/errors';
   import {
     UserPlus,
     Settings as SettingsIcon,
@@ -10,7 +10,6 @@
     Pin,
     Check,
     Trash2,
-    MoreHorizontal,
     BellOff,
     Bell,
     Archive,
@@ -27,25 +26,25 @@
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
   import { profileState } from '$lib/state/profile.svelte';
-  import { draftsState } from '$lib/state/drafts.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
   import { archivedConvosState } from '$lib/state/archivedConvos.svelte';
-  import { typingState } from '$lib/state/typing.svelte';
   import { uiState } from '$lib/state/ui.svelte';
   import { removeContact, setContactBlocked } from '$lib/api/contacts';
   import { notifications } from '$lib/state/notifications.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import { OS, isMobile } from '$lib/api/window';
-  import { clockOptions } from '$lib/utils/timeFormat';
+  import { clamp } from '$lib/utils/geometry';
+  import { createLongPress } from '$lib/utils/timers';
+  import { truncate } from '$lib/utils/text';
   import Avatar from '$lib/components/Avatar.svelte';
-  import StatusDot from '$lib/components/StatusDot.svelte';
+  import ContactRow from '$lib/components/ContactRow.svelte';
   import CallDock from '$lib/components/CallDock.svelte';
   import { callState } from '$lib/state/call.svelte';
   import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
   import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
   import { readInsets } from '$lib/utils/android-insets';
   import * as haptics from '$lib/utils/haptics';
-  import { t, dateLocale } from '$lib/i18n';
+  import { t } from '$lib/i18n';
 
   interface Props {
     contacts: ContactResponse[];
@@ -167,20 +166,6 @@
     );
   }
 
-  function formatTimeShort(ts: number): string {
-    if (!ts) return '';
-    const d = new Date(ts);
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    if (ts >= startOfToday) {
-      return d.toLocaleTimeString(dateLocale(), clockOptions());
-    }
-    if (ts >= startOfToday - 6 * 24 * 3600 * 1000) {
-      return d.toLocaleDateString(dateLocale(), { weekday: 'short' });
-    }
-    return d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' });
-  }
-
   function getStatusLabel(
     status: ConnectionChangedPayload['status'] | undefined,
     contactId?: string
@@ -189,24 +174,18 @@
   }
 
   let contactMenu = $state<{ userId: string; x: number; y: number } | null>(null);
-  let contactLongPress: ReturnType<typeof setTimeout> | null = null;
+  const contactLongPress = createLongPress(500);
   function openContactMenu(userId: string, x: number, y: number) {
     const safe = readInsets();
     contactMenu = {
       userId,
-      x: Math.max(safe.left + 8, Math.min(x, window.innerWidth - safe.right - 200)),
-      y: Math.max(safe.top + 8, Math.min(y, window.innerHeight - safe.bottom - 260)),
+      x: clamp(x, safe.left + 8, window.innerWidth - safe.right - 200),
+      y: clamp(y, safe.top + 8, window.innerHeight - safe.bottom - 260),
     };
   }
   function startContactLongPress(e: TouchEvent, userId: string) {
     const tp = e.touches[0];
-    contactLongPress = setTimeout(() => openContactMenu(userId, tp.clientX, tp.clientY), 500);
-  }
-  function cancelContactLongPress() {
-    if (contactLongPress) {
-      clearTimeout(contactLongPress);
-      contactLongPress = null;
-    }
+    contactLongPress.start(() => openContactMenu(userId, tp.clientX, tp.clientY));
   }
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
@@ -221,15 +200,9 @@
     try {
       await contactsState.setAlias(userId, renameValue);
     } catch (e) {
-      notifications.push(t('profile.errorNickname'), 'error');
-      log.error(e);
+      notifyError(e, 'profile.errorNickname');
     }
     renamingId = null;
-  }
-
-  function focusOnMount(node: HTMLInputElement) {
-    node.focus();
-    node.select();
   }
 
   async function handleToggleBlock(userId: string) {
@@ -256,8 +229,7 @@
         'success'
       );
     } catch (e) {
-      notifications.push(t(willBlock ? 'profile.errorBlock' : 'profile.errorUnblock'), 'error');
-      log.error(e);
+      notifyError(e, willBlock ? 'profile.errorBlock' : 'profile.errorUnblock');
     }
   }
 
@@ -278,7 +250,7 @@
       contactsState.remove(userId);
       if (currentChatId === userId) goto('/', { replaceState: true });
     } catch (e) {
-      log.error('delete contact failed', e);
+      notifyError(e, 'profile.errorRemove');
     }
   }
 </script>
@@ -370,94 +342,28 @@
       </div>
     {:else}
       {#snippet contactRow(contact: ContactResponse, ci: number)}
-        {@const unread = messagesState.unreadFor(contact.userId)}
-        {@const unreadCapped = messagesState.unreadCappedFor(contact.userId)}
-        {@const status = contactsState.connectionStatus[contact.userId]}
-        {@const previewTs = getLastMessageTs(contact.userId)}
-        <div class="contact-row-wrap">
-          <button
-            class="contact-row"
-            class:active={currentChatId === contact.userId}
-            class:pinned-convo={pinnedConvosState.has(contact.userId)}
-            style="animation-delay: {Math.min(ci * 30, 180)}ms"
-            class:unread={unread > 0}
-            oncontextmenu={(e) => {
-              e.preventDefault();
-              openContactMenu(contact.userId, e.clientX, e.clientY);
-            }}
-            ontouchstart={(e) => startContactLongPress(e, contact.userId)}
-            ontouchend={cancelContactLongPress}
-            ontouchmove={cancelContactLongPress}
-            onclick={() => {
-              if (contactMenu) return;
-              goto('/chat/' + contact.userId);
-              uiState.mobileSidebarOpen = false;
-            }}
-          >
-            <div class="contact-avatar">
-              <Avatar name={contact.displayName} src={contact.avatarPath} size={42} />
-              <StatusDot
-                status={status ?? 'disconnected'}
-                label={getStatusLabel(status, contact.userId)}
-              />
-            </div>
-            <div class="contact-meta">
-              <div class="contact-top">
-                {#if pinnedConvosState.has(contact.userId)}
-                  <span class="convo-pin"><Pin size={11} /></span>
-                {/if}
-                {#if renamingId === contact.userId}
-                  <input
-                    class="rename-input"
-                    bind:value={renameValue}
-                    maxlength="32"
-                    placeholder={contact.profileName ?? contact.displayName}
-                    use:focusOnMount
-                    onclick={(e) => e.stopPropagation()}
-                    onblur={() => (renamingId = null)}
-                    onkeydown={(e) => {
-                      e.stopPropagation();
-                      if (e.key === 'Enter') void commitRename(contact.userId);
-                      if (e.key === 'Escape') renamingId = null;
-                    }}
-                  />
-                {:else}
-                  <span class="contact-name">{contact.displayName}</span>
-                {/if}
-                {#if contactsState.isMuted(contact.userId)}
-                  <span class="convo-muted" title={t('layout.contactMenu.mutedIndicator')}>
-                    <BellOff size={11} />
-                  </span>
-                {/if}
-                {#if previewTs}
-                  <span class="contact-time">{formatTimeShort(previewTs)}</span>
-                {/if}
-              </div>
-              <div class="contact-bottom">
-                {#if typingState.isTyping(contact.userId)}
-                  <span class="contact-preview typing">{t('layout.typing')}</span>
-                {:else if draftsState.get(contact.userId)}
-                  <span class="contact-preview draft">{t('layout.draftIndicator')}</span>
-                {:else}
-                  <span class="contact-status-text">{getStatusLabel(status, contact.userId)}</span>
-                {/if}
-                {#if unread > 0}
-                  <span class="badge">{unread > 99 || unreadCapped ? '99+' : unread}</span>
-                {/if}
-              </div>
-            </div>
-          </button>
-          <button
-            class="row-menu-btn"
-            aria-label={t('layout.contactMenu.more')}
-            onclick={(e) => {
-              e.stopPropagation();
-              openContactMenu(contact.userId, e.clientX, e.clientY);
-            }}
-          >
-            <MoreHorizontal size={16} />
-          </button>
-        </div>
+        <ContactRow
+          {contact}
+          index={ci}
+          active={currentChatId === contact.userId}
+          statusLabel={getStatusLabel(
+            contactsState.connectionStatus[contact.userId],
+            contact.userId
+          )}
+          lastMessageTs={getLastMessageTs(contact.userId)}
+          renaming={renamingId === contact.userId}
+          bind:renameValue
+          onOpen={() => {
+            if (contactMenu) return;
+            goto('/chat/' + contact.userId);
+            uiState.mobileSidebarOpen = false;
+          }}
+          onOpenMenu={(x, y) => openContactMenu(contact.userId, x, y)}
+          onLongPressStart={(e) => startContactLongPress(e, contact.userId)}
+          onLongPressCancel={contactLongPress.cancel}
+          onCommitRename={() => void commitRename(contact.userId)}
+          onCancelRename={() => (renamingId = null)}
+        />
       {/snippet}
 
       {#each activeContacts as contact, ci (contact.userId)}
@@ -505,9 +411,7 @@
       </div>
       <div class="user-info">
         <span class="user-name">{profileState.displayName}</span>
-        <span class="user-id"
-          >{profileState.peerId ? profileState.peerId.slice(0, 10) + '...' : '...'}</span
-        >
+        <span class="user-id">{profileState.peerId ? truncate(profileState.peerId, 11) : '…'}</span>
       </div>
     </button>
 
@@ -724,8 +628,10 @@
     -webkit-app-region: no-drag;
     text-align: left;
   }
-  .brand:hover .prompt {
-    color: var(--accent-hover);
+  @media (hover: hover) {
+    .brand:hover .prompt {
+      color: var(--accent-hover);
+    }
   }
   .prompt {
     color: var(--accent);
@@ -741,16 +647,12 @@
   .icon-btn {
     width: 34px;
     height: 34px;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    transition: all var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .icon-btn:active {
     transform: scale(0.95);
@@ -776,14 +678,16 @@
       background var(--transition);
     text-align: left;
   }
-  .search-trigger:hover {
-    border-color: var(--accent-selected);
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .search-trigger:hover {
+      border-color: var(--accent-selected);
+      background: var(--bg-hover);
+    }
   }
   .search-trigger-text {
     flex: 1;
     min-width: 0;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -816,7 +720,7 @@
     gap: 8px;
     padding: 24px 12px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
 
   .skeleton-list {
@@ -913,151 +817,13 @@
     border-radius: 999px;
     background: var(--accent-dim);
     color: var(--accent-hover);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     transition: background var(--transition);
   }
-  .empty-cta:hover {
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
-  }
-
-  .contact-row {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    border-radius: var(--radius-md);
-    text-align: left;
-    transition:
-      background var(--transition),
-      transform var(--transition),
-      box-shadow var(--transition);
-    margin-bottom: 1px;
-    animation: row-slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  @keyframes row-slide-in {
-    from {
-      opacity: 0;
-      transform: translateX(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-  .contact-row:hover {
-    background: var(--bg-hover);
-  }
-  .contact-row:active {
-    background: color-mix(in srgb, var(--accent-solid) 20%, transparent);
-  }
-  .contact-row.active {
-    background: var(--accent-dim);
-    box-shadow: inset 2px 0 0 var(--accent);
-  }
-  .contact-row.active .contact-name {
-    color: var(--accent-hover);
-  }
-
-  .contact-avatar {
-    position: relative;
-    flex-shrink: 0;
-  }
-  .contact-avatar :global(.status-dot) {
-    position: absolute;
-    bottom: -1px;
-    right: -1px;
-    border: 2px solid var(--bg-secondary);
-  }
-  .contact-row.active .contact-avatar :global(.status-dot) {
-    border-color: var(--bg-secondary);
-  }
-
-  .contact-meta {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .contact-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .contact-name {
-    font-size: 14px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-primary);
-    flex: 1;
-    min-width: 0;
-  }
-  .contact-row.unread .contact-name {
-    font-weight: 700;
-  }
-  .rename-input {
-    flex: 1;
-    min-width: 0;
-    background: var(--bg-input);
-    border: 1px solid var(--accent-selected);
-    border-radius: var(--radius-sm);
-    padding: 2px 6px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-  .contact-time {
-    font-size: 11px;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-  .contact-row.unread .contact-time {
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .contact-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .contact-preview,
-  .contact-status-text {
-    font-size: 12.5px;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-    min-width: 0;
-  }
-  .contact-row.unread .contact-preview {
-    color: var(--text-secondary);
-  }
-  .contact-preview.draft {
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .contact-preview.typing {
-    color: var(--accent);
-    font-style: italic;
-    animation: typing-pulse 1.4s ease-in-out infinite;
-  }
-  @keyframes typing-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.55;
+  @media (hover: hover) {
+    .empty-cta:hover {
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
     }
   }
 
@@ -1069,7 +835,7 @@
     border-radius: 999px;
     background: var(--accent);
     color: #fff;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     display: inline-flex;
@@ -1102,8 +868,10 @@
      border to border, so the highlight also runs behind the call controls.
      The panel paints it (not the button) because the button only spans the
      left part of the row. */
-  .user-panel:has(.user-identity:hover) {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .user-panel:has(.user-identity:hover) {
+      background: var(--bg-hover);
+    }
   }
   .user-identity {
     flex: 1;
@@ -1147,8 +915,10 @@
   .ctl-grp.on .ctl-tgl {
     color: var(--accent-hover);
   }
-  .ctl-tgl:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .ctl-tgl:hover {
+      color: var(--text-primary);
+    }
   }
   .ctl-dd {
     display: flex;
@@ -1161,10 +931,15 @@
       color var(--transition),
       background var(--transition);
   }
-  .ctl-dd:hover,
   .ctl-dd.open {
     color: var(--text-primary);
     background: var(--bg-hover);
+  }
+  @media (hover: hover) {
+    .ctl-dd:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
   }
   .ctl-menu {
     position: absolute;
@@ -1195,9 +970,11 @@
     text-align: left;
     transition: background var(--transition);
   }
-  .ctl-opt:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .ctl-opt:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .ctl-opt.sel {
     color: var(--accent-hover);
@@ -1224,7 +1001,7 @@
     flex-direction: column;
   }
   .user-name {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -1232,7 +1009,7 @@
     text-overflow: ellipsis;
   }
   .user-id {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
@@ -1277,13 +1054,6 @@
       display: flex;
     }
 
-    .contact-row {
-      padding: 11px 10px;
-    }
-    /* Row actions are hover-only; on touch use long-press / contextmenu. */
-    .row-menu-btn {
-      display: none;
-    }
     .icon-btn {
       width: 38px;
       height: 38px;
@@ -1296,18 +1066,6 @@
     }
   }
 
-  .convo-pin {
-    display: inline-flex;
-    align-items: center;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-  .convo-muted {
-    display: inline-flex;
-    align-items: center;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
   .archived-header {
     display: flex;
     align-items: center;
@@ -1317,52 +1075,14 @@
     margin-top: 6px;
     border-top: 1px solid var(--border-light);
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     transition: color var(--transition);
   }
-  .archived-header:hover {
-    color: var(--text-secondary);
-  }
-  .contact-row.pinned-convo {
-    background: color-mix(in srgb, var(--accent) 5%, transparent);
-  }
-  .contact-row-wrap {
-    position: relative;
-  }
-  .row-menu-btn {
-    position: absolute;
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
-    width: 26px;
-    height: 26px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    background: var(--bg-tertiary);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-    opacity: 0;
-    pointer-events: none;
-    transition:
-      opacity var(--transition),
-      background var(--transition);
-  }
   @media (hover: hover) {
-    .contact-row-wrap:hover .row-menu-btn {
-      opacity: 1;
-      pointer-events: auto;
+    .archived-header:hover {
+      color: var(--text-secondary);
     }
-    .contact-row-wrap:hover .contact-top,
-    .contact-row-wrap:hover .contact-bottom {
-      padding-right: 28px;
-    }
-  }
-  .row-menu-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   .ctx-backdrop {
@@ -1394,18 +1114,22 @@
     width: 100%;
     padding: 9px 10px;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-primary);
     text-align: left;
     transition: background var(--transition);
   }
-  .ctx-item:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .ctx-item:hover {
+      background: var(--bg-hover);
+    }
   }
   .ctx-item.danger {
     color: var(--danger);
   }
-  .ctx-item.danger:hover {
-    background: var(--danger-dim);
+  @media (hover: hover) {
+    .ctx-item.danger:hover {
+      background: var(--danger-dim);
+    }
   }
 </style>

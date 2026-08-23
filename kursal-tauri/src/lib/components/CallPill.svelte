@@ -96,8 +96,10 @@
     border-radius: 999px;
     transition: background var(--transition);
   }
-  .grab:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .grab:hover {
+      background: var(--bg-hover);
+    }
   }
   .ava {
     display: flex;
@@ -154,8 +156,10 @@
       color var(--transition),
       transform var(--transition);
   }
-  .mini:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .mini:hover {
+      color: var(--text-primary);
+    }
   }
   .mini:active {
     transform: scale(0.92);
@@ -168,8 +172,10 @@
     background: var(--danger);
     color: #fff;
   }
-  .mini.hangup:hover {
-    filter: brightness(1.1);
+  @media (hover: hover) {
+    .mini.hangup:hover {
+      filter: brightness(1.1);
+    }
   }
 
   @media (min-width: 769px) {

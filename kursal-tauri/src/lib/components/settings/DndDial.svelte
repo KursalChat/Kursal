@@ -301,7 +301,7 @@
   }
   .hour-label {
     fill: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-variant-numeric: tabular-nums;
     text-anchor: middle;
     dominant-baseline: central;
@@ -331,7 +331,7 @@
   }
   .center-dur {
     fill: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     text-anchor: middle;
     dominant-baseline: central;
     pointer-events: none;

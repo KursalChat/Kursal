@@ -82,7 +82,7 @@
     letter-spacing: -0.01em;
   }
   .body {
-    font-size: 13px;
+    font-size: var(--text-sm);
     line-height: 1.55;
     color: var(--text-secondary);
   }
@@ -95,22 +95,24 @@
     gap: 10px;
   }
   .skip {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-muted);
     padding: 6px 4px;
     text-align: left;
     transition: color var(--transition);
   }
-  .skip:hover {
-    color: var(--text-secondary);
+  @media (hover: hover) {
+    .skip:hover {
+      color: var(--text-secondary);
+    }
   }
   .primary {
     padding: 8px 18px;
     border-radius: var(--radius-md);
     background: var(--accent-solid);
     color: #fff;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     flex-shrink: 0;
     transition:
@@ -119,10 +121,12 @@
       background var(--transition);
     box-shadow: 0 4px 14px var(--accent-dim);
   }
-  .primary:hover {
-    background: var(--accent-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px var(--accent-dim);
+  @media (hover: hover) {
+    .primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px var(--accent-dim);
+    }
   }
   .primary:active {
     transform: translateY(0);
@@ -130,7 +134,7 @@
 
   .footer {
     margin-top: 10px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
   }
 

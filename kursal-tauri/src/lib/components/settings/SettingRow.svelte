@@ -48,12 +48,12 @@
     gap: 2px;
   }
   .title {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-primary);
   }
   .desc {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.45;
   }

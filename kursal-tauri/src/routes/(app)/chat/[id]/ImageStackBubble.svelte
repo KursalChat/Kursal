@@ -5,13 +5,9 @@
   import type { MessageResponse } from '$lib/types';
   import { t } from '$lib/i18n';
   import { messagesState } from '$lib/state/messages.svelte';
-  import {
-    formatTime,
-    formatFullTimestamp,
-    formatFileSize,
-    isTransferDone,
-    mediaUrl,
-  } from './chat-utils';
+  import { formatFileSize } from '$lib/utils/bytes';
+  import { formatTime, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
+  import { isTransferDone, mediaUrl } from './chat-utils';
 
   interface Props {
     msgs: MessageResponse[];
@@ -191,8 +187,10 @@
     display: block;
     transition: transform var(--transition);
   }
-  .tile:hover img {
-    transform: scale(1.04);
+  @media (hover: hover) {
+    .tile:hover img {
+      transform: scale(1.04);
+    }
   }
   .ph {
     position: absolute;
@@ -211,7 +209,7 @@
     justify-content: center;
     background: rgba(2, 6, 23, 0.55);
     color: #fff;
-    font-size: 20px;
+    font-size: var(--text-xl);
     font-weight: 700;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
@@ -233,8 +231,10 @@
   .stack.sent .dl-all {
     align-self: flex-end;
   }
-  .dl-all:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .dl-all:hover {
+      background: var(--accent-hover);
+    }
   }
   .dl-size {
     font-weight: 500;

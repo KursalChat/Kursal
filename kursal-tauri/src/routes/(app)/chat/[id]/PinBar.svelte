@@ -214,8 +214,10 @@
     text-align: left;
     transition: background var(--transition);
   }
-  .pin-main:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .pin-main:hover {
+      background: var(--bg-hover);
+    }
   }
   .pin-main:active {
     transform: scale(0.99);
@@ -241,9 +243,11 @@
     color: var(--text-muted);
     transition: all var(--transition);
   }
-  .pin-step:hover {
-    background: var(--bg-hover);
-    color: var(--accent-hover);
+  @media (hover: hover) {
+    .pin-step:hover {
+      background: var(--bg-hover);
+      color: var(--accent-hover);
+    }
   }
   .pin-step:active {
     transform: scale(0.94);
@@ -290,10 +294,15 @@
     color: var(--text-muted);
     transition: all var(--transition);
   }
-  .pin-list-btn:hover,
   .pin-list-btn.active {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  @media (hover: hover) {
+    .pin-list-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
 
   .pin-pop-backdrop {
@@ -339,7 +348,7 @@
     background: var(--accent-dim);
     color: var(--accent);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-2xs);
   }
   .pin-pop-list {
     overflow-y: auto;
@@ -351,8 +360,10 @@
     gap: 2px;
     border-radius: var(--radius-sm);
   }
-  .pin-pop-row:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .pin-pop-row:hover {
+      background: var(--bg-hover);
+    }
   }
   .pin-pop-row.current {
     background: var(--accent-dim);
@@ -406,12 +417,14 @@
     opacity: 0.5;
     transition: all var(--transition);
   }
-  .pin-pop-row:hover .pin-pop-unpin {
-    opacity: 1;
-  }
-  .pin-pop-unpin:hover {
-    background: var(--danger-dim);
-    color: var(--danger);
+  @media (hover: hover) {
+    .pin-pop-row:hover .pin-pop-unpin {
+      opacity: 1;
+    }
+    .pin-pop-unpin:hover {
+      background: var(--danger-dim);
+      color: var(--danger);
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {

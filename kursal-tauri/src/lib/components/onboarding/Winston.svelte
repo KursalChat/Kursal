@@ -147,8 +147,10 @@
       wiggle 550ms ease-in-out;
   }
 
-  .winston.interactive:hover .inner {
-    transform: scale(1.04);
+  @media (hover: hover) {
+    .winston.interactive:hover .inner {
+      transform: scale(1.04);
+    }
   }
 
   .winston img {
@@ -180,7 +182,7 @@
     color: var(--ob-ink, #0d1017);
     padding: 7px 13px;
     border-radius: 12px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     white-space: nowrap;
     max-width: 220px;

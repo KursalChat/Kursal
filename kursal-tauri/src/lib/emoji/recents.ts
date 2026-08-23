@@ -1,20 +1,15 @@
+import { readJson, writeJson } from '$lib/utils/storage';
+
 export const COUNTS_KEY = 'kursal_recent_emoji_counts';
 
 function read(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(COUNTS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return readJson<Record<string, number>>(COUNTS_KEY, {});
 }
 
 export function bumpRecent(unicode: string): void {
   const counts = read();
   counts[unicode] = (counts[unicode] ?? 0) + 1;
-  try {
-    localStorage.setItem(COUNTS_KEY, JSON.stringify(counts));
-  } catch {}
+  writeJson(COUNTS_KEY, counts);
 }
 
 export function topRecents(n: number): string[] {

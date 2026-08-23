@@ -1,28 +1,8 @@
+import { readStringSet, writeStringSet } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'kursal:trustedDomains';
 
 const BUILTIN_TRUSTED = new Set<string>(['kursal.chat']);
-
-function readSet(): Set<string> {
-  if (typeof localStorage === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return new Set();
-    return new Set(arr.filter((x): x is string => typeof x === 'string'));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeSet(set: Set<string>) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
-  } catch {
-    /* quota or disabled: silent */
-  }
-}
 
 function normalize(host: string): string {
   return host
@@ -32,7 +12,7 @@ function normalize(host: string): string {
 }
 
 function createTrustedDomainsState() {
-  let domains = $state<string[]>([...readSet()].sort());
+  let domains = $state<string[]>([...readStringSet(STORAGE_KEY)].sort());
 
   function isTrusted(host: string): boolean {
     const h = normalize(host);
@@ -46,7 +26,7 @@ function createTrustedDomainsState() {
     if (!h || BUILTIN_TRUSTED.has(h) || domains.includes(h)) return;
     const next = [...domains, h].sort();
     domains = next;
-    writeSet(new Set(next));
+    writeStringSet(STORAGE_KEY, new Set(next));
   }
 
   function untrust(host: string) {
@@ -54,12 +34,12 @@ function createTrustedDomainsState() {
     if (!domains.includes(h)) return;
     const next = domains.filter((d) => d !== h);
     domains = next;
-    writeSet(new Set(next));
+    writeStringSet(STORAGE_KEY, new Set(next));
   }
 
   function clear() {
     domains = [];
-    writeSet(new Set());
+    writeStringSet(STORAGE_KEY, new Set());
   }
 
   return {

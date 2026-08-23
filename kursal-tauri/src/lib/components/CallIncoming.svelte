@@ -129,15 +129,19 @@
   .btn.decline {
     background: var(--danger);
   }
-  .btn.decline:hover {
-    filter: brightness(1.1);
+  @media (hover: hover) {
+    .btn.decline:hover {
+      filter: brightness(1.1);
+    }
   }
   .btn.accept {
     background: var(--success);
     animation: accept-pulse 1.6s ease-in-out infinite;
   }
-  .btn.accept:hover {
-    filter: brightness(1.08);
+  @media (hover: hover) {
+    .btn.accept:hover {
+      filter: brightness(1.08);
+    }
   }
   @keyframes accept-pulse {
     0%,

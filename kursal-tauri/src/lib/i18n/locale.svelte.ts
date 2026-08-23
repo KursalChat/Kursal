@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import en from '../../../../locales/en.json';
+import { readRaw, writeRaw } from '$lib/utils/storage';
 import { LOCALES, type Locale } from './locales';
 
 const LOCALE_KEY = 'kursal_locale';
@@ -45,7 +46,7 @@ function isLocale(value: unknown): value is Locale {
 function detect(): Locale {
   if (!browser) return 'en';
 
-  const stored = localStorage.getItem(LOCALE_KEY);
+  const stored = readRaw(LOCALE_KEY);
   if (isLocale(stored)) return stored;
 
   const tag = (navigator.language ?? 'en').toLowerCase().split('-')[0];
@@ -92,7 +93,7 @@ export const locale = {
   },
   set(value: Locale) {
     current = value;
-    if (browser) localStorage.setItem(LOCALE_KEY, value);
+    writeRaw(LOCALE_KEY, value);
     void loadDict(value);
   },
 };

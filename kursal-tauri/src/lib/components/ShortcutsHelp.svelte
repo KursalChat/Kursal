@@ -155,9 +155,11 @@
     color: var(--text-muted);
     transition: all var(--transition);
   }
-  .sh-close:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .sh-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .sh-body {
     overflow-y: auto;
@@ -168,7 +170,7 @@
   }
   .sh-sec h4 {
     margin: 0 0 6px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -186,7 +188,7 @@
     border-bottom: none;
   }
   .sh-desc {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     min-width: 0;
   }
@@ -207,7 +209,7 @@
     border: 1px solid var(--border);
     box-shadow: 0 1px 0 var(--border);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-primary);
   }

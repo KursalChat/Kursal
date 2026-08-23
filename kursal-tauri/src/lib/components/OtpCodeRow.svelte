@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { Check, Copy, KeyRound, Link2, Share2 } from 'lucide-svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { copyText } from '$lib/utils/clipboard';
+  import { renderQrDataUrl } from '$lib/utils/qr';
+  import { formatClockFromSeconds } from '$lib/utils/duration';
   import { log } from '$lib/utils/log';
   import { clearOtpSession, loadOtpSession, saveOtpSession } from '$lib/utils/otpSession';
   import { generateOtp, publishOtp } from '$lib/api/otp';
@@ -29,9 +31,7 @@
   const copiedWords = flash();
   const ready = $derived(codeStatus === 'ready');
   const words = $derived(otp ? otp.split(/\s+/).filter(Boolean) : []);
-  const formattedTime = $derived(
-    `${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`
-  );
+  const formattedTime = $derived(formatClockFromSeconds(countdown));
 
   const hint = $derived.by((): string | undefined => {
     switch (codeStatus) {
@@ -90,18 +90,7 @@
   }
 
   async function renderQr(value: string) {
-    try {
-      const { default: QRCode } = await import('qrcode');
-      qrDataUrl = await QRCode.toDataURL(value, {
-        errorCorrectionLevel: 'L',
-        margin: 4,
-        width: 640,
-        color: { dark: '#000000', light: '#ffffff' },
-      });
-    } catch (e) {
-      qrDataUrl = null;
-      log.error('Failed to render QR:', e);
-    }
+    qrDataUrl = await renderQrDataUrl(value, { width: 640 });
   }
 
   async function createCode() {
@@ -126,22 +115,12 @@
 
   async function copyWords() {
     if (!otp) return;
-    try {
-      await writeText(otp);
-      copiedWords.trigger();
-    } catch (e) {
-      log.error('Failed to copy words:', e);
-    }
+    await copyText(otp, { flash: copiedWords });
   }
 
   async function copyLink() {
     if (!otp) return;
-    try {
-      await writeText(buildOtpLink(otp));
-      copiedLink.trigger();
-    } catch (e) {
-      log.error('Failed to copy link:', e);
-    }
+    await copyText(buildOtpLink(otp), { flash: copiedLink });
   }
 
   async function sendInvite() {
@@ -307,10 +286,12 @@
       border-color var(--transition);
   }
 
-  .copy-words:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .copy-words:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
   }
 
   .words span {

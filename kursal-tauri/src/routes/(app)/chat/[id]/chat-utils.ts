@@ -6,8 +6,13 @@ import { notifications } from '$lib/state/notifications.svelte';
 import { notifyError } from '$lib/utils/errors';
 import { confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
 import { trustedDomainsState } from '$lib/state/trustedDomains.svelte';
-import { clockOptions } from '$lib/utils/timeFormat';
-import { t, dateLocale } from '$lib/i18n';
+import { formatCalendarDay, formatTime, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
+import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
+import { copyText } from '$lib/utils/clipboard';
+import { truncate, extensionOf } from '$lib/utils/text';
+import { clamp, percent } from '$lib/utils/geometry';
+import { formatClock } from '$lib/utils/duration';
+import { t } from '$lib/i18n';
 
 marked.use({
   extensions: [
@@ -38,23 +43,10 @@ marked.use({
   ],
 });
 
-function b64EncodeUtf8(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
-function b64DecodeUtf8(encoded: string): string {
-  const binary = atob(encoded);
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
 marked.use({
   renderer: {
     code({ text, lang }: { text: string; lang?: string }) {
-      const encoded = b64EncodeUtf8(text);
+      const encoded = encodeUtf8Base64(text);
       const escapedCode = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const aria = t('chat.bubble.copyCodeAria');
       const langAttr = lang ? ` class="language-${lang}"` : '';
@@ -81,9 +73,8 @@ const AUDIO_EXT = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'op
 const VIDEO_EXT = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'mkv', 'avi']);
 
 export function mediaKindFromFilename(filename: string): MediaKind {
-  const dot = filename.lastIndexOf('.');
-  if (dot < 0) return 'other';
-  const ext = filename.slice(dot + 1).toLowerCase();
+  const ext = extensionOf(filename);
+  if (!ext) return 'other';
   if (IMAGE_EXT.has(ext)) return 'image';
   if (AUDIO_EXT.has(ext)) return 'audio';
   if (VIDEO_EXT.has(ext)) return 'video';
@@ -104,39 +95,13 @@ const TEXT_EXT = new Set([
 ]);
 
 export function isTextFilename(filename: string): boolean {
-  const dot = filename.lastIndexOf('.');
-  if (dot < 0) return false;
-  return TEXT_EXT.has(filename.slice(dot + 1).toLowerCase());
-}
-
-export function midTruncate(name: string, maxLen = 30): string {
-  if (name.length <= maxLen) return name;
-  const dot = name.lastIndexOf('.');
-  const ext = dot > 0 && name.length - dot < 8 ? name.slice(dot) : '';
-  const stem = ext ? name.slice(0, name.length - ext.length) : name;
-  const room = maxLen - ext.length - 1;
-  if (room < 6) return name.slice(0, maxLen - 1) + '…';
-  const head = Math.ceil(room * 0.6);
-  const tail = room - head;
-  return stem.slice(0, head) + '…' + stem.slice(stem.length - tail) + ext;
-}
-
-export function formatFileSize(bytes: number): string {
-  if (bytes <= 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  const ext = extensionOf(filename);
+  return ext !== '' && TEXT_EXT.has(ext);
 }
 
 export interface CallRecord {
   outcome: string;
   durationMs: number;
-}
-
-function fmtCallDuration(ms: number): string {
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 export function isMissedCall(rec: CallRecord): boolean {
@@ -147,7 +112,7 @@ type TransferProgress = { bytesTransferred: number; totalBytes: number } | null 
 
 export function transferPercent(p: TransferProgress): number {
   if (!p || p.totalBytes <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((p.bytesTransferred / p.totalBytes) * 100)));
+  return percent(p.bytesTransferred, p.totalBytes);
 }
 
 export function isTransferDone(p: TransferProgress): boolean {
@@ -188,8 +153,7 @@ export function emojiPickerPosition(anchor: DOMRect, vw: number, vh: number): Em
     // picker's growth/shrink anchored the same way as the "above" case.
     bottom = margin;
   }
-  let left = anchor.left + anchor.width / 2 - PICKER_W / 2;
-  left = Math.max(margin, Math.min(left, vw - PICKER_W - margin));
+  const left = clamp(anchor.left + anchor.width / 2 - PICKER_W / 2, margin, vw - PICKER_W - margin);
   return { top, bottom, left };
 }
 
@@ -198,7 +162,7 @@ export function callRecordLabel(rec: CallRecord, direction: string): string {
     case 'started':
       return t('chat.call.recordStarted');
     case 'completed':
-      return t('chat.call.recordCall', { duration: fmtCallDuration(rec.durationMs) });
+      return t('chat.call.recordCall', { duration: formatClock(rec.durationMs) });
     case 'missed':
       return direction === 'received' ? t('chat.call.missed') : t('chat.call.noAnswer');
     case 'declined':
@@ -230,54 +194,15 @@ export function isMessageActionable(status: string): boolean {
 export function getMessagePreview(content: string): string {
   const clean = content.replace(/\s+/g, ' ').trim();
   if (!clean) return t('chat.bubble.emptyPreview');
-  return clean.length > 80 ? clean.slice(0, 77) + '...' : clean;
-}
-
-export function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString(dateLocale(), clockOptions());
+  return truncate(clean, 80);
 }
 
 export function formatGroupTime(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = d.toDateString() === yesterday.toDateString();
-
-  if (isToday) return `${t('time.today')} · ${formatTime(ts)}`;
-  if (isYesterday) return `${t('time.yesterday')} · ${formatTime(ts)}`;
-  if (now.getTime() - ts < 7 * 24 * 3600 * 1000) {
-    return d.toLocaleDateString(dateLocale(), { weekday: 'long' }) + ` · ${formatTime(ts)}`;
-  }
-  return (
-    d.toLocaleDateString(dateLocale(), {
-      month: 'short',
-      day: 'numeric',
-      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-    }) + ` · ${formatTime(ts)}`
-  );
-}
-
-export function isSameDay(a: number, b: number): boolean {
-  return new Date(a).toDateString() === new Date(b).toDateString();
+  return formatCalendarDay(ts, true);
 }
 
 export function formatDaySeparator(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) return t('time.today');
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return t('time.yesterday');
-  if (now.getTime() - ts < 7 * 24 * 3600 * 1000) {
-    return d.toLocaleDateString(dateLocale(), { weekday: 'long' });
-  }
-  return d.toLocaleDateString(dateLocale(), {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-  });
+  return formatCalendarDay(ts);
 }
 
 const EMOJI_RE = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})(‍|️|\p{Emoji_Modifier})*$/u;
@@ -410,15 +335,6 @@ export function renderMarkdown(content: string, isEdited: boolean = false): stri
   return sanitized;
 }
 
-export function formatFullTimestamp(ts: number): string {
-  return new Date(ts).toLocaleString(dateLocale(), {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    ...clockOptions(),
-  });
-}
-
 // Messages carry a sent time (from the MessageId) and a received time. Only when
 // the gap is meaningful (delayed offline delivery) do we surface "Received …".
 export const DELAYED_RECEIVE_HOVER_THRESHOLD_MS = 60_000;
@@ -439,12 +355,10 @@ export async function handleMarkdownClick(e: MouseEvent) {
   if (copyBtn) {
     e.preventDefault();
     const enc = copyBtn.getAttribute('data-code') ?? '';
-    try {
-      const text = b64DecodeUtf8(enc);
-      await navigator.clipboard.writeText(text);
+    if (await copyText(decodeUtf8Base64(enc))) {
       copyBtn.classList.add('copied');
       setTimeout(() => copyBtn.classList.remove('copied'), 1200);
-    } catch {}
+    }
     return;
   }
   const spoiler = target?.closest('.spoiler');

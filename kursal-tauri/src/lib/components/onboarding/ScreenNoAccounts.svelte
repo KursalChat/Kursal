@@ -142,7 +142,7 @@
   .code {
     fill: var(--ob-ink);
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 500;
     letter-spacing: 0.05em;
     text-anchor: middle;
@@ -244,7 +244,7 @@
       max-height: 32vh;
     }
     .code {
-      font-size: 13px;
+      font-size: var(--text-sm);
     }
     .winston-key {
       left: -3%;

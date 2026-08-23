@@ -13,8 +13,8 @@
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { t } from '$lib/i18n';
-  import { parseError } from '$lib/utils/errors';
-  import { log } from '$lib/utils/log';
+  import { parseError, notifyError } from '$lib/utils/errors';
+  import { formatBytes } from '$lib/utils/bytes';
   import type { LtcStatus } from '$lib/types';
 
   let { status }: { status: LtcStatus } = $props();
@@ -45,12 +45,6 @@
     status.maxUses ? Math.min(100, Math.round((status.uses / status.maxUses) * 100)) : 0
   );
 
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
   function pointerLabel(): string {
     if (!status.followRotations) return t('addContact.ltc.card.pointerDisabled');
     switch (status.pointerState) {
@@ -67,8 +61,7 @@
     try {
       await ltcState.setFollowRotations(enabled);
     } catch (e) {
-      notifications.push(t('addContact.ltc.rotationError'), 'error');
-      log.error('Toggling LTC rotation follow failed:', e);
+      notifyError(e, 'addContact.ltc.rotationError');
     }
   }
 
@@ -76,8 +69,7 @@
     try {
       await ltcState.republishPointer();
     } catch (e) {
-      notifications.push(t('addContact.ltc.republishError'), 'error');
-      log.error('Republishing the LTC pointer failed:', e);
+      notifyError(e, 'addContact.ltc.republishError');
     }
   }
 
@@ -129,9 +121,8 @@
       if (parseError(e).message.toLowerCase().includes('cancel')) {
         notifications.push(t('addContact.ltc.saveCancelled'), 'info');
       } else {
-        notifications.push(t('addContact.ltc.exportError'), 'error');
+        notifyError(e, 'addContact.ltc.exportError');
       }
-      log.error('Export failed:', e);
     } finally {
       downloading = false;
     }
@@ -152,8 +143,7 @@
         shareButton ? shareAnchor(shareButton) : undefined
       );
     } catch (e) {
-      notifications.push(t('addContact.ltc.shareError'), 'error');
-      log.error('Share failed:', e);
+      notifyError(e, 'addContact.ltc.shareError');
     } finally {
       sharing = false;
     }
@@ -172,8 +162,7 @@
       editing = false;
       notifications.push(t('addContact.ltc.limitsSaved'), 'success');
     } catch (e) {
-      notifications.push(t('addContact.ltc.limitsError'), 'error');
-      log.error('Updating LTC limits failed:', e);
+      notifyError(e, 'addContact.ltc.limitsError');
     } finally {
       saving = false;
     }
@@ -193,8 +182,7 @@
       await ltcState.create(status.maxUses, ttl);
       notifications.push(t('addContact.ltc.regenerated'), 'success');
     } catch (e) {
-      notifications.push(t('addContact.ltc.createError'), 'error');
-      log.error('Regenerating the LTC failed:', e);
+      notifyError(e, 'addContact.ltc.createError');
     }
   }
 
@@ -211,8 +199,7 @@
       await ltcState.revoke();
       notifications.push(t('addContact.ltc.revoked'), 'success');
     } catch (e) {
-      notifications.push(t('addContact.ltc.revokeError'), 'error');
-      log.error('Revoking the LTC failed:', e);
+      notifyError(e, 'addContact.ltc.revokeError');
     }
   }
 </script>
@@ -224,7 +211,7 @@
     <span class="meta">
       <strong>{FILE_NAME}</strong>
       <span class="sub">
-        {formatSize(status.sizeBytes)}
+        {formatBytes(status.sizeBytes, { maxUnit: 'MB' })}
         <span class="dot">·</span>
         {usesLabel()}
         <span class="dot">·</span>
@@ -403,26 +390,18 @@
   }
 
   .icon-btn {
-    display: grid;
-    place-items: center;
     width: 32px;
     height: 32px;
-    flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition:
-      background var(--transition),
-      border-color var(--transition),
-      color var(--transition);
   }
 
-  .icon-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    border-color: var(--accent-selected);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--accent-selected);
+      color: var(--text-primary);
+    }
   }
 
   .icon-btn:disabled {
@@ -572,12 +551,16 @@
     cursor: pointer;
   }
 
-  .links button:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .links button:hover {
+      color: var(--text-primary);
+    }
   }
 
-  .links button.danger:hover {
-    color: var(--danger);
+  @media (hover: hover) {
+    .links button.danger:hover {
+      color: var(--danger);
+    }
   }
 
   .links button:focus-visible {

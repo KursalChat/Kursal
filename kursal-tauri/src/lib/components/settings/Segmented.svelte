@@ -63,7 +63,7 @@
     gap: 5px;
     padding: 6px 12px;
     border-radius: 7px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 500;
     color: var(--text-secondary);
     transition:
@@ -84,10 +84,12 @@
   }
   .segmented[data-size='sm'] .seg {
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
-  .seg:hover:not(:disabled):not([data-active='true']) {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .seg:hover:not(:disabled):not([data-active='true']) {
+      color: var(--text-primary);
+    }
   }
   .seg[data-active='true'] {
     background: var(--bg-tertiary);

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { scale } from 'svelte/transition';
-  import { log } from '$lib/utils/log';
+  import { notifyError } from '$lib/utils/errors';
   import { X, Trash2, Ban, Shield, Copy, Pencil, Check } from 'lucide-svelte';
   import Avatar from './Avatar.svelte';
   import SecurityCodeModal from './SecurityCodeModal.svelte';
@@ -11,6 +11,7 @@
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import { busy } from '$lib/utils/busy.svelte';
   import { flash } from '$lib/utils/flash.svelte';
+  import { copyText } from '$lib/utils/clipboard';
   import { trapFocus } from '$lib/utils/focusTrap';
   import Spinner from './Spinner.svelte';
   import { t } from '$lib/i18n';
@@ -37,19 +38,13 @@
       await contactsState.setAlias(contact.userId, nameInput);
       editingName = false;
     } catch (e) {
-      notifications.push(t('profile.errorNickname'), 'error');
-      log.error(e);
+      notifyError(e, 'profile.errorNickname');
     }
   }
 
   async function copyUserId() {
     if (!contact) return;
-    try {
-      await navigator.clipboard.writeText(contact.userId);
-      copiedUserId.trigger();
-    } catch (e) {
-      log.error('Copy failed', e);
-    }
+    await copyText(contact.userId, { flash: copiedUserId });
   }
 
   async function handleToggleBlock() {
@@ -80,8 +75,7 @@
           'success'
         );
       } catch (e) {
-        notifications.push(t(willBlock ? 'profile.errorBlock' : 'profile.errorUnblock'), 'error');
-        log.error(e);
+        notifyError(e, willBlock ? 'profile.errorBlock' : 'profile.errorUnblock');
       }
     });
   }
@@ -107,8 +101,7 @@
         notifications.push(t('profile.successRemoved', { name: displayName }), 'success');
         onClose();
       } catch (e) {
-        notifications.push(t('profile.errorRemove'), 'error');
-        log.error(e);
+        notifyError(e, 'profile.errorRemove');
       }
     });
   }
@@ -278,8 +271,10 @@
     transition: color var(--transition);
   }
 
-  .close-btn:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .close-btn:hover {
+      color: var(--text-primary);
+    }
   }
 
   .profile-content {
@@ -291,7 +286,7 @@
   }
 
   .profile-content h2 {
-    font-size: 20px;
+    font-size: var(--text-xl);
     margin: 0;
   }
 
@@ -301,32 +296,30 @@
     gap: 6px;
   }
   .icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: var(--text-muted);
-    transition: all var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .nickname-input {
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 6px 10px;
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     color: var(--text-primary);
     width: 180px;
     text-align: center;
   }
   .real-name {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     margin-top: -8px;
   }
@@ -369,19 +362,25 @@
     transition: all var(--transition);
   }
 
-  .copy-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .copy-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
 
-  .copy-btn.confirmed,
-  .copy-btn.confirmed:hover {
+  .copy-btn.confirmed {
     color: var(--success);
+  }
+  @media (hover: hover) {
+    .copy-btn.confirmed:hover {
+      color: var(--success);
+    }
   }
 
   .user-id-value {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-secondary);
     word-break: break-all;
     line-height: 1.4;
@@ -402,8 +401,10 @@
     transition: background var(--transition);
   }
 
-  .secondary-btn:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .secondary-btn:hover {
+      background: var(--bg-hover);
+    }
   }
 
   .actions {
@@ -426,8 +427,10 @@
     transition: background var(--transition);
   }
 
-  .danger-btn:hover:not(:disabled) {
-    background: rgba(251, 113, 133, 0.2);
+  @media (hover: hover) {
+    .danger-btn:hover:not(:disabled) {
+      background: rgba(251, 113, 133, 0.2);
+    }
   }
 
   .danger-btn:disabled,

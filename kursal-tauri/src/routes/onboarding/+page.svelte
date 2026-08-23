@@ -1,7 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
-  import { ensurePermission } from '$lib/api/system-notify';
+  import { ensurePermission } from '$lib/state/systemNotify.svelte';
+  import { writeRaw } from '$lib/utils/storage';
+  import { ONBOARDED_KEY } from '$lib/utils/storage-keys';
   import { ChevronLeft } from 'lucide-svelte';
   import InkDefs from '$lib/components/onboarding/InkDefs.svelte';
   import ScreenHello from '$lib/components/onboarding/ScreenHello.svelte';
@@ -15,7 +17,7 @@
   let screen = $state(1);
 
   async function finish() {
-    localStorage.setItem('kursal_onboarded', 'done');
+    writeRaw(ONBOARDED_KEY, 'done');
     await ensurePermission().catch(() => false);
     goto('/');
   }
@@ -169,10 +171,12 @@
       color 150ms ease,
       background 150ms ease;
   }
-  .back:hover {
-    opacity: 1;
-    color: var(--ob-text);
-    background: color-mix(in srgb, var(--ob-fill) 10%, transparent);
+  @media (hover: hover) {
+    .back:hover {
+      opacity: 1;
+      color: var(--ob-text);
+      background: color-mix(in srgb, var(--ob-fill) 10%, transparent);
+    }
   }
 
   /* Never animate the width: it re-centres the row and the bar jitters sideways. */
@@ -204,16 +208,18 @@
     color: var(--ob-text-dim);
     opacity: 0.55;
     padding: 6px 10px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     letter-spacing: -0.01em;
     transition:
       opacity 150ms ease,
       color 150ms ease;
     animation: navIn 400ms ease-out;
   }
-  .nav:hover {
-    opacity: 1;
-    color: var(--ob-text);
+  @media (hover: hover) {
+    .nav:hover {
+      opacity: 1;
+      color: var(--ob-text);
+    }
   }
   .skip {
     right: max(10px, var(--safe-right));

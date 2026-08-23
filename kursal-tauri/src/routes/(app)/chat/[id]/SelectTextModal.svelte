@@ -103,14 +103,6 @@
     z-index: 320;
     animation: fadeIn 0.15s ease;
   }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
 
   .select-sheet {
     position: fixed;
@@ -148,7 +140,7 @@
     margin-bottom: 4px;
   }
   .select-title {
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -191,7 +183,7 @@
     height: 32px;
     padding: 0 14px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: #fff;
     background: var(--accent);
@@ -201,7 +193,7 @@
   }
 
   .select-hint {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     margin-bottom: 8px;
   }
@@ -215,7 +207,7 @@
     border-radius: var(--radius-md);
     padding: 12px;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--text-md);
     line-height: 1.5;
     word-break: break-word;
     user-select: text;

@@ -28,9 +28,9 @@
   import { notifyError } from '$lib/utils/errors';
   import type { MessageResponse } from '$lib/types';
   import { trapFocus } from '$lib/utils/focusTrap';
-  import { clockOptions } from '$lib/utils/timeFormat';
+  import { formatTimeShort } from '$lib/utils/dateFormat.svelte';
   import Avatar from './Avatar.svelte';
-  import { t, dateLocale } from '$lib/i18n';
+  import { t } from '$lib/i18n';
 
   let { open = $bindable(false), onClose }: { open?: boolean; onClose: () => void } = $props();
 
@@ -93,13 +93,6 @@
   }
   function contactAvatar(id: string): string | null | undefined {
     return contactsState.getById(id)?.avatarPath;
-  }
-  function fmtResultTime(ts: number): string {
-    const d = new Date(ts);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString())
-      return d.toLocaleTimeString(dateLocale(), clockOptions());
-    return d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' });
   }
 
   type Cmd = {
@@ -389,7 +382,7 @@
                 <div class="cp-msg-text">
                   <span class="cp-msg-top">
                     <span class="cp-msg-name">{contactName(m.contactId)}</span>
-                    <span class="cp-msg-time">{fmtResultTime(m.timestamp)}</span>
+                    <span class="cp-msg-time">{formatTimeShort(m.timestamp)}</span>
                   </span>
                   <span class="cp-label">{m.content}</span>
                 </div>
@@ -489,7 +482,7 @@
     border: none;
     outline: none;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--text-md);
     font-family: inherit;
   }
   .cp-input::placeholder {
@@ -509,10 +502,10 @@
     padding: 28px 16px;
     text-align: center;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .cp-heading {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -562,8 +555,10 @@
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  .cp-back:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .cp-back:hover {
+      color: var(--text-primary);
+    }
   }
   .cp-msg-text {
     display: flex;
@@ -578,7 +573,7 @@
     gap: 8px;
   }
   .cp-msg-name {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 700;
     color: var(--text-secondary);
     overflow: hidden;
@@ -586,7 +581,7 @@
     white-space: nowrap;
   }
   .cp-msg-time {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
     flex-shrink: 0;
   }

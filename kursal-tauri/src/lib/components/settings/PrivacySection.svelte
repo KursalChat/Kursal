@@ -13,17 +13,16 @@
   import { checkStatus } from '@tauri-apps/plugin-biometric';
   import { isMobile } from '$lib/api/window';
   import { prefsState } from '$lib/state/prefs.svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { copyText } from '$lib/utils/clipboard';
   import { rotatePeerId } from '$lib/api/identity';
   import {
-    listBlockedContacts,
     clearMessageHistory,
     deleteAllLocalData,
     type PeerRotationInterval,
   } from '$lib/api/settings';
   import { settingsState } from '$lib/state/settings.svelte';
   import { confirmDialog } from '$lib/state/confirm.svelte';
-  import type { ContactResponse } from '$lib/types';
+  import { truncate } from '$lib/utils/text';
   import { profileState } from '$lib/state/profile.svelte';
   import { ltcState } from '$lib/state/ltc.svelte';
   import { contactsState } from '$lib/state/contacts.svelte';
@@ -54,8 +53,7 @@
   });
   const typing = $derived(settingsState.typingIndicators);
 
-  let blocked = $state<ContactResponse[]>([]);
-  let blockedLoading = $state(false);
+  const blocked = $derived(contactsState.contacts.filter((c) => c.blocked));
 
   let clearTarget = $state<string>('');
   let clearing = $state(false);
@@ -68,7 +66,6 @@
     void settingsState.load();
     void ltcState.init();
     prefsState.init();
-    await reloadBlocked();
     if (isMobile) {
       try {
         const status = await checkStatus();
@@ -98,17 +95,6 @@
       }
     }
     prefsState.setAppLockBiometric(value);
-  }
-
-  async function reloadBlocked() {
-    blockedLoading = true;
-    try {
-      blocked = await listBlockedContacts();
-    } catch (e) {
-      log.error(e);
-    } finally {
-      blockedLoading = false;
-    }
   }
 
   async function handleRotate() {
@@ -145,12 +131,10 @@
 
   async function copyPeerId() {
     if (!profileState.peerId) return;
-    try {
-      await writeText(profileState.peerId);
-      copiedPeerId.trigger();
-    } catch (e) {
-      notifyError(e, 'settings.privacy.errorCopyFailed');
-    }
+    await copyText(profileState.peerId, {
+      flash: copiedPeerId,
+      errorKey: 'settings.privacy.errorCopyFailed',
+    });
   }
 
   async function handleTypingChange(value: boolean) {
@@ -170,9 +154,11 @@
   }
 
   async function handleUnblock(id: string) {
+    const contact = contactsState.getById(id);
+    if (!contact) return;
     try {
       await setContactBlocked(id, false);
-      blocked = blocked.filter((c) => c.userId !== id);
+      contactsState.upsert({ ...contact, blocked: false });
     } catch (e) {
       notifyError(e);
     }
@@ -349,13 +335,13 @@
   title={t('settings.privacy.blockedCard')}
   description={t('settings.privacy.blockedDescription')}
 >
-  {#if blockedLoading}
+  {#if contactsState.loading}
     <div class="empty">{t('settings.privacy.blockedLoading')}</div>
   {:else if blocked.length === 0}
     <div class="empty">{t('settings.privacy.noBlocked')}</div>
   {:else}
-    {#each blocked as c}
-      <SettingRow title={c.displayName} description={c.userId.slice(0, 24) + '…'}>
+    {#each blocked as c (c.userId)}
+      <SettingRow title={c.displayName} description={truncate(c.userId, 25)}>
         <Avatar name={c.displayName} src={c.avatarPath} size={28} />
         <Button variant="secondary" onclick={() => handleUnblock(c.userId)}>
           <ShieldOff size={13} />
@@ -426,7 +412,7 @@
     gap: 8px;
   }
   .peer-id-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -437,7 +423,7 @@
   }
   .peer-id {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-secondary);
     background: var(--bg-input);
     padding: 8px 10px;
@@ -446,32 +432,29 @@
     line-height: 1.5;
   }
   .icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     padding: 7px;
-    border-radius: var(--radius-md);
     background: var(--bg-input);
     border: 1px solid var(--border);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition:
-      background var(--transition),
-      color var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
-  .icon-btn.confirmed,
-  .icon-btn.confirmed:hover {
+  .icon-btn.confirmed {
     color: var(--success);
+  }
+  @media (hover: hover) {
+    .icon-btn.confirmed:hover {
+      color: var(--success);
+    }
   }
 
   .empty {
     padding: 20px 14px;
     text-align: center;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-muted);
   }
 
@@ -498,7 +481,7 @@
     margin-bottom: 2px;
   }
   .danger-desc {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     line-height: 1.5;
   }

@@ -1,4 +1,10 @@
-import { getLocalUserProfile, getLocalPeerId, getLocalUserId } from '$lib/api/identity';
+import {
+  getLocalUserProfile,
+  getLocalPeerId,
+  getLocalUserId,
+  setLocalUserAvatar,
+  broadcastProfile,
+} from '$lib/api/identity';
 import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
 import { log } from '$lib/utils/log';
 
@@ -38,6 +44,16 @@ function createProfileState() {
     avatarPath = withAvatarCacheBust(path);
   }
 
+  // `undefined` keeps the stored avatar; `null` clears it. Broadcasts the name
+  // to contacts, then commits both locally, returning the cache-busted path.
+  async function save(name: string, avatarBytes?: number[] | null): Promise<string | null> {
+    const path = avatarBytes === undefined ? avatarPath : await setLocalUserAvatar(avatarBytes);
+    const refreshedPath = withAvatarCacheBust(path);
+    await broadcastProfile(name);
+    update(name, refreshedPath);
+    return refreshedPath;
+  }
+
   async function refreshPeerId() {
     try {
       peerId = await getLocalPeerId();
@@ -64,6 +80,7 @@ function createProfileState() {
     },
     load,
     update,
+    save,
     refreshPeerId,
   };
 }

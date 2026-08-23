@@ -15,6 +15,7 @@
   import { ensurePermission } from '$lib/api/permissions';
   import { nearbyState } from '$lib/state/nearby.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { notifyError } from '$lib/utils/errors';
   import { settingsState } from '$lib/state/settings.svelte';
   import { t } from '$lib/i18n';
   import type { NearbyOrigin } from '$lib/types';
@@ -57,8 +58,7 @@
         }
       }, 3000);
     } catch (e) {
-      notifications.push(t('addContact.nearby.discoveryFailed'), 'error');
-      log.error('Start nearby failed:', e);
+      notifyError(e, 'addContact.nearby.discoveryFailed');
     }
   });
 
@@ -78,8 +78,7 @@
       await connectNearby(peerId, origin);
       notifications.push(t('addContact.nearby.connectionSent'), 'info');
     } catch (e) {
-      notifications.push(t('addContact.nearby.connectionFailed'), 'error');
-      log.error('Connect failed:', e);
+      notifyError(e, 'addContact.nearby.connectionFailed');
     } finally {
       connecting = setBusy(connecting, peerId, false);
     }
@@ -92,8 +91,7 @@
       nearbyState.removePendingRequest(peerId);
       notifications.push(t('addContact.nearby.connectionAccepted'), 'success');
     } catch (e) {
-      notifications.push(t('addContact.nearby.acceptFailed'), 'error');
-      log.error('Accept failed:', e);
+      notifyError(e, 'addContact.nearby.acceptFailed');
     } finally {
       connecting = setBusy(connecting, peerId, false);
     }
@@ -106,8 +104,7 @@
       nearbyState.removePendingRequest(peerId);
       notifications.push(t('addContact.nearby.connectionDeclined'), 'info');
     } catch (e) {
-      log.error('Decline failed:', e);
-      notifications.push(t('addContact.nearby.declineFailed'), 'error');
+      notifyError(e, 'addContact.nearby.declineFailed');
     } finally {
       declining = setBusy(declining, peerId, false);
     }
@@ -211,7 +208,7 @@
   }
 
   .label {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     color: var(--text-primary);
     flex-shrink: 0;
@@ -220,7 +217,7 @@
   .who {
     flex: 1;
     min-width: 0;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -232,7 +229,7 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-muted);
   }
@@ -263,7 +260,7 @@
 
   .warn {
     margin: 8px 0 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     line-height: 1.45;
     color: var(--warning);
   }
@@ -283,7 +280,7 @@
     border-radius: var(--radius-sm);
     background: var(--bg-input);
     padding: 6px 7px 6px 10px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     transition:
       background var(--transition),
@@ -295,9 +292,11 @@
     color: var(--text-muted);
   }
 
-  .chip.peer:hover:not(:disabled) {
-    background: var(--bg-hover);
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .chip.peer:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+    }
   }
 
   .chip:disabled {
@@ -323,7 +322,7 @@
     align-items: center;
     border-radius: var(--radius-sm);
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     transition: opacity var(--transition);
   }
@@ -337,13 +336,17 @@
     color: var(--text-secondary);
   }
 
-  button.chip-action:hover:not(:disabled) {
-    opacity: 0.85;
+  @media (hover: hover) {
+    button.chip-action:hover:not(:disabled) {
+      opacity: 0.85;
+    }
   }
 
-  button.chip-action.decline:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    button.chip-action.decline:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
 
   @media (max-width: 640px) {

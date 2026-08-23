@@ -92,8 +92,10 @@
     border-radius: var(--radius-md);
     transition: background var(--transition);
   }
-  .grab:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .grab:hover {
+      background: var(--bg-hover);
+    }
   }
   .ava {
     position: relative;
@@ -151,7 +153,9 @@
     flex-shrink: 0;
     transition: filter var(--transition);
   }
-  .hangup:hover {
-    filter: brightness(1.1);
+  @media (hover: hover) {
+    .hangup:hover {
+      filter: brightness(1.1);
+    }
   }
 </style>

@@ -51,15 +51,17 @@
       background var(--transition);
     z-index: 15;
     animation: fadeInFab 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
   }
   .scroll-to-bottom.has-unread {
     padding: 0 10px 0 4px;
   }
-  .scroll-to-bottom:hover {
-    background: var(--bg-hover);
-    transform: translateY(-1px);
+  @media (hover: hover) {
+    .scroll-to-bottom:hover {
+      background: var(--bg-hover);
+      transform: translateY(-1px);
+    }
   }
   .scroll-to-bottom:active {
     transform: translateY(0);
@@ -77,7 +79,7 @@
   .scroll-badge {
     background: var(--accent);
     color: #fff;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     min-width: 18px;
     height: 18px;

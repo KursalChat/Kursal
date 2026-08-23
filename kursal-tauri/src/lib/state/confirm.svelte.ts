@@ -1,4 +1,6 @@
-export type ConfirmTone = 'default' | 'warning' | 'danger';
+import type { ConfirmTone } from '$lib/types';
+
+export type { ConfirmTone };
 
 export interface ConfirmCheckbox {
   label: string;

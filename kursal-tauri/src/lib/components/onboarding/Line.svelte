@@ -41,7 +41,7 @@
   }
 
   .accent {
-    font-size: 17px;
+    font-size: var(--text-lg);
     font-weight: 600;
     line-height: 1.45;
     color: var(--ob-accent);
@@ -52,10 +52,10 @@
       font-size: 21px;
     }
     .body {
-      font-size: 15px;
+      font-size: var(--text-md);
     }
     .accent {
-      font-size: 15px;
+      font-size: var(--text-md);
     }
   }
 </style>

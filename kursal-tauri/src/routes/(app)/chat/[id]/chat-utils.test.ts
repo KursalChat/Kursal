@@ -21,11 +21,8 @@ vi.mock('$lib/i18n', () => ({ t: (k: string) => k, dateLocale: () => 'en' }));
 const {
   renderMarkdown,
   mediaKindFromFilename,
-  formatFileSize,
   getMessagePreview,
-  midTruncate,
   isEmojiOnly,
-  formatFullTimestamp,
   isMissedCall,
   transferPercent,
   isTransferDone,
@@ -33,6 +30,10 @@ const {
   receivedHoverLabel,
   isMessageActionable,
 } = await import('./chat-utils');
+
+const { formatFileSize } = await import('$lib/utils/bytes');
+const { midTruncate } = await import('$lib/utils/text');
+const { formatFullTimestamp } = await import('$lib/utils/dateFormat.svelte');
 
 describe('isMessageActionable', () => {
   it('blocks messages that have not reached the peer', () => {
@@ -117,7 +118,7 @@ describe('pure helpers', () => {
   it('previews and truncates message content', () => {
     expect(getMessagePreview('   ')).toBe('chat.bubble.emptyPreview');
     expect(getMessagePreview('hello   world')).toBe('hello world');
-    expect(getMessagePreview('x'.repeat(100)).endsWith('...')).toBe(true);
+    expect(getMessagePreview('x'.repeat(100)).endsWith('…')).toBe(true);
   });
 
   it('mid-truncates long filenames keeping the extension', () => {

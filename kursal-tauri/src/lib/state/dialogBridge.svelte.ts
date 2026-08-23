@@ -1,22 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
-import { confirmDialog, type ConfirmOptions, type ConfirmTone } from '$lib/state/confirm.svelte';
+import { dialogRespond } from '$lib/api/dialogs';
+import { confirmDialog, type ConfirmOptions } from '$lib/state/confirm.svelte';
 import { updateDownloadState } from '$lib/state/updateDownload.svelte';
 import { groupLabel, parseReleaseNotes } from '$lib/changelog';
 import { t } from '$lib/i18n';
-
-export interface BackendDialogPayload {
-  id: number;
-  kind: string;
-  message?: string;
-  params: Record<string, string | number | null>;
-  tone: ConfirmTone;
-  dismissible: boolean;
-}
-
-export const dialogRespond = (id: number, confirmed: boolean): Promise<void> =>
-  invoke('dialog_respond', { id, confirmed });
-
-export const runStartupDialogs = (): Promise<void> => invoke('run_startup_dialogs');
+import type { BackendDialogPayload } from '$lib/types';
 
 function buildOptions(p: BackendDialogPayload): ConfirmOptions {
   const base = { tone: p.tone, hideCancel: !p.dismissible } as const;

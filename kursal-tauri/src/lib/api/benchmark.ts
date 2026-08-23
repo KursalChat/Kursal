@@ -22,18 +22,11 @@ export interface BenchmarkResult {
   iterations_per_second: number;
 }
 
-export async function listBenchmarks(): Promise<BenchmarkMeta[]> {
-  return invoke('list_benchmarks');
-}
+export const listBenchmarks = (): Promise<BenchmarkMeta[]> => invoke('list_benchmarks');
 
-export async function runBenchmark(id: string, iterations: number): Promise<BenchmarkResult> {
-  return invoke('run_benchmark', { id, iterations });
-}
+export const runBenchmark = (id: string, iterations: number): Promise<BenchmarkResult> =>
+  invoke('run_benchmark', { id, iterations });
 
-export async function cancelBenchmark(): Promise<void> {
-  return invoke('cancel_benchmark');
-}
+export const cancelBenchmark = (): Promise<void> => invoke('cancel_benchmark');
 
-export async function isBenchmarkRunning(): Promise<boolean> {
-  return invoke('is_benchmark_running');
-}
+export const isBenchmarkRunning = (): Promise<boolean> => invoke('is_benchmark_running');

@@ -211,14 +211,16 @@
     border: 1px solid var(--border);
     background: var(--bg-input);
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 500;
     transition:
       border-color var(--transition),
       background var(--transition);
   }
-  .trigger:hover:not(:disabled) {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .trigger:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
   }
   .trigger[data-open='true'] {
     border-color: var(--accent);
@@ -258,15 +260,20 @@
     width: 100%;
     padding: 7px 10px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 500;
     color: var(--text-secondary);
     text-align: left;
   }
-  .item:hover,
   .item[data-highlighted='true'] {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  @media (hover: hover) {
+    .item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .item[data-selected='true'] {
     color: var(--text-primary);

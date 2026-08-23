@@ -18,6 +18,9 @@
   import ShortcodeAutocomplete from './ShortcodeAutocomplete.svelte';
   import { loadEmojiIndex, searchEmojis, applyTone, getTone, type EmojiIndex } from '$lib/emoji';
   import { readInsets } from '$lib/utils/android-insets';
+  import { getCaretCoords } from '$lib/utils/caret';
+  import { clamp } from '$lib/utils/geometry';
+  import { computeWrap, computeLink, applyTextEdit, type TextEdit } from '$lib/utils/markdown-edit';
   import type { ContactResponse } from '$lib/types';
 
   interface Props {
@@ -176,8 +179,16 @@
   // the re-selected inner range.
   let isApplyingFormat = false;
 
-  // Uses execCommand('insertText') so the change lands in the native
-  // undo stack (Ctrl/Cmd+Z works), then sets the new selection.
+  function runEdit(edit: TextEdit) {
+    if (!composerEl) return;
+    isApplyingFormat = true;
+    applyTextEdit(composerEl, edit, () => {
+      isApplyingFormat = false;
+      // Single position update once selection is final.
+      if (formatBarVisible) positionPopoverAtSelection();
+    });
+  }
+
   function replaceRange(
     start: number,
     end: number,
@@ -185,122 +196,19 @@
     selStart: number,
     selEnd: number
   ) {
-    if (!composerEl) return;
-    const el = composerEl;
-    isApplyingFormat = true;
-    el.focus();
-    el.setSelectionRange(start, end);
-    const ok = document.execCommand('insertText', false, text);
-    if (!ok) {
-      const v = el.value;
-      el.value = v.slice(0, start) + text + v.slice(end);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    requestAnimationFrame(() => {
-      el.setSelectionRange(selStart, selEnd);
-      isApplyingFormat = false;
-      // Single position update once selection is final.
-      if (formatBarVisible) positionPopoverAtSelection();
-    });
+    runEdit({ start, end, text, selStart, selEnd });
   }
 
   function applyWrap(prefix: string, suffix: string = prefix) {
     if (!composerEl) return;
     const el = composerEl;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const value = el.value;
-    const before = value.slice(0, start);
-    const sel = value.slice(start, end);
-    const after = value.slice(end);
-    const wrapped = before.endsWith(prefix) && after.startsWith(suffix);
-    if (wrapped) {
-      replaceRange(
-        start - prefix.length,
-        end + suffix.length,
-        sel,
-        start - prefix.length,
-        end - prefix.length
-      );
-    } else {
-      replaceRange(start, end, prefix + sel + suffix, start + prefix.length, end + prefix.length);
-    }
+    runEdit(computeWrap(el.value, el.selectionStart, el.selectionEnd, prefix, suffix));
   }
 
   function applyLink() {
     if (!composerEl) return;
     const el = composerEl;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const sel = el.value.slice(start, end) || 'text';
-    const inserted = `[${sel}](url)`;
-    const urlStart = start + sel.length + 3;
-    replaceRange(start, end, inserted, urlStart, urlStart + 3);
-  }
-
-  // Mirror-div trick: mirrors the textarea's styles in a hidden div to read
-  // the caret's screen position.
-  function getCaretCoords(
-    el: HTMLTextAreaElement,
-    pos: number
-  ): { left: number; top: number; height: number } {
-    const styles = window.getComputedStyle(el);
-    const div = document.createElement('div');
-    const props = [
-      'boxSizing',
-      'width',
-      'height',
-      'borderTopWidth',
-      'borderRightWidth',
-      'borderBottomWidth',
-      'borderLeftWidth',
-      'borderStyle',
-      'paddingTop',
-      'paddingRight',
-      'paddingBottom',
-      'paddingLeft',
-      'fontStyle',
-      'fontVariant',
-      'fontWeight',
-      'fontStretch',
-      'fontSize',
-      'fontSizeAdjust',
-      'lineHeight',
-      'fontFamily',
-      'textAlign',
-      'textTransform',
-      'textIndent',
-      'textDecoration',
-      'letterSpacing',
-      'wordSpacing',
-      'tabSize',
-      'MozTabSize',
-    ];
-    const styleTarget = div.style as unknown as Record<string, string>;
-    const styleSource = styles as unknown as Record<string, string>;
-    for (const p of props) styleTarget[p] = styleSource[p];
-    div.style.position = 'absolute';
-    div.style.visibility = 'hidden';
-    div.style.whiteSpace = 'pre-wrap';
-    div.style.wordWrap = 'break-word';
-    div.style.top = '0';
-    div.style.left = '-9999px';
-    div.style.overflow = 'hidden';
-    div.textContent = el.value.slice(0, pos);
-    const span = document.createElement('span');
-    span.textContent = el.value.slice(pos) || '.';
-    div.appendChild(span);
-    document.body.appendChild(div);
-    const spanRect = span.getBoundingClientRect();
-    const divRect = div.getBoundingClientRect();
-    const lineHeight = parseFloat(styles.lineHeight) || parseFloat(styles.fontSize) * 1.4;
-    document.body.removeChild(div);
-    const taRect = el.getBoundingClientRect();
-    return {
-      left: taRect.left + (spanRect.left - divRect.left) - el.scrollLeft,
-      top: taRect.top + (spanRect.top - divRect.top) - el.scrollTop,
-      height: lineHeight,
-    };
+    runEdit(computeLink(el.value, el.selectionStart, el.selectionEnd));
   }
 
   const POPOVER_W = 224;
@@ -320,7 +228,7 @@
       max = Math.min(max, host.right - POPOVER_W);
     }
     if (max < min) max = min;
-    return Math.max(min, Math.min(desired, max));
+    return clamp(desired, min, max);
   }
 
   function positionPopoverAtSelection() {
@@ -871,9 +779,11 @@
     color: var(--text-secondary);
     transition: all var(--transition);
   }
-  .fmt-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .fmt-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .fmt-btn:active {
     transform: scale(0.92);
@@ -911,7 +821,7 @@
   .ctx-label {
     font-weight: 700;
     color: var(--accent-hover);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
@@ -939,9 +849,11 @@
     transition: all var(--transition);
     flex-shrink: 0;
   }
-  .ctx-cancel:hover {
-    background: rgba(248, 113, 113, 0.15);
-    color: var(--danger);
+  @media (hover: hover) {
+    .ctx-cancel:hover {
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--danger);
+    }
   }
 
   @keyframes slideUp {
@@ -974,9 +886,11 @@
     transition: all var(--transition);
     flex-shrink: 0;
   }
-  .composer-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .composer-btn:hover:not(:disabled) {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
   }
   .composer-btn:active:not(:disabled) {
     transform: scale(0.92);
@@ -1026,7 +940,7 @@
 
   .char-count {
     align-self: center;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
     padding: 0 4px;
@@ -1060,9 +974,11 @@
     transform: scale(1);
     opacity: 1;
   }
-  .send-btn.ready:hover {
-    background: var(--accent-hover);
-    transform: scale(1.06);
+  @media (hover: hover) {
+    .send-btn.ready:hover {
+      background: var(--accent-hover);
+      transform: scale(1.06);
+    }
   }
   .send-btn:active:not(:disabled) {
     transform: scale(0.92);
@@ -1084,16 +1000,18 @@
     gap: 8px;
     padding: 14px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .blocked-link {
     color: var(--accent);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     padding: 0;
   }
-  .blocked-link:hover {
-    text-decoration: underline;
+  @media (hover: hover) {
+    .blocked-link:hover {
+      text-decoration: underline;
+    }
   }
 
   @media (max-width: 768px) {

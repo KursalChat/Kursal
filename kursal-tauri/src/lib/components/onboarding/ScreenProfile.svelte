@@ -13,6 +13,7 @@
   import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
   import { profileState } from '$lib/state/profile.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
+  import { notifyError } from '$lib/utils/errors';
   import { isMobile } from '$lib/api/window';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { acceptTerms, TERMS_URL } from '$lib/utils/terms';
@@ -109,13 +110,9 @@
     }
     saving = true;
     try {
-      const path = await setLocalUserAvatar(avatarBytes);
-      const refreshedPath = withAvatarCacheBust(path);
-      await broadcastProfile(name);
-      profileState.update(name, refreshedPath);
+      await profileState.save(name, avatarBytes);
     } catch (e) {
-      log.error('Profile save failed', e);
-      notifications.push(t('settings.account.errorBroadcastFailed'), 'error');
+      notifyError(e, 'onboarding.profile.errorSave');
     }
     acceptTerms();
     saving = false;
@@ -324,8 +321,10 @@
     line-height: 0;
     transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .avatar-slot:hover {
-    transform: scale(1.05);
+  @media (hover: hover) {
+    .avatar-slot:hover {
+      transform: scale(1.05);
+    }
   }
   .avatar-slot:active {
     transform: scale(0.97);
@@ -343,9 +342,13 @@
     opacity: 0;
     transition: opacity 160ms ease;
   }
-  .avatar-slot:hover .avatar-overlay,
   .avatar-slot:focus-visible .avatar-overlay {
     opacity: 1;
+  }
+  @media (hover: hover) {
+    .avatar-slot:hover .avatar-overlay {
+      opacity: 1;
+    }
   }
   .avatar-overlay.filled {
     opacity: 0;
@@ -374,7 +377,7 @@
     color: var(--ob-ink);
     border: none;
     font-family: inherit;
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     outline: none;
   }
@@ -385,7 +388,7 @@
 
   .hint,
   .name-error {
-    font-size: 12px;
+    font-size: var(--text-xs);
     min-height: 16px;
   }
   .hint {

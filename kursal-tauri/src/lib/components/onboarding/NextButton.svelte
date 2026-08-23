@@ -45,7 +45,7 @@
     border: 2.5px solid var(--ob-ink);
     border-radius: 14px;
     font-family: inherit;
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 700;
     letter-spacing: -0.01em;
     box-shadow: 3px 3px 0 var(--ob-accent);
@@ -63,9 +63,11 @@
     pointer-events: auto;
   }
 
-  .next:hover:not(:disabled) {
-    transform: translate(-1px, -1px);
-    box-shadow: 5px 5px 0 var(--ob-accent);
+  @media (hover: hover) {
+    .next:hover:not(:disabled) {
+      transform: translate(-1px, -1px);
+      box-shadow: 5px 5px 0 var(--ob-accent);
+    }
   }
 
   .next:active:not(:disabled) {

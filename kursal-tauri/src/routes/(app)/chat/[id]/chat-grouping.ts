@@ -75,3 +75,46 @@ export function buildMessageGroups(
   }
   return groups;
 }
+
+export interface ImageRun {
+  msgs: MessageResponse[];
+  startIdx: number;
+}
+
+const STACK_MIN = 4;
+
+// Four or more consecutive plain images collapse into one stack tile. Anything
+// carrying its own chrome (a reply, a pin, reactions) stays its own bubble.
+export function isStackableImage(
+  m: MessageResponse,
+  isImage: (filename: string) => boolean,
+  hasReactions: (m: MessageResponse) => boolean
+): boolean {
+  if (!m.fileDetails) return false;
+  if (!isImage(m.fileDetails.filename)) return false;
+  if (m.replyTo || m.pinned) return false;
+  if (m.status === 'failed') return false;
+  return !hasReactions(m);
+}
+
+export function imageRuns(
+  msgs: MessageResponse[],
+  stackable: (m: MessageResponse) => boolean
+): ImageRun[] {
+  const runs: ImageRun[] = [];
+  let i = 0;
+  while (i < msgs.length) {
+    if (stackable(msgs[i])) {
+      let j = i;
+      while (j < msgs.length && stackable(msgs[j])) j++;
+      if (j - i >= STACK_MIN) {
+        runs.push({ msgs: msgs.slice(i, j), startIdx: i });
+        i = j;
+        continue;
+      }
+    }
+    runs.push({ msgs: [msgs[i]], startIdx: i });
+    i++;
+  }
+  return runs;
+}

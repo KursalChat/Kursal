@@ -111,8 +111,10 @@
     padding: 6px 10px;
     transition: opacity 150ms ease;
   }
-  .skip:hover {
-    opacity: 1;
+  @media (hover: hover) {
+    .skip:hover {
+      opacity: 1;
+    }
   }
 
   .tooltip {
@@ -125,7 +127,7 @@
     color: var(--ob-ink);
     padding: 6px 11px;
     border-radius: 10px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     white-space: nowrap;
     opacity: 0;
@@ -135,9 +137,11 @@
       opacity 180ms ease,
       transform 180ms ease;
   }
-  .skip-wrap:hover .tooltip {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
+  @media (hover: hover) {
+    .skip-wrap:hover .tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 
   @media (max-width: 640px) {

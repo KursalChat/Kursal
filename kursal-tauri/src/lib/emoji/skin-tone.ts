@@ -1,19 +1,16 @@
 import type { Emoji, ToneId } from './types';
+import { readRaw, writeRaw } from '$lib/utils/storage';
 
 export const LOCAL_KEY = 'kursal_emoji_tone';
 
 export function getTone(): ToneId {
-  try {
-    const v = Number(localStorage.getItem(LOCAL_KEY));
-    if (Number.isInteger(v) && v >= 0 && v <= 5) return v as ToneId;
-  } catch {}
+  const v = Number(readRaw(LOCAL_KEY));
+  if (Number.isInteger(v) && v >= 0 && v <= 5) return v as ToneId;
   return 0;
 }
 
 export function setTone(tone: ToneId): void {
-  try {
-    localStorage.setItem(LOCAL_KEY, String(tone));
-  } catch {}
+  writeRaw(LOCAL_KEY, String(tone));
 }
 
 export function applyTone(emoji: Emoji, tone: ToneId): string {

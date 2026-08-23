@@ -72,9 +72,12 @@
   import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
   import { listen } from '@tauri-apps/api/event';
   import { getNodeStats, startNodeStats, stopNodeStats } from '$lib/api/settings';
-  import { formatFileSize } from './chat/[id]/chat-utils';
+  import { formatFileSize } from '$lib/utils/bytes';
+  import { readRaw, writeRaw } from '$lib/utils/storage';
   import type { ContactResponse } from '$lib/types';
   import { t } from '$lib/i18n';
+
+  const WHATS_NEW_KEY = 'kursal_whatsnew_seen';
 
   function applyStats(s: NodeStats) {
     nodeStats = s;
@@ -158,16 +161,13 @@
   const history = olderEntries();
 
   // Auto-expanded until the user collapses it once for this version.
-  let whatsNewOpen = $state(
-    typeof localStorage !== 'undefined' &&
-      localStorage.getItem('kursal_whatsnew_seen') !== whatsNew?.version
-  );
+  let whatsNewOpen = $state(readRaw(WHATS_NEW_KEY) !== whatsNew?.version);
   let historyOpen = $state(false);
 
   function toggleWhatsNew() {
     whatsNewOpen = !whatsNewOpen;
     if (!whatsNewOpen && whatsNew) {
-      localStorage.setItem('kursal_whatsnew_seen', whatsNew.version);
+      writeRaw(WHATS_NEW_KEY, whatsNew.version);
       historyOpen = false;
     }
   }
@@ -512,7 +512,7 @@
   }
 
   h3 {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -528,12 +528,14 @@
     border-radius: var(--radius-md);
     background: var(--accent);
     color: #fff;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     transition: background var(--transition);
   }
-  .first-contact-cta:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .first-contact-cta:hover {
+      background: var(--accent-hover);
+    }
   }
 
   .caught-up {
@@ -544,7 +546,7 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius-md);
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .caught-up-icon {
     display: inline-flex;
@@ -573,8 +575,10 @@
     text-align: left;
     transition: background var(--transition);
   }
-  .attention-row:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .attention-row:hover {
+      background: var(--bg-hover);
+    }
   }
   .attention-avatar {
     position: relative;
@@ -608,7 +612,7 @@
     gap: 4px;
     padding: 2px 8px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
   }
   .chip.missed {
@@ -639,8 +643,10 @@
     text-align: left;
     transition: background var(--transition);
   }
-  .whats-new-header:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .whats-new-header:hover {
+      background: var(--bg-hover);
+    }
   }
   .chevron {
     margin-left: auto;
@@ -655,7 +661,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 700;
     color: var(--accent);
   }
@@ -708,8 +714,10 @@
     color: var(--text-muted);
     transition: color var(--transition);
   }
-  .history-toggle:hover {
-    color: var(--text-secondary);
+  @media (hover: hover) {
+    .history-toggle:hover {
+      color: var(--text-secondary);
+    }
   }
   .history-toggle .chevron {
     margin-left: 0;
@@ -737,7 +745,7 @@
     border-radius: 999px;
     background: var(--accent);
     color: #fff;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     display: inline-flex;

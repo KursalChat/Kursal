@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { scale } from 'svelte/transition';
+  import { onMount } from 'svelte';
   import { log } from '$lib/utils/log';
   import { getSecurityCode, confirmSecurityCode } from '$lib/api/contacts';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { errorText } from '$lib/utils/errors';
   import { flash } from '$lib/utils/flash.svelte';
-  import { trapFocus } from '$lib/utils/focusTrap';
+  import { copyText } from '$lib/utils/clipboard';
+  import Modal from './Modal.svelte';
   import Button from './Button.svelte';
   import { t } from '$lib/i18n';
 
@@ -23,6 +24,7 @@
   } = $props();
 
   let code = $state<string | null>(null);
+  const codeWords = $derived(code ? code.split(/\s+/).filter((s) => s.length > 0) : []);
   let loading = $state(false);
   let confirming = $state(false);
   let error = $state<string | null>(null);
@@ -56,128 +58,67 @@
   }
 
   async function copyCode() {
-    if (code) {
-      try {
-        await navigator.clipboard.writeText(code);
-        copied.trigger();
-      } catch (e) {
-        log.error('Failed to copy code:', e);
-      }
-    }
+    if (code) await copyText(code, { flash: copied });
   }
 
-  import { onMount } from 'svelte';
   onMount(() => {
     loadCode();
   });
-
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }
 </script>
 
-<div
-  class="backdrop"
-  role="presentation"
-  onclick={handleBackdropClick}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onClose();
-  }}
->
-  <div
-    class="modal"
-    in:scale={{ duration: 220, start: 0.94, opacity: 0 }}
-    out:scale={{ duration: 160, start: 0.94, opacity: 0 }}
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('securityCode.heading')}
-    tabindex="-1"
-    use:trapFocus
-  >
-    <h2>{t('securityCode.heading')}</h2>
+<Modal title={t('securityCode.heading')} {onClose} width={400} padding="32px">
+  <h2>{t('securityCode.heading')}</h2>
 
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
+  {#if error}
+    <div class="error">{error}</div>
+  {/if}
 
-    {#if loading}
-      <div class="loading">{t('securityCode.loading')}</div>
-    {:else if code}
-      <p class="explanation">
-        {t('securityCode.explanation')}
-      </p>
+  {#if loading}
+    <div class="loading">{t('securityCode.loading')}</div>
+  {:else if code}
+    <p class="explanation">
+      {t('securityCode.explanation')}
+    </p>
 
-      <ol class="code-grid">
-        {#each code.split(/\s+/).filter((s) => s.length > 0) as word, i}
-          <li class="code-cell">
-            <span class="cell-index">{(i + 1).toString().padStart(2, '0')}</span>
-            <span class="cell-value">{word}</span>
-          </li>
-        {/each}
-      </ol>
+    <ol class="code-grid">
+      {#each codeWords as word, i (word + i)}
+        <li class="code-cell">
+          <span class="cell-index">{(i + 1).toString().padStart(2, '0')}</span>
+          <span class="cell-value">{word}</span>
+        </li>
+      {/each}
+    </ol>
 
-      <Button
-        variant="secondary"
-        onclick={copyCode}
-        success={copied.active}
-        successLabel={t('common.copied')}
-      >
-        {t('securityCode.copyButton')}
+    <Button
+      variant="secondary"
+      onclick={copyCode}
+      success={copied.active}
+      successLabel={t('common.copied')}
+    >
+      {t('securityCode.copyButton')}
+    </Button>
+
+    {#if contactVerified}
+      <Button variant="primary" onclick={onClose}>{t('securityCode.closeButton')}</Button>
+    {:else}
+      <Button variant="primary" loading={confirming} onclick={handleConfirm}>
+        {t('securityCode.confirmButton')}
       </Button>
-
-      {#if contactVerified}
-        <Button variant="primary" onclick={onClose}>{t('securityCode.closeButton')}</Button>
-      {:else}
-        <Button variant="primary" loading={confirming} onclick={handleConfirm}>
-          {t('securityCode.confirmButton')}
-        </Button>
-        <button class="link" onclick={onClose}>{t('securityCode.doLaterButton')}</button>
-      {/if}
+      <button class="link" onclick={onClose}>{t('securityCode.doLaterButton')}</button>
     {/if}
-  </div>
-</div>
+  {/if}
+</Modal>
 
 <style>
-  .backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    border: none;
-    animation: backdrop-in 0.2s ease;
-    cursor: default;
-    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-  }
-
-  @keyframes backdrop-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  .modal {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-3);
-    padding: 32px;
-    max-width: 400px;
-    width: 90%;
+  h2,
+  .explanation,
+  .loading,
+  .error {
     text-align: center;
   }
 
   h2 {
-    margin-bottom: 16px;
+    margin: 0;
     font-size: var(--text-lg);
   }
 
@@ -259,7 +200,9 @@
     padding: 8px 0;
   }
 
-  .link:hover {
-    color: var(--accent-hover);
+  @media (hover: hover) {
+    .link:hover {
+      color: var(--accent-hover);
+    }
   }
 </style>

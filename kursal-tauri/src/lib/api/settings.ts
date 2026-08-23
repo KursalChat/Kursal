@@ -76,9 +76,6 @@ export const getReadReceiptsEnabled = (): Promise<boolean> => invoke('get_read_r
 export const setReadReceiptsEnabled = (enabled: boolean): Promise<void> =>
   invoke('set_read_receipts_enabled', { value: enabled });
 
-export const listBlockedContacts = (): Promise<import('$lib/types').ContactResponse[]> =>
-  invoke('list_blocked_contacts');
-
 export const clearMessageHistory = (contactId: string | null): Promise<void> =>
   invoke('clear_message_history', { contactId });
 export const deleteAllLocalData = (): Promise<void> => invoke('delete_all_local_data');

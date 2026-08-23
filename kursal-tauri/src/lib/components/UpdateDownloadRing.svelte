@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { updateDownloadState } from '$lib/state/updateDownload.svelte';
+  import { formatBytePair } from '$lib/utils/bytes';
   import { t } from '$lib/i18n';
 
   const RADIUS = 8;
@@ -28,22 +29,9 @@
     return () => clearTimeout(timer);
   });
 
-  function unitFor(bytes: number): { unit: string; div: number; decimals: number } {
-    if (bytes >= 1024 * 1024) return { unit: 'MB', div: 1024 * 1024, decimals: 1 };
-    if (bytes >= 1024) return { unit: 'KB', div: 1024, decimals: 1 };
-    return { unit: 'B', div: 1, decimals: 0 };
-  }
-
-  // Both sides share the larger value's unit, so the pair reads as one number.
-  function sizeText(): string {
-    const { unit, div, decimals } = unitFor(total ?? downloaded);
-    const doneText = (downloaded / div).toFixed(decimals);
-    if (!total) return `${doneText} ${unit}`;
-    return `${doneText} / ${(total / div).toFixed(decimals)} ${unit}`;
-  }
-
   const text = $derived(
-    message ?? (done ? t('updateDownload.installing') : intro ? label : sizeText())
+    message ??
+      (done ? t('updateDownload.installing') : intro ? label : formatBytePair(downloaded, total))
   );
 </script>
 
@@ -130,11 +118,17 @@
       opacity 140ms ease,
       margin 220ms ease;
   }
-  .update-ring:hover .reveal,
   .update-ring.expanded .reveal {
     max-width: 220px;
     opacity: 1;
     margin: 0 5px 0 7px;
+  }
+  @media (hover: hover) {
+    .update-ring:hover .reveal {
+      max-width: 220px;
+      opacity: 1;
+      margin: 0 5px 0 7px;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

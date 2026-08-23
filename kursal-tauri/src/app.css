@@ -97,6 +97,11 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.22);
   --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --scrim-strong: rgba(0, 0, 0, 0.72);
+  --blur-sm: blur(8px) saturate(140%);
+  --blur-md: blur(14px) saturate(140%);
+  --blur-lg: blur(20px) saturate(140%);
   --sidebar-width: 260px;
   --header-height: 52px;
   --transition: 150ms ease;
@@ -569,6 +574,17 @@ html {
   touch-action: pan-x pan-y;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Every :hover rule in the app is gated on (hover: hover) so touch devices
+ * never hover state after a tap */
+@media (hover: none) {
+  button:active,
+  a:active,
+  [role='button']:active {
+    opacity: 0.6;
+  }
 }
 
 /* `zoom` on <body> scales all descendants. Compensating width/height
@@ -658,8 +674,10 @@ img[src^='/winston'] {
   background: rgba(148, 163, 184, 0.25);
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+@media (hover: hover) {
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.4);
+  }
 }
 
 #svelte {
@@ -683,6 +701,53 @@ img[src^='/winston'] {
   font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+/* Svelte only scopes an animation-name when the component declares the
+ * keyframes itself, so referencing these by name from a component works. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Base for icon-only ghost buttons. Components set their own size, background
+ * and border on top; scoped rules outrank this one. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {

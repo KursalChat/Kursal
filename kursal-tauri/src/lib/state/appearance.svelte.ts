@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
-import { setTimeFormatPref, type TimeFormat } from '$lib/utils/timeFormat';
+import { setTimeFormatPref, type TimeFormat } from '$lib/utils/dateFormat.svelte';
+import { readRaw, writeRaw } from '$lib/utils/storage';
 import { setSystemBarsLight } from '$lib/utils/system-bars';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -127,18 +128,18 @@ function createAppearanceState() {
 
   function init() {
     if (!browser || initialized) return;
-    const storedTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
-    const storedZoom = localStorage.getItem(ZOOM_KEY) as ZoomMode | null;
-    const storedPalette = localStorage.getItem(PALETTE_KEY) as PaletteId | null;
+    const storedTheme = readRaw(THEME_KEY) as ThemeMode | null;
+    const storedZoom = readRaw(ZOOM_KEY) as ZoomMode | null;
+    const storedPalette = readRaw(PALETTE_KEY) as PaletteId | null;
     if (storedTheme) theme = storedTheme;
     if (storedZoom) zoom = storedZoom;
     if (storedPalette && PALETTES.some((p) => p.id === storedPalette)) {
       palette = storedPalette;
     }
-    const storedLayout = localStorage.getItem(LAYOUT_KEY) as LayoutMode | null;
+    const storedLayout = readRaw(LAYOUT_KEY) as LayoutMode | null;
     if (storedLayout === 'bubble' || storedLayout === 'flat') layout = storedLayout;
 
-    const storedTimeFormat = localStorage.getItem(TIME_FORMAT_KEY);
+    const storedTimeFormat = readRaw(TIME_FORMAT_KEY);
     if (storedTimeFormat === '12h') timeFormat = '12h';
     else if (storedTimeFormat === '24h') timeFormat = '24h';
     setTimeFormatPref(timeFormat);
@@ -156,31 +157,31 @@ function createAppearanceState() {
 
   function setTheme(value: ThemeMode) {
     theme = value;
-    if (browser) localStorage.setItem(THEME_KEY, value);
+    writeRaw(THEME_KEY, value);
     apply();
   }
 
   function setZoom(value: ZoomMode) {
     zoom = value;
-    if (browser) localStorage.setItem(ZOOM_KEY, value);
+    writeRaw(ZOOM_KEY, value);
     apply();
   }
 
   function setPalette(value: PaletteId) {
     palette = value;
-    if (browser) localStorage.setItem(PALETTE_KEY, value);
+    writeRaw(PALETTE_KEY, value);
     apply();
   }
 
   function setLayout(value: LayoutMode) {
     layout = value;
-    if (browser) localStorage.setItem(LAYOUT_KEY, value);
+    writeRaw(LAYOUT_KEY, value);
   }
 
   function setTimeFormat(value: TimeFormat) {
     timeFormat = value;
     setTimeFormatPref(value);
-    if (browser) localStorage.setItem(TIME_FORMAT_KEY, value);
+    writeRaw(TIME_FORMAT_KEY, value);
   }
 
   return {

@@ -8,19 +8,15 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { typingState } from '$lib/state/typing.svelte';
   import type { ContactResponse, MessageResponse } from '$lib/types';
-  import type { MessageGroup } from './chat-grouping';
-  import { formatTime, isSameDay, formatDaySeparator, flatStatusLabel } from './chat-utils';
+  import type { MessageGroup, ImageRun } from './chat-grouping';
+  import { formatTime, isSameDay } from '$lib/utils/dateFormat.svelte';
+  import { formatDaySeparator, flatStatusLabel } from './chat-utils';
   import EmptyChat from './EmptyChat.svelte';
   import ChatSeparator from './ChatSeparator.svelte';
   import CallLine from './CallLine.svelte';
   import PinLine from './PinLine.svelte';
   import TypingIndicator from './TypingIndicator.svelte';
   import ImageStackBubble from './ImageStackBubble.svelte';
-
-  interface ImageRun {
-    msgs: MessageResponse[];
-    startIdx: number;
-  }
 
   interface Props {
     /** The scroll container. Bound so the parent keeps owning scroll behaviour. */
@@ -537,9 +533,13 @@
   .flat-row.group-start {
     margin-top: 12px;
   }
-  .flat-row:hover,
   .flat-row.hovered {
     background: var(--bg-hover);
+  }
+  @media (hover: hover) {
+    .flat-row:hover {
+      background: var(--bg-hover);
+    }
   }
   .flat-aside {
     position: relative;
@@ -585,13 +585,21 @@
     white-space: nowrap;
     pointer-events: none;
   }
-  .flat-row:hover .flat-thread,
   .flat-row.hovered .flat-thread {
     opacity: 0;
   }
-  .flat-row:hover .flat-gutter-time,
+  @media (hover: hover) {
+    .flat-row:hover .flat-thread {
+      opacity: 0;
+    }
+  }
   .flat-row.hovered .flat-gutter-time {
     opacity: 1;
+  }
+  @media (hover: hover) {
+    .flat-row:hover .flat-gutter-time {
+      opacity: 1;
+    }
   }
   .flat-body {
     flex: 1;
@@ -617,7 +625,7 @@
   }
   .flat-prompt {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.2;
   }

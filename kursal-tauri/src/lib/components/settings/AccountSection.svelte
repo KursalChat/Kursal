@@ -16,7 +16,11 @@
   import { writeFile, readFile } from '@tauri-apps/plugin-fs';
   import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
   import { exportBackup, importBackup } from '$lib/api/backup';
-  import { ensurePermission, getPermission, sendTestNotification } from '$lib/api/system-notify';
+  import {
+    ensurePermission,
+    getPermission,
+    sendTestNotification,
+  } from '$lib/state/systemNotify.svelte';
   import { profileState } from '$lib/state/profile.svelte';
   import { prefsState, type NotificationPreview, type DndSchedule } from '$lib/state/prefs.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
@@ -38,7 +42,7 @@
   import Segmented from './Segmented.svelte';
   import TextInput from './TextInput.svelte';
   import DndDial from './DndDial.svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { copyText } from '$lib/utils/clipboard';
   import { t } from '$lib/i18n';
 
   let displayName = $state('You');
@@ -114,20 +118,11 @@
     const nameToSave = displayName.trim();
     savingProfile = true;
     try {
-      const path =
-        pendingAvatarBytes === undefined
-          ? profileState.avatarPath
-          : await setLocalUserAvatar(pendingAvatarBytes);
-      const refreshedPath = withAvatarCacheBust(path);
-
-      await broadcastProfile(nameToSave);
-      profileState.update(nameToSave, refreshedPath);
-      avatarSrc = refreshedPath;
+      avatarSrc = await profileState.save(nameToSave, pendingAvatarBytes);
       pendingAvatarBytes = undefined;
       profileSaved.trigger();
     } catch (e) {
-      log.error(e);
-      notifications.push(t('settings.account.errorBroadcastFailed'), 'error');
+      notifyError(e, 'settings.account.errorBroadcastFailed');
     } finally {
       savingProfile = false;
     }
@@ -259,12 +254,10 @@
 
   async function copyUserId() {
     if (!profileState.userId) return;
-    try {
-      await writeText(profileState.userId);
-      copiedUserId.trigger();
-    } catch (e) {
-      notifyError(e, 'settings.account.errorCopyFailed');
-    }
+    await copyText(profileState.userId, {
+      flash: copiedUserId,
+      errorKey: 'settings.account.errorCopyFailed',
+    });
   }
 </script>
 
@@ -522,7 +515,7 @@
     gap: 8px;
   }
   .user-id-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -533,7 +526,7 @@
   }
   .user-id {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-secondary);
     background: var(--bg-input);
     padding: 8px 10px;
@@ -567,8 +560,10 @@
     cursor: pointer;
     transition: background var(--transition);
   }
-  .avatar-edit:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .avatar-edit:hover {
+      background: var(--accent-hover);
+    }
   }
   .profile-fields {
     flex: 1;
@@ -583,12 +578,12 @@
     gap: 5px;
   }
   .field-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-secondary);
   }
   .field-error {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--danger);
     max-width: 260px;
     line-height: 1.4;
@@ -598,7 +593,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 500;
     color: var(--danger);
     border: none;
@@ -606,8 +601,10 @@
     padding: 2px 0;
     cursor: pointer;
   }
-  .remove-avatar:hover {
-    opacity: 0.8;
+  @media (hover: hover) {
+    .remove-avatar:hover {
+      opacity: 0.8;
+    }
   }
 
   .schedule-block {
@@ -622,7 +619,7 @@
     gap: 10px;
   }
   .pwd-warn {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     margin: 2px 0 0;
   }

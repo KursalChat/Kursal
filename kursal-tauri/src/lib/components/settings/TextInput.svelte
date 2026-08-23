@@ -49,7 +49,7 @@
     background: var(--bg-input);
     color: var(--text-primary);
     padding: 7px 10px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     outline: none;
     transition: border-color var(--transition);
   }

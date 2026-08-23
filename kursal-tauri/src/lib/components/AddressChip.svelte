@@ -37,7 +37,7 @@
   }
   .badge {
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-secondary);
     background: var(--bg-subtle, rgba(127, 127, 127, 0.12));
