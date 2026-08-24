@@ -17,7 +17,7 @@ The lower-level recipes (`release`, `build`, `publish`, …) still work standalo
 Distribution targets are local sibling repos (see the `justfile`):
 `~/Code/Kursal-Website/static` (api docs) and `~/Code/homebrew-kursal` (cask).
 
-One-time setup — create the permanent beta manifest slot (see [Update channels](#update-channels)):
+One-time setup: create the permanent beta manifest slot (see [Update channels](#update-channels)):
 
 ```bash
 gh release create beta --prerelease --title "beta channel manifest" \

@@ -9,7 +9,6 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](CONTRIBUTING.md)
-[![dependency status](https://deps.rs/repo/github/KursalChat/Kursal/status.svg)](https://deps.rs/repo/github/KursalChat/Kursal)
 [![Translation status](https://translate.kursal.chat/widget/kursal/svg-badge.svg)](https://translate.kursal.chat/engage/kursal/)
 
 </div>
@@ -26,7 +25,7 @@ For a full technical description, read the [Whitepaper](https://kursal.chat/kurs
 
 - **No account** - no phone number, no email.
 - **File transfers** - no file size limit!
-- **Delivers offline** — messages wait in an encrypted mailbox until your contact comes back.
+- **Delivers offline** - messages wait in an encrypted mailbox until your contact comes back.
 
 Curious how that compares to other messengers? See our [Comparison page](https://kursal.chat/compare).
 
@@ -38,7 +37,7 @@ Curious how that compares to other messengers? See our [Comparison page](https:/
 curl -fsSL https://kursal.chat/install.sh | bash
 ```
 
-**Windows** (PowerShell)
+**Windows**
 
 ```powershell
 powershell -c "irm kursal.chat/install.ps1 | iex"
@@ -57,11 +56,11 @@ We're a small team, but you can follow what features we're building on the [prog
 
 Every kind of help counts.
 
-- **Code** — Rust core, Svelte frontend. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Run a relay** — more relays means a faster, harder-to-censor network. See [RELAY.md](./docs/RELAY.md).
-- **Translate** — no coding needed, on [our Weblate](https://translate.kursal.chat/engage/kursal/).
-- **Report a vulnerability** — please read [SECURITY.md](SECURITY.md) first.
-- **Donate** — on [OpenCollective](https://opencollective.com/kursal).
+- **Code** - Rust core, Svelte frontend. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Run a relay** - more relays means a faster, harder-to-censor network. See [RELAY.md](./docs/RELAY.md).
+- **Translate** - no coding needed, on [our Weblate](https://translate.kursal.chat/engage/kursal/).
+- **Report a vulnerability** - please read [SECURITY.md](SECURITY.md) first.
+- **Donate** - on [OpenCollective](https://opencollective.com/kursal).
 
 [![Translation status](https://translate.kursal.chat/widget/kursal/multi-auto.svg)](https://translate.kursal.chat/engage/kursal/)
 [![Backers](https://opencollective.com/kursal/backers.svg?width=890)](https://opencollective.com/kursal)

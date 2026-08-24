@@ -86,7 +86,7 @@ journalctl -u kursal-relay -f
 | Key                                          | Meaning                                                                          |
 | -------------------------------------------- | -------------------------------------------------------------------------------- |
 | `listen_addr`                                | Bind address for the swarm, default `0.0.0.0:4891` (TCP + QUIC on the same port) |
-| `announce_addr`                              | Public address advertised to the network — set this to your server's IP/DNS      |
+| `announce_addr`                              | Public address advertised to the network (set this to your server's IP/DNS)      |
 | `max_connections` / `max_connections_per_ip` | Connection limits                                                                |
 | `bootstrap_peers`                            | Other relays to join the DHT through. It still uses defaults ones                |
 | `log_level`, `log_file`                      | Logging; leave `log_file` unset for stdout                                       |
@@ -105,8 +105,8 @@ Open **4891 TCP and UDP** in your firewall. The health port (4892) can also opti
 
 ## Monitoring
 
-- `curl http://127.0.0.1:4892/health` — peer ID, uptime, connection count.
-- `kursal-relay --tui` — live terminal dashboard (connections, reservations,
+- `curl http://127.0.0.1:4892/health` - peer ID, uptime, connection count.
+- `kursal-relay --tui` - live terminal dashboard (connections, reservations,
   circuits, traffic sparklines, CPU/memory, event log). Interactive use only;
   run the service headless.
 
