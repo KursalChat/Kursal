@@ -89,7 +89,7 @@
     {#if showRaw}
       {text}
     {:else}
-      {@html renderMarkdown(text)}
+      {@html renderMarkdown(text, false, false)}
     {/if}
   </div>
   <button class="select-all-btn" onclick={selectAll}>{t('chat.selectText.selectAll')}</button>

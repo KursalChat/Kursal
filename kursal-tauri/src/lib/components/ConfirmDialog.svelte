@@ -248,6 +248,9 @@
     font-size: var(--text-sm);
     color: var(--text-secondary);
     line-height: 1.55;
+    overflow-wrap: anywhere;
+    max-height: 7.75em;
+    overflow-y: auto;
   }
   .dialog.wide {
     max-width: 560px;
@@ -356,6 +359,9 @@
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
+  }
+  .checkbox span {
+    overflow-wrap: anywhere;
   }
   .checkbox input {
     accent-color: var(--accent-solid);

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
+  import DOMPurify from 'dompurify';
   import { t } from '$lib/i18n';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import WinstonCard from './WinstonCard.svelte';
@@ -8,9 +9,10 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
   function formatBody(s: string) {
-    return escapeHtml(s)
+    const marked = escapeHtml(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>');
+    return DOMPurify.sanitize(marked, { ALLOWED_TAGS: ['strong', 'em'], ALLOWED_ATTR: [] });
   }
 
   const def = $derived(winstonTips.def);

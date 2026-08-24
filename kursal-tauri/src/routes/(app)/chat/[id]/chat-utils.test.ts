@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { decodeUtf8Base64 } from '$lib/utils/base64';
 
 // chat-utils pulls Tauri/state/i18n deps for its click handler; stub them so
 // the pure rendering/formatting helpers can be tested in isolation. marked and
@@ -11,6 +12,7 @@ vi.mock('$lib/state/notifications.svelte', () => ({
   notifications: { push: vi.fn() },
 }));
 vi.mock('$lib/state/confirm.svelte', () => ({
+  confirmDialog: vi.fn(),
   confirmDialogWithCheckbox: vi.fn(),
 }));
 vi.mock('$lib/state/trustedDomains.svelte', () => ({
@@ -97,6 +99,47 @@ describe('renderMarkdown (sanitization)', () => {
   it('appends an edited badge when isEdited', () => {
     const out = renderMarkdown('hi', true);
     expect(out).toContain('edited-tag');
+  });
+
+  it('rejects a fence info string that tries to close the class attribute', () => {
+    const out = renderMarkdown('```js" style="position:fixed;inset:0\ncode\n```');
+    expect(out).not.toContain('style=');
+    expect(out).not.toContain('position:fixed');
+  });
+
+  it('round-trips code block text through the copy payload', () => {
+    const out = renderMarkdown('```\n<script> && "quotes"\n```');
+    const encoded = /data-code="([^"]*)"/.exec(out)?.[1] ?? '';
+    expect(decodeUtf8Base64(encoded)).toBe('<script> && "quotes"');
+  });
+
+  it('never emits a style attribute', () => {
+    const out = renderMarkdown('**bold** [k](https://kursal.chat)\n\n```js\ncode\n```');
+    expect(out).not.toContain('style');
+  });
+
+  it('keeps a plain language tag', () => {
+    const out = renderMarkdown('```js\ncode\n```');
+    expect(out).toContain('class="language-js"');
+  });
+
+  it('drops language tags over ten characters', () => {
+    const out = renderMarkdown('```asuperlongnamethatdefinitlydoesntfithere\ncode\n```');
+    expect(out).not.toContain('language-');
+  });
+
+  it('drops anchors when links are disabled, keeping the label as text', () => {
+    const out = renderMarkdown('[click me](https://evil.example)', false, false);
+    expect(out).not.toContain('<a');
+    expect(out).not.toContain('href');
+    expect(out).toContain('click me');
+  });
+
+  it('caches link and linkless renders separately', () => {
+    const md = '[k](https://kursal.chat)';
+    expect(renderMarkdown(md, false, true)).toContain('<a');
+    expect(renderMarkdown(md, false, false)).not.toContain('<a');
+    expect(renderMarkdown(md, false, true)).toContain('<a');
   });
 });
 

@@ -4,7 +4,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { notifications } from '$lib/state/notifications.svelte';
 import { notifyError } from '$lib/utils/errors';
-import { confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
+import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
 import { trustedDomainsState } from '$lib/state/trustedDomains.svelte';
 import { formatCalendarDay, formatTime, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
 import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
@@ -43,13 +43,16 @@ marked.use({
   ],
 });
 
+const LANG_RE = /^[A-Za-z]{1,10}$/;
+
 marked.use({
   renderer: {
     code({ text, lang }: { text: string; lang?: string }) {
-      const encoded = encodeUtf8Base64(text);
-      const escapedCode = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const source = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const encoded = encodeUtf8Base64(source);
+      const escapedCode = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const aria = t('chat.bubble.copyCodeAria');
-      const langAttr = lang ? ` class="language-${lang}"` : '';
+      const langAttr = lang && LANG_RE.test(lang) ? ` class="language-${lang}"` : '';
       return `<div class="code-wrap"><button class="code-copy" data-code="${encoded}" aria-label="${aria}">⧉</button><pre><code${langAttr}>${escapedCode}</code></pre></div>`;
     },
   },
@@ -264,8 +267,44 @@ export function highlightTerm(html: string, term: string): string {
   );
 }
 
-export function renderMarkdown(content: string, isEdited: boolean = false): string {
-  const cacheKey = content + (isEdited ? '|e' : '|n');
+const ALLOWED_TAGS = [
+  'p',
+  'br',
+  'b',
+  'i',
+  'em',
+  'strong',
+  'a',
+  'pre',
+  'code',
+  'blockquote',
+  'ul',
+  'ol',
+  'li',
+  'del',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'span',
+  'div',
+  'button',
+];
+
+const ALLOWED_ATTR = ['href', 'class', 'tabindex', 'data-code', 'aria-label'];
+
+const LINKLESS_TAGS = ALLOWED_TAGS.filter((tag) => tag !== 'a');
+const LINKLESS_ATTR = ALLOWED_ATTR.filter((attr) => attr !== 'href');
+
+export function renderMarkdown(
+  content: string,
+  isEdited: boolean = false,
+  withLinks: boolean = true
+): string {
+  const cacheKey = content + (isEdited ? '|e' : '|n') + (withLinks ? '|l' : '|p');
   const cached = markdownCache.get(cacheKey);
   if (cached) return cached;
 
@@ -294,42 +333,8 @@ export function renderMarkdown(content: string, isEdited: boolean = false): stri
   }
 
   const sanitized = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      'p',
-      'br',
-      'b',
-      'i',
-      'em',
-      'strong',
-      'a',
-      'pre',
-      'code',
-      'blockquote',
-      'ul',
-      'ol',
-      'li',
-      'del',
-      'h1',
-      'h2',
-      'h3',
-      'h4',
-      'h5',
-      'h6',
-      'hr',
-      'span',
-      'div',
-      'button',
-    ],
-    ALLOWED_ATTR: [
-      'href',
-      'class',
-      'target',
-      'rel',
-      'style',
-      'tabindex',
-      'data-code',
-      'aria-label',
-    ],
+    ALLOWED_TAGS: withLinks ? ALLOWED_TAGS : LINKLESS_TAGS,
+    ALLOWED_ATTR: withLinks ? ALLOWED_ATTR : LINKLESS_ATTR,
   });
   cacheMarkdown(cacheKey, sanitized);
   return sanitized;
@@ -381,20 +386,33 @@ export async function handleMarkdownClick(e: MouseEvent) {
       return;
     }
     const isWeb = url.protocol === 'http:' || url.protocol === 'https:';
-    if (isWeb && !trustedDomainsState.isTrusted(url.hostname)) {
-      const result = await confirmDialogWithCheckbox({
+    if (isWeb) {
+      if (!trustedDomainsState.isTrusted(url.hostname)) {
+        const result = await confirmDialogWithCheckbox({
+          title: t('chat.bubble.linkConfirm.title'),
+          message: t('chat.bubble.linkConfirm.message'),
+          detail: url.toString(),
+          confirmLabel: t('chat.bubble.linkConfirm.open'),
+          cancelLabel: t('chat.bubble.linkConfirm.cancel'),
+          tone: 'warning',
+          checkbox: {
+            label: t('chat.bubble.linkConfirm.trustDomain', { host: url.hostname }),
+          },
+        });
+        if (!result.confirmed) return;
+        if (result.checked) trustedDomainsState.trust(url.hostname);
+      }
+    } else {
+      // mailto: or tel:
+      const confirmed = await confirmDialog({
         title: t('chat.bubble.linkConfirm.title'),
-        message: t('chat.bubble.linkConfirm.message'),
+        message: t('chat.bubble.linkConfirm.appMessage'),
         detail: url.toString(),
         confirmLabel: t('chat.bubble.linkConfirm.open'),
         cancelLabel: t('chat.bubble.linkConfirm.cancel'),
         tone: 'warning',
-        checkbox: {
-          label: t('chat.bubble.linkConfirm.trustDomain', { host: url.hostname }),
-        },
       });
-      if (!result.confirmed) return;
-      if (result.checked) trustedDomainsState.trust(url.hostname);
+      if (!confirmed) return;
     }
     await openUrl(url.toString());
   } catch (err) {

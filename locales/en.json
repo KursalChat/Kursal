@@ -582,6 +582,7 @@
         "open": "Open",
         "cancel": "Cancel",
         "trustDomain": "Don't ask again for {host}",
+        "appMessage": "This link opens outside Kursal, in another app on your device.",
         "unsupported": "Unsupported link type",
         "error": "Failed to open link."
       }
