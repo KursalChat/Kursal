@@ -26,6 +26,15 @@ calls = [
     "dep:ringbuf",
     "dep:webrtc-audio-processing",
     "dep:objc2-avf-audio",
+    "dep:objc2",
+    "dep:dispatch2",
+    "dep:objc2-core-foundation",
+    "dep:objc2-foundation",
+    "dep:objc2-av-foundation",
+    "dep:objc2-core-media",
+    "dep:objc2-core-video",
+    "dep:objc2-video-toolbox",
+    "dep:objc2-ui-kit",
 ]
 ble = ["dep:btleplug", "dep:ble-peripheral-rust"]
 apiserver = ["dep:axum", "dep:tower-http"]
@@ -123,11 +132,65 @@ apple-native-keyring-store = { workspace = true, features = [
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
+objc2-ui-kit = { workspace = true, optional = true, features = [
+    "UIDevice",
+    "UIOrientation",
+] }
 # Configure the audio session for VoIP: hardware echo-cancel/noise-suppression
 # and (with UIBackgroundModes=audio) keeping an active call alive in background.
 objc2-avf-audio = { workspace = true, optional = true, features = [
     "AVAudioSession",
     "AVAudioSessionTypes",
+] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+objc2 = { workspace = true, optional = true }
+dispatch2 = { version = "0.3.1", optional = true }
+objc2-core-foundation = { version = "0.3.2", optional = true, default-features = false, features = [
+    "CFBase",
+    "CFNumber",
+    "CFString",
+    "CFDictionary",
+    "CFArray",
+] }
+objc2-foundation = { workspace = true, optional = true, features = [
+    "NSArray",
+    "NSString",
+    "NSEnumerator",
+] }
+objc2-av-foundation = { workspace = true, optional = true, features = [
+    "AVCaptureDevice",
+    "AVCaptureInput",
+    "AVCaptureOutputBase",
+    "AVCaptureSession",
+    "AVCaptureVideoDataOutput",
+    "AVCaptureSessionPreset",
+    "AVMediaFormat",
+    "dispatch2",
+    "objc2-core-foundation",
+    "objc2-core-media",
+    "objc2-core-video",
+] }
+objc2-core-media = { workspace = true, optional = true, features = [
+    "CMSampleBuffer",
+    "CMFormatDescription",
+    "CMTime",
+    "CMBlockBuffer",
+    "objc2-core-video",
+] }
+objc2-core-video = { workspace = true, optional = true, features = [
+    "CVPixelBuffer",
+    "CVImageBuffer",
+    "CVBuffer",
+] }
+objc2-video-toolbox = { workspace = true, optional = true, features = [
+    "VTCompressionSession",
+    "VTCompressionProperties",
+    "VTSession",
+    "VTErrors",
+    "block2",
+    "objc2-core-media",
+    "objc2-core-video",
 ] }
 
 [target.'cfg(target_os = "android")'.dependencies]
@@ -137,7 +200,19 @@ jni = "0.19.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = { workspace = true }
-windows = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+windows = { workspace = true, features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+] }
+openh264 = { workspace = true }
+openh264-sys2 = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+v4l = { workspace = true }
+openh264 = { workspace = true }
+openh264-sys2 = { workspace = true }
+zune-jpeg = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 dbus-secret-service-keyring-store = { workspace = true, features = [

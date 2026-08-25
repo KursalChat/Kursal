@@ -4518,6 +4518,7 @@ dependencies = [
  "objc2-ui-kit",
  "objc2-video-toolbox",
  "openh264",
+ "openh264-sys2",
  "pqcrypto-dilithium",
  "pqcrypto-traits",
  "prometheus-client",

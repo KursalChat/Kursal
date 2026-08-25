@@ -293,6 +293,14 @@ pub struct LtcStatusDto {
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct CameraInfo {
+    pub id: String,
+    pub label: String,
+    pub facing: Option<String>,
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct NodesResponse {
     pub defaults: Vec<String>,
     pub custom: Vec<String>,

@@ -1,6 +1,5 @@
-import { Channel, invoke, type InvokeArgs } from '@tauri-apps/api/core';
-import type { AudioDevices } from '$lib/types';
-import { OS } from '$lib/api/window';
+import { Channel, invoke } from '@tauri-apps/api/core';
+import type { AudioDevices, CameraInfo } from '$lib/types';
 
 export const startCall = (contactId: string): Promise<string> =>
   invoke('start_call', { contactId });
@@ -25,21 +24,20 @@ export const getCallSampleRate = (): Promise<number> => invoke('get_call_sample_
 export const setCallSampleRate = (rate: number): Promise<void> =>
   invoke('set_call_sample_rate', { rate });
 
-export const startVideo = (codec: string, width: number, height: number): Promise<void> =>
-  invoke('start_video', { codec, width, height });
+export const startVideo = (): Promise<void> => invoke('start_video');
 
 export const stopVideo = (reason: string): Promise<void> => invoke('stop_video', { reason });
 
 export const requestVideoKeyframe = (): Promise<void> => invoke('request_video_keyframe');
 
-function bytesToBase64(u8: Uint8Array): string {
-  const CHUNK_SIZE = 0x8000;
-  let binary = '';
-  for (let i = 0; i < u8.length; i += CHUNK_SIZE) {
-    binary += String.fromCharCode(...u8.subarray(i, i + CHUNK_SIZE));
-  }
-  return btoa(binary);
-}
+export const listCameras = (): Promise<CameraInfo[]> => invoke('list_cameras');
+
+export const setCamera = (cameraId: string | null): Promise<void> =>
+  invoke('set_camera', { cameraId });
+
+export const refreshCameraRotation = (): Promise<void> => invoke('refresh_camera_rotation');
+
+export const requestLocalKeyframe = (): Promise<void> => invoke('request_local_keyframe');
 
 function base64ToBytes(b64: string): Uint8Array {
   const binary = atob(b64);
@@ -50,12 +48,7 @@ function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-export const sendVideoChunk = (chunk: Uint8Array): Promise<void> =>
-  OS === 'android'
-    ? invoke('send_video_chunk', bytesToBase64(chunk) as unknown as InvokeArgs)
-    : invoke('send_video_chunk', chunk);
-
-export const openVideoRxChannel = (onChunk: (bytes: ArrayBuffer) => void): Promise<void> => {
+function chunkChannel(onChunk: (bytes: ArrayBuffer) => void): Channel<ArrayBuffer | string> {
   const channel = new Channel<ArrayBuffer | string>();
   channel.onmessage = (message) => {
     if (typeof message === 'string') {
@@ -64,8 +57,14 @@ export const openVideoRxChannel = (onChunk: (bytes: ArrayBuffer) => void): Promi
       onChunk(message);
     }
   };
-  return invoke('video_rx_channel', { channel });
-};
+  return channel;
+}
+
+export const openVideoRxChannel = (onChunk: (bytes: ArrayBuffer) => void): Promise<void> =>
+  invoke('video_rx_channel', { channel: chunkChannel(onChunk) });
+
+export const openVideoTxChannel = (onChunk: (bytes: ArrayBuffer) => void): Promise<void> =>
+  invoke('video_tx_channel', { channel: chunkChannel(onChunk) });
 
 export const getVideoQuality = (): Promise<number> => invoke('get_video_quality');
 

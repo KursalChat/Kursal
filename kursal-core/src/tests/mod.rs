@@ -8,6 +8,8 @@ mod apiserver;
 mod bootstrap;
 #[cfg(feature = "calls")]
 mod call;
+#[cfg(feature = "calls")]
+mod capture;
 mod contact;
 mod crypto;
 mod dht;

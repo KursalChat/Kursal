@@ -1,4 +1,4 @@
-export type PermissionGroup = 'bluetooth' | 'microphone';
+export type PermissionGroup = 'bluetooth' | 'microphone' | 'camera';
 
 declare global {
   interface Window {

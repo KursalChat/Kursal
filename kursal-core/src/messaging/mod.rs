@@ -2,7 +2,7 @@ use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
     identity::UserId,
-    messaging::enums::{Direction, KursalMessage, MessageId, MessageStatus},
+    messaging::enums::{CallOutcome, Direction, KursalMessage, MessageId, MessageStatus},
     storage::{Database, TABLE_FILE_TRANSFERS, TABLE_MESSAGES, TABLE_PINNED, WriteBatch},
 };
 use serde::{Deserialize, Serialize};
@@ -224,9 +224,10 @@ fn is_unread_candidate(m: &StoredMessage) -> bool {
     }
     match &m.payload {
         KursalMessage::Text(t) => !t.content.is_empty(),
-        KursalMessage::FileOffer(_)
-        | KursalMessage::CallRecord(_)
-        | KursalMessage::MessagePin(_) => true,
+        KursalMessage::CallRecord(c) => {
+            !matches!(c.outcome, CallOutcome::Started | CallOutcome::Completed)
+        }
+        KursalMessage::FileOffer(_) | KursalMessage::MessagePin(_) => true,
         _ => false,
     }
 }

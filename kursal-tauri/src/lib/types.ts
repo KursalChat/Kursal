@@ -98,6 +98,17 @@ export interface NearbyPeerResponse {
 // Tauri event payloads: mirrors what the Rust AppEvent forwarder emits
 export type MessageReceivedPayload = MessageResponse;
 
+export type ConfirmTone = 'default' | 'warning' | 'danger';
+
+export interface BackendDialogPayload {
+  id: number;
+  kind: string;
+  message?: string;
+  params: Record<string, string | number | null>;
+  tone: ConfirmTone;
+  dismissible: boolean;
+}
+
 export interface ConnectionChangedPayload {
   contactId: string;
   status: 'connecting' | 'relay' | 'holepunch' | 'direct' | 'disconnected';
@@ -241,6 +252,20 @@ export interface CallEndedPayload {
   callId: string;
   reason: string;
   durationMs: number;
+}
+
+export interface CameraInfo {
+  id: string;
+  label: string;
+  facing: string | null;
+}
+
+export interface VideoLocalStatePayload {
+  active: boolean;
+  codec: string | null;
+  width: number;
+  height: number;
+  cameraId: string | null;
 }
 
 export interface VideoStatePayload {

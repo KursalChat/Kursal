@@ -14,16 +14,20 @@ import {
   listAudioDevices as apiListDevices,
   setAudioDevice as apiSetDevice,
   getCallSampleRate as apiGetSampleRate,
-  getVideoQuality,
   openVideoRxChannel,
+  openVideoTxChannel,
   requestVideoKeyframe as apiRequestKeyframe,
   startVideo as apiStartVideo,
   stopVideo as apiStopVideo,
+  listCameras as apiListCameras,
+  refreshCameraRotation as apiRefreshCameraRotation,
+  requestLocalKeyframe as apiRequestLocalKeyframe,
+  setCamera as apiSetCamera,
 } from '$lib/api/call';
 import { ensurePermission } from '$lib/api/permissions';
-import { VideoReceiver, VideoSender, videoSupported } from '$lib/call/video';
+import { VideoReceiver, videoSupported } from '$lib/call/video';
 import { playSound, stopSound } from '$lib/audio/sounds';
-import { clearCallNotification, notifyCall } from '$lib/api/system-notify';
+import { clearCallNotification, notifyCall } from '$lib/state/systemNotify.svelte';
 import { requestAttention } from '$lib/api/window';
 import { contactsState } from '$lib/state/contacts.svelte';
 import type {
@@ -34,13 +38,13 @@ import type {
   CallPeerVoiceStatePayload,
   CallStatePayload,
   CallStatus,
+  CameraInfo,
   ConnectionChangedPayload,
+  VideoLocalStatePayload,
   VideoStatePayload,
 } from '$lib/types';
 
 const PEER_DROP_GRACE_MS = 5000;
-const KEYFRAME_LOSS_WINDOW_MS = 5000;
-const KEYFRAME_LOSS_COUNT = 3;
 
 function createCallState() {
   let status = $state<CallStatus>('idle');
@@ -63,36 +67,25 @@ function createCallState() {
   let dropTimer: ReturnType<typeof setTimeout> | null = null;
 
   let localVideo = $state(false);
+  let cameraFacing = $state<string | null>(null);
+  let cameras = $state<CameraInfo[]>([]);
+  let selectedCameraId = $state<string | null>(null);
   let remoteVideo = $state(false);
   let cameraDenied = $state(false);
   const videoAvailable = videoSupported();
-  const sender = videoAvailable ? new VideoSender() : null;
   const receiver = videoAvailable ? new VideoReceiver() : null;
+  const localReceiver = videoAvailable ? new VideoReceiver() : null;
   let rxChannelOpen = false;
+  let txChannelOpen = false;
   let lastKeyframeReq = 0;
-  let peerKeyframeReqs: number[] = [];
-  let sendingVp8 = false;
+  let lastLocalKeyframeReq = 0;
   let remoteFrameSink: ((f: VideoFrame) => void) | null = null;
-  // One-shot diagnostics to localise a black remote tile (core -> UI -> decode -> draw).
-  let dbgChunk = false;
-  let dbgDecode = false;
-  let dbgNoSink = false;
+  let localFrameSink: ((f: VideoFrame) => void) | null = null;
 
   if (receiver) {
     receiver.onFrame = (frame) => {
-      if (!dbgDecode) {
-        dbgDecode = true;
-        // warn so it survives production log gating; temporary diagnostic
-        log.warn('[video] first decoded frame', frame.displayWidth, 'x', frame.displayHeight);
-      }
       if (remoteFrameSink) remoteFrameSink(frame);
-      else {
-        if (!dbgNoSink) {
-          dbgNoSink = true;
-          log.warn('[video] decoded frames but canvas sink not set (overlay closed/minimized?)');
-        }
-        frame.close();
-      }
+      else frame.close();
     };
     receiver.onNeedsKeyframe = () => {
       const now = Date.now();
@@ -106,18 +99,22 @@ function createCallState() {
     };
   }
 
-  if (sender) {
-    sender.onEnded = () => {
-      if (!localVideo) return;
-      localVideo = false;
-      void apiStopVideo('error').catch(() => {});
+  if (localReceiver) {
+    localReceiver.onFrame = (frame) => {
+      if (localFrameSink) localFrameSink(frame);
+      else frame.close();
     };
-    sender.onResolutionChange = () => {
-      if (!localVideo) return;
-      void startSending(sendingVp8).catch(() => {
-        stopLocalVideo();
-        void apiStopVideo('error').catch(() => {});
-      });
+    // The encoder's first keyframe is gone by the time the decoder configures.
+    // Without this the preview stays black until the next one (3s on Android).
+    localReceiver.onNeedsKeyframe = () => {
+      const now = Date.now();
+      if (now - lastLocalKeyframeReq < 1000) return;
+      lastLocalKeyframeReq = now;
+      void apiRequestLocalKeyframe().catch(() => {});
+    };
+    localReceiver.onFatal = () => {
+      stopLocalVideo();
+      void apiStopVideo('error').catch(() => {});
     };
   }
 
@@ -125,9 +122,8 @@ function createCallState() {
     remoteFrameSink = cb;
   }
 
-  function stopLocalVideo() {
-    sender?.stop();
-    localVideo = false;
+  function setLocalFrameSink(cb: ((f: VideoFrame) => void) | null) {
+    localFrameSink = cb;
   }
 
   function stopRemoteVideo() {
@@ -135,41 +131,41 @@ function createCallState() {
     remoteVideo = false;
   }
 
+  function stopLocalVideo() {
+    localReceiver?.close();
+    localVideo = false;
+    // stop_video drops the core-side forwarder, so the channel cannot be reused.
+    txChannelOpen = false;
+  }
+
   async function ensureRxChannel() {
     if (rxChannelOpen || !receiver) return;
     rxChannelOpen = true;
     try {
-      await openVideoRxChannel((bytes) => {
-        if (!dbgChunk) {
-          dbgChunk = true;
-          // warn so it survives production log gating; temporary diagnostic
-          log.warn('[video] first chunk from core', bytes.byteLength, 'bytes');
-        }
-        receiver.push(bytes);
-      });
+      await openVideoRxChannel((bytes) => receiver.push(bytes));
     } catch {
       rxChannelOpen = false;
     }
   }
 
-  let videoBusy = false;
-
-  async function startSending(forceVp8: boolean) {
-    if (!sender || videoBusy) return;
-    videoBusy = true;
+  async function ensureTxChannel() {
+    if (txChannelOpen || !localReceiver) return;
+    txChannelOpen = true;
     try {
-      let quality = 480;
-      try {
-        quality = await getVideoQuality();
-      } catch {
-        /* default stands */
+      await openVideoTxChannel((bytes) => localReceiver.push(bytes));
+    } catch {
+      txChannelOpen = false;
+    }
+  }
+
+  async function refreshCameras() {
+    try {
+      cameras = await apiListCameras();
+      if (selectedCameraId && !cameras.some((c) => c.id === selectedCameraId)) {
+        selectedCameraId = null;
       }
-      const config = await sender.start(quality, forceVp8);
-      sendingVp8 = forceVp8;
-      await apiStartVideo(config.codec, config.width, config.height);
-      localVideo = true;
-    } finally {
-      videoBusy = false;
+    } catch {
+      cameras = [];
     }
   }
 
@@ -185,19 +181,52 @@ function createCallState() {
       return;
     }
     cameraDenied = false;
+    if (!(await ensurePermission('camera'))) {
+      cameraDenied = true;
+      notifications.push(t('chat.call.cameraDeniedToast'), 'error');
+      return;
+    }
     try {
-      await startSending(false);
-    } catch (e) {
+      await ensureTxChannel();
+      await apiStartVideo();
+      void refreshCameras();
+    } catch {
       stopLocalVideo();
-      if (
-        e instanceof DOMException &&
-        (e.name === 'NotAllowedError' || e.name === 'SecurityError')
-      ) {
-        cameraDenied = true;
-        notifications.push(t('chat.call.cameraDeniedToast'), 'error');
-      } else {
-        notifications.push(t('chat.call.videoUnavailableToast'), 'error');
-      }
+      notifications.push(t('chat.call.videoUnavailableToast'), 'error');
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('orientationchange', () => {
+      if (localVideo) void apiRefreshCameraRotation().catch(() => {});
+    });
+  }
+
+  async function selectCamera(id: string | null) {
+    if (!videoAvailable || id === selectedCameraId) return;
+    const previous = selectedCameraId;
+    selectedCameraId = id;
+    try {
+      await apiSetCamera(id);
+    } catch {
+      selectedCameraId = previous;
+      notifications.push(t('chat.call.videoUnavailableToast'), 'error');
+    }
+  }
+
+  function applyLocalVideoState(p: VideoLocalStatePayload) {
+    if (!localReceiver) return;
+    if (!p.active || !p.codec) {
+      stopLocalVideo();
+      return;
+    }
+    try {
+      localReceiver.configure(p.codec, p.width, p.height);
+      localVideo = true;
+      if (p.cameraId) selectedCameraId = p.cameraId;
+      cameraFacing = cameras.find((c) => c.id === selectedCameraId)?.facing ?? null;
+    } catch {
+      stopLocalVideo();
     }
   }
 
@@ -217,16 +246,7 @@ function createCallState() {
       return;
     }
     if (p.reason === 'send_rejected') {
-      const wasH264 = sender?.codec?.startsWith('avc1') ?? false;
       stopLocalVideo();
-      if (wasH264) {
-        try {
-          await startSending(true);
-          return;
-        } catch {
-          /* fall through to toast */
-        }
-      }
       notifications.push(t('chat.call.videoUnavailableToast'), 'error');
       return;
     }
@@ -265,7 +285,8 @@ function createCallState() {
     stopLocalVideo();
     stopRemoteVideo();
     cameraDenied = false;
-    peerKeyframeReqs = [];
+    cameraFacing = null;
+    selectedCameraId = null;
     lastKeyframeReq = 0;
     clearDropTimer();
   }
@@ -295,7 +316,10 @@ function createCallState() {
     if (callId && p.callId !== callId) return;
     if (p.state !== 'ringing_in') endRinging();
     status = p.state;
-    if (p.state === 'connected' && startedAt === null) startedAt = Date.now();
+    if (p.state === 'connected' && startedAt === null) {
+      startedAt = Date.now();
+      if (videoAvailable) void refreshCameras();
+    }
     if (p.state === 'ended') reset();
   }
 
@@ -326,8 +350,6 @@ function createCallState() {
     peerDeafened = p.deafened;
   }
 
-  // Peer closed their client / dropped off the network: the far side can't send
-  // a hangup, so end the call locally once the drop outlasts the grace window.
   function applyConnectionChanged(p: ConnectionChangedPayload) {
     if (!contactId || p.contactId !== contactId) return;
     if (status === 'idle' || status === 'ringing_in') return;
@@ -354,23 +376,13 @@ function createCallState() {
       applyConnectionChanged(e.payload)
     );
     await listen<VideoStatePayload>('video_state', (e) => void applyVideoState(e.payload));
+    await ensureTxChannel();
     await listen<CallPeerVoiceStatePayload>('call_peer_voice_state', (e) =>
       applyPeerVoiceState(e.payload)
     );
-    await listen('video_congestion', () => sender?.onCongestion());
-    await listen('video_keyframe_requested', () => {
-      sender?.requestKeyframe();
-      const now = Date.now();
-      peerKeyframeReqs = peerKeyframeReqs.filter((at) => now - at < KEYFRAME_LOSS_WINDOW_MS);
-      peerKeyframeReqs.push(now);
-      if (peerKeyframeReqs.length >= KEYFRAME_LOSS_COUNT) {
-        peerKeyframeReqs = [];
-        sender?.onCongestion();
-      }
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && localVideo) void toggleCamera();
-    });
+    await listen<VideoLocalStatePayload>('video_local_state', (e) =>
+      applyLocalVideoState(e.payload)
+    );
   }
 
   async function start(targetContactId: string) {
@@ -392,8 +404,6 @@ function createCallState() {
         sampleRate = null;
       }
     } catch (e) {
-      // Core refuses a second concurrent call, and dial failures land here too;
-      // without a toast the overlay just flashes open and vanishes.
       reset();
       notifications.push(t('chat.call.startFailed'), 'error');
       log.error('Call start failed', e);
@@ -458,13 +468,10 @@ function createCallState() {
     }
   }
 
-  // Deafen implies mute: deafening auto-mutes and remembers it;
-  // undeafening restores mic only if we were the ones who muted it.
   async function toggleMute() {
     const next = !muted;
     await setMuted(next);
     deafenAutoMuted = false;
-    // Unmuting while deafened also undeafens: you can't talk into a void.
     if (!next && deafened) await setDeafened(false);
   }
 
@@ -576,10 +583,22 @@ function createCallState() {
     get videoAvailable() {
       return videoAvailable;
     },
-    get localStream() {
-      return sender?.localStream ?? null;
+    get canSendVideo() {
+      return videoAvailable && cameras.length > 0;
+    },
+    get cameraFacing() {
+      return cameraFacing;
+    },
+    get cameras() {
+      return cameras;
+    },
+    get selectedCameraId() {
+      return selectedCameraId;
     },
     toggleCamera,
+    selectCamera,
+    refreshCameras,
+    setLocalFrameSink,
     setRemoteFrameSink,
     init,
     start,

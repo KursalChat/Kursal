@@ -588,6 +588,27 @@ pub async fn handle_core_event(
             );
         }
 
+        AppEvent::VideoLocalState {
+            active,
+            codec,
+            width,
+            height,
+            camera_id,
+        } => {
+            emitter(
+                handle,
+                api_handle,
+                "video_local_state",
+                serde_json::json!({
+                    "active": active,
+                    "codec": codec,
+                    "width": width,
+                    "height": height,
+                    "cameraId": camera_id
+                }),
+            );
+        }
+
         AppEvent::VideoState {
             call_id,
             active,

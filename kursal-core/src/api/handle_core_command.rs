@@ -1116,17 +1116,37 @@ pub async fn handle_core_command(
         }
 
         #[cfg(feature = "calls")]
-        CoreCommand::StartVideo {
-            codec,
-            width,
-            height,
-            reply,
-        } => {
+        CoreCommand::StartVideo { reply } => {
+            let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+            let result = crate::call::manager::start_video(db, &cmd_tx, &app_event_tx).await;
+            reply.send(result).ok();
+        }
+
+        #[cfg(feature = "calls")]
+        CoreCommand::ListCameras { reply } => {
+            reply
+                .send(Ok(crate::call::manager::list_cameras().await))
+                .ok();
+        }
+
+        #[cfg(feature = "calls")]
+        CoreCommand::RequestLocalKeyframe { reply } => {
+            crate::call::capture::request_keyframe();
+            reply.send(Ok(())).ok();
+        }
+
+        #[cfg(feature = "calls")]
+        CoreCommand::SetCamera { camera_id, reply } => {
             let cmd_tx = network.lock().await.primary.cmd_tx.clone();
             let result =
-                crate::call::manager::start_video(codec, width, height, db, &cmd_tx, &app_event_tx)
-                    .await;
+                crate::call::manager::set_camera(camera_id, db, &cmd_tx, &app_event_tx).await;
             reply.send(result).ok();
+        }
+
+        #[cfg(feature = "calls")]
+        CoreCommand::RefreshCameraRotation { reply } => {
+            crate::call::manager::refresh_camera_rotation().await;
+            reply.send(Ok(())).ok();
         }
 
         #[cfg(feature = "calls")]

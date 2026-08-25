@@ -81,6 +81,25 @@ pub fn set_rx_forwarder(f: RxForwarder) {
     *rx_forwarder().lock_recover() = Some(f);
 }
 
+fn local_forwarder() -> &'static StdMutex<Option<RxForwarder>> {
+    static F: OnceLock<StdMutex<Option<RxForwarder>>> = OnceLock::new();
+    F.get_or_init(|| StdMutex::new(None))
+}
+
+pub fn set_local_forwarder(f: RxForwarder) {
+    *local_forwarder().lock_recover() = Some(f);
+}
+
+pub fn clear_local_forwarder() {
+    *local_forwarder().lock_recover() = None;
+}
+
+pub fn forward_local(chunk: &[u8]) {
+    if let Some(f) = local_forwarder().lock_recover().as_ref() {
+        f(chunk.to_vec());
+    }
+}
+
 pub fn send_chunk(bytes: Vec<u8>) {
     if let Some(session) = tx_slot().lock_recover().as_ref()
         && session.chunk_tx.try_send(bytes).is_err()
@@ -143,6 +162,7 @@ pub fn start_tx(
                 if should_emit {
                     last_congestion = Some(now);
                     log::warn!("[call] video tx: congested, dropped backlog to {peer_id}");
+                    crate::call::capture::on_congestion();
                     let _ = app_event_tx.try_send(AppEvent::VideoCongestion);
                 }
                 continue;

@@ -169,27 +169,13 @@ pub async fn hangup(state: tauri::State<'_, AppState>, call_id: String) -> Resul
         .map_err(Into::into)
 }
 
-core_cmd!(start_video(codec: String, width: u16, height: u16) -> ());
+core_cmd!(start_video() -> ());
+core_cmd!(list_cameras() -> Vec<kursal_core::dto::CameraInfo>);
+core_cmd!(set_camera(camera_id: Option<String>) -> ());
+core_cmd!(refresh_camera_rotation() -> ());
+core_cmd!(request_local_keyframe() -> ());
 core_cmd!(stop_video(reason: String) -> ());
 core_cmd!(request_video_keyframe() -> ());
-
-#[tauri::command]
-pub async fn send_video_chunk(request: tauri::ipc::Request<'_>) -> Result<()> {
-    match request.body() {
-        tauri::ipc::InvokeBody::Raw(bytes) => {
-            kursal_core::call::video::send_chunk(bytes.clone());
-        }
-        tauri::ipc::InvokeBody::Json(value) => {
-            use base64::Engine;
-            if let Some(encoded) = value.as_str()
-                && let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded)
-            {
-                kursal_core::call::video::send_chunk(bytes);
-            }
-        }
-    }
-    Ok(())
-}
 
 #[cfg(target_os = "android")]
 fn video_chunk_response(bytes: Vec<u8>) -> tauri::ipc::InvokeResponseBody {
@@ -201,6 +187,16 @@ fn video_chunk_response(bytes: Vec<u8>) -> tauri::ipc::InvokeResponseBody {
 #[cfg(not(target_os = "android"))]
 fn video_chunk_response(bytes: Vec<u8>) -> tauri::ipc::InvokeResponseBody {
     tauri::ipc::InvokeResponseBody::Raw(bytes)
+}
+
+#[tauri::command]
+pub async fn video_tx_channel(
+    channel: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) -> Result<()> {
+    kursal_core::call::video::set_local_forwarder(Box::new(move |bytes| {
+        let _ = channel.send(video_chunk_response(bytes));
+    }));
+    Ok(())
 }
 
 #[tauri::command]
@@ -246,7 +242,6 @@ core_cmd!(get_pending_sync() -> PendingSyncDto);
 core_cmd!(get_security_code(contact_id: String) -> String);
 core_cmd!(confirm_security_code(contact_id: String) -> ());
 core_cmd!(set_contact_blocked(contact_id: String, value: bool) -> ());
-core_cmd!(list_blocked_contacts() -> Vec<ContactResponse>, as get_blocked_contacts);
 core_cmd!(rotate_peer_id() -> ());
 core_cmd!(get_local_peer_id() -> String);
 
