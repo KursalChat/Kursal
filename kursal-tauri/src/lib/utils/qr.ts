@@ -1,4 +1,3 @@
-import type { BitMatrix } from 'qrcode';
 import { log } from '$lib/utils/log';
 
 interface QrOptions {
@@ -32,16 +31,15 @@ export async function renderQrDataUrl(
 ): Promise<string | null> {
   try {
     const pending = options.mascot === false ? null : loadMascot();
-    const { create } = await import('qrcode');
-    const { modules } = create(value, {
-      errorCorrectionLevel: options.errorCorrectionLevel ?? 'M',
+    const { encode } = await import('uqr');
+    const { size, data } = encode(value, {
+      ecc: options.errorCorrectionLevel ?? 'M',
+      border: 0,
     });
 
-    const size = modules.size;
     const grid = size + QUIET_CELLS * 2;
     const density = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
-    /* Snapping the module to a whole pixel keeps every edge off the subpixel
-     * grid, so the code stays crisp and the rasteriser has nothing to blend. */
+    /* Snapping the module to a whole pixel */
     const cell = Math.max(1, Math.round(((options.width ?? 320) * density) / grid));
     const px = cell * grid;
     const origin = QUIET_CELLS * cell;
@@ -59,7 +57,7 @@ export async function renderQrDataUrl(
     const holeStart = (size - hole) >> 1;
 
     const path = new Path2D();
-    addModules(path, buildMask(modules, size, holeStart, holeStart + hole), size, cell, origin);
+    addModules(path, buildMask(data, size, holeStart, holeStart + hole), size, cell, origin);
     addEyes(path, size, cell, origin);
     ctx.fillStyle = INK;
     ctx.fill(path, 'evenodd');
@@ -74,21 +72,21 @@ export async function renderQrDataUrl(
 }
 
 function buildMask(
-  modules: BitMatrix,
+  data: boolean[][],
   size: number,
   holeStart: number,
   holeEnd: number
 ): Uint8Array {
   const mask = new Uint8Array(size * size);
-  const data = modules.data;
   const far = size - EYE_CELLS;
   for (let y = 0; y < size; y++) {
     const row = y * size;
+    const cells = data[y];
     const topRow = y < EYE_CELLS;
     const eyeRow = topRow || y >= far;
     const holeRow = y >= holeStart && y < holeEnd;
     for (let x = 0; x < size; x++) {
-      if (!data[row + x]) continue;
+      if (!cells[x]) continue;
       if (eyeRow && (x < EYE_CELLS || (topRow && x >= far))) continue;
       if (holeRow && x >= holeStart && x < holeEnd) continue;
       mask[row + x] = 1;
