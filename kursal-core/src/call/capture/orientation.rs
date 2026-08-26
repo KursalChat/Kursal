@@ -5,7 +5,7 @@ pub fn capture_angle() -> f64 {
 
 #[cfg(target_os = "ios")]
 mod ios_angle {
-    use objc2_foundation::MainThreadMarker;
+    use objc2::MainThreadMarker;
     use objc2_ui_kit::{UIDevice, UIDeviceOrientation};
     use std::sync::atomic::{AtomicU32, Ordering};
 

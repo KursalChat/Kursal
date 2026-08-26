@@ -222,10 +222,10 @@ fn decode_jpeg_into(buffer: &[u8], dst: &mut I420) -> bool {
     let Ok(pixels) = decoder.decode() else {
         return false;
     };
-    let (Some(width), Some(height)) = (decoder.width(), decoder.height()) else {
+    let Some(info) = decoder.info() else {
         return false;
     };
-    let (width, height) = (usize::from(width), usize::from(height));
+    let (width, height) = (usize::from(info.width), usize::from(info.height));
     if width != dst.width || height != dst.height || pixels.len() < width * height * 3 {
         return false;
     }
