@@ -172,7 +172,7 @@ pub async fn hangup(state: tauri::State<'_, AppState>, call_id: String) -> Resul
 core_cmd!(start_video() -> ());
 core_cmd!(list_cameras() -> Vec<kursal_core::dto::CameraInfo>);
 core_cmd!(set_camera(camera_id: Option<String>) -> ());
-core_cmd!(refresh_camera_rotation() -> ());
+core_cmd!(refresh_camera_rotation(angle: u16) -> ());
 core_cmd!(request_local_keyframe() -> ());
 core_cmd!(stop_video(reason: String) -> ());
 core_cmd!(request_video_keyframe() -> ());

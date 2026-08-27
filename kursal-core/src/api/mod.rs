@@ -391,6 +391,7 @@ pub enum CoreCommand {
     },
     #[cfg(feature = "calls")]
     RefreshCameraRotation {
+        angle: u16,
         reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]

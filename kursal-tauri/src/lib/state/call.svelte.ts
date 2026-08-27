@@ -79,12 +79,12 @@ function createCallState() {
   let txChannelOpen = false;
   let lastKeyframeReq = 0;
   let lastLocalKeyframeReq = 0;
-  let remoteFrameSink: ((f: VideoFrame) => void) | null = null;
-  let localFrameSink: ((f: VideoFrame) => void) | null = null;
+  let remoteFrameSink: ((f: VideoFrame, rotation: number) => void) | null = null;
+  let localFrameSink: ((f: VideoFrame, rotation: number) => void) | null = null;
 
   if (receiver) {
-    receiver.onFrame = (frame) => {
-      if (remoteFrameSink) remoteFrameSink(frame);
+    receiver.onFrame = (frame, rotation) => {
+      if (remoteFrameSink) remoteFrameSink(frame, rotation);
       else frame.close();
     };
     receiver.onNeedsKeyframe = () => {
@@ -100,8 +100,8 @@ function createCallState() {
   }
 
   if (localReceiver) {
-    localReceiver.onFrame = (frame) => {
-      if (localFrameSink) localFrameSink(frame);
+    localReceiver.onFrame = (frame, rotation) => {
+      if (localFrameSink) localFrameSink(frame, rotation);
       else frame.close();
     };
     // The encoder's first keyframe is gone by the time the decoder configures.
@@ -118,11 +118,11 @@ function createCallState() {
     };
   }
 
-  function setRemoteFrameSink(cb: ((f: VideoFrame) => void) | null) {
+  function setRemoteFrameSink(cb: ((f: VideoFrame, rotation: number) => void) | null) {
     remoteFrameSink = cb;
   }
 
-  function setLocalFrameSink(cb: ((f: VideoFrame) => void) | null) {
+  function setLocalFrameSink(cb: ((f: VideoFrame, rotation: number) => void) | null) {
     localFrameSink = cb;
   }
 
@@ -188,6 +188,8 @@ function createCallState() {
     }
     try {
       await ensureTxChannel();
+      // Before start, so the very first frames carry the right angle.
+      pushDeviceAngle();
       await apiStartVideo();
       void refreshCameras();
     } catch {
@@ -196,10 +198,14 @@ function createCallState() {
     }
   }
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('orientationchange', () => {
-      if (localVideo) void apiRefreshCameraRotation().catch(() => {});
-    });
+  function pushDeviceAngle() {
+    const angle = typeof screen !== 'undefined' ? (screen.orientation?.angle ?? 0) : 0;
+    void apiRefreshCameraRotation(angle).catch(() => {});
+  }
+
+  if (browser) {
+    screen.orientation?.addEventListener('change', pushDeviceAngle);
+    window.addEventListener('orientationchange', pushDeviceAngle);
   }
 
   async function selectCamera(id: string | null) {

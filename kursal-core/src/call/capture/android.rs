@@ -219,6 +219,7 @@ pub extern "system" fn Java_chat_kursal_CameraCapture_nativeVideoFrame(
     data: jni::sys::jbyteArray,
     keyframe: jni::sys::jboolean,
     timestamp_us: jni::sys::jlong,
+    rotation: jni::sys::jint,
 ) {
     let Ok(bytes) = env.convert_byte_array(data) else {
         return;
@@ -229,11 +230,11 @@ pub extern "system" fn Java_chat_kursal_CameraCapture_nativeVideoFrame(
             data: bytes,
             keyframe: keyframe != 0,
             timestamp_us: u64::try_from(timestamp_us).unwrap_or(0),
+            rotation: u16::try_from(rotation.rem_euclid(360)).unwrap_or(0),
         });
     }
 }
 
-/// Called from CameraCapture.kt when the camera or encoder dies mid-call.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_chat_kursal_CameraCapture_nativeCaptureFailed(
     _env: jni::JNIEnv,
@@ -242,4 +243,10 @@ pub extern "system" fn Java_chat_kursal_CameraCapture_nativeCaptureFailed(
     super::report_failure();
 }
 
-pub(super) fn refresh_rotation() {}
+pub(super) fn refresh_rotation() {
+    call_void(
+        "setDeviceAngle",
+        "(I)V",
+        &[JValue::Int(i32::from(super::device_angle()))],
+    );
+}

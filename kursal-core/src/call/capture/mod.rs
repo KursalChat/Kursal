@@ -82,6 +82,7 @@ pub struct EncodedFrame {
     pub data: Vec<u8>,
     pub keyframe: bool,
     pub timestamp_us: u64,
+    pub rotation: u16,
 }
 
 pub type FrameSink = Arc<dyn Fn(EncodedFrame) + Send + Sync>;
@@ -101,7 +102,8 @@ pub fn keyframe_interval() -> u32 {
 pub fn pack_chunk(frame: &EncodedFrame) -> Vec<u8> {
     let mut out = Vec::with_capacity(CHUNK_HEADER_BYTES + frame.data.len());
     out.push(0);
-    out.push(u8::from(frame.keyframe));
+    let quarters = u8::try_from((frame.rotation % 360) / 90).unwrap_or(0);
+    out.push(u8::from(frame.keyframe) | (quarters << 1));
     out.extend_from_slice(&frame.timestamp_us.to_be_bytes());
     out.extend_from_slice(&frame.data);
     out
@@ -267,7 +269,17 @@ pub fn request_keyframe() {
     backend::request_keyframe();
 }
 
-pub fn refresh_rotation() {
+fn device_angle_slot() -> &'static StdMutex<u16> {
+    static A: OnceLock<StdMutex<u16>> = OnceLock::new();
+    A.get_or_init(|| StdMutex::new(0))
+}
+
+pub fn device_angle() -> u16 {
+    *device_angle_slot().lock_recover()
+}
+
+pub fn set_device_angle(angle: u16) {
+    *device_angle_slot().lock_recover() = angle % 360;
     backend::refresh_rotation();
 }
 

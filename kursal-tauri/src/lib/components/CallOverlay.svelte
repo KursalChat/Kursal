@@ -23,6 +23,7 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { qualityKey, khz } from '$lib/utils/callQuality';
   import { createCallElapsed } from '$lib/utils/callElapsed.svelte';
+  import { drawFrame } from '$lib/call/video';
   import type { CameraInfo } from '$lib/types';
 
   // Android has no localised camera name, so it sends the facing and no label.
@@ -91,13 +92,9 @@
     }
     const canvas = remoteCanvas;
     const ctx = canvas.getContext('2d');
-    callState.setRemoteFrameSink((frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
-        remoteAr = clampAr(frame.displayWidth, frame.displayHeight);
-      }
-      ctx?.drawImage(frame, 0, 0);
+    callState.setRemoteFrameSink((frame, rotation) => {
+      const size = drawFrame(canvas, ctx, frame, rotation);
+      remoteAr = clampAr(size.width, size.height);
       frame.close();
     });
     return () => callState.setRemoteFrameSink(null);
@@ -111,13 +108,9 @@
     }
     const canvas = selfCanvas;
     const ctx = canvas.getContext('2d');
-    callState.setLocalFrameSink((frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
-        localAr = clampAr(frame.displayWidth, frame.displayHeight);
-      }
-      ctx?.drawImage(frame, 0, 0);
+    callState.setLocalFrameSink((frame, rotation) => {
+      const size = drawFrame(canvas, ctx, frame, rotation);
+      localAr = clampAr(size.width, size.height);
       frame.close();
     });
     return () => callState.setLocalFrameSink(null);

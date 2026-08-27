@@ -181,6 +181,7 @@ pub(super) fn start(config: &CaptureConfig, sink: FrameSink) -> Result<VideoForm
                         data,
                         keyframe,
                         timestamp_us,
+                        rotation: 0,
                     },
                     Ok(_) => continue,
                     Err(e) => {

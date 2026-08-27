@@ -206,8 +206,9 @@ pub async fn list_cameras() -> Vec<crate::dto::CameraInfo> {
         .unwrap_or_default()
 }
 
-pub async fn refresh_camera_rotation() {
-    let _ = tokio::task::spawn_blocking(crate::call::capture::refresh_rotation).await;
+pub async fn refresh_camera_rotation(angle: u16) {
+    let _ =
+        tokio::task::spawn_blocking(move || crate::call::capture::set_device_angle(angle)).await;
 }
 
 pub async fn set_camera(

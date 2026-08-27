@@ -9,6 +9,9 @@ if [ -z "${FORCE:-}" ] \
   && [ -f "$ROOT/bin/deps/mac-x64/libopus.a" ] \
   && [ -f "$ROOT/bin/deps/win/opus.lib" ] \
   && [ -f "$ROOT/bin/deps/android-arm64/libopus.a" ] \
+  && [ -f "$ROOT/bin/deps/android-armv7/libopus.a" ] \
+  && [ -f "$ROOT/bin/deps/android-x86/libopus.a" ] \
+  && [ -f "$ROOT/bin/deps/android-x86_64/libopus.a" ] \
   && [ -f "$ROOT/bin/deps/ios-arm64/libopus.a" ]; then
   echo "opus libs already present (FORCE=1 to rebuild); skipping"
   exit 0
@@ -75,20 +78,27 @@ cmake --build "$WORK/win" --target opus
 mkdir -p "$ROOT/bin/deps/win"
 cp "$WORK/win/opus.lib" "$ROOT/bin/deps/win/opus.lib"
 
-# ── android arm64 ─────────────────────────────────────────────────────────────
-echo "==> opus aarch64-linux-android"
+# ── android (every ABI in the bundle) ─────────────────────────────────────────
 ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 NDK="${NDK_HOME:-${ANDROID_NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -1)}}"
 [ -f "$NDK/build/cmake/android.toolchain.cmake" ] || { echo "error: android NDK not found (set ANDROID_NDK_HOME)"; exit 1; }
-# API 26 = minSdk for AAudio; the toolchain file picks the correct host prebuilt.
-cmake -S "$OPUS_SRC" -B "$WORK/android" "${common[@]}" \
-  -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a \
-  -DANDROID_PLATFORM=android-26 \
-  -DCMAKE_C_FLAGS="-fPIC"
-cmake --build "$WORK/android" --target opus
-mkdir -p "$ROOT/bin/deps/android-arm64"
-cp "$WORK/android/libopus.a" "$ROOT/bin/deps/android-arm64/libopus.a"
+
+for abi in arm64-v8a:android-arm64 \
+  armeabi-v7a:android-armv7 \
+  x86:android-x86 \
+  x86_64:android-x86_64; do
+  android_abi="${abi%%:*}"
+  out_dir="${abi##*:}"
+  echo "==> opus android $android_abi"
+  cmake -S "$OPUS_SRC" -B "$WORK/$out_dir" "${common[@]}" \
+    -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+    -DANDROID_ABI="$android_abi" \
+    -DANDROID_PLATFORM=android-26 \
+    -DCMAKE_C_FLAGS="-fPIC"
+  cmake --build "$WORK/$out_dir" --target opus
+  mkdir -p "$ROOT/bin/deps/$out_dir"
+  cp "$WORK/$out_dir/libopus.a" "$ROOT/bin/deps/$out_dir/libopus.a"
+done
 
 # ── ios arm64 ─────────────────────────────────────────────────────────────────
 echo "==> opus aarch64-apple-ios"
@@ -106,5 +116,5 @@ cp "$WORK/ios/libopus.a" "$ROOT/bin/deps/ios-arm64/libopus.a"
 echo "✅ opus libs built:"
 echo "   bin/deps/mac-x64/libopus.a"
 echo "   bin/deps/win/opus.lib"
-echo "   bin/deps/android-arm64/libopus.a"
+echo "   bin/deps/android-{arm64,armv7,x86,x86_64}/libopus.a"
 echo "   bin/deps/ios-arm64/libopus.a"

@@ -293,6 +293,7 @@ pub(super) fn start(config: &CaptureConfig, sink: FrameSink) -> Result<VideoForm
                         data,
                         keyframe,
                         timestamp_us: u64::try_from(start.elapsed().as_micros()).unwrap_or(0),
+                        rotation: 0,
                     }),
                     Ok(_) => {}
                     Err(e) => {

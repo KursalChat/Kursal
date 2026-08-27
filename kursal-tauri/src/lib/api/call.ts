@@ -35,7 +35,8 @@ export const listCameras = (): Promise<CameraInfo[]> => invoke('list_cameras');
 export const setCamera = (cameraId: string | null): Promise<void> =>
   invoke('set_camera', { cameraId });
 
-export const refreshCameraRotation = (): Promise<void> => invoke('refresh_camera_rotation');
+export const refreshCameraRotation = (angle: number): Promise<void> =>
+  invoke('refresh_camera_rotation', { angle });
 
 export const requestLocalKeyframe = (): Promise<void> => invoke('request_local_keyframe');
 

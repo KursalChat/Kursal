@@ -268,6 +268,7 @@ fn annexb_frame(sample: &CMSampleBuffer) -> Option<EncodedFrame> {
         data,
         keyframe,
         timestamp_us,
+        rotation: 0,
     })
 }
 

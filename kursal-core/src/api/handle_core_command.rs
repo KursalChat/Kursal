@@ -1144,8 +1144,8 @@ pub async fn handle_core_command(
         }
 
         #[cfg(feature = "calls")]
-        CoreCommand::RefreshCameraRotation { reply } => {
-            crate::call::manager::refresh_camera_rotation().await;
+        CoreCommand::RefreshCameraRotation { angle, reply } => {
+            crate::call::manager::refresh_camera_rotation(angle).await;
             reply.send(Ok(())).ok();
         }
 

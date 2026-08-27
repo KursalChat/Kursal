@@ -35,8 +35,36 @@ object CameraCapture {
 
     @Volatile private var running = false
 
+    // Surface input arrives in sensor orientation and cannot be rotated without
+    // a GL pass, so the angle travels with each frame and the renderer applies it.
+    @Volatile private var sensorOrientation = 0
+    @Volatile private var frontFacing = false
+    @Volatile private var deviceAngle = 0
+    @Volatile private var frameRotation = 0
+
+    private fun recomputeRotation() {
+        val device = deviceAngle
+        frameRotation = if (frontFacing) {
+            (sensorOrientation + device) % 360
+        } else {
+            (sensorOrientation - device + 360) % 360
+        }
+    }
+
     @JvmStatic
-    external fun nativeVideoFrame(data: ByteArray, keyframe: Boolean, timestampUs: Long)
+    @Synchronized
+    fun setDeviceAngle(angle: Int) {
+        deviceAngle = ((angle % 360) + 360) % 360
+        recomputeRotation()
+    }
+
+    @JvmStatic
+    external fun nativeVideoFrame(
+        data: ByteArray,
+        keyframe: Boolean,
+        timestampUs: Long,
+        rotation: Int,
+    )
 
     @JvmStatic
     external fun nativeCaptureFailed()
@@ -96,6 +124,12 @@ object CameraCapture {
                 ?: manager.cameraIdList.firstOrNull()
                 ?: return null
 
+            val chars = manager.getCameraCharacteristics(cameraId)
+            sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+            frontFacing = chars.get(CameraCharacteristics.LENS_FACING) ==
+                CameraCharacteristics.LENS_FACING_FRONT
+            recomputeRotation()
+
             val size = chooseSize(manager, cameraId, width, height)
             startEncoder(size.first, size.second, bitrate, keyIntervalSecs)
 
@@ -124,8 +158,16 @@ object CameraCapture {
             .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
             ?: return Pair(width, height)
         val sizes = map.getOutputSizes(MediaCodec::class.java) ?: return Pair(width, height)
-        val wanted = width.toLong() * height.toLong()
-        val best = sizes.minByOrNull { Math.abs(it.width.toLong() * it.height.toLong() - wanted) }
+        val wantedArea = width.toDouble() * height.toDouble()
+        val wantedAr = width.toDouble() / height.toDouble()
+        // Area alone picks 4:3 for a 16:9 budget, letterboxed for the whole call.
+        val best = sizes
+            .filter { it.width >= it.height }
+            .minByOrNull {
+                val ar = it.width.toDouble() / it.height.toDouble()
+                val area = it.width.toDouble() * it.height.toDouble()
+                Math.abs(ar - wantedAr) * 4.0 + Math.abs(area - wantedArea) / wantedArea
+            }
             ?: return Pair(width, height)
         return Pair(best.width, best.height)
     }
@@ -280,7 +322,12 @@ object CameraCapture {
                             bytes
                         }
                         try {
-                            nativeVideoFrame(payload, keyframe, info.presentationTimeUs)
+                            nativeVideoFrame(
+                                payload,
+                                keyframe,
+                                info.presentationTimeUs,
+                                frameRotation,
+                            )
                         } catch (e: Throwable) {
                             Log.e(TAG, "native frame delivery failed", e)
                         }

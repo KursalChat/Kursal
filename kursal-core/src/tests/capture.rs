@@ -1,14 +1,18 @@
 use crate::call::capture::yuv::{I420, nv12_to_i420, yuyv_to_i420};
 use crate::call::capture::{EncodedFrame, pack_chunk, quality_dims};
 
+fn frame(keyframe: bool, rotation: u16) -> EncodedFrame {
+    EncodedFrame {
+        data: vec![9, 8, 7],
+        keyframe,
+        timestamp_us: 0x0102_0304_0506_0708,
+        rotation,
+    }
+}
+
 #[test]
 fn pack_chunk_writes_the_wire_header() {
-    let frame = EncodedFrame {
-        data: vec![9, 8, 7],
-        keyframe: true,
-        timestamp_us: 0x0102_0304_0506_0708,
-    };
-    let packed = pack_chunk(&frame);
+    let packed = pack_chunk(&frame(true, 0));
     assert_eq!(packed[0], 0);
     assert_eq!(packed[1], 1);
     assert_eq!(&packed[2..10], &0x0102_0304_0506_0708u64.to_be_bytes());
@@ -17,12 +21,19 @@ fn pack_chunk_writes_the_wire_header() {
 
 #[test]
 fn pack_chunk_marks_delta_frames() {
-    let frame = EncodedFrame {
-        data: vec![1],
-        keyframe: false,
-        timestamp_us: 0,
-    };
-    assert_eq!(pack_chunk(&frame)[1], 0);
+    assert_eq!(pack_chunk(&frame(false, 0))[1], 0);
+}
+
+#[test]
+fn pack_chunk_packs_rotation_beside_the_keyframe_flag() {
+    for (rotation, quarters) in [(0u16, 0u8), (90, 1), (180, 2), (270, 3), (360, 0)] {
+        let keyed = pack_chunk(&frame(true, rotation))[1];
+        let delta = pack_chunk(&frame(false, rotation))[1];
+        assert_eq!(keyed & 1, 1);
+        assert_eq!(delta & 1, 0);
+        assert_eq!(keyed >> 1, quarters);
+        assert_eq!(delta >> 1, quarters);
+    }
 }
 
 #[test]
