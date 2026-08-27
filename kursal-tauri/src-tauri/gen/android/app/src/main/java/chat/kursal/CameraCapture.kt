@@ -39,6 +39,21 @@ object CameraCapture {
     external fun nativeVideoFrame(data: ByteArray, keyframe: Boolean, timestampUs: Long)
 
     @JvmStatic
+    external fun nativeCaptureFailed()
+
+    /** Only for deaths after a successful start */
+    private fun reportFailure(reason: String) {
+        if (!running) return
+        running = false
+        Log.e(TAG, "capture failed: $reason")
+        try {
+            nativeCaptureFailed()
+        } catch (e: Throwable) {
+            Log.e(TAG, "native failure report failed", e)
+        }
+    }
+
+    @JvmStatic
     fun listCameras(context: Context): Array<String> {
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         return try {
@@ -151,17 +166,22 @@ object CameraCapture {
             override fun onOpened(device: CameraDevice) {
                 camera = device
                 try {
-                    configureSession(device, surface)
+                    configureSession(device, surface) { err ->
+                        failure = err
+                        latch.countDown()
+                    }
                 } catch (e: Throwable) {
                     failure = e
+                    latch.countDown()
                 }
-                latch.countDown()
             }
 
             override fun onDisconnected(device: CameraDevice) {
+                failure = IllegalStateException("camera disconnected")
                 device.close()
                 camera = null
                 latch.countDown()
+                reportFailure("camera disconnected")
             }
 
             override fun onError(device: CameraDevice, error: Int) {
@@ -169,6 +189,7 @@ object CameraCapture {
                 device.close()
                 camera = null
                 latch.countDown()
+                reportFailure("camera error $error")
             }
         }, handler)
 
@@ -178,7 +199,11 @@ object CameraCapture {
         failure?.let { throw it }
     }
 
-    private fun configureSession(device: CameraDevice, surface: Surface) {
+    private fun configureSession(
+        device: CameraDevice,
+        surface: Surface,
+        done: (Throwable?) -> Unit,
+    ) {
         val request = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             addTarget(surface)
             set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
@@ -187,15 +212,17 @@ object CameraCapture {
         val callback = object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(configured: CameraCaptureSession) {
                 session = configured
+                var err: Throwable? = null
                 try {
                     configured.setRepeatingRequest(request.build(), null, handler)
                 } catch (e: Throwable) {
-                    Log.e(TAG, "repeating request failed", e)
+                    err = e
                 }
+                done(err)
             }
 
             override fun onConfigureFailed(configured: CameraCaptureSession) {
-                Log.e(TAG, "capture session configuration failed")
+                done(IllegalStateException("capture session configuration failed"))
             }
         }
 
@@ -219,11 +246,13 @@ object CameraCapture {
         val codec = encoder ?: return
         drain = Thread {
             val info = MediaCodec.BufferInfo()
+            var reason: String? = null
             while (running) {
                 val index = try {
                     codec.dequeueOutputBuffer(info, 10_000)
                 } catch (e: Throwable) {
                     if (running) Log.e(TAG, "dequeue failed", e)
+                    reason = "encoder dequeue failed"
                     break
                 }
                 if (index < 0) continue
@@ -261,9 +290,11 @@ object CameraCapture {
                 try {
                     codec.releaseOutputBuffer(index, false)
                 } catch (e: Throwable) {
+                    reason = "encoder release failed"
                     break
                 }
             }
+            reason?.let { reportFailure(it) }
         }.also { it.name = "kursal-video-drain"; it.start() }
     }
 

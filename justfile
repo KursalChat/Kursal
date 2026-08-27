@@ -57,7 +57,7 @@ release v: verify
 build: clean build-win build-mac build-linux build-android build-ios build-relay gen-manifest
 
 clean:
-    rm -f build/Kursal*
+    rm -rf build/Kursal*
     rm -f build/latest*.json
     rm -f build/SHA256SUMS.txt
 

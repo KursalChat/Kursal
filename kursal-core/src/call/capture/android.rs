@@ -233,4 +233,13 @@ pub extern "system" fn Java_chat_kursal_CameraCapture_nativeVideoFrame(
     }
 }
 
+/// Called from CameraCapture.kt when the camera or encoder dies mid-call.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_chat_kursal_CameraCapture_nativeCaptureFailed(
+    _env: jni::JNIEnv,
+    _class: JClass,
+) {
+    super::report_failure();
+}
+
 pub(super) fn refresh_rotation() {}
