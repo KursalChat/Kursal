@@ -157,6 +157,7 @@ class MainActivity : TauriActivity() {
           arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
       "microphone" -> arrayOf(Manifest.permission.RECORD_AUDIO)
+      "camera" -> arrayOf(Manifest.permission.CAMERA)
       else -> emptyArray()
     }
 

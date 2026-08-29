@@ -89,7 +89,7 @@
     {#if showRaw}
       {text}
     {:else}
-      {@html renderMarkdown(text)}
+      {@html renderMarkdown(text, false, false)}
     {/if}
   </div>
   <button class="select-all-btn" onclick={selectAll}>{t('chat.selectText.selectAll')}</button>
@@ -102,14 +102,6 @@
     background: rgba(0, 0, 0, 0.6);
     z-index: 320;
     animation: fadeIn 0.15s ease;
-  }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
   }
 
   .select-sheet {
@@ -148,7 +140,7 @@
     margin-bottom: 4px;
   }
   .select-title {
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -191,7 +183,7 @@
     height: 32px;
     padding: 0 14px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: #fff;
     background: var(--accent);
@@ -201,7 +193,7 @@
   }
 
   .select-hint {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     margin-bottom: 8px;
   }
@@ -215,7 +207,7 @@
     border-radius: var(--radius-md);
     padding: 12px;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--text-md);
     line-height: 1.5;
     word-break: break-word;
     user-select: text;
@@ -235,16 +227,16 @@
   .select-body :global(p + p) {
     margin-top: 0.5em;
   }
-  .select-body :global(pre) {
-    margin: 0.5em 0;
-    padding: 0.6em 0.7em;
-    border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.28);
-    overflow-x: auto;
-  }
   .select-body :global(code) {
     font-family: var(--font-mono);
     font-size: 0.88em;
+  }
+  /* Nothing listens for clicks in here, so the copy button would be inert. */
+  .select-body :global(.md-code-bar) {
+    display: none;
+  }
+  .select-body :global(pre code) {
+    font-size: 1em;
   }
   .select-body :global(ul),
   .select-body :global(ol) {

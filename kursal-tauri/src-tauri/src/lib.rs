@@ -39,6 +39,7 @@ pub mod outgoing_sweep;
 pub mod share_intake;
 #[cfg(test)]
 mod tests;
+pub mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod window_menu;
 
@@ -442,26 +443,7 @@ pub fn run() {
                 }
             }
 
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            {
-                let handle = app.handle().clone();
-                let db_clone = db.clone();
-                tauri::async_runtime::spawn(async move {
-                    use std::time::Duration;
-
-                    let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
-
-                    loop {
-                        use kursal_core::storage::get_updater_enabled;
-
-                        interval.tick().await;
-
-                        if get_updater_enabled(&db_clone) {
-                            let _ = check_for_updates_impl(handle.clone(), false).await;
-                        }
-                    }
-                });
-            }
+            update::spawn_daily(app.handle().clone(), db.clone());
 
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -535,7 +517,6 @@ pub fn run() {
             commands::start_video,
             commands::stop_video,
             commands::request_video_keyframe,
-            commands::send_video_chunk,
             commands::video_rx_channel,
             commands::log_frontend,
             commands::set_mute,
@@ -561,7 +542,6 @@ pub fn run() {
             commands::get_security_code,
             commands::confirm_security_code,
             commands::set_contact_blocked,
-            commands::list_blocked_contacts,
             commands::rotate_peer_id,
             commands::get_local_peer_id,
             commands::get_local_user_id_hex,
@@ -644,6 +624,11 @@ pub fn run() {
             commands::set_ui_state,
             commands::get_call_sample_rate,
             commands::set_call_sample_rate,
+            commands::list_cameras,
+            commands::set_camera,
+            commands::refresh_camera_rotation,
+            commands::request_local_keyframe,
+            commands::video_tx_channel,
             commands::get_video_quality,
             commands::set_video_quality,
             commands::frontend_ready,
@@ -701,109 +686,4 @@ pub fn run() {
                 }
             }
         });
-}
-
-#[cfg(all(not(any(target_os = "android", target_os = "ios")), dev))]
-pub(crate) async fn check_for_updates_impl(
-    _app: tauri::AppHandle,
-    _manual: bool,
-) -> tauri_plugin_updater::Result<()> {
-    Ok(()) // do not try to update on dev mode
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios", dev)))]
-pub(crate) async fn check_for_updates_impl(
-    app: tauri::AppHandle,
-    manual: bool,
-) -> tauri_plugin_updater::Result<()> {
-    log::debug!("checking for updates... manual={manual}");
-    use crate::dialog_bridge::{DialogRequest, ask};
-    use serde_json::json;
-    use tauri::Emitter;
-    use tauri_plugin_updater::UpdaterExt;
-
-    let channel = {
-        let state = app.state::<kursal_core::api::state::AppState>();
-        let guard = state.db();
-        kursal_core::storage::get_update_channel(&*guard)
-    };
-
-    let updater = if channel == "beta" {
-        app.updater_builder()
-            .endpoints(vec![
-                "https://app.kursal.chat/v/beta/latest.json"
-                    .parse()
-                    .unwrap(),
-            ])?
-            .build()?
-    } else {
-        app.updater()?
-    };
-
-    if let Some(update) = updater.check().await? {
-        let do_update = ask(
-            &app,
-            DialogRequest::confirm(
-                "update_available",
-                json!({
-                    "version": update.version,
-                    "currentVersion": update.current_version,
-                    "notes": update.body,
-                }),
-                "default",
-            ),
-        )
-        .await;
-
-        if !do_update {
-            return Ok(());
-        }
-
-        let progress_app = app.clone();
-        let finish_app = app.clone();
-        let mut downloaded = 0usize;
-        let mut last_emit = std::time::Instant::now();
-
-        update
-            .download_and_install(
-                move |chunk_len, content_len| {
-                    downloaded += chunk_len;
-                    log::debug!("[updater] downloaded {downloaded} out of {content_len:?}");
-                    let complete = Some(downloaded as u64) == content_len;
-                    if !complete && last_emit.elapsed() < std::time::Duration::from_millis(200) {
-                        return;
-                    }
-                    last_emit = std::time::Instant::now();
-                    let _ = progress_app.emit(
-                        "update_download_progress",
-                        json!({ "downloaded": downloaded, "contentLength": content_len }),
-                    );
-                },
-                move || {
-                    log::debug!("[updater] download finished");
-                    let _ = finish_app.emit("update_download_finished", ());
-                },
-            )
-            .await?;
-
-        log::info!("[updater] update installed");
-
-        let do_restart = ask(
-            &app,
-            DialogRequest::confirm("update_installed", json!({}), "default"),
-        )
-        .await;
-
-        if do_restart {
-            app.restart();
-        }
-    } else if manual {
-        ask(
-            &app,
-            DialogRequest::alert("no_updates", json!({}), "default"),
-        )
-        .await;
-    }
-
-    Ok(())
 }

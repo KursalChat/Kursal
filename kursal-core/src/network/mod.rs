@@ -34,7 +34,7 @@ pub mod swarm;
 use events::{handle_bt_event, handle_internal_network_event};
 use loops::{
     ltc_pointer_loop, periodic_offline_poll, presence_dial_loop, presence_sync_loop,
-    relay_reserve_loop,
+    relay_discover_loop, relay_reserve_loop,
 };
 
 pub struct NetworkManager {
@@ -183,6 +183,10 @@ pub async fn dispatch_events(
     {
         let network = network.clone();
         tokio::task::spawn_local(relay_reserve_loop(network));
+    }
+    {
+        let network = network.clone();
+        tokio::task::spawn_local(relay_discover_loop(network));
     }
     {
         let network = network.clone();

@@ -114,12 +114,14 @@
     background: rgba(251, 191, 36, 0.12);
     color: var(--warning);
     border-radius: var(--radius-md);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     transition: background var(--transition);
   }
-  .empty-verify:hover {
-    background: rgba(251, 191, 36, 0.22);
+  @media (hover: hover) {
+    .empty-verify:hover {
+      background: rgba(251, 191, 36, 0.22);
+    }
   }
   .empty-hi {
     display: flex;
@@ -130,15 +132,17 @@
     background: var(--accent-dim);
     color: var(--accent);
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     transition:
       background var(--transition),
       transform var(--transition);
   }
-  .empty-hi:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent) 24%, transparent);
-    transform: translateY(-1px);
+  @media (hover: hover) {
+    .empty-hi:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
+      transform: translateY(-1px);
+    }
   }
   .empty-hi:disabled {
     opacity: 0.6;
@@ -147,8 +151,10 @@
     font-size: 16px;
     display: inline-block;
   }
-  .empty-hi:hover:not(:disabled) .empty-hi-wave {
-    animation: wave 0.7s ease-in-out;
+  @media (hover: hover) {
+    .empty-hi:hover:not(:disabled) .empty-hi-wave {
+      animation: wave 0.7s ease-in-out;
+    }
   }
   @keyframes wave {
     0%,

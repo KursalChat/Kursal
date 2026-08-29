@@ -167,7 +167,7 @@
 
   .fix-word {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--danger);
   }
@@ -191,7 +191,7 @@
     background: var(--accent-dim);
     color: var(--accent);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     padding: 5px 9px;
     transition:
@@ -199,13 +199,15 @@
       color var(--transition);
   }
 
-  .suggestions button:hover {
-    background: var(--accent);
-    color: var(--bg-primary);
+  @media (hover: hover) {
+    .suggestions button:hover {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
   }
 
   .no-fix {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
   }
 

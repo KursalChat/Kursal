@@ -32,7 +32,7 @@ async function resolveTermsVersion(isBuild) {
     if (isBuild) {
       throw new Error(`Could not read the terms version from ${TERMS_VERSION_URL}: ${reason}`);
     }
-    console.warn(`[terms] ${reason} — falling back to ${TERMS_FALLBACK}`);
+    console.warn(`[terms] ${reason} - falling back to ${TERMS_FALLBACK}`);
     return TERMS_FALLBACK;
   }
 }

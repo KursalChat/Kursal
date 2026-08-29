@@ -1,25 +1,18 @@
 <script lang="ts">
   import { AlertTriangle, Check, Copy, ExternalLink, Info, ShieldAlert } from 'lucide-svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { confirmState } from '$lib/state/confirm.svelte';
   import { trapFocus } from '$lib/utils/focusTrap';
+  import { copyText } from '$lib/utils/clipboard';
+  import { flash } from '$lib/utils/flash.svelte';
   import { t } from '$lib/i18n';
   import Button from './Button.svelte';
 
   let holdProgress = $state(1); // 0..1, starts at 0 if holdMs set, else 1 (unlocked)
   let holdRaf = 0;
-  let copied = $state(false);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  const copied = flash();
 
   async function copyCode(text: string) {
-    try {
-      await writeText(text);
-      copied = true;
-      clearTimeout(copyTimer);
-      copyTimer = setTimeout(() => (copied = false), 1500);
-    } catch {
-      copied = false;
-    }
+    await copyText(text, { flash: copied });
   }
 
   const holdMs = $derived(confirmState.options?.holdMs ?? 0);
@@ -46,8 +39,6 @@
   $effect(() => {
     if (!confirmState.open) {
       cancelAnimationFrame(holdRaf);
-      clearTimeout(copyTimer);
-      copied = false;
       holdProgress = 1;
       return;
     }
@@ -121,7 +112,7 @@
         <div class="code-wrap">
           <pre class="code">{o.code}</pre>
           <button class="copy" type="button" onclick={() => copyCode(o.code ?? '')}>
-            {#if copied}
+            {#if copied.active}
               <Check size={13} />
               <span>{t('common.copied')}</span>
             {:else}
@@ -254,9 +245,12 @@
   }
   .detail {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     line-height: 1.55;
+    overflow-wrap: anywhere;
+    max-height: 7.75em;
+    overflow-y: auto;
   }
   .dialog.wide {
     max-width: 560px;
@@ -275,7 +269,7 @@
   }
   .section-title {
     display: block;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -289,7 +283,7 @@
     gap: 4px;
   }
   .sections li {
-    font-size: 13px;
+    font-size: var(--text-sm);
     line-height: 1.5;
     color: var(--text-secondary);
   }
@@ -325,13 +319,15 @@
     border: 1px solid var(--border);
     background: var(--bg-secondary);
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     cursor: pointer;
     transition: color var(--transition);
   }
-  .copy:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .copy:hover {
+      color: var(--text-primary);
+    }
   }
   .body-link {
     display: inline-flex;
@@ -341,15 +337,17 @@
     padding: 0;
     background: none;
     border: none;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--accent);
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
     transition: color var(--transition);
   }
-  .body-link:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .body-link:hover {
+      color: var(--text-primary);
+    }
   }
 
   .checkbox {
@@ -357,10 +355,13 @@
     align-items: center;
     gap: 8px;
     margin-top: 4px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
+  }
+  .checkbox span {
+    overflow-wrap: anywhere;
   }
   .checkbox input {
     accent-color: var(--accent-solid);
@@ -403,7 +404,7 @@
     min-height: 36px;
     padding: 8px 14px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     border: 1px solid transparent;
     background: var(--accent-solid);
@@ -421,11 +422,13 @@
     cursor: not-allowed;
     opacity: 0.85;
   }
-  .hold-btn:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent-solid), white 10%);
-  }
-  .hold-btn[data-tone='danger']:not(:disabled):hover {
-    background: var(--danger-hover);
+  @media (hover: hover) {
+    .hold-btn:not(:disabled):hover {
+      background: color-mix(in srgb, var(--accent-solid), white 10%);
+    }
+    .hold-btn[data-tone='danger']:not(:disabled):hover {
+      background: var(--danger-hover);
+    }
   }
   .hold-fill {
     position: absolute;

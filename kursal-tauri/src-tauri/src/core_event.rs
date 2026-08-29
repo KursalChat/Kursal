@@ -441,6 +441,15 @@ pub async fn handle_core_event(
                 }),
             );
         }
+        AppEvent::ReachabilityChanged { reachability } => {
+            emitter(
+                handle,
+                api_handle,
+                "reachability_changed",
+                serde_json::json!({ "reachability": reachability }),
+            );
+        }
+
         AppEvent::OfflineBundlePublished {
             contact_id,
             message_ids,
@@ -575,6 +584,27 @@ pub async fn handle_core_event(
                     "callId": hex::encode(call_id.0),
                     "reason": reason,
                     "durationMs": duration_ms
+                }),
+            );
+        }
+
+        AppEvent::VideoLocalState {
+            active,
+            codec,
+            width,
+            height,
+            camera_id,
+        } => {
+            emitter(
+                handle,
+                api_handle,
+                "video_local_state",
+                serde_json::json!({
+                    "active": active,
+                    "codec": codec,
+                    "width": width,
+                    "height": height,
+                    "cameraId": camera_id
                 }),
             );
         }

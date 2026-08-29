@@ -11,6 +11,7 @@
   } from '$lib/api/benchmark';
   import { notifications } from '$lib/state/notifications.svelte';
   import { flash } from '$lib/utils/flash.svelte';
+  import { copyText } from '$lib/utils/clipboard';
   import Button from '$lib/components/Button.svelte';
   import { Copy, CircleCheck, Check } from 'lucide-svelte';
   import { t } from '$lib/i18n';
@@ -89,17 +90,7 @@
       `${t('settings.advanced.benchmarkResultPerIterCpu')}: ${result.average_per_iteration_ms.toFixed(2)}ms\n` +
       `${t('settings.advanced.benchmarkResultPerSecond')}: ${result.iterations_per_second.toFixed(2)}`;
 
-    try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-        copied.trigger();
-      } else {
-        notifications.push(t('settings.advanced.benchmarkCopyUnavailable'), 'error');
-      }
-    } catch (err) {
-      log.error('Failed to copy:', err);
-      notifications.push(t('settings.advanced.benchmarkCopyFailed'), 'error');
-    }
+    await copyText(text, { flash: copied, errorKey: 'settings.advanced.benchmarkCopyFailed' });
   }
 
   const pct = $derived(
@@ -233,7 +224,7 @@
 
   .bench-desc {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.5;
   }
@@ -253,7 +244,7 @@
   }
 
   .iter-label {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-secondary);
     letter-spacing: 0.02em;
@@ -261,7 +252,7 @@
 
   .iter-field input {
     padding: 7px 10px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     background: var(--bg-input);
     border: 1px solid var(--border);
     color: var(--text-primary);
@@ -290,7 +281,7 @@
     background: var(--danger-dim, rgba(239, 68, 68, 0.12));
     color: var(--danger, #ef4444);
     border-radius: var(--radius-sm);
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
 
   .bench-progress {
@@ -345,7 +336,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -369,14 +360,20 @@
       color var(--transition);
   }
 
-  .copy-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .copy-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
   }
 
-  .copy-btn.confirmed,
-  .copy-btn.confirmed:hover {
+  .copy-btn.confirmed {
     color: var(--success);
+  }
+  @media (hover: hover) {
+    .copy-btn.confirmed:hover {
+      color: var(--success);
+    }
   }
 
   .results-grid {
@@ -404,14 +401,14 @@
   }
 
   .stat-value {
-    font-size: 15px;
+    font-size: var(--text-md);
     font-family: var(--font-mono);
     font-weight: 500;
     color: var(--text-primary);
   }
 
   .unit {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
     margin-left: 2px;
     font-weight: 400;

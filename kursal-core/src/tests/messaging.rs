@@ -7,7 +7,11 @@ use crate::{
     identity::{self, UserId},
     messaging::{
         StoredMessage,
-        enums::{DeliveryReceipt, Direction, KursalMessage, MessageId, MessageStatus, TextMessage},
+        enums::{
+            CallOutcome, CallRecordMessage, DeliveryReceipt, Direction, KursalMessage, MessageId,
+            MessageStatus, TextMessage,
+        },
+        unread_after,
     },
     storage::{Database, SharedDatabase, get_timestamp_secs},
     tests::TestEnv,
@@ -584,4 +588,56 @@ fn offline_skipped_keys_bounded() {
 
     assert_eq!(receiver.skipped_keys.len(), MAX_SKIPPED_KEYS);
     assert_eq!(receiver.skipped_keys[0].counter, 20);
+}
+
+fn call_record(outcome: CallOutcome, contact: UserId, seq: u8) -> StoredMessage {
+    StoredMessage {
+        id: MessageId([seq; 16]),
+        contact_id: contact,
+        direction: Direction::Received,
+        payload: KursalMessage::CallRecord(CallRecordMessage {
+            id: MessageId([seq; 16]),
+            timestamp: 0,
+            outcome,
+            duration_ms: 0,
+        }),
+        status: MessageStatus::Delivered,
+        timestamp: u64::from(seq),
+        raw_ciphertext: None,
+        edited: false,
+        pinned: false,
+        reactions: vec![],
+    }
+}
+
+#[test]
+fn answered_calls_are_never_unread() {
+    let env = TestEnv::new();
+    let db = Database::open(&env.db_path("unread"), [0u8; 32]).unwrap();
+    let contact = UserId([7; 32]);
+
+    for (seq, outcome) in [(1u8, CallOutcome::Started), (2u8, CallOutcome::Completed)] {
+        call_record(outcome, contact.clone(), seq)
+            .save(&db)
+            .unwrap();
+    }
+
+    let summary = unread_after(&db, &contact, None, 100).unwrap();
+    assert_eq!(summary.count, 0);
+}
+
+#[test]
+fn unanswered_calls_stay_unread() {
+    let env = TestEnv::new();
+    let db = Database::open(&env.db_path("unread2"), [0u8; 32]).unwrap();
+    let contact = UserId([8; 32]);
+
+    for (seq, outcome) in [(1u8, CallOutcome::Missed), (2u8, CallOutcome::Canceled)] {
+        call_record(outcome, contact.clone(), seq)
+            .save(&db)
+            .unwrap();
+    }
+
+    let summary = unread_after(&db, &contact, None, 100).unwrap();
+    assert_eq!(summary.count, 2);
 }

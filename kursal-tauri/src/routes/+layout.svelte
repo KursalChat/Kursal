@@ -8,32 +8,27 @@
   import { goto } from '$app/navigation';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { messagesState } from '$lib/state/messages.svelte';
-  import { winstonTips } from '$lib/state/winstonTips.svelte';
   import { draftsState } from '$lib/state/drafts.svelte';
   import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
   import { archivedConvosState } from '$lib/state/archivedConvos.svelte';
-  import { nearbyState } from '$lib/state/nearby.svelte';
-  import { typingState } from '$lib/state/typing.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { t } from '$lib/i18n';
   import { appearanceState } from '$lib/state/appearance.svelte';
   import { prefsState } from '$lib/state/prefs.svelte';
   import { settingsState } from '$lib/state/settings.svelte';
-  import { notifyMessage, getPermission, isInDndWindow } from '$lib/api/system-notify';
+  import { notifyMessage, getPermission, isInDndWindow } from '$lib/state/systemNotify.svelte';
   import { getNetworkStatus } from '$lib/api/settings';
   import { frontendReady } from '$lib/api/identity';
   import { OS, isMobile } from '$lib/api/window';
-  import { acceptFileOffer } from '$lib/api/messages';
-  import { notifyError, parseError } from '$lib/utils/errors';
-  import { clearOtpSession } from '$lib/utils/otpSession';
-  import {
-    handleBackendDialog,
-    runStartupDialogs,
-    type BackendDialogPayload,
-  } from '$lib/api/dialog-bridge';
+  import { notifyError } from '$lib/utils/errors';
+  import { registerCoreListeners } from '$lib/state/eventBus';
+  import { trackViewport, blockPinchZoom } from '$lib/utils/viewport';
+  import { readRaw, writeRaw, readJson } from '$lib/utils/storage';
+  import { APP_LOCK_KEY } from '$lib/utils/storage-keys';
+  import { runStartupDialogs } from '$lib/api/dialogs';
+  import { handleBackendDialog } from '$lib/state/dialogBridge.svelte';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
   import UpdateDownloadRing from '$lib/components/UpdateDownloadRing.svelte';
-  import { updateDownloadState } from '$lib/state/updateDownload.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
   import { callState } from '$lib/state/call.svelte';
@@ -49,34 +44,13 @@
   import { shareIntentState } from '$lib/state/shareIntent.svelte';
   import CloseExplainer from '$lib/components/CloseExplainer.svelte';
   import type {
-    MessageReceivedPayload,
-    ConnectionChangedPayload,
-    NearbyRequestPayload,
-    ContactResponse,
-    MessageEditedPayload,
-    MessageDeletedPayload,
-    MessageQueuedOfflinePayload,
-    MessagesReadPayload,
-    ReactionChangedPayload,
-    FileOfferedPayload,
-    FileTransferProgressPayload,
-    FileReceivedPayload,
-    FileTransferFailedPayload,
-    TypingIndicatorPayload,
-    UpdateDownloadProgressPayload,
     BackendSignalPayload,
-    NetworkOnlinePayload,
-    OfflineBundlePublishedPayload,
-    OfflineGapSkippedPayload,
-    OfflineQueueDrainedPayload,
-    OfflineSyncPayload,
     CloseRequestedPayload,
-    ContactTerminatedPayload,
+    BackendDialogPayload,
   } from '$lib/types';
   import { networkState } from '$lib/state/network.svelte';
-  import { offlineSyncState } from '$lib/state/offlineSync.svelte';
   import { appFocusState } from '$lib/state/appFocus.svelte';
-  import { initAndroidInsets, getImeInset, onInsetsChange } from '$lib/utils/android-insets';
+  import { initAndroidInsets } from '$lib/utils/android-insets';
 
   initAndroidInsets();
 
@@ -107,15 +81,7 @@
     }
   }
 
-  function readAppLockPref(): boolean {
-    if (typeof localStorage === 'undefined') return false;
-    try {
-      return JSON.parse(localStorage.getItem('kursal_app_lock_biometric') ?? 'false');
-    } catch {
-      return false;
-    }
-  }
-  let unlocked = $state(!isMobile || !readAppLockPref());
+  let unlocked = $state(!isMobile || !readJson(APP_LOCK_KEY, false));
 
   // Registered before the first drain so a payload that finishes staging mid
   // startup still reaches us.
@@ -176,14 +142,11 @@
   let closeExplainerOpen = $state(false);
 
   function closeExplainerSeen(): boolean {
-    if (typeof localStorage === 'undefined') return true;
-    return localStorage.getItem(CLOSE_EXPLAINER_KEY) === 'done';
+    return readRaw(CLOSE_EXPLAINER_KEY) === 'done';
   }
 
   async function markCloseExplainerSeen() {
-    try {
-      localStorage.setItem(CLOSE_EXPLAINER_KEY, 'done');
-    } catch {}
+    writeRaw(CLOSE_EXPLAINER_KEY, 'done');
     await setCloseExplainerPending(false).catch(() => {});
   }
 
@@ -291,51 +254,8 @@
       })
     );
 
-    const syncViewport = () => {
-      const vv = window.visualViewport;
-      const root = document.documentElement.style;
-      if (vv) {
-        root.setProperty('--app-height', `${vv.height}px`);
-        const covered = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-        root.setProperty('--kb-overlap', `${Math.max(0, getImeInset() - covered)}px`);
-      }
-      window.scrollTo(0, 0);
-    };
-
-    let settleRaf = 0;
-    const syncUntilStable = () => {
-      cancelAnimationFrame(settleRaf);
-      const deadline = performance.now() + 600;
-      const STABLE_FRAMES = 3;
-      let lastW = -1;
-      let lastH = -1;
-      let stable = 0;
-      const step = () => {
-        const vv = window.visualViewport;
-        const w = vv?.width ?? window.innerWidth;
-        const h = vv?.height ?? window.innerHeight;
-        syncViewport();
-        stable = w === lastW && h === lastH ? stable + 1 : 0;
-        lastW = w;
-        lastH = h;
-        if (stable < STABLE_FRAMES && performance.now() < deadline) {
-          settleRaf = requestAnimationFrame(step);
-        }
-      };
-      step();
-    };
-    syncUntilStable();
-    onInsetsChange(syncUntilStable);
-    window.visualViewport?.addEventListener('resize', syncUntilStable);
-    window.visualViewport?.addEventListener('scroll', syncViewport);
-    window.addEventListener('resize', syncUntilStable);
-
-    // Belt-and-suspenders pinch-zoom block for iOS Safari/WKWebView,
-    // which still honors gesture events even with user-scalable=no.
-    const blockGesture = (e: Event) => e.preventDefault();
-    document.addEventListener('gesturestart', blockGesture);
-    document.addEventListener('gesturechange', blockGesture);
-    document.addEventListener('gestureend', blockGesture);
+    const stopViewportTracking = trackViewport();
+    const stopGestureBlock = blockPinchZoom();
 
     void contactsState.load();
     void messagesState.hydrate();
@@ -369,321 +289,21 @@
     unlistenPromises.push(backendSignalReady);
     void backendSignalReady.then(() => frontendReady());
 
-    unlistenPromises.push(
-      listen<MessageReceivedPayload>('message_received', (event) => {
-        const payload = event.payload;
-        payload.timestamp = payload.timestamp * 1000; // Rust gives seconds, UI expects ms
-        payload.receivedTimestamp = payload.receivedTimestamp * 1000;
-        contactsState.touchLastMessage(payload.contactId, payload.timestamp);
-        messagesState.append(payload);
-        typingState.clear(payload.contactId);
-        // Call records render as call lines in chat and must not raise
-        // unread/notifications. Neither can a record of my own action: pinning
-        // comes back through this event with direction 'sent'.
-        if (payload.callDetails || payload.direction === 'sent') return;
-        messagesState.setFirstUnread(payload.contactId, payload.id);
-        if (!payload.viaOffline) contactsState.touchLastSeen(payload.contactId);
-        const name =
-          contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
-        notifyIncoming(payload.contactId, name, payload.content);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<ConnectionChangedPayload>('connection_changed', (event) => {
-        contactsState.setConnectionStatus(event.payload.contactId, event.payload.status);
-      })
-    );
-
-    // "Online" means the node has any libp2p peer: relay, bootstrap, or contact.
-    unlistenPromises.push(
-      listen<NetworkOnlinePayload>('network_online', (event) => {
-        networkState.set(event.payload.online, event.payload.peerCount);
-      })
-    );
-
-    // The DHT put for these messages has already been dispatched.
-    unlistenPromises.push(
-      listen<OfflineBundlePublishedPayload>('offline_bundle_published', (event) => {
-        messagesState.markBundlePublished(event.payload.contactId, event.payload.messageIds);
-      })
-    );
-
-    // The offline retry window elapsed for these messages.
-    unlistenPromises.push(
-      listen<{ contactId: string; messageIds: string[] }>('message_failed', (event) => {
-        messagesState.markFailed(event.payload.contactId, event.payload.messageIds);
-      })
-    );
-
-    // The peer removed us, or we re-established contact.
-    // The chat stays readable; only sending is closed off.
-    unlistenPromises.push(
-      listen<ContactTerminatedPayload>('contact_terminated', (event) => {
-        contactsState.setTerminated(event.payload.contactId, event.payload.terminated);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<OfflineQueueDrainedPayload>('offline_queue_drained', (event) => {
-        messagesState.flushPendingSync(
-          event.payload.contactId,
-          event.payload.finalizedDeletes ?? []
-        );
-      })
-    );
-
-    unlistenPromises.push(
-      listen<OfflineSyncPayload>('offline_sync', (event) => {
-        offlineSyncState.setActive(event.payload.active);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<OfflineGapSkippedPayload>('offline_gap_skipped', (event) => {
-        messagesState.addGapNotice(event.payload.contactId, event.payload.counter);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<ContactResponse>('contact_added', (event) => {
-        contactsState.upsert(event.payload);
+    const stopCoreListeners = registerCoreListeners({
+      notifyIncoming,
+      onContactAdded: (contact) => {
         notifications.push(t('layout.contactAdded'), 'success');
-        goto('/chat/' + event.payload.userId);
-      })
-    );
-
-    // The OTP is single-use, so this session data is now dead and can be cleared.
-    unlistenPromises.push(listen('otp_consumed', () => clearOtpSession()));
-
-    unlistenPromises.push(
-      listen<{ messageId: string; contactId: string }>('delivery_confirmed', (event) => {
-        messagesState.updateStatus(event.payload.messageId, event.payload.contactId, 'delivered');
-      })
-    );
-
-    unlistenPromises.push(
-      listen<MessagesReadPayload>('messages_read', (event) => {
-        messagesState.markMessagesRead(event.payload.contactId, event.payload.messageIds);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<MessageQueuedOfflinePayload>('message_queued_offline', (event) => {
-        messagesState.updateStatusIfSending(
-          event.payload.messageId,
-          event.payload.contactId,
-          'queued'
-        );
-        winstonTips.show('offlineMessages');
-      })
-    );
-
-    unlistenPromises.push(
-      listen<MessageEditedPayload>('message_edited', (event) => {
-        messagesState.updateContent(
-          event.payload.messageId,
-          event.payload.contactId,
-          event.payload.newContent
-        );
-      })
-    );
-
-    unlistenPromises.push(
-      listen<MessageDeletedPayload>('message_deleted', (event) => {
-        messagesState.markDeleted(event.payload.messageId, event.payload.contactId);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<{ contactId: string; messageId: string; pinned: boolean }>(
-        'message_pinned',
-        (event) => {
-          messagesState.applyPinned(
-            event.payload.contactId,
-            event.payload.messageId,
-            event.payload.pinned
-          );
-        }
-      )
-    );
-
-    unlistenPromises.push(
-      listen<ReactionChangedPayload>('reaction_added', (event) => {
-        messagesState.addReaction(
-          event.payload.messageId,
-          event.payload.contactId,
-          event.payload.emoji,
-          event.payload.contactId
-        );
-      })
-    );
-
-    unlistenPromises.push(
-      listen<ReactionChangedPayload>('reaction_removed', (event) => {
-        messagesState.removeReaction(
-          event.payload.messageId,
-          event.payload.contactId,
-          event.payload.emoji,
-          event.payload.contactId
-        );
-      })
-    );
-
-    unlistenPromises.push(
-      listen<ContactResponse>('contact_updated', (event) => {
-        const payload = event.payload;
-        const existing = contactsState.getById(payload.userId);
-
-        // Save old values to compare, because upsert modifies Svelte 5 state in-place
-        const oldPeerId = existing?.peerId;
-        const oldName = existing?.displayName;
-        const oldAvatar = existing?.avatarPath;
-
-        contactsState.upsert(payload);
-
-        if (!existing) return;
-
-        const newContact = contactsState.getById(payload.userId);
-        if (!newContact) return;
-
-        if (oldPeerId && oldPeerId !== newContact.peerId) {
-          notifications.push(t('layout.peerIdRotated', { name: newContact.displayName }), 'info');
-        }
-
-        const nameChanged = oldName && oldName !== newContact.displayName;
-        const avatarChanged = oldAvatar !== newContact.avatarPath && newContact.avatarPath;
-
-        if (nameChanged && avatarChanged) {
-          notifications.push(
-            t('layout.contactRenamedAndAvatar', {
-              oldName,
-              newName: newContact.displayName,
-            }),
-            'info'
-          );
-        } else if (nameChanged) {
-          notifications.push(
-            t('layout.contactRenamed', { oldName, newName: newContact.displayName }),
-            'info'
-          );
-        } else if (avatarChanged) {
-          notifications.push(
-            t('layout.contactAvatarUpdated', { name: newContact.displayName }),
-            'info'
-          );
-        }
-      })
-    );
-
-    unlistenPromises.push(
-      listen<FileOfferedPayload>('file_offered', async (event) => {
-        const payload = event.payload;
-        messagesState.append({
-          id: payload.offerId,
-          contactId: payload.contactId,
-          direction: 'received',
-          content: t('chat.conversation.filePlaceholder'),
-          status: 'delivered',
-          timestamp: Date.now(),
-          receivedTimestamp: Date.now(),
-          replyTo: null,
-          fileDetails: {
-            filename: payload.filename,
-            sizeBytes: payload.sizeBytes,
-            autodownloadPath: payload.autodownload,
-          },
-        });
-        messagesState.setFirstUnread(payload.contactId, payload.offerId);
-
-        const senderName =
-          contactsState.getById(payload.contactId)?.displayName ?? t('notifications.unknownSender');
-        notifyIncoming(
-          payload.contactId,
-          senderName,
-          t('notifications.sentFile', { filename: payload.filename })
-        );
-
-        if (payload.autodownload) {
-          try {
-            await acceptFileOffer(payload.contactId, payload.offerId, payload.autodownload);
-          } catch (e) {
-            messagesState.setAutodownloadPath(payload.offerId, payload.contactId, null);
-            notifyError(
-              e,
-              parseError(e).code === 'insufficient_space'
-                ? 'fileTransfer.errorNoSpace'
-                : 'fileTransfer.errorAutoDownload'
-            );
-          }
-        }
-      })
-    );
-
-    unlistenPromises.push(
-      listen<FileTransferProgressPayload>('file_transfer_progress', (event) => {
-        const { transferId, bytesTransferred, totalBytes } = event.payload;
-        messagesState.setTransferProgress(transferId, bytesTransferred, totalBytes);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<FileReceivedPayload>('file_received', async (event) => {
-        const { contactId, transferId, savePath } = event.payload;
-
-        // The bubble's <img> was mounted against the still-empty preallocated
-        // file, so the completed bytes only show after a forced refetch.
-        messagesState.markMediaReady(contactId, transferId);
-        messagesState.clearTransferProgress(transferId);
-
-        // savePath is where the bytes actually landed, which beats the path
-        // resolved at accept time (a retry can have changed it).
-        messagesState.setAutodownloadPath(transferId, contactId, savePath);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<FileTransferFailedPayload>('file_transfer_failed', (event) => {
-        const { transferId, reason } = event.payload;
-        messagesState.clearTransferProgress(transferId);
-        // A cancel is user-initiated and the bubble reverts on its own.
-        if (reason !== 'cancelled') {
-          notifications.push(t('fileTransfer.transferFailed'), 'error');
-        }
-        log.error('File transfer failed', event.payload);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<NearbyRequestPayload>('nearby_request', (event) => {
-        nearbyState.addPendingRequest(event.payload.peerId, event.payload.sessionName);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<TypingIndicatorPayload>('typing_indicator', (event) => {
-        typingState.set(event.payload.contactId, event.payload.replyTo ?? null);
-      })
-    );
-
-    unlistenPromises.push(
-      listen<UpdateDownloadProgressPayload>('update_download_progress', (event) => {
-        updateDownloadState.setProgress(event.payload.downloaded, event.payload.contentLength);
-      })
-    );
-    unlistenPromises.push(listen('update_download_finished', () => updateDownloadState.finish()));
+        goto('/chat/' + contact.userId);
+      },
+    });
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopShareBridge();
       stopFocusTracking();
-      cancelAnimationFrame(settleRaf);
-      window.visualViewport?.removeEventListener('resize', syncUntilStable);
-      window.visualViewport?.removeEventListener('scroll', syncViewport);
-      window.removeEventListener('resize', syncUntilStable);
-      document.removeEventListener('gesturestart', blockGesture);
-      document.removeEventListener('gesturechange', blockGesture);
-      document.removeEventListener('gestureend', blockGesture);
+      stopViewportTracking();
+      stopGestureBlock();
+      stopCoreListeners();
       backgroundUnread = 0;
       refreshTitle();
       void Promise.all(unlistenPromises).then((fns) => {

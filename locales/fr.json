@@ -645,53 +645,45 @@
     "justNow": "Vérifié hors ligne à l'instant"
   },
   "onboarding": {
-    "screen1": {
-      "continue": "Continuer",
-      "heading": "Salut. Je suis Winston.",
-      "skip": "Je sais ce que je fais",
-      "skipTooltip": "probablement pas ! suivez le guide :p",
-      "subtitle": "Et je suis convaincu que la vie privée est fondamentale."
-    },
-    "screen2": {
-      "cta": "Découvrez Kursal",
-      "line1": "Aujourd'hui, vos messages ne sont pas les vôtres.",
-      "line2": "Stocké. Scanné. Vendu.",
-      "line3": "Vous ne possédez plus ce que vous dites."
-    },
-    "screen3": {
-      "cta": "Suivant",
-      "line1": "Vos messages sont transmis directement.",
-      "line2": "Chiffré avant même de quitter votre appareil.",
-      "line3": "Eux seuls peuvent le lire."
-    },
-    "screen4": {
-      "cta": "Suivant",
-      "line1": "Aucun serveur à pirater.",
-      "line2": "Aucune base de données à faire fuiter.",
-      "line3": "Nous ne stockons pas vos messages. Nous ne les voyons même pas.",
-      "relayCardDescription": "Aidez les autres utilisateurs à se connecter entre eux.",
-      "relayCardTitle": "Contribuer à la ruche de relais",
-      "relaySadFace": ":(",
-      "serverError": "ERREUR · 0xDEAD",
-      "serverOffline": "HORS LIGNE",
-      "serverOnline": "EN LIGNE"
-    },
-    "screen5": {
-      "consentLink": "Conditions d'utilisation",
-      "consentPrefix": "En continuant, vous acceptez les",
-      "cta": "C'est parti",
-      "errorBroadcastFailed": "Sauvegardé localement mais la diffusion a échoué",
-      "errorPickName": "Choisissez d'abord un nom",
-      "line1": "Voilà à quoi ressemble vraiment le privé.",
-      "line2": "Faisons-en le vôtre.",
-      "nameHint": "Vous pourrez toujours le changer dans les réglages.",
-      "namePlaceholder": "Votre nom d'utilisateur",
-      "removePhoto": "Supprimer la photo",
-      "saving": "Enregistrement…",
-      "uploadPhoto": "Charger une photo"
-    },
     "skip": "Passer",
-    "stepProgress": "Étape {current} sur {total}"
+    "back": "Retour",
+    "hello": {
+      "heading": "Salut. Moi, c'est Winston.",
+      "subtitle": "Et je suis convaincu que la vie privée est fondamentale.",
+      "cta": "Montre-moi",
+      "skip": "Je sais ce que je fais",
+      "skipTooltip": "ça m'étonnerait ! suis le guide :p"
+    },
+    "middleman": {
+      "lead": "Tes messages passent d'abord par une entreprise.",
+      "note": "Elle les garde et te demande de lui faire confiance.",
+      "cta": "Et Kursal alors ?"
+    },
+    "direct": {
+      "lead": "Kursal le remet en main propre.",
+      "note": "Scellé avant de partir. Rien au milieu à pirater.",
+      "cta": "Et mon compte ?"
+    },
+    "noAccounts": {
+      "lead": "Il n'y a pas de compte.",
+      "note": "Pas d'e-mail, pas de mot de passe. Tu ajoutes quelqu'un en échangeant huit mots.",
+      "cta": "Suivant"
+    },
+    "profile": {
+      "lead": "Alors, qui es-tu ?",
+      "note": "Seules les personnes que tu ajoutes le verront.",
+      "greeting": "Salut, {name} !",
+      "namePlaceholder": "Ton nom",
+      "nameHint": "Tu pourras le changer plus tard dans les Réglages.",
+      "uploadPhoto": "Choisir une photo",
+      "removePhoto": "Retirer la photo",
+      "errorPickName": "Choisis d'abord un nom",
+      "errorSave": "Impossible d'enregistrer ton profil. Tu pourras le configurer plus tard dans les Réglages.",
+      "saving": "Enregistrement…",
+      "cta": "C'est parti",
+      "consentPrefix": "En continuant, tu acceptes les",
+      "consentLink": "Conditions d'utilisation"
+    }
   },
   "profile": {
     "blockConfirmLabel": "Bloquer",
@@ -812,7 +804,6 @@
       "benchmarkCancel": "Annuler",
       "benchmarkCopyFailed": "Échec de la copie des résultats",
       "benchmarkCopyResults": "Copier les résultats",
-      "benchmarkCopyUnavailable": "Presse-papiers non disponible",
       "benchmarkElapsed": "{seconds}s écoulées",
       "benchmarkError": "Erreur.",
       "benchmarkIterationsLabel": "Itérations",
@@ -996,9 +987,6 @@
       "relayCard": "Relai",
       "relayDescription": "Paramètres de l'opérateur pour la retransmission du trafic chiffré.",
       "removeNodeAriaLabel": "Retirer le nœud",
-      "runAsRelayAriaLabel": "Faire tourner en relai",
-      "runAsRelayDescription": "Aidez d'autres pairs à se connecter en relayant le trafic chiffré. Les messages restent E2E chiffrés.",
-      "runAsRelayRow": "Faire tourner en relai",
       "savePortButton": "Enregistrer",
       "saveRelayButton": "Enregistrer le relai",
       "shareNodeAriaLabel": "Partager le nœud",

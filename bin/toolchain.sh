@@ -42,6 +42,19 @@ android)
     done
     unset _abi _triple _clang _var _v
 
+    opus_lib_dir_for() {
+        case "$1" in
+        aarch64* | arm64*) echo "$TOOLCHAIN_ROOT/bin/deps/android-arm64" ;;
+        armv7* | arm) echo "$TOOLCHAIN_ROOT/bin/deps/android-armv7" ;;
+        i686* | x86) echo "$TOOLCHAIN_ROOT/bin/deps/android-x86" ;;
+        x86_64*) echo "$TOOLCHAIN_ROOT/bin/deps/android-x86_64" ;;
+        *)
+            echo "error: no libopus for android target '$1'" >&2
+            return 1
+            ;;
+        esac
+    }
+
     export OPUS_LIB_DIR="$TOOLCHAIN_ROOT/bin/deps/android-arm64"
     ;;
 ios)

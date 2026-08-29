@@ -1,5 +1,6 @@
 pub mod apm;
 pub mod audio;
+pub mod capture;
 pub mod crypto;
 pub mod frame;
 #[cfg(target_os = "ios")]

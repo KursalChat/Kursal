@@ -15,7 +15,7 @@
   } from 'lucide-svelte';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { copyText } from '$lib/utils/clipboard';
   import {
     checkForUpdates,
     generateLocalApiToken,
@@ -32,6 +32,8 @@
   import { settingsState } from '$lib/state/settings.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
+  import { optimistic } from '$lib/utils/optimistic';
+  import { clamp } from '$lib/utils/geometry';
   import { flash } from '$lib/utils/flash.svelte';
   import Button from '$lib/components/Button.svelte';
   import Benchmark from '$lib/components/Benchmark.svelte';
@@ -164,9 +166,13 @@
   }
 
   async function handleAutoUpdater(value: boolean) {
-    autoUpdater = value;
     try {
-      await setUpdaterEnabled(value);
+      await optimistic(
+        () => autoUpdater,
+        (x) => (autoUpdater = x),
+        setUpdaterEnabled,
+        value
+      );
     } catch (e) {
       notifyError(e);
     }
@@ -187,21 +193,27 @@
   }
 
   async function handleBackgroundMode(value: boolean) {
-    backgroundMode = value;
     try {
-      await setBackgroundMode(value);
+      await optimistic(
+        () => backgroundMode,
+        (x) => (backgroundMode = x),
+        setBackgroundMode,
+        value
+      );
     } catch (e) {
       notifyError(e);
     }
   }
 
   async function handleUpdateChannel(value: UpdateChannel) {
-    const prev = updateChannel;
-    updateChannel = value;
     try {
-      await setUpdateChannel(value);
+      await optimistic(
+        () => updateChannel,
+        (x) => (updateChannel = x),
+        setUpdateChannel,
+        value
+      );
     } catch (e) {
-      updateChannel = prev;
       notifyError(e);
     }
   }
@@ -211,7 +223,7 @@
     try {
       const clean: LocalApiConfig = {
         ...api,
-        port: Math.max(1, Math.min(65535, Math.floor(api.port || 4892))),
+        port: clamp(Math.floor(api.port || 4892), 1, 65535),
       };
       await settingsState.setLocalApi(clean);
       api = { ...clean };
@@ -243,12 +255,10 @@
 
   async function copyToken() {
     if (!newToken) return;
-    try {
-      await writeText(newToken);
-      copiedToken.trigger();
-    } catch (e) {
-      notifyError(e, 'settings.advanced.errorCopyFailed');
-    }
+    await copyText(newToken, {
+      flash: copiedToken,
+      errorKey: 'settings.advanced.errorCopyFailed',
+    });
   }
 
   async function openLink(url: string) {
@@ -326,8 +336,12 @@
     </Button>
   </SettingRow>
   <SettingRow
-    title={t('settings.advanced.autoUpdaterRow')}
-    description={t('settings.advanced.autoUpdaterDescription')}
+    title={isMobile
+      ? t('settings.advanced.updateNoticesRow')
+      : t('settings.advanced.autoUpdaterRow')}
+    description={isMobile
+      ? t('settings.advanced.updateNoticesDescription')
+      : t('settings.advanced.autoUpdaterDescription')}
   >
     <Toggle
       checked={autoUpdater}
@@ -519,7 +533,7 @@
 
 <style>
   .value {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-primary);
     font-weight: 500;
   }
@@ -537,7 +551,7 @@
     align-items: center;
   }
   .token-label {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -562,19 +576,16 @@
     gap: 6px;
   }
   .icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     padding: 6px;
     border-radius: var(--radius-sm);
     background: var(--bg-input);
     border: 1px solid var(--border);
-    color: var(--text-secondary);
-    cursor: pointer;
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
 
   .collapser {
@@ -599,11 +610,13 @@
     border: none;
     color: var(--text-primary);
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
   }
-  .collapse-head:hover:not(:disabled) {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .collapse-head:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
   }
   .collapse-head:disabled {
     opacity: 0.45;
@@ -630,7 +643,7 @@
     align-items: center;
     padding: 12px 14px;
     border-bottom: 1px solid var(--border-light);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .credits li:last-child {
     border-bottom: none;
@@ -641,7 +654,7 @@
   }
   .credit-role {
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
   .link {
     display: inline-flex;
@@ -655,7 +668,9 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .link:hover {
-    color: var(--accent-hover);
+  @media (hover: hover) {
+    .link:hover {
+      color: var(--accent-hover);
+    }
   }
 </style>

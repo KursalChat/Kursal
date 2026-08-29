@@ -178,14 +178,6 @@
     z-index: 300;
     animation: fadeIn 0.15s ease;
   }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
   .action-sheet {
     position: fixed;
     bottom: 0;
@@ -199,14 +191,6 @@
     z-index: 310;
     animation: sheetUp 0.22s cubic-bezier(0.3, 0, 0.2, 1);
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
-  }
-  @keyframes sheetUp {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
   }
   .sheet-handle {
     width: 36px;
@@ -226,7 +210,7 @@
     margin-bottom: 10px;
   }
   .sheet-emoji {
-    font-size: 24px;
+    font-size: var(--text-2xl);
     width: 44px;
     height: 44px;
     border-radius: 50%;
@@ -235,10 +219,15 @@
     justify-content: center;
     transition: all 0.12s;
   }
-  .sheet-emoji:hover,
   .sheet-emoji:active {
     background: var(--bg-hover);
     transform: scale(1.15);
+  }
+  @media (hover: hover) {
+    .sheet-emoji:hover {
+      background: var(--bg-hover);
+      transform: scale(1.15);
+    }
   }
   .sheet-emoji.more {
     color: var(--text-secondary);
@@ -256,13 +245,17 @@
     padding: 14px 16px;
     color: var(--text-primary);
     border-radius: var(--radius-md);
-    font-size: 15px;
+    font-size: var(--text-md);
     text-align: left;
     transition: background var(--transition);
   }
-  .sheet-row:hover,
   .sheet-row:active {
     background: var(--bg-hover);
+  }
+  @media (hover: hover) {
+    .sheet-row:hover {
+      background: var(--bg-hover);
+    }
   }
   .sheet-row.danger {
     color: var(--danger);

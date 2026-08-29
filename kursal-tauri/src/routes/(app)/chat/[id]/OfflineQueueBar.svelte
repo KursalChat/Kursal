@@ -93,7 +93,7 @@
     min-width: 20px;
     padding: 0 6px;
     height: 18px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     display: inline-flex;
     align-items: center;

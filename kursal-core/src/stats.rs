@@ -274,15 +274,19 @@ impl StatsCollector {
     }
 
     pub fn sample(&mut self) -> NodeStats {
-        self.system
-            .refresh_processes(ProcessesToUpdate::Some(&[self.pid]), true);
-        let cpu_percent = self
-            .system
-            .process(self.pid)
-            .map(|p| p.cpu_usage())
-            .unwrap_or(0.0);
-        let (own_bytes, webview_bytes) = self.mem.sample();
-        let mem_bytes = own_bytes.saturating_add(webview_bytes);
+        let (cpu_percent, mem_bytes) = if cfg!(any(target_os = "android", target_os = "ios")) {
+            (0.0, 0)
+        } else {
+            self.system
+                .refresh_processes(ProcessesToUpdate::Some(&[self.pid]), true);
+            let cpu = self
+                .system
+                .process(self.pid)
+                .map(|p| p.cpu_usage())
+                .unwrap_or(0.0);
+            let (own_bytes, webview_bytes) = self.mem.sample();
+            (cpu, own_bytes.saturating_add(webview_bytes))
+        };
 
         self.encoded.clear();
         if let Ok(registry) = self.registry.lock() {

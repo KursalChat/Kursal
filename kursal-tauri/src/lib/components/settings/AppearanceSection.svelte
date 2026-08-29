@@ -225,8 +225,10 @@
     background: transparent;
     transition: transform var(--transition);
   }
-  .tile:hover {
-    transform: translateY(-1px);
+  @media (hover: hover) {
+    .tile:hover {
+      transform: translateY(-1px);
+    }
   }
   .tile-preview {
     position: relative;
@@ -285,7 +287,7 @@
     justify-content: center;
   }
   .tile-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-secondary);
     text-align: center;
@@ -315,8 +317,10 @@
     background: transparent;
     transition: transform var(--transition);
   }
-  .layout-tile:hover {
-    transform: translateY(-1px);
+  @media (hover: hover) {
+    .layout-tile:hover {
+      transform: translateY(-1px);
+    }
   }
   .layout-preview {
     height: 90px;
@@ -338,7 +342,7 @@
     box-shadow: 0 0 0 3px var(--accent-dim);
   }
   .layout-label {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-secondary);
     text-align: center;
@@ -347,7 +351,7 @@
     color: var(--text-primary);
   }
   .layout-desc {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     color: var(--text-muted);
     text-align: center;
     margin-top: -4px;

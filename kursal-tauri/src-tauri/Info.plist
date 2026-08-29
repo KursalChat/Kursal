@@ -31,9 +31,7 @@
 	<key>NSRequiresAquaSystemAppearance</key>
 	<false/>
 
-	<!-- Export compliance: Kursal uses end-to-end encryption. Set to true; you
-	     provide an export compliance code in App Store Connect. For non-MAS
-	     distribution this key is advisory. -->
+	<!-- Export compliance: Kursal uses end-to-end encryption -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<true/>
 

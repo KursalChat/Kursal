@@ -137,6 +137,9 @@ pub enum AppEvent {
         online: bool,
         peer_count: usize,
     },
+    ReachabilityChanged {
+        reachability: String,
+    },
     OfflineBundlePublished {
         contact_id: UserId,
         message_ids: Vec<MessageId>,
@@ -182,6 +185,13 @@ pub enum AppEvent {
         width: u16,
         height: u16,
         reason: Option<String>,
+    },
+    VideoLocalState {
+        active: bool,
+        codec: Option<String>,
+        width: u16,
+        height: u16,
+        camera_id: Option<String>,
     },
     VideoKeyframeRequested {
         call_id: MessageId,
@@ -368,9 +378,24 @@ pub enum CoreCommand {
     },
     #[cfg(feature = "calls")]
     StartVideo {
-        codec: String,
-        width: u16,
-        height: u16,
+        reply: Reply<Result<()>>,
+    },
+    #[cfg(feature = "calls")]
+    ListCameras {
+        reply: Reply<Result<Vec<crate::dto::CameraInfo>>>,
+    },
+    #[cfg(feature = "calls")]
+    SetCamera {
+        camera_id: Option<String>,
+        reply: Reply<Result<()>>,
+    },
+    #[cfg(feature = "calls")]
+    RefreshCameraRotation {
+        angle: u16,
+        reply: Reply<Result<()>>,
+    },
+    #[cfg(feature = "calls")]
+    RequestLocalKeyframe {
         reply: Reply<Result<()>>,
     },
     #[cfg(feature = "calls")]

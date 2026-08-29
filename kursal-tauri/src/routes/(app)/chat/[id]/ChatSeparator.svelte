@@ -46,7 +46,7 @@
     pointer-events: none;
   }
   .day-separator span {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     color: var(--text-secondary);
     background: var(--bg-secondary);
@@ -86,7 +86,7 @@
     );
   }
   .time-separator span {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -102,7 +102,7 @@
     justify-content: center;
     gap: 7px;
     margin: 18px 4px 8px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--accent-hover);

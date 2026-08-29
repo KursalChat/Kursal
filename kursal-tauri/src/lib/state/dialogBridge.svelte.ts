@@ -1,22 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
-import { confirmDialog, type ConfirmOptions, type ConfirmTone } from '$lib/state/confirm.svelte';
+import { dialogRespond } from '$lib/api/dialogs';
+import { confirmDialog, type ConfirmOptions } from '$lib/state/confirm.svelte';
 import { updateDownloadState } from '$lib/state/updateDownload.svelte';
 import { groupLabel, parseReleaseNotes } from '$lib/changelog';
 import { t } from '$lib/i18n';
-
-export interface BackendDialogPayload {
-  id: number;
-  kind: string;
-  message?: string;
-  params: Record<string, string | number | null>;
-  tone: ConfirmTone;
-  dismissible: boolean;
-}
-
-export const dialogRespond = (id: number, confirmed: boolean): Promise<void> =>
-  invoke('dialog_respond', { id, confirmed });
-
-export const runStartupDialogs = (): Promise<void> => invoke('run_startup_dialogs');
+import type { BackendDialogPayload } from '$lib/types';
 
 function buildOptions(p: BackendDialogPayload): ConfirmOptions {
   const base = { tone: p.tone, hideCancel: !p.dismissible } as const;
@@ -43,10 +30,34 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
           currentVersion: String(p.params.currentVersion ?? ''),
         }),
         detail: groups.length ? t('backendDialog.updateAvailableNotes') : undefined,
-        sections: groups.map((g) => ({ title: groupLabel(g.kind), items: g.items })),
+        sections: groups.map((g) => ({
+          title: groupLabel(g.kind),
+          items: g.items,
+        })),
         code: notes && !groups.length ? notes : undefined,
         confirmLabel: t('backendDialog.updateAvailableConfirm'),
         cancelLabel: t('backendDialog.updateAvailableCancel'),
+      };
+    }
+    case 'update_store': {
+      const apple = p.params.store === 'appstore';
+      const opens = p.params.open === true;
+      const from = apple
+        ? t('backendDialog.updateStoreFromApple')
+        : t('backendDialog.updateStoreFromPlay');
+      const open = apple
+        ? t('backendDialog.updateStoreOpenApple')
+        : t('backendDialog.updateStoreOpenPlay');
+      return {
+        ...base,
+        title: t('backendDialog.updateStoreTitle'),
+        message: t('backendDialog.updateStoreMessage', {
+          version: String(p.params.version ?? ''),
+          currentVersion: String(p.params.currentVersion ?? ''),
+        }),
+        detail: opens ? undefined : from,
+        confirmLabel: opens ? open : t('backendDialog.updateStoreConfirm'),
+        cancelLabel: t('backendDialog.updateStoreLater'),
       };
     }
     case 'update_installed':
@@ -60,7 +71,9 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
     case 'file_open_confirm':
       return {
         ...base,
-        title: t('backendDialog.fileOpenTitle', { fileName: String(p.params.fileName ?? '') }),
+        title: t('backendDialog.fileOpenTitle', {
+          fileName: String(p.params.fileName ?? ''),
+        }),
         message: p.message,
         confirmLabel: t('backendDialog.fileOpenConfirm'),
         cancelLabel: t('backendDialog.fileOpenCancel'),
@@ -68,7 +81,9 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
     case 'file_open_blocked':
       return {
         ...base,
-        title: t('backendDialog.fileOpenTitle', { fileName: String(p.params.fileName ?? '') }),
+        title: t('backendDialog.fileOpenTitle', {
+          fileName: String(p.params.fileName ?? ''),
+        }),
         message: p.message,
         confirmLabel: t('backendDialog.fileBlockedConfirm'),
       };

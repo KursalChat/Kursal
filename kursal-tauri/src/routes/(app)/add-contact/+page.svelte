@@ -13,7 +13,7 @@
   import { importLtc } from '$lib/api/ltc';
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifications } from '$lib/state/notifications.svelte';
-  import { errorText, parseError } from '$lib/utils/errors';
+  import { errorText, parseError, notifyError } from '$lib/utils/errors';
   import { isMobile } from '$lib/api/window';
   import Button from '$lib/components/Button.svelte';
   import NearbyStrip from '$lib/components/NearbyStrip.svelte';
@@ -228,8 +228,7 @@
       closeScanner();
       const msg = parseError(e).message;
       if (!msg.toLowerCase().includes('cancel')) {
-        notifications.push(t('addContact.otp.qrScanError'), 'error');
-        log.error('QR scan failed:', e);
+        notifyError(e, 'addContact.otp.qrScanError');
       }
     }
   }
@@ -514,7 +513,7 @@
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.7);
     color: #fff;
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     cursor: pointer;
   }
@@ -560,7 +559,7 @@
   }
 
   .field-label {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -573,7 +572,7 @@
     border-radius: var(--radius-md);
     color: var(--text-primary);
     padding: 13px 14px;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-family: var(--font-mono);
     resize: vertical;
     min-height: 76px;
@@ -615,7 +614,7 @@
     border: 1px solid var(--border);
     background: var(--bg-input);
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     padding: 6px 9px;
     transition:
@@ -624,9 +623,11 @@
       border-color var(--transition);
   }
 
-  .chip:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .chip:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
 
   .field-actions :global(.button) {
@@ -643,7 +644,7 @@
     color: var(--danger);
     padding: 11px 12px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     line-height: 1.5;
     border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   }
@@ -659,7 +660,7 @@
     align-items: center;
     gap: 12px;
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;

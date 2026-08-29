@@ -10,6 +10,7 @@
   } from '$lib/api/call';
   import type { AudioDevices } from '$lib/types';
   import { notifyError } from '$lib/utils/errors';
+  import { optimistic } from '$lib/utils/optimistic';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Select from './Select.svelte';
@@ -61,23 +62,27 @@
   ]);
 
   async function handleRateChange(value: string) {
-    const prev = rate;
-    rate = value;
     try {
-      await setCallSampleRate(Number(value));
+      await optimistic(
+        () => rate,
+        (x) => (rate = x),
+        () => setCallSampleRate(Number(value)),
+        value
+      );
     } catch (e) {
-      rate = prev;
       notifyError(e);
     }
   }
 
   async function handleVideoQualityChange(value: string) {
-    const prev = videoQuality;
-    videoQuality = value;
     try {
-      await setVideoQuality(Number(value));
+      await optimistic(
+        () => videoQuality,
+        (x) => (videoQuality = x),
+        () => setVideoQuality(Number(value)),
+        value
+      );
     } catch (e) {
-      videoQuality = prev;
       notifyError(e);
     }
   }

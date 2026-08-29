@@ -36,6 +36,7 @@ const PRESENCE_DIAL_MAX_BACKOFF_SECS: u64 = 30 * 60;
 const PRESENCE_DIAL_MAX_DOUBLINGS: u32 = 8;
 const PRESENCE_DIAL_STAGGER_MS: u64 = 250;
 const RELAY_RESERVE_INTERVAL_SECS: u64 = 30;
+const RELAY_DISCOVER_INTERVAL_SECS: u64 = 10 * 60;
 const PRESENCE_SYNC_INTERVAL_SECS: u64 = 10;
 const LTC_POINTER_STARTUP_DELAY_SECS: u64 = 10;
 const LTC_POINTER_REPUBLISH_SECS: u64 = 24 * 60 * 60;
@@ -143,6 +144,17 @@ pub(super) async fn relay_reserve_loop(network: Arc<Mutex<NetworkManager>>) {
         interval.tick().await;
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
         let _ = cmd_tx.send(SwarmCommand::EnsureRelayReservations).await;
+    }
+}
+
+/// Asks the DHT which peers are willing to relay
+pub(super) async fn relay_discover_loop(network: Arc<Mutex<NetworkManager>>) {
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let mut interval = tokio::time::interval(Duration::from_secs(RELAY_DISCOVER_INTERVAL_SECS));
+    loop {
+        let cmd_tx = network.lock().await.primary.cmd_tx.clone();
+        let _ = cmd_tx.send(SwarmCommand::DiscoverRelays).await;
+        interval.tick().await;
     }
 }
 

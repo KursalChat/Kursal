@@ -44,6 +44,7 @@
       "allow": [{ "path": "**" }, { "path": "*" }]
     },
     "dialog:default",
-    "notification:default"
+    "notification:default",
+    "core:window:allow-request-user-attention"
   ]
 }

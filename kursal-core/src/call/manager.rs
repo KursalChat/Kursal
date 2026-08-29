@@ -149,20 +149,90 @@ async fn connected_call_context()
     ))
 }
 
+fn arm_capture_watchdog(
+    db: SharedDatabase,
+    cmd_tx: mpsc::Sender<SwarmCommand>,
+    app_event_tx: mpsc::Sender<AppEvent>,
+) {
+    tokio::task::spawn_local(async move {
+        if crate::call::capture::failed().await {
+            log::error!("[call] video capture died, stopping video");
+            let _ = stop_video("error".to_string(), db, &cmd_tx, &app_event_tx).await;
+        }
+    });
+}
+
 pub async fn start_video(
-    codec: String,
-    width: u16,
-    height: u16,
     db: SharedDatabase,
     cmd_tx: &mpsc::Sender<SwarmCommand>,
     app_event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
     let (call_id, peer, peer_id, my, their, is_caller) = connected_call_context().await?;
     let keys = crate::call::crypto::derive_video_keys(my, their, is_caller)?;
+
+    let quality = crate::storage::get_video_quality(&db.0);
+    let camera_id = crate::call::capture::selected_camera();
+    crate::call::capture::set_runtime(tokio::runtime::Handle::current());
+
+    let format = tokio::task::spawn_blocking(move || {
+        crate::call::capture::start(crate::call::capture::CaptureConfig { quality, camera_id })
+    })
+    .await
+    .map_err(|e| KursalError::Misc(anyhow::anyhow!("video capture task: {e}")))??;
+
     crate::call::video::start_tx(peer_id, keys.tx, cmd_tx.clone(), app_event_tx.clone());
-    let msg = build_video_start(call_id, codec, width, height)?;
+    arm_capture_watchdog(db.clone(), cmd_tx.clone(), app_event_tx.clone());
+
+    let _ = app_event_tx
+        .send(AppEvent::VideoLocalState {
+            active: true,
+            codec: Some(format.codec.clone()),
+            width: format.width,
+            height: format.height,
+            camera_id: format.camera_id.clone(),
+        })
+        .await;
+
+    crate::call::capture::request_keyframe();
+
+    let msg = build_video_start(call_id, format.codec, format.width, format.height)?;
     send_message(msg, &peer, db, cmd_tx, Some(app_event_tx)).await?;
     Ok(())
+}
+
+pub async fn list_cameras() -> Vec<crate::dto::CameraInfo> {
+    tokio::task::spawn_blocking(crate::call::capture::list_cameras)
+        .await
+        .unwrap_or_default()
+}
+
+pub async fn refresh_camera_rotation(angle: u16) {
+    let _ =
+        tokio::task::spawn_blocking(move || crate::call::capture::set_device_angle(angle)).await;
+}
+
+pub async fn set_camera(
+    camera_id: Option<String>,
+    db: SharedDatabase,
+    cmd_tx: &mpsc::Sender<SwarmCommand>,
+    app_event_tx: &mpsc::Sender<AppEvent>,
+) -> Result<()> {
+    let previous = crate::call::capture::selected_camera();
+    crate::call::capture::set_selected_camera(camera_id);
+    if !crate::call::capture::is_active() {
+        return Ok(());
+    }
+
+    let Err(e) = start_video(db.clone(), cmd_tx, app_event_tx).await else {
+        return Ok(());
+    };
+
+    log::warn!("[call] camera switch failed: {e}");
+    crate::call::capture::set_selected_camera(previous);
+    if start_video(db.clone(), cmd_tx, app_event_tx).await.is_err() {
+        let _ = stop_video("error".to_string(), db, cmd_tx, app_event_tx).await;
+    }
+    Err(e)
 }
 
 pub async fn stop_video(
@@ -171,7 +241,18 @@ pub async fn stop_video(
     cmd_tx: &mpsc::Sender<SwarmCommand>,
     app_event_tx: &mpsc::Sender<AppEvent>,
 ) -> Result<()> {
+    let _ = tokio::task::spawn_blocking(crate::call::capture::stop).await;
+    crate::call::video::clear_local_forwarder();
     crate::call::video::stop_tx().await;
+    let _ = app_event_tx
+        .send(AppEvent::VideoLocalState {
+            active: false,
+            codec: None,
+            width: 0,
+            height: 0,
+            camera_id: None,
+        })
+        .await;
     let (call_id, peer, ..) = connected_call_context().await?;
     let msg = build_video_stop(call_id, parse_stop_reason(&reason))?;
     send_message(msg, &peer, db, cmd_tx, Some(app_event_tx)).await?;
@@ -792,6 +873,7 @@ pub async fn on_signal(
                 let payload: VideoStopPayload = signal::decode(&signal.payload)?;
                 let reason = match payload.reason {
                     VideoStopReason::Unsupported => {
+                        let _ = tokio::task::spawn_blocking(crate::call::capture::stop).await;
                         crate::call::video::stop_tx().await;
                         "send_rejected"
                     }
@@ -820,6 +902,7 @@ pub async fn on_signal(
                     && matches!(a.engine.state, CallState::Connected)
             });
             if matches_active {
+                crate::call::capture::request_keyframe();
                 app_event_tx
                     .send(AppEvent::VideoKeyframeRequested {
                         call_id: signal.call_id,

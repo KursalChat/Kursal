@@ -63,8 +63,10 @@
     text-align: left;
     transition: background var(--transition);
   }
-  .unread-main:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .unread-main:hover {
+      background: var(--bg-hover);
+    }
   }
   .unread-main:active {
     transform: scale(0.99);
@@ -100,9 +102,11 @@
     color: var(--text-muted);
     transition: all var(--transition);
   }
-  .unread-read:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .unread-read:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .unread-read:active {
     transform: scale(0.97);

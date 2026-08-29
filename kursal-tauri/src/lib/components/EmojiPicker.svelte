@@ -329,14 +329,14 @@
     border-radius: 8px;
   }
   .emoji-picker.compact .search-box input {
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
   .emoji-picker.compact .category-tabs {
     padding: 6px 8px 4px;
   }
   .emoji-picker.compact .cat-tab {
     height: 28px;
-    font-size: 15px;
+    font-size: var(--text-md);
   }
   .emoji-picker.compact .emoji-grid-container {
     padding: 0 8px 8px;
@@ -377,7 +377,7 @@
     border: none;
     outline: none;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
 
   .search-box input::placeholder {
@@ -397,8 +397,10 @@
     transition: background 0.15s;
   }
 
-  .clear-search:hover {
-    background: color-mix(in srgb, var(--bg-hover) 70%, var(--text-muted));
+  @media (hover: hover) {
+    .clear-search:hover {
+      background: color-mix(in srgb, var(--bg-hover) 70%, var(--text-muted));
+    }
   }
 
   .category-tabs {
@@ -415,15 +417,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 17px;
+    font-size: var(--text-lg);
     border-radius: 8px;
     cursor: pointer;
     transition: background 0.15s;
     line-height: 1;
   }
 
-  .cat-tab:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .cat-tab:hover {
+      background: var(--bg-hover);
+    }
   }
 
   .cat-tab.active {
@@ -443,7 +447,7 @@
   }
 
   .category-label {
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -476,15 +480,17 @@
     line-height: 1;
   }
 
-  .emoji-btn:hover {
-    background: var(--bg-hover);
-    transform: scale(1.15);
+  @media (hover: hover) {
+    .emoji-btn:hover {
+      background: var(--bg-hover);
+      transform: scale(1.15);
+    }
   }
 
   .no-results {
     text-align: center;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
     padding: 32px 0;
   }
 
@@ -495,7 +501,7 @@
     justify-content: center;
     gap: 8px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
     padding: 32px 0;
   }
 
@@ -517,8 +523,10 @@
     transition: background 0.12s;
   }
 
-  .tone-trigger:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .tone-trigger:hover {
+      background: var(--bg-hover);
+    }
   }
 
   .tone-swatches {
@@ -547,8 +555,10 @@
     transition: background 0.12s;
   }
 
-  .tone-swatch:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .tone-swatch:hover {
+      background: var(--bg-hover);
+    }
   }
 
   .tone-swatch.active {

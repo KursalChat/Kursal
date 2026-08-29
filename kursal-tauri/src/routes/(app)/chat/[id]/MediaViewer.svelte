@@ -274,7 +274,7 @@
       onclick={(e) => e.stopPropagation()}
       role="presentation"
     >
-      {#each items as it, i}
+      {#each items as it, i (it.path)}
         <button
           class="thumb"
           class:active={i === index}
@@ -307,14 +307,6 @@
     flex-direction: column;
     animation: fadeIn 0.15s ease;
   }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
   .topbar {
     display: flex;
     align-items: center;
@@ -327,7 +319,7 @@
     z-index: 2;
   }
   .title {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: rgba(255, 255, 255, 0.85);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -349,8 +341,10 @@
     justify-content: center;
     transition: background 0.12s ease;
   }
-  .iconbtn:hover {
-    background: rgba(255, 255, 255, 0.22);
+  @media (hover: hover) {
+    .iconbtn:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
   }
   .iconbtn.confirmed {
     background: var(--success);
@@ -371,8 +365,10 @@
     z-index: 2;
     transition: background 0.12s ease;
   }
-  .nav-arrow:hover {
-    background: rgba(255, 255, 255, 0.22);
+  @media (hover: hover) {
+    .nav-arrow:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
   }
   .nav-arrow.left {
     left: 16px;
@@ -444,8 +440,10 @@
       border-color 0.14s ease,
       transform 0.14s ease;
   }
-  .thumb:hover {
-    opacity: 0.85;
+  @media (hover: hover) {
+    .thumb:hover {
+      opacity: 0.85;
+    }
   }
   .thumb.active {
     opacity: 1;

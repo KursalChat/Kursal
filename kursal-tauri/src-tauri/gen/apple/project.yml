@@ -74,6 +74,10 @@ targets:
       - sdk: WebKit.framework
       - sdk: SystemConfiguration.framework
       - sdk: CFNetwork.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreMedia.framework
+      - sdk: CoreVideo.framework
+      - sdk: VideoToolbox.framework
     preBuildScripts:
       - script: |
           export OPUS_NO_PKG=1 OPUS_STATIC=1

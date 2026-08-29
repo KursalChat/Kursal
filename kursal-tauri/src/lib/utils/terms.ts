@@ -1,3 +1,5 @@
+import { readRaw, writeRaw } from '$lib/utils/storage';
+
 export const TERMS_URL = 'https://kursal.chat/terms';
 export const TERMS_UPDATED = __TERMS_UPDATED__;
 
@@ -16,17 +18,11 @@ export function isTermsPending(accepted: string | null, current = TERMS_UPDATED)
 }
 
 export function acceptedTerms(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return readRaw(STORAGE_KEY);
 }
 
 export function acceptTerms(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, TERMS_UPDATED);
-  } catch {}
+  writeRaw(STORAGE_KEY, TERMS_UPDATED);
 }
 
 export function termsPending(): boolean {

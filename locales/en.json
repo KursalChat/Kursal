@@ -141,6 +141,14 @@
     "updateAvailableNotes": "Here's what changed:",
     "updateAvailableConfirm": "Update now",
     "updateAvailableCancel": "Later",
+    "updateStoreTitle": "Update available",
+    "updateStoreMessage": "Version {version} is available. You're currently on {currentVersion}.",
+    "updateStoreFromApple": "Update Kursal from the App Store.",
+    "updateStoreFromPlay": "Update Kursal from the Play Store.",
+    "updateStoreConfirm": "Got it",
+    "updateStoreOpenApple": "Open App Store",
+    "updateStoreOpenPlay": "Open Play Store",
+    "updateStoreLater": "Later",
     "updateInstalledTitle": "Update installed",
     "updateInstalledMessage": "Restart Kursal to apply the update? You can also restart later.",
     "updateInstalledConfirm": "Restart now",
@@ -268,50 +276,42 @@
     "contactAvatarUpdated": "{name} updated their profile picture"
   },
   "onboarding": {
-    "stepProgress": "Step {current} of {total}",
     "skip": "Skip",
-    "screen1": {
+    "back": "Back",
+    "hello": {
       "heading": "Hi. I'm Winston.",
       "subtitle": "And I believe privacy is fundamental.",
-      "continue": "Continue",
+      "cta": "Show me",
       "skip": "I know what I'm doing",
       "skipTooltip": "you probably don't! follow the guide :p"
     },
-    "screen2": {
-      "line1": "Today, your messages are not yours.",
-      "line2": "Stored. Scanned. Sold.",
-      "line3": "You don't own what you say anymore.",
-      "cta": "Discover Kursal"
+    "middleman": {
+      "lead": "Your messages go through a company first.",
+      "note": "They hold them and ask you to trust them.",
+      "cta": "So what's different?"
     },
-    "screen3": {
-      "line1": "Your message goes straight to them.",
-      "line2": "Encrypted before it leaves your device.",
-      "line3": "Only they can read it.",
-      "cta": "Next"
+    "direct": {
+      "lead": "Kursal hands it straight across.",
+      "note": "Sealed before it leaves. Nothing in the middle to break into.",
+      "cta": "And my account?"
     },
-    "screen4": {
-      "line1": "No server to hack.",
-      "line2": "No database to leak.",
-      "line3": "We don't store your messages. We never see them.",
-      "cta": "Next",
-      "relayCardTitle": "Contribute to the relay swarm",
-      "relayCardDescription": "Help other users to connect to each other.",
-      "relaySadFace": ":(",
-      "serverOnline": "ONLINE",
-      "serverError": "ERROR · 0xDEAD",
-      "serverOffline": "OFFLINE"
+    "noAccounts": {
+      "lead": "There is no account.",
+      "note": "No email, no password. You add someone by trading eight words.",
+      "cta": "Set me up"
     },
-    "screen5": {
-      "line1": "This is what private actually looks like.",
-      "line2": "Let's make it yours.",
-      "cta": "Let's go",
-      "namePlaceholder": "Your username",
+    "profile": {
+      "lead": "So, who are you?",
+      "note": "Only people you add will see this.",
+      "greeting": "Hey, {name}!",
+      "namePlaceholder": "Your name",
       "nameHint": "You can change this later in Settings.",
       "uploadPhoto": "Upload a photo",
       "removePhoto": "Remove photo",
       "errorPickName": "Pick a name first",
-      "errorBroadcastFailed": "Saved locally but broadcast failed",
+      "errorSave": "Could not save your profile. You can set it up later in Settings.",
       "saving": "Saving…",
+      "cta": "Let's go",
       "consentPrefix": "By continuing, you agree to the",
       "consentLink": "Terms of Service"
     }
@@ -590,6 +590,7 @@
         "open": "Open",
         "cancel": "Cancel",
         "trustDomain": "Don't ask again for {host}",
+        "appMessage": "This link opens outside Kursal, in another app on your device.",
         "unsupported": "Unsupported link type",
         "error": "Failed to open link."
       }
@@ -726,6 +727,11 @@
       "cameraOff": "Stop camera",
       "cameraDenied": "Camera blocked",
       "cameraDeniedToast": "Camera access was denied. Check system permissions.",
+      "selectCamera": "Select camera",
+      "cameraFront": "Front camera",
+      "cameraBack": "Back camera",
+      "cameraNumbered": "Camera {id}",
+      "mirrorSelfView": "Mirror self view",
       "micDeniedToast": "Microphone access is required for calls. Check system permissions.",
       "videoUnavailableToast": "Video is unavailable for this call.",
       "videoUnsupported": "Video calls are not supported on this device.",
@@ -932,16 +938,13 @@
       "heading": "Network",
       "description": "Relay, transport, and local discovery.",
       "relayCard": "Relay",
-      "runAsRelayRow": "Run as relay",
-      "runAsRelayDescription": "Help other peers connect by relaying encrypted traffic. Messages stay E2E encrypted.",
-      "runAsRelayAriaLabel": "Run as relay",
       "maxConnectionsRow": "Max connections",
       "maxConnectionsDescription": "Total concurrent relayed peers.",
       "maxPerIpRow": "Max per IP",
       "maxPerIpDescription": "Limit how many connections come from the same address.",
       "saveRelayButton": "Save relay",
       "listeningPortRow": "Listening port",
-      "listeningPortDescription": "Which port Kursal listens on. Clear the field to pick a random port.",
+      "listeningPortDescription": "Which port Kursal listens on (4891 by default). Clear the field to pick a random port.",
       "portPlaceholder": "random",
       "savePortButton": "Save",
       "discoveryCard": "Discovery",
@@ -987,7 +990,7 @@
       "groupUpSummary": "{up}/{total} up",
       "advancedCard": "Advanced",
       "advancedDescription": "Port, listening addresses, and one-off connections.",
-      "relayDescription": "Operator settings for relaying encrypted traffic.",
+      "relayDescription": "How this device helps carry the network. Desktop only.",
       "refresh": "Refresh",
       "listenAddresses": "Listening addresses",
       "noListenAddresses": "No listening addresses yet.",
@@ -996,7 +999,16 @@
       "shareNodeTitle": "Share node",
       "addNodeConfirmTitle": "Add this node?",
       "addNodeConfirmMessage": "Add {addr} to your bootstrap nodes? Kursal will connect to it on startup.",
-      "addNodeConfirmYes": "Add node"
+      "addNodeConfirmYes": "Add node",
+      "reachability_checking": "Checking",
+      "reachability_private": "Not reachable",
+      "reachability_public": "Contributing",
+      "reachTitle_checking": "Checking reachability",
+      "reachTitle_private": "Not reachable from the internet",
+      "reachTitle_public": "Contributing to the network",
+      "reachDescChecking": "Asking other peers whether they can reach this device. This takes a moment after startup.",
+      "reachDescPrivate": "Forward TCP and UDP port {port} to your device to store records and relay traffic for others.",
+      "reachDescPublic": "Serving DHT records · {reservations} reservations · {circuits} circuits open"
     },
     "storage": {
       "heading": "Storage",
@@ -1099,6 +1111,8 @@
       "autoUpdaterRow": "Auto-updater",
       "autoUpdaterDescription": "Install updates automatically when available.",
       "autoUpdaterAriaLabel": "Auto-updater",
+      "updateNoticesRow": "Update notices",
+      "updateNoticesDescription": "Tell you when a newer version is on the store.",
       "channelRow": "Update channel",
       "channelDescription": "Beta receives new features earlier, with less testing.",
       "channelStable": "Stable",
@@ -1145,7 +1159,6 @@
       "benchmarkResultPerIterCpu": "Per iter (CPU)",
       "benchmarkResultPerSecond": "Iter / sec",
       "benchmarkError": "Error.",
-      "benchmarkCopyUnavailable": "Clipboard not available",
       "benchmarkCopyFailed": "Failed to copy results",
       "creditsCard": "Credits",
       "errorUpdateCheck": "Update check failed.",

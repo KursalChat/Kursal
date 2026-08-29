@@ -12,6 +12,8 @@
     Video,
     VideoOff,
     FlipHorizontal2,
+    ChevronUp,
+    Check,
   } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import Avatar from '$lib/components/Avatar.svelte';
@@ -21,6 +23,16 @@
   import { profileState } from '$lib/state/profile.svelte';
   import { qualityKey, khz } from '$lib/utils/callQuality';
   import { createCallElapsed } from '$lib/utils/callElapsed.svelte';
+  import { drawFrame } from '$lib/call/video';
+  import type { CameraInfo } from '$lib/types';
+
+  // Android has no localised camera name, so it sends the facing and no label.
+  function cameraName(cam: CameraInfo): string {
+    if (cam.label) return cam.label;
+    if (cam.facing === 'user') return t('chat.call.cameraFront');
+    if (cam.facing === 'environment') return t('chat.call.cameraBack');
+    return t('chat.call.cameraNumbered', { id: cam.id });
+  }
 
   const contact = $derived(callState.contactId ? contactsState.getById(callState.contactId) : null);
 
@@ -29,8 +41,6 @@
   const isConnected = $derived(phase === 'connected');
   const ringing = $derived(phase !== 'connected');
 
-  // Incoming calls show in the compact CallIncoming banner instead; this
-  // overlay covers outgoing and active calls only.
   const open = $derived(
     callState.expanded &&
       (phase === 'ringing_out' || phase === 'connecting' || phase === 'connected')
@@ -63,7 +73,7 @@
   const videoMode = $derived(callState.localVideo || callState.remoteVideo);
 
   let remoteCanvas = $state<HTMLCanvasElement | null>(null);
-  let selfVideoEl = $state<HTMLVideoElement | null>(null);
+  let selfCanvas = $state<HTMLCanvasElement | null>(null);
 
   const DEFAULT_AR = 16 / 9;
   let remoteAr = $state(DEFAULT_AR);
@@ -82,24 +92,28 @@
     }
     const canvas = remoteCanvas;
     const ctx = canvas.getContext('2d');
-    callState.setRemoteFrameSink((frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
-        remoteAr = clampAr(frame.displayWidth, frame.displayHeight);
-      }
-      ctx?.drawImage(frame, 0, 0);
+    callState.setRemoteFrameSink((frame, rotation) => {
+      const size = drawFrame(canvas, ctx, frame, rotation);
+      remoteAr = clampAr(size.width, size.height);
       frame.close();
     });
     return () => callState.setRemoteFrameSink(null);
   });
 
   $effect(() => {
-    if (selfVideoEl && callState.localVideo && callState.localStream) {
-      selfVideoEl.srcObject = callState.localStream;
-      void selfVideoEl.play().catch(() => {});
+    if (!open || !callState.localVideo || !selfCanvas) {
+      callState.setLocalFrameSink(null);
+      localAr = DEFAULT_AR;
+      return;
     }
-    if (!callState.localVideo) localAr = DEFAULT_AR;
+    const canvas = selfCanvas;
+    const ctx = canvas.getContext('2d');
+    callState.setLocalFrameSink((frame, rotation) => {
+      const size = drawFrame(canvas, ctx, frame, rotation);
+      localAr = clampAr(size.width, size.height);
+      frame.close();
+    });
+    return () => callState.setLocalFrameSink(null);
   });
 
   const remoteTileAr = $derived(
@@ -108,6 +122,47 @@
   const localTileAr = $derived(
     callState.localVideo ? localAr : callState.remoteVideo ? remoteAr : DEFAULT_AR
   );
+
+  const sideBySide = $derived(remoteTileAr < 1 || localTileAr < 1);
+  const mirrorSelf = $derived(
+    prefsState.mirrorSelfView && callState.cameraFacing !== 'environment'
+  );
+
+  let cameraMenuOpen = $state(false);
+  let cameraMenuEl = $state<HTMLDivElement | null>(null);
+  let cameraCaretEl = $state<HTMLButtonElement | null>(null);
+
+  $effect(() => {
+    if (!cameraMenuOpen) return;
+    function onPointer(e: PointerEvent) {
+      const target = e.target as Node;
+      if (cameraMenuEl?.contains(target) || cameraCaretEl?.contains(target)) return;
+      cameraMenuOpen = false;
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') cameraMenuOpen = false;
+    }
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  });
+
+  $effect(() => {
+    if (!isConnected) cameraMenuOpen = false;
+  });
+
+  function openCameraMenu() {
+    if (!cameraMenuOpen) void callState.refreshCameras();
+    cameraMenuOpen = !cameraMenuOpen;
+  }
+
+  function pickCamera(id: string) {
+    cameraMenuOpen = false;
+    void callState.selectCamera(id);
+  }
 
   const cameraLabel = $derived(
     callState.cameraDenied
@@ -152,7 +207,7 @@
       {/if}
 
       {#if videoMode}
-        <div class="tiles">
+        <div class="tiles" class:side-by-side={sideBySide}>
           <div class="tile" style="--tile-ar:{remoteTileAr}">
             {#if callState.remoteVideo}
               <canvas class="tile-media" bind:this={remoteCanvas}></canvas>
@@ -165,23 +220,19 @@
           </div>
           <div class="tile" style="--tile-ar:{localTileAr}">
             {#if callState.localVideo}
-              <!-- svelte-ignore a11y_media_has_caption -->
-              <video
-                class="tile-media"
-                class:mirrored={prefsState.mirrorSelfView}
-                bind:this={selfVideoEl}
-                muted
-                playsinline
-                onloadedmetadata={() =>
-                  (localAr = clampAr(selfVideoEl?.videoWidth ?? 0, selfVideoEl?.videoHeight ?? 0))}
-              ></video>
-              <button
-                class="tile-btn"
-                aria-pressed={prefsState.mirrorSelfView}
-                onclick={() => prefsState.toggleMirrorSelfView()}
-              >
-                <FlipHorizontal2 size={14} />
-              </button>
+              <canvas class="tile-media" class:mirrored={mirrorSelf} bind:this={selfCanvas}
+              ></canvas>
+              {#if callState.cameraFacing !== 'environment'}
+                <button
+                  class="tile-btn"
+                  aria-label={t('chat.call.mirrorSelfView')}
+                  title={t('chat.call.mirrorSelfView')}
+                  aria-pressed={prefsState.mirrorSelfView}
+                  onclick={() => prefsState.toggleMirrorSelfView()}
+                >
+                  <FlipHorizontal2 size={14} />
+                </button>
+              {/if}
             {:else}
               <div class="tile-avatar">
                 <Avatar name={profileState.displayName} src={profileState.avatarPath} size={96} />
@@ -262,16 +313,49 @@
 
         {#if isConnected}
           <div class="ctl-group">
-            {#if callState.videoAvailable}
-              <button
-                class="round"
-                class:active={callState.localVideo}
-                class:denied={callState.cameraDenied}
-                aria-pressed={callState.localVideo}
-                onclick={() => callState.toggleCamera()}
-              >
-                {#if callState.localVideo}<Video size={20} />{:else}<VideoOff size={20} />{/if}
-              </button>
+            {#if callState.canSendVideo}
+              <div class="ctl-split">
+                <button
+                  class="round"
+                  class:active={callState.localVideo}
+                  class:denied={callState.cameraDenied}
+                  aria-pressed={callState.localVideo}
+                  onclick={() => callState.toggleCamera()}
+                >
+                  {#if callState.localVideo}<Video size={20} />{:else}<VideoOff size={20} />{/if}
+                </button>
+                {#if callState.cameras.length > 1}
+                  <button
+                    class="caret"
+                    class:open={cameraMenuOpen}
+                    bind:this={cameraCaretEl}
+                    aria-haspopup="menu"
+                    aria-expanded={cameraMenuOpen}
+                    aria-label={t('chat.call.selectCamera')}
+                    title={t('chat.call.selectCamera')}
+                    onclick={openCameraMenu}
+                  >
+                    <ChevronUp size={12} />
+                  </button>
+                {/if}
+                {#if cameraMenuOpen}
+                  <div class="cam-menu" role="menu" bind:this={cameraMenuEl}>
+                    {#each callState.cameras as cam (cam.id)}
+                      <button
+                        class="menu-item"
+                        role="menuitemradio"
+                        aria-checked={cam.id === callState.selectedCameraId}
+                        onclick={() => pickCamera(cam.id)}
+                      >
+                        <span class="menu-check">
+                          {#if cam.id === callState.selectedCameraId}<Check size={13} />{/if}
+                        </span>
+                        <span class="menu-text">{cameraName(cam)}</span>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
               <span class="ctl-label">{cameraLabel}</span>
             {:else}
               <button class="round" disabled title={t('chat.call.videoUnsupported')}>
@@ -313,9 +397,6 @@
   .backdrop {
     position: absolute;
     inset: 0;
-    /* Opaque base; accent wash added in the @supports block below. Without it,
-       engines lacking color-mix() (Chrome < 111) compute this to `transparent`
-       and the call screen renders see-through. */
     background: var(--bg-primary);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -342,8 +423,6 @@
   }
   .stage.video {
     max-width: 900px;
-    /* Reserve a band above the tiles so the minimize/info buttons sit beside
-       the video instead of floating on top of the picture. */
     padding-top: 46px;
   }
   .stage.video .minimize,
@@ -367,9 +446,11 @@
     background: var(--bg-hover);
     transition: all var(--transition);
   }
-  .minimize:hover {
-    color: var(--text-primary);
-    background: var(--surface-soft);
+  @media (hover: hover) {
+    .minimize:hover {
+      color: var(--text-primary);
+      background: var(--surface-soft);
+    }
   }
   .minimize:active {
     transform: scale(0.94);
@@ -392,9 +473,11 @@
     background: var(--bg-hover);
     transition: all var(--transition);
   }
-  .info-btn:hover {
-    color: var(--text-primary);
-    background: var(--surface-soft);
+  @media (hover: hover) {
+    .info-btn:hover {
+      color: var(--text-primary);
+      background: var(--surface-soft);
+    }
   }
   .quality-tip {
     position: absolute;
@@ -417,10 +500,15 @@
       opacity var(--transition),
       transform var(--transition);
   }
-  .info-wrap:hover .quality-tip,
   .info-wrap:focus-within .quality-tip {
     opacity: 1;
     transform: translateY(0);
+  }
+  @media (hover: hover) {
+    .info-wrap:hover .quality-tip {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .q-row {
     display: flex;
@@ -464,7 +552,6 @@
     inset: 0;
     border-radius: 50%;
     border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-    /* scale grows with live voice level (--lvl 0..1) */
     transform: scale(calc(1 + var(--lvl, 0) * 0.55));
     opacity: calc(0.12 + var(--lvl, 0) * 0.8);
     transition:
@@ -506,12 +593,17 @@
     gap: 12px;
     width: 100%;
     margin-top: 12px;
+    --tile-rows: 1;
+    --call-chrome: calc(336px + var(--safe-top) + var(--safe-bottom));
+    --tile-cap: calc(
+      (calc(var(--app-height, 100dvh) / var(--zoom, 1)) - var(--call-chrome)) / var(--tile-rows)
+    );
   }
   .tile {
     position: relative;
     width: 100%;
     aspect-ratio: var(--tile-ar, 16 / 9);
-    max-width: calc(60vh * var(--tile-ar, 1.7778));
+    max-width: calc(max(120px, min(60vh, var(--tile-cap))) * var(--tile-ar, 1.7778));
     margin-inline: auto;
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -554,9 +646,11 @@
       opacity var(--transition),
       color var(--transition);
   }
-  .tile-btn:hover {
-    opacity: 1;
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .tile-btn:hover {
+      opacity: 1;
+      color: var(--text-primary);
+    }
   }
   @supports (background: color-mix(in srgb, red 50%, transparent)) {
     .tile-btn {
@@ -581,6 +675,30 @@
   @media (max-width: 560px) {
     .tiles {
       grid-template-columns: 1fr;
+      --tile-rows: 2;
+    }
+    .tiles.side-by-side {
+      grid-template-columns: 1fr 1fr;
+      --tile-rows: 1;
+    }
+  }
+
+  @media (max-height: 520px) {
+    .stage.video {
+      gap: 10px;
+      padding-top: 38px;
+    }
+    .stage.video .name,
+    .stage.video .trust,
+    .stage.video .ctl-label {
+      display: none;
+    }
+    .stage.video .round {
+      width: 46px;
+      height: 46px;
+    }
+    .stage.video .tiles {
+      --call-chrome: calc(200px + var(--safe-top) + var(--safe-bottom));
     }
   }
 
@@ -661,6 +779,90 @@
     font-size: var(--text-2xs);
     color: var(--text-muted);
   }
+  .ctl-split {
+    position: relative;
+    display: flex;
+  }
+  .caret {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    transition:
+      color var(--transition),
+      background var(--transition),
+      transform var(--transition);
+  }
+  .caret.open {
+    color: var(--text-primary);
+    background: var(--surface-soft);
+  }
+  @media (hover: hover) {
+    .caret:hover {
+      color: var(--text-primary);
+      background: var(--surface-soft);
+    }
+  }
+  .caret.open {
+    transform: rotate(180deg);
+  }
+  .cam-menu {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    max-width: min(280px, 70vw);
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-3);
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    text-align: left;
+    transition:
+      background var(--transition),
+      color var(--transition);
+  }
+  @media (hover: hover) {
+    .menu-item:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+  }
+  .menu-item[aria-checked='true'] {
+    color: var(--text-primary);
+  }
+  .menu-check {
+    display: flex;
+    flex: 0 0 13px;
+    color: var(--accent-hover);
+  }
+  .menu-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .round {
     width: 56px;
     height: 56px;
@@ -678,8 +880,10 @@
       color var(--transition),
       transform var(--transition);
   }
-  .round:hover {
-    transform: scale(1.05);
+  @media (hover: hover) {
+    .round:hover {
+      transform: scale(1.05);
+    }
   }
   .round:active {
     transform: scale(0.95);
@@ -688,9 +892,13 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .round:disabled:hover,
   .round:disabled:active {
     transform: none;
+  }
+  @media (hover: hover) {
+    .round:disabled:hover {
+      transform: none;
+    }
   }
   .round.active {
     background: var(--accent-dim);
@@ -706,8 +914,10 @@
     background: var(--danger);
     border-color: transparent;
   }
-  .round.decline:hover {
-    filter: brightness(1.08);
+  @media (hover: hover) {
+    .round.decline:hover {
+      filter: brightness(1.08);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

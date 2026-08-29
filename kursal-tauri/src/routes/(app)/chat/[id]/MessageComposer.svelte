@@ -18,6 +18,20 @@
   import ShortcodeAutocomplete from './ShortcodeAutocomplete.svelte';
   import { loadEmojiIndex, searchEmojis, applyTone, getTone, type EmojiIndex } from '$lib/emoji';
   import { readInsets } from '$lib/utils/android-insets';
+  import { getCaretCoords } from '$lib/utils/caret';
+  import { highlightFence } from '$lib/utils/highlight';
+  import { clamp } from '$lib/utils/geometry';
+  import {
+    computeWrap,
+    computeCode,
+    computeLink,
+    computeFenceBody,
+    fenceRanges,
+    openFenceAt,
+    opensFence,
+    applyTextEdit,
+    type TextEdit,
+  } from '$lib/utils/markdown-edit';
   import type { ContactResponse } from '$lib/types';
 
   interface Props {
@@ -171,13 +185,103 @@
     replaceRange(start, caret, u, start + u.length, start + u.length);
     shortcodeQuery = null;
   }
+  let composing = $state(false);
+
+  let mirrorEl = $state<HTMLDivElement | null>(null);
+  let codeBlocks = $state<{ top: number; height: number }[]>([]);
+
+  const ranges = $derived(fenceRanges(inputText));
+
+  // The textarea paints nothing (its text is transparent); this is what the user reads.
+  const segments = $derived.by(() => {
+    const text = inputText + '\u200b';
+    const out: Array<{ code: boolean; content: string }> = [];
+    let pos = 0;
+    for (const range of ranges) {
+      if (range.start > pos) out.push({ code: false, content: text.slice(pos, range.start) });
+      out.push({ code: true, content: highlightFence(text.slice(range.start, range.end)) });
+      pos = range.end;
+    }
+    out.push({ code: false, content: text.slice(pos) });
+    return out;
+  });
+  // One block covering the whole draft can switch the field to monospace: the
+  // mirror follows the same class, so the two layouts stay identical.
+  const allCode = $derived(
+    ranges.length === 1 && ranges[0].start === 0 && ranges[0].end >= inputText.trimEnd().length
+  );
+
+  const PANEL_PAD = 3;
+
+  function syncMirror() {
+    if (!composerEl || !mirrorEl) return;
+    mirrorEl.style.width = `${composerEl.clientWidth}px`;
+    mirrorEl.style.height = `${composerEl.clientHeight}px`;
+    mirrorEl.scrollTop = composerEl.scrollTop;
+  }
+
+  // A fenced span wraps over several lines, so its panel spans the outermost
+  // rects, and the panels are drawn under the mirror's own text.
+  function measureCodeBlocks() {
+    syncMirror();
+    if (!mirrorEl) {
+      codeBlocks = [];
+      return;
+    }
+
+    const base = mirrorEl.getBoundingClientRect();
+    const next: { top: number; height: number }[] = [];
+
+    mirrorEl.querySelectorAll('.mirror-code').forEach((node) => {
+      const rects = node.getClientRects();
+      if (rects.length === 0) return;
+
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const rect of rects) {
+        top = Math.min(top, rect.top);
+        bottom = Math.max(bottom, rect.bottom);
+      }
+      next.push({
+        top: top - base.top + mirrorEl!.scrollTop - PANEL_PAD,
+        height: bottom - top + PANEL_PAD * 2,
+      });
+    });
+
+    codeBlocks = next;
+  }
+
+  $effect(() => {
+    void inputText;
+    void allCode;
+    const frame = requestAnimationFrame(measureCodeBlocks);
+    return () => cancelAnimationFrame(frame);
+  });
+
+  // The field also changes size without the text changing: window resize, the
+  // sidebar opening, the parent growing it a line.
+  $effect(() => {
+    if (!composerEl) return;
+    const observer = new ResizeObserver(() => measureCodeBlocks());
+    observer.observe(composerEl);
+    return () => observer.disconnect();
+  });
+
   // Suppress selection-driven position updates while we are mid-edit so
   // the popover doesn't jump between execCommand's collapsed caret and
   // the re-selected inner range.
   let isApplyingFormat = false;
 
-  // Uses execCommand('insertText') so the change lands in the native
-  // undo stack (Ctrl/Cmd+Z works), then sets the new selection.
+  function runEdit(edit: TextEdit) {
+    if (!composerEl) return;
+    isApplyingFormat = true;
+    applyTextEdit(composerEl, edit, () => {
+      isApplyingFormat = false;
+      // Single position update once selection is final.
+      if (formatBarVisible) positionPopoverAtSelection();
+    });
+  }
+
   function replaceRange(
     start: number,
     end: number,
@@ -185,122 +289,25 @@
     selStart: number,
     selEnd: number
   ) {
-    if (!composerEl) return;
-    const el = composerEl;
-    isApplyingFormat = true;
-    el.focus();
-    el.setSelectionRange(start, end);
-    const ok = document.execCommand('insertText', false, text);
-    if (!ok) {
-      const v = el.value;
-      el.value = v.slice(0, start) + text + v.slice(end);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    requestAnimationFrame(() => {
-      el.setSelectionRange(selStart, selEnd);
-      isApplyingFormat = false;
-      // Single position update once selection is final.
-      if (formatBarVisible) positionPopoverAtSelection();
-    });
+    runEdit({ start, end, text, selStart, selEnd });
   }
 
   function applyWrap(prefix: string, suffix: string = prefix) {
     if (!composerEl) return;
     const el = composerEl;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const value = el.value;
-    const before = value.slice(0, start);
-    const sel = value.slice(start, end);
-    const after = value.slice(end);
-    const wrapped = before.endsWith(prefix) && after.startsWith(suffix);
-    if (wrapped) {
-      replaceRange(
-        start - prefix.length,
-        end + suffix.length,
-        sel,
-        start - prefix.length,
-        end - prefix.length
-      );
-    } else {
-      replaceRange(start, end, prefix + sel + suffix, start + prefix.length, end + prefix.length);
-    }
+    runEdit(computeWrap(el.value, el.selectionStart, el.selectionEnd, prefix, suffix));
+  }
+
+  function applyCode() {
+    if (!composerEl) return;
+    const el = composerEl;
+    runEdit(computeCode(el.value, el.selectionStart, el.selectionEnd));
   }
 
   function applyLink() {
     if (!composerEl) return;
     const el = composerEl;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const sel = el.value.slice(start, end) || 'text';
-    const inserted = `[${sel}](url)`;
-    const urlStart = start + sel.length + 3;
-    replaceRange(start, end, inserted, urlStart, urlStart + 3);
-  }
-
-  // Mirror-div trick: mirrors the textarea's styles in a hidden div to read
-  // the caret's screen position.
-  function getCaretCoords(
-    el: HTMLTextAreaElement,
-    pos: number
-  ): { left: number; top: number; height: number } {
-    const styles = window.getComputedStyle(el);
-    const div = document.createElement('div');
-    const props = [
-      'boxSizing',
-      'width',
-      'height',
-      'borderTopWidth',
-      'borderRightWidth',
-      'borderBottomWidth',
-      'borderLeftWidth',
-      'borderStyle',
-      'paddingTop',
-      'paddingRight',
-      'paddingBottom',
-      'paddingLeft',
-      'fontStyle',
-      'fontVariant',
-      'fontWeight',
-      'fontStretch',
-      'fontSize',
-      'fontSizeAdjust',
-      'lineHeight',
-      'fontFamily',
-      'textAlign',
-      'textTransform',
-      'textIndent',
-      'textDecoration',
-      'letterSpacing',
-      'wordSpacing',
-      'tabSize',
-      'MozTabSize',
-    ];
-    const styleTarget = div.style as unknown as Record<string, string>;
-    const styleSource = styles as unknown as Record<string, string>;
-    for (const p of props) styleTarget[p] = styleSource[p];
-    div.style.position = 'absolute';
-    div.style.visibility = 'hidden';
-    div.style.whiteSpace = 'pre-wrap';
-    div.style.wordWrap = 'break-word';
-    div.style.top = '0';
-    div.style.left = '-9999px';
-    div.style.overflow = 'hidden';
-    div.textContent = el.value.slice(0, pos);
-    const span = document.createElement('span');
-    span.textContent = el.value.slice(pos) || '.';
-    div.appendChild(span);
-    document.body.appendChild(div);
-    const spanRect = span.getBoundingClientRect();
-    const divRect = div.getBoundingClientRect();
-    const lineHeight = parseFloat(styles.lineHeight) || parseFloat(styles.fontSize) * 1.4;
-    document.body.removeChild(div);
-    const taRect = el.getBoundingClientRect();
-    return {
-      left: taRect.left + (spanRect.left - divRect.left) - el.scrollLeft,
-      top: taRect.top + (spanRect.top - divRect.top) - el.scrollTop,
-      height: lineHeight,
-    };
+    runEdit(computeLink(el.value, el.selectionStart, el.selectionEnd));
   }
 
   const POPOVER_W = 224;
@@ -320,7 +327,7 @@
       max = Math.min(max, host.right - POPOVER_W);
     }
     if (max < min) max = min;
-    return Math.max(min, Math.min(desired, max));
+    return clamp(desired, min, max);
   }
 
   function positionPopoverAtSelection() {
@@ -348,6 +355,11 @@
   function handleFormatClick(prefix: string, suffix: string = prefix) {
     stickyFormatBar = true;
     applyWrap(prefix, suffix);
+  }
+
+  function handleCodeClick() {
+    stickyFormatBar = true;
+    applyCode();
   }
 
   function handleLinkClick() {
@@ -474,13 +486,24 @@
         }
         if (key === 'e') {
           e.preventDefault();
-          applyWrap('`');
+          applyCode();
           return;
         }
       }
     }
 
     if (e.key === 'Enter' && !e.shiftKey && !isCoarsePointer && !shortcodeQuery) {
+      // ``` (plus an optional language) turns into an empty block; inside one,
+      // Enter is a newline and ⌘/Ctrl+Enter is the way out.
+      if (composerEl && !e.metaKey && !e.ctrlKey) {
+        const caret = composerEl.selectionStart;
+        if (opensFence(composerEl.value, caret)) {
+          e.preventDefault();
+          runEdit(computeFenceBody(caret));
+          return;
+        }
+        if (openFenceAt(composerEl.value, caret)) return;
+      }
       e.preventDefault();
       onSend();
     }
@@ -670,23 +693,39 @@
         </button>
       </div>
 
-      <textarea
-        bind:this={composerEl}
-        bind:value={inputText}
-        oninput={handleInput}
-        onkeydown={handleKeydown}
-        oncontextmenu={handleContextMenu}
-        onmousedown={handleMouseDown}
-        onselect={handleSelect}
-        onblur={handleBlur}
-        onpaste={handlePaste}
-        placeholder={editActive
-          ? t('chat.composer.placeholderEditing')
-          : replyActive
-            ? t('chat.composer.placeholderReplying')
-            : t('chat.composer.placeholder', { name: contact.displayName })}
-        rows="1"
-        disabled={sending}></textarea>
+      <div class="input-stack" class:composing>
+        <div class="input-mirror" class:mono={allCode} bind:this={mirrorEl} aria-hidden="true">
+          {#each codeBlocks as block, i (i)}
+            <div class="code-panel" style="top: {block.top}px; height: {block.height}px"></div>
+          {/each}
+          <span class="mirror-text"
+            >{#each segments as segment, i (i)}{#if segment.code}<span class="mirror-code"
+                  >{@html segment.content}</span
+                >{:else}{segment.content}{/if}{/each}</span
+          >
+        </div>
+        <textarea
+          bind:this={composerEl}
+          bind:value={inputText}
+          class:mono={allCode}
+          oninput={handleInput}
+          onkeydown={handleKeydown}
+          oncontextmenu={handleContextMenu}
+          onmousedown={handleMouseDown}
+          onselect={handleSelect}
+          onscroll={syncMirror}
+          onblur={handleBlur}
+          onpaste={handlePaste}
+          oncompositionstart={() => (composing = true)}
+          oncompositionend={() => (composing = false)}
+          placeholder={editActive
+            ? t('chat.composer.placeholderEditing')
+            : replyActive
+              ? t('chat.composer.placeholderReplying')
+              : t('chat.composer.placeholder', { name: contact.displayName })}
+          rows="1"
+          disabled={sending}></textarea>
+      </div>
 
       {#if nearLimit}
         <span class="char-count" class:over={inputText.length > MAX_MESSAGE_LENGTH}
@@ -784,7 +823,7 @@
       title="{t('chat.composer.formatCode')}  (⌘E)"
       aria-label={t('chat.composer.formatCode')}
       onmousedown={(e) => e.preventDefault()}
-      onclick={() => handleFormatClick('`')}
+      onclick={handleCodeClick}
     >
       <Code size={14} />
     </button>
@@ -871,9 +910,11 @@
     color: var(--text-secondary);
     transition: all var(--transition);
   }
-  .fmt-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .fmt-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .fmt-btn:active {
     transform: scale(0.92);
@@ -911,7 +952,7 @@
   .ctx-label {
     font-weight: 700;
     color: var(--accent-hover);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
@@ -939,9 +980,11 @@
     transition: all var(--transition);
     flex-shrink: 0;
   }
-  .ctx-cancel:hover {
-    background: rgba(248, 113, 113, 0.15);
-    color: var(--danger);
+  @media (hover: hover) {
+    .ctx-cancel:hover {
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--danger);
+    }
   }
 
   @keyframes slideUp {
@@ -974,9 +1017,11 @@
     transition: all var(--transition);
     flex-shrink: 0;
   }
-  .composer-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .composer-btn:hover:not(:disabled) {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
   }
   .composer-btn:active:not(:disabled) {
     transform: scale(0.92);
@@ -1003,22 +1048,82 @@
     }
   }
 
-  textarea {
+  .input-stack {
     flex: 1;
+    position: relative;
+    min-width: 0;
+  }
+
+  textarea,
+  .input-mirror {
+    padding: 6px 6px;
+    font-size: 14.5px;
+    line-height: 1.35;
+    font-family: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    letter-spacing: normal;
+    tab-size: 2;
+  }
+  textarea.mono,
+  .input-mirror.mono {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
     background: transparent;
     border: none;
-    color: var(--text-primary);
-    padding: 6px 6px;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--text-primary);
     resize: none;
     min-height: 32px;
     max-height: 160px;
-    font-size: 14.5px;
-    line-height: 1.35;
     outline: none;
-    font-family: inherit;
+    position: relative;
+  }
+  textarea::selection {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .input-stack.composing textarea {
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
+  }
+  .input-stack.composing .mirror-text {
+    visibility: hidden;
+  }
+
+  .input-mirror {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--text-primary);
+    user-select: none;
+  }
+  .mirror-text {
+    position: relative;
+  }
+  .mirror-code :global(.fence-mark) {
+    color: var(--code-muted);
+  }
+  .code-panel {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    border-radius: var(--radius-md);
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
   }
   textarea::placeholder {
     color: var(--text-muted);
+    -webkit-text-fill-color: var(--text-muted);
   }
   textarea:disabled {
     opacity: 0.5;
@@ -1026,7 +1131,7 @@
 
   .char-count {
     align-self: center;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
     padding: 0 4px;
@@ -1060,9 +1165,11 @@
     transform: scale(1);
     opacity: 1;
   }
-  .send-btn.ready:hover {
-    background: var(--accent-hover);
-    transform: scale(1.06);
+  @media (hover: hover) {
+    .send-btn.ready:hover {
+      background: var(--accent-hover);
+      transform: scale(1.06);
+    }
   }
   .send-btn:active:not(:disabled) {
     transform: scale(0.92);
@@ -1084,16 +1191,18 @@
     gap: 8px;
     padding: 14px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .blocked-link {
     color: var(--accent);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     padding: 0;
   }
-  .blocked-link:hover {
-    text-decoration: underline;
+  @media (hover: hover) {
+    .blocked-link:hover {
+      text-decoration: underline;
+    }
   }
 
   @media (max-width: 768px) {

@@ -50,7 +50,7 @@
     min-height: 36px;
     padding: 8px 14px;
     border-radius: var(--radius-md);
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 600;
     transition:
       background var(--transition),
@@ -109,8 +109,10 @@
     color: #fff;
   }
 
-  .button.primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent-solid), white 10%);
+  @media (hover: hover) {
+    .button.primary:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-solid), white 10%);
+    }
   }
 
   .button.secondary {
@@ -119,9 +121,11 @@
     border-color: var(--border);
   }
 
-  .button.secondary:hover:not(:disabled) {
-    background: var(--bg-hover);
-    border-color: var(--accent-selected);
+  @media (hover: hover) {
+    .button.secondary:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--accent-selected);
+    }
   }
 
   .button.danger {
@@ -130,9 +134,11 @@
     border-color: var(--danger);
   }
 
-  .button.danger:hover:not(:disabled) {
-    background: var(--danger-hover);
-    border-color: var(--danger-hover);
+  @media (hover: hover) {
+    .button.danger:hover:not(:disabled) {
+      background: var(--danger-hover);
+      border-color: var(--danger-hover);
+    }
   }
 
   .button:active:not(:disabled) {

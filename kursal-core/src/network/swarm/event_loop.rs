@@ -1,9 +1,12 @@
 use super::{
-    ConnectionKind, KursalBehaviour, KursalBehaviourEvent, NetworkEvent, PeerStreams,
-    helpers::{dial_error_summary, is_routable_multiaddr},
-    lock_peer_streams,
+    CONTRIBUTES, ConnectionKind, ContributionStatus, KursalBehaviour, KursalBehaviourEvent,
+    MAX_RELAY_RESERVATIONS, NetworkEvent, PeerStreams, Reachability, RelayCandidate,
+    helpers::{
+        any_public_address, dial_error_summary, is_circuit, is_node_peer, is_routable_multiaddr,
+        reserved_relay_count,
+    },
+    lock_peer_streams, prune_relay_candidates, relay_provider_key,
 };
-use crate::network::bootstrap::is_bootstrap_peer;
 use crate::network::kademlia::spawn_record_validation;
 #[cfg(not(target_os = "ios"))]
 use libp2p::mdns;
@@ -15,6 +18,36 @@ use libp2p::{
 };
 use std::collections::{HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
+
+fn has_public_address(swarm: &Swarm<KursalBehaviour>) -> bool {
+    any_public_address(swarm.external_addresses())
+}
+
+fn apply_dht_mode(swarm: &mut Swarm<KursalBehaviour>, public: bool) {
+    let mode = if public {
+        libp2p::kad::Mode::Server
+    } else {
+        libp2p::kad::Mode::Client
+    };
+    swarm.behaviour_mut().kad.set_mode(Some(mode));
+}
+
+fn penalise_circuit_listener(
+    listener_id: libp2p::core::transport::ListenerId,
+    circuit_listeners: &mut HashMap<libp2p::core::transport::ListenerId, PeerId>,
+    discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
+) {
+    let Some(peer_id) = circuit_listeners.remove(&listener_id) else {
+        return;
+    };
+    if let Some(candidate) = discovered_relays.get_mut(&peer_id) {
+        candidate.failures = candidate.failures.saturating_add(1);
+        log::info!(
+            "[relay] {peer_id} dropped a reservation (failures={})",
+            candidate.failures
+        );
+    }
+}
 
 fn best_kind(
     peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
@@ -31,10 +64,11 @@ fn prune_duplicate_connections(
     swarm: &mut Swarm<KursalBehaviour>,
     peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
     peer_streams: &PeerStreams,
+    node_addrs: &[Multiaddr],
     peer_id: PeerId,
     reason: &str,
 ) {
-    if is_bootstrap_peer(&peer_id) {
+    if is_node_peer(node_addrs, &peer_id) {
         return;
     }
 
@@ -73,6 +107,10 @@ pub(super) async fn handle_swarm_event(
     peer_conns: &mut HashMap<ConnectionId, (PeerId, ConnectionKind)>,
     peer_streams: &PeerStreams,
     validated_tx: &mpsc::Sender<libp2p::kad::Record>,
+    node_addrs: &[Multiaddr],
+    discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
+    circuit_listeners: &mut HashMap<libp2p::core::transport::ListenerId, PeerId>,
+    contribution: &mut ContributionStatus,
 ) {
     match event {
         SwarmEvent::Behaviour(KursalBehaviourEvent::Kad(libp2p::kad::Event::InboundRequest {
@@ -109,6 +147,20 @@ pub(super) async fn handle_swarm_event(
                     log::warn!("[kad] GET record failed query={:?} error={:?}", id, e);
                 }
                 pending_queries.remove(&id);
+            }
+            libp2p::kad::QueryResult::GetProviders(Ok(
+                libp2p::kad::GetProvidersOk::FoundProviders { providers, .. },
+            )) => {
+                let local = *swarm.local_peer_id();
+                for provider in providers {
+                    if provider == local || discovered_relays.contains_key(&provider) {
+                        continue;
+                    }
+                    discovered_relays.insert(provider, RelayCandidate::default());
+                    log::info!("[relay] discovered relay provider {provider}");
+                    swarm.behaviour_mut().limiter.protect(provider);
+                }
+                prune_relay_candidates(discovered_relays);
             }
             libp2p::kad::QueryResult::PutRecord(Ok(_)) => {
                 log::debug!("[kad] PUT record succeeded query={:?}", id);
@@ -187,6 +239,9 @@ pub(super) async fn handle_swarm_event(
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, addr) in &peers {
                 log::debug!("[mDNS] peer expired {} at {}", peer_id, addr);
+                if mdns_peers.get(peer_id) == Some(addr) {
+                    mdns_peers.remove(peer_id);
+                }
             }
         }
 
@@ -202,6 +257,7 @@ pub(super) async fn handle_swarm_event(
                     swarm,
                     peer_conns,
                     peer_streams,
+                    node_addrs,
                     e.remote_peer_id,
                     "hole punched",
                 );
@@ -221,7 +277,86 @@ pub(super) async fn handle_swarm_event(
             }
         },
 
+        SwarmEvent::Behaviour(KursalBehaviourEvent::AutonatClient(e)) => match e.result {
+            Ok(()) => log::info!(
+                "[autonat] {} confirmed reachable by {}",
+                e.tested_addr,
+                e.server
+            ),
+            Err(err) => {
+                log::info!("[autonat] {} not reachable ({err})", e.tested_addr);
+                if contribution.reachability == Reachability::Checking {
+                    contribution.reachability = Reachability::Private;
+                    let _ = event_tx
+                        .send(NetworkEvent::ReachabilityChanged {
+                            reachability: Reachability::Private,
+                        })
+                        .await;
+                }
+            }
+        },
+
+        SwarmEvent::ExternalAddrConfirmed { address } => {
+            if is_circuit(&address) {
+                log::debug!("[reachability] ignoring confirmed circuit address {address}");
+                apply_dht_mode(swarm, has_public_address(swarm));
+                return;
+            }
+
+            log::info!("[reachability] public address confirmed: {address}");
+            apply_dht_mode(swarm, true);
+            contribution.dht_server = true;
+            contribution.relay_active = swarm.behaviour().relay_server.is_enabled();
+
+            if CONTRIBUTES && contribution.relay_active {
+                match swarm
+                    .behaviour_mut()
+                    .kad
+                    .start_providing(relay_provider_key())
+                {
+                    Ok(_) => log::info!("[relay] advertising this node as a relay provider"),
+                    Err(err) => log::warn!("[relay] could not advertise as provider: {err:?}"),
+                }
+            }
+
+            if contribution.reachability != Reachability::Public {
+                contribution.reachability = Reachability::Public;
+                let _ = event_tx
+                    .send(NetworkEvent::ReachabilityChanged {
+                        reachability: Reachability::Public,
+                    })
+                    .await;
+            }
+        }
+        SwarmEvent::ExternalAddrExpired { address } => {
+            log::info!("[reachability] external address expired: {address}");
+            if has_public_address(swarm) {
+                return;
+            }
+
+            apply_dht_mode(swarm, false);
+            swarm
+                .behaviour_mut()
+                .kad
+                .stop_providing(&relay_provider_key());
+            contribution.dht_server = false;
+
+            if contribution.reachability == Reachability::Public {
+                contribution.reachability = Reachability::Private;
+                let _ = event_tx
+                    .send(NetworkEvent::ReachabilityChanged {
+                        reachability: Reachability::Private,
+                    })
+                    .await;
+            }
+        }
+
         SwarmEvent::Behaviour(KursalBehaviourEvent::Ping(e)) => {
+            if let Ok(rtt) = e.result
+                && let Some(candidate) = discovered_relays.get_mut(&e.peer)
+            {
+                candidate.rtt = Some(rtt);
+            }
             if let Err(failure) = e.result {
                 log::info!(
                     "[ping] {} unresponsive on {:?} ({failure}) -> closing dead connection",
@@ -235,6 +370,9 @@ pub(super) async fn handle_swarm_event(
         SwarmEvent::Behaviour(KursalBehaviourEvent::Relay(
             libp2p::relay::client::Event::ReservationReqAccepted { relay_peer_id, .. },
         )) => {
+            if let Some(candidate) = discovered_relays.get_mut(&relay_peer_id) {
+                candidate.failures = 0;
+            }
             log::info!("[relay] reservation accepted by {relay_peer_id}");
         }
         SwarmEvent::Behaviour(KursalBehaviourEvent::Relay(
@@ -249,8 +387,14 @@ pub(super) async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(KursalBehaviourEvent::RelayServer(
-            libp2p::relay::Event::ReservationReqAccepted { src_peer_id, .. },
+            libp2p::relay::Event::ReservationReqAccepted {
+                src_peer_id,
+                renewed,
+            },
         )) => {
+            if !renewed {
+                contribution.reservations = contribution.reservations.saturating_add(1);
+            }
             log::info!("[relay] reservation accepted from {src_peer_id}");
         }
         SwarmEvent::Behaviour(KursalBehaviourEvent::RelayServer(
@@ -259,12 +403,20 @@ pub(super) async fn handle_swarm_event(
                 dst_peer_id,
             },
         )) => {
+            contribution.circuits = contribution.circuits.saturating_add(1);
             log::info!("[relay] circuit established: {src_peer_id} -> {dst_peer_id}");
         }
         SwarmEvent::Behaviour(KursalBehaviourEvent::RelayServer(
-            libp2p::relay::Event::ReservationTimedOut { src_peer_id },
+            libp2p::relay::Event::CircuitClosed { .. },
         )) => {
-            log::info!("[relay] reservation timed out for {src_peer_id}");
+            contribution.circuits = contribution.circuits.saturating_sub(1);
+        }
+        SwarmEvent::Behaviour(KursalBehaviourEvent::RelayServer(
+            libp2p::relay::Event::ReservationTimedOut { src_peer_id }
+            | libp2p::relay::Event::ReservationClosed { src_peer_id },
+        )) => {
+            contribution.reservations = contribution.reservations.saturating_sub(1);
+            log::info!("[relay] reservation ended for {src_peer_id}");
         }
         SwarmEvent::Behaviour(KursalBehaviourEvent::RelayServer(
             libp2p::relay::Event::CircuitReqDenied {
@@ -298,26 +450,43 @@ pub(super) async fn handle_swarm_event(
             };
 
             peer_conns.insert(connection_id, (peer_id, kind));
+            if let Some(candidate) = discovered_relays.get_mut(&peer_id) {
+                candidate.failures = 0;
+            }
             log::info!(
                 "[conn] established peer={peer_id} kind={kind:?} conn={connection_id:?} relayed={is_relayed_check} addr={}",
                 endpoint.get_remote_address()
             );
 
-            if kind == ConnectionKind::Direct && is_bootstrap_peer(&peer_id) {
-                let circuit_addr = endpoint
-                    .get_remote_address()
-                    .clone()
-                    .with(Protocol::P2pCircuit);
-                let _ = swarm.listen_on(circuit_addr);
+            if kind == ConnectionKind::Direct {
+                let is_node = is_node_peer(node_addrs, &peer_id);
+                let is_discovered = discovered_relays.contains_key(&peer_id);
+                let under_cap = reserved_relay_count(listen_addresses) < MAX_RELAY_RESERVATIONS;
 
-                log::info!("[kad] Bootstrapping Kademlia with relay");
-                let _ = swarm.behaviour_mut().kad.bootstrap();
+                if is_node || (is_discovered && under_cap) {
+                    let circuit_addr = endpoint
+                        .get_remote_address()
+                        .clone()
+                        .with(Protocol::P2pCircuit);
+                    match swarm.listen_on(circuit_addr) {
+                        Ok(listener_id) => {
+                            circuit_listeners.insert(listener_id, peer_id);
+                        }
+                        Err(err) => log::debug!("[relay] circuit listen failed: {err:?}"),
+                    }
+                }
+
+                if is_node {
+                    log::info!("[kad] Bootstrapping Kademlia with relay");
+                    let _ = swarm.behaviour_mut().kad.bootstrap();
+                }
             }
 
             prune_duplicate_connections(
                 swarm,
                 peer_conns,
                 peer_streams,
+                node_addrs,
                 peer_id,
                 "better path available",
             );
@@ -396,11 +565,20 @@ pub(super) async fn handle_swarm_event(
             log::info!("[swarm] expired listening on {}", address);
             listen_addresses.remove(&address);
         }
-        SwarmEvent::ListenerClosed { addresses, .. } => {
+        SwarmEvent::ListenerClosed {
+            listener_id,
+            addresses,
+            ..
+        } => {
             for address in &addresses {
                 listen_addresses.remove(address);
             }
+            penalise_circuit_listener(listener_id, circuit_listeners, discovered_relays);
             log::info!("[swarm] listener closed ({} addrs)", addresses.len());
+        }
+        SwarmEvent::ListenerError { listener_id, error } => {
+            log::debug!("[swarm] listener error: {error}");
+            penalise_circuit_listener(listener_id, circuit_listeners, discovered_relays);
         }
 
         SwarmEvent::Dialing {
@@ -433,6 +611,12 @@ pub(super) async fn handle_swarm_event(
                 log::info!("[swarm] dial failed peer={peer} error={summary}");
             } else {
                 log::debug!("[swarm] dial failed peer={peer} error={summary}");
+            }
+
+            if let Some(peer_id) = peer_id
+                && let Some(candidate) = discovered_relays.get_mut(&peer_id)
+            {
+                candidate.failures = candidate.failures.saturating_add(1);
             }
 
             if let Some(peer_id) = peer_id.or(intended)

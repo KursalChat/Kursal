@@ -47,7 +47,7 @@
   }
   .card-title {
     margin: 0 0 3px;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -55,7 +55,7 @@
   }
   .card-desc {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: 1.5;
   }

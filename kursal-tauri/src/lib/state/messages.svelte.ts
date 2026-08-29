@@ -18,8 +18,9 @@ import {
   setContactMarkedUnread,
   setDelayedUnseen,
 } from '$lib/api/conversation';
-import { clearNotificationsFor } from '$lib/api/system-notify';
-import { insertInSentOrder } from './delayedStore';
+import { clearNotificationsFor } from '$lib/state/systemNotify.svelte';
+import { insertInSentOrder } from '$lib/utils/messageOrder';
+import { debounceKeyed, cancelKeyed, type TimerMap } from '$lib/utils/timers';
 
 const SEND_TIMEOUT_MS = 15_000;
 const READ_COMMIT_DEBOUNCE_MS = 400;
@@ -79,37 +80,19 @@ function createMessagesState() {
   // cleared once the message is scrolled into view.
   let delayedUnseen = $state<Record<string, string[]>>({});
 
-  type TimerMap = Map<string, ReturnType<typeof setTimeout>>;
   const readTimers: TimerMap = new Map();
   const delayedTimers: TimerMap = new Map();
-
-  function debounceFor(timers: TimerMap, contactId: string, ms: number, run: () => void) {
-    clearTimeout(timers.get(contactId));
-    timers.set(
-      contactId,
-      setTimeout(() => {
-        timers.delete(contactId);
-        run();
-      }, ms)
-    );
-  }
 
   // A pending timer outlives the contact it belongs to and would write state
   // back after the core already dropped it.
   function cancelTimers(contactId?: string) {
     for (const timers of [readTimers, delayedTimers]) {
-      if (contactId === undefined) {
-        timers.forEach(clearTimeout);
-        timers.clear();
-        continue;
-      }
-      clearTimeout(timers.get(contactId));
-      timers.delete(contactId);
+      cancelKeyed(timers, contactId);
     }
   }
 
   function persistDelayed(contactId: string) {
-    debounceFor(delayedTimers, contactId, DELAYED_PERSIST_DEBOUNCE_MS, () => {
+    debounceKeyed(delayedTimers, contactId, DELAYED_PERSIST_DEBOUNCE_MS, () => {
       void setDelayedUnseen(contactId, delayedUnseen[contactId] ?? []).catch((e) =>
         log.error('Failed to persist delayed-unseen for', contactId, e)
       );
@@ -397,6 +380,28 @@ function createMessagesState() {
     consumePendingQueued(cid, msg.id);
   }
 
+  // Appends a "sending" text message under a temporary id, which `replaceId`
+  // swaps for the backend's once the send resolves. Returns that temp id.
+  function appendPendingText(
+    contactId: string,
+    content: string,
+    replyTo: string | null = null
+  ): string {
+    const pendingId = crypto.randomUUID().replace(/-/g, '');
+    const now = Date.now();
+    appendOptimistic({
+      id: pendingId,
+      contactId,
+      direction: 'sent',
+      content,
+      status: 'sending',
+      timestamp: now,
+      receivedTimestamp: now,
+      replyTo,
+    });
+    return pendingId;
+  }
+
   function appendOptimistic(msg: MessageResponse) {
     if (!map[msg.contactId]) map[msg.contactId] = [];
     map[msg.contactId].push(msg);
@@ -615,7 +620,7 @@ function createMessagesState() {
   }
 
   function commitRead(contactId: string) {
-    debounceFor(readTimers, contactId, READ_COMMIT_DEBOUNCE_MS, () => {
+    debounceKeyed(readTimers, contactId, READ_COMMIT_DEBOUNCE_MS, () => {
       void markContactRead(contactId)
         .then((ids) => {
           if (ids.length) return sendReadReceipts(contactId, ids);
@@ -956,6 +961,7 @@ function createMessagesState() {
     isNewestReached,
     append,
     appendOptimistic,
+    appendPendingText,
     queuedFor,
     pendingUploadFor,
     inMailboxFor,

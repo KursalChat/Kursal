@@ -192,8 +192,14 @@
     }
   }
 
+  let pressedBackdrop = false;
+
+  function handleBackdropPress(e: PointerEvent) {
+    pressedBackdrop = e.target === e.currentTarget;
+  }
+
   function handleBackdrop(e: MouseEvent) {
-    if (e.target === e.currentTarget && !processing) onCancel();
+    if (pressedBackdrop && e.target === e.currentTarget && !processing) onCancel();
   }
 
   function portal(node: HTMLElement) {
@@ -210,6 +216,7 @@
   class="backdrop"
   use:portal
   role="presentation"
+  onpointerdown={handleBackdropPress}
   onclick={handleBackdrop}
   onkeydown={(e) => {
     if (e.key === 'Escape' && !processing) onCancel();
@@ -313,33 +320,25 @@
     margin-bottom: 4px;
   }
   h2 {
-    font-size: 15px;
+    font-size: var(--text-md);
     font-weight: 600;
     margin: 0;
   }
   .hint {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     margin: 0 0 14px;
   }
   .icon-btn {
     width: 28px;
     height: 28px;
-    border-radius: var(--radius-md);
-    background: transparent;
     border: 1px solid transparent;
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition:
-      background var(--transition),
-      color var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .viewport {
     position: relative;
@@ -348,7 +347,18 @@
     margin: 0 auto;
     border-radius: 50%;
     overflow: hidden;
-    background: #000;
+    background-color: var(--bg-tertiary);
+    background-image:
+      linear-gradient(45deg, var(--border) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--border) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--border) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--border) 75%);
+    background-size: 16px 16px;
+    background-position:
+      0 0,
+      0 8px,
+      8px -8px,
+      -8px 0;
     cursor: grab;
     touch-action: none;
     user-select: none;
@@ -380,6 +390,13 @@
   .zoom input[type='range'] {
     flex: 1;
     accent-color: var(--accent-solid);
+    cursor: pointer;
+  }
+  .zoom input[type='range']::-webkit-slider-thumb {
+    cursor: grab;
+  }
+  .zoom input[type='range']:active::-webkit-slider-thumb {
+    cursor: grabbing;
   }
   .actions {
     display: flex;

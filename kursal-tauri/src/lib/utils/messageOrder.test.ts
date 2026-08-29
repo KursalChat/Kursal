@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { insertInSentOrder } from './delayedStore';
+import { insertInSentOrder } from './messageOrder';
 
 const m = (id: string, ts: number) => ({ id, timestamp: ts }) as never;
 

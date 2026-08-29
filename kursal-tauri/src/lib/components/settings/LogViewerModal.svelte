@@ -1,12 +1,11 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { scale } from 'svelte/transition';
   import { Copy, Check, RotateCw, ScrollText } from 'lucide-svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { copyText } from '$lib/utils/clipboard';
   import { listLogFiles, readLogTail, type LogFile } from '$lib/api/logs';
-  import { trapFocus } from '$lib/utils/focusTrap';
   import { notifyError } from '$lib/utils/errors';
   import { flash } from '$lib/utils/flash.svelte';
+  import Modal from '$lib/components/Modal.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
   import Button from '$lib/components/Button.svelte';
   import { t } from '$lib/i18n';
@@ -62,138 +61,94 @@
 
   async function copyAll() {
     if (!text) return;
-    try {
-      await writeText(text);
-      copied.trigger();
-    } catch (e) {
-      notifyError(e);
-    }
+    await copyText(text, { flash: copied });
   }
 
   onMount(loadAll);
 </script>
 
-<div
-  class="backdrop"
-  role="presentation"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onClose();
-  }}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onClose();
-  }}
+<Modal
+  title={t('settings.storage.logViewer.title')}
+  {onClose}
+  width={720}
+  height="min(640px, 80vh, calc(100% - 32px))"
 >
-  <div
-    class="modal"
-    in:scale={{ duration: 220, start: 0.94, opacity: 0 }}
-    out:scale={{ duration: 160, start: 0.94, opacity: 0 }}
-    role="dialog"
-    aria-modal="true"
-    aria-label={t('settings.storage.logViewer.title')}
-    tabindex="-1"
-    use:trapFocus
-  >
-    <h2><ScrollText size={18} /> {t('settings.storage.logViewer.title')}</h2>
+  <h2><ScrollText size={18} /> {t('settings.storage.logViewer.title')}</h2>
 
-    <label class="file-picker" class:hidden={files.length < 2}>
-      <span>{t('settings.storage.logViewer.fileLabel')}</span>
-      <select
-        value={selected}
-        disabled={loading}
-        onchange={(e) => {
-          selected = e.currentTarget.value;
-          void loadFile(selected);
-        }}
-      >
-        {#each files as file (file.path)}
-          <option value={file.path}>{file.name}</option>
-        {/each}
-      </select>
-    </label>
+  <label class="file-picker" class:hidden={files.length < 2}>
+    <span>{t('settings.storage.logViewer.fileLabel')}</span>
+    <select
+      value={selected}
+      disabled={loading}
+      onchange={(e) => {
+        selected = e.currentTarget.value;
+        void loadFile(selected);
+      }}
+    >
+      {#each files as file (file.path)}
+        <option value={file.path}>{file.name}</option>
+      {/each}
+    </select>
+  </label>
 
-    <!-- The pre stays mounted so refreshing swaps text under a fixed frame. -->
-    <div class="log-wrap">
-      <pre class="log-body selectable" bind:this={bodyEl}>{text}</pre>
-      {#if loading || !text}
-        <div class="log-overlay">
-          {#if loading}
-            <Spinner />
-          {:else}
-            <span class="muted">
-              {#if !files.length}
-                {t('settings.storage.logViewer.noFiles')}
-              {:else if failed}
-                {t('settings.storage.logViewer.errorLoad')}
-              {:else}
-                {t('settings.storage.logViewer.empty')}
-              {/if}
-            </span>
-          {/if}
-        </div>
-      {/if}
-    </div>
-
-    <span class="notice">
-      {truncated && !loading ? t('settings.storage.logViewer.truncated') : ''}
-    </span>
-
-    <div class="actions">
-      <Button variant="secondary" onclick={loadAll} disabled={loading}>
-        <RotateCw size={13} />
-        {t('settings.storage.logViewer.refresh')}
-      </Button>
-      <Button variant="secondary" onclick={copyAll} disabled={loading || !text}>
-        {#if copied.active}
-          <Check size={13} />
-          {t('common.copied')}
+  <!-- The pre stays mounted so refreshing swaps text under a fixed frame. -->
+  <div class="log-wrap">
+    <pre class="log-body selectable" bind:this={bodyEl}>{text}</pre>
+    {#if loading || !text}
+      <div class="log-overlay">
+        {#if loading}
+          <Spinner />
         {:else}
-          <Copy size={13} />
-          {t('common.copy')}
+          <span class="muted">
+            {#if !files.length}
+              {t('settings.storage.logViewer.noFiles')}
+            {:else if failed}
+              {t('settings.storage.logViewer.errorLoad')}
+            {:else}
+              {t('settings.storage.logViewer.empty')}
+            {/if}
+          </span>
         {/if}
-      </Button>
-    </div>
-    <button class="link" onclick={onClose}>{t('common.close')}</button>
+      </div>
+    {/if}
   </div>
-</div>
+
+  <span class="notice">
+    {truncated && !loading ? t('settings.storage.logViewer.truncated') : ''}
+  </span>
+
+  <div class="actions">
+    <Button variant="secondary" onclick={loadAll} disabled={loading}>
+      <RotateCw size={13} />
+      {t('settings.storage.logViewer.refresh')}
+    </Button>
+    <Button variant="secondary" onclick={copyAll} disabled={loading || !text}>
+      {#if copied.active}
+        <Check size={13} />
+        {t('common.copied')}
+      {:else}
+        <Copy size={13} />
+        {t('common.copy')}
+      {/if}
+    </Button>
+  </div>
+  <button class="link" onclick={onClose}>{t('common.close')}</button>
+</Modal>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom))
-      max(16px, var(--safe-left));
-  }
-  .modal {
-    background: var(--bg-secondary, var(--surface));
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg, 16px);
-    padding: 22px;
-    width: 100%;
-    max-width: 720px;
-    height: min(640px, 80vh, calc(100% - 32px));
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
-  }
   h2 {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 0;
-    font-size: 16px;
+    font-size: var(--text-md);
     color: var(--text-primary);
   }
   .file-picker {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
   }
   /* Kept in the layout so a second log file appearing doesn't shift the pane. */
@@ -245,7 +200,7 @@
   }
   .muted {
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .notice {
     font-size: 11.5px;
@@ -260,11 +215,13 @@
   .link {
     background: none;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--text-sm);
     align-self: center;
     padding: 4px 8px;
   }
-  .link:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .link:hover {
+      color: var(--text-primary);
+    }
   }
 </style>

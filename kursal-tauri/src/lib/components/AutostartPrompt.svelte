@@ -5,6 +5,7 @@
   import { notifications } from '$lib/state/notifications.svelte';
   import { notifyError } from '$lib/utils/errors';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
+  import { readRaw } from '$lib/utils/storage';
   import { OS } from '$lib/api/window';
 
   const TOUR_KEY = 'kursal_addcontact_onboarded';
@@ -18,7 +19,7 @@
     if (winstonTips.hasSeen('autostart')) return;
     // Wait until the contacts tour was completed in a previous session so
     // first-run prompts don't stack.
-    if (localStorage.getItem(TOUR_KEY) !== 'done') return;
+    if (readRaw(TOUR_KEY) !== 'done') return;
     if (OS === 'android' || OS === 'ios') return;
 
     let enable: () => Promise<void>;

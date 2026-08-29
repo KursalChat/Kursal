@@ -36,9 +36,9 @@ mod helpers;
 pub use behaviour::{KursalBehaviour, KursalBehaviourEvent};
 pub use codec::KursalMsgCodec;
 pub use helpers::{
-    get_all_listen_addrs, get_connected_peer_count, get_connected_peers, get_listen_addrs,
-    get_peer_connection_kinds, is_peer_connected, is_routable_multiaddr, open_peer_stream,
-    str_to_multiaddr,
+    any_public_address, get_all_listen_addrs, get_connected_peer_count, get_connected_peers,
+    get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_peer_connected,
+    is_routable_multiaddr, open_peer_stream, str_to_multiaddr,
 };
 
 use commands::handle_swarm_command;
@@ -49,6 +49,63 @@ pub const CALL_PROTOCOL: StreamProtocol = StreamProtocol::new("/kursal/call/1.0.
 pub const VIDEO_PROTOCOL: StreamProtocol = StreamProtocol::new("/kursal/call-video/1.0.0");
 pub const MAX_MESSAGE_SIZE: usize = 512 * 1024; // 512 KB, should LARGE be enough
 pub const FILE_CHUNK_SIZE: usize = 256 * 1024;
+
+pub const CONTRIBUTES: bool = !cfg!(any(target_os = "android", target_os = "ios"));
+
+pub const MAX_RELAY_RESERVATIONS: usize = 3;
+pub const MAX_RELAY_CANDIDATES: usize = 64;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RelayCandidate {
+    pub rtt: Option<Duration>,
+    pub failures: u32,
+}
+
+impl RelayCandidate {
+    pub fn decay(&mut self) {
+        self.failures /= 2;
+    }
+
+    pub fn rank(&self) -> (u32, Duration) {
+        (self.failures, self.rtt.unwrap_or(Duration::MAX))
+    }
+}
+
+pub fn best_relay_candidates(
+    candidates: &HashMap<PeerId, RelayCandidate>,
+    limit: usize,
+) -> Vec<PeerId> {
+    let mut ranked: Vec<(PeerId, RelayCandidate)> =
+        candidates.iter().map(|(p, c)| (*p, *c)).collect();
+    ranked.sort_by_key(|(peer, candidate)| (candidate.rank(), peer.to_bytes()));
+    ranked
+        .into_iter()
+        .take(limit)
+        .map(|(peer, _)| peer)
+        .collect()
+}
+
+pub fn prune_relay_candidates(candidates: &mut HashMap<PeerId, RelayCandidate>) {
+    if candidates.len() <= MAX_RELAY_CANDIDATES {
+        return;
+    }
+    let keep: HashSet<PeerId> = best_relay_candidates(candidates, MAX_RELAY_CANDIDATES)
+        .into_iter()
+        .collect();
+    candidates.retain(|peer, _| keep.contains(peer));
+}
+
+pub fn relay_provider_key() -> libp2p::kad::RecordKey {
+    use sha2::{Digest, Sha256};
+    libp2p::kad::RecordKey::new(&Sha256::digest(b"kursal/relay/1").to_vec())
+}
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CONTRIB_MAX_CIRCUITS: usize = 64;
+const CONTRIB_MAX_CIRCUITS_PER_PEER: usize = 4;
+const CONTRIB_MAX_RESERVATIONS: usize = 32;
+const CONTRIB_MAX_CIRCUIT_DURATION: Duration = Duration::from_secs(10 * 60);
+const CONTRIB_MAX_CIRCUIT_BYTES: u64 = 64 * 1024 * 1024;
 
 pub struct StreamWrite {
     pub data: Vec<u8>,
@@ -138,6 +195,10 @@ pub enum SwarmCommand {
     GetPeerConnectionKinds {
         reply_tx: oneshot::Sender<HashMap<PeerId, ConnectionKind>>,
     },
+    GetContribution {
+        reply_tx: oneshot::Sender<ContributionStatus>,
+    },
+    DiscoverRelays,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -151,10 +212,26 @@ impl ConnectionKind {
     pub fn rank(self) -> u8 {
         match self {
             ConnectionKind::Relay => 0,
-            ConnectionKind::Direct => 1,
-            ConnectionKind::HolePunch => 2,
+            ConnectionKind::HolePunch => 1,
+            ConnectionKind::Direct => 2,
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Reachability {
+    Checking,
+    Private,
+    Public,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ContributionStatus {
+    pub reachability: Reachability,
+    pub dht_server: bool,
+    pub relay_active: bool,
+    pub reservations: usize,
+    pub circuits: usize,
 }
 
 pub enum NetworkEvent {
@@ -193,6 +270,9 @@ pub enum NetworkEvent {
     },
     SendFailed {
         peer_id: PeerId,
+    },
+    ReachabilityChanged {
+        reachability: Reachability,
     },
 }
 
@@ -260,12 +340,11 @@ impl SwarmHandle {
                 kad_config.set_record_filtering(libp2p::kad::StoreInserts::FilterBoth);
                 kad_config.set_record_ttl(Some(Duration::from_secs(3 * 7 * 24 * 60 * 60))); // 3 weeks
 
-                let mut kad = libp2p::kad::Behaviour::with_config(
+                let kad = libp2p::kad::Behaviour::with_config(
                     local_peer_id,
                     KursalKadStore::new(local_peer_id),
                     kad_config,
                 );
-                kad.set_mode(Some(libp2p::kad::Mode::Client));
 
                 #[cfg(not(target_os = "ios"))]
                 let mdns = if mdns_enabled {
@@ -288,16 +367,17 @@ impl SwarmHandle {
 
                 let request_response = request_response::Behaviour::new(
                     [(StreamProtocol::new("/kursal/msg/1.0.0"), ProtocolSupport::Full)],
-                    request_response::Config::default(),
+                    request_response::Config::default()
+                        .with_request_timeout(REQUEST_TIMEOUT),
                 );
 
-                let relay_server = if relay_config.enabled {
+                let relay_server = if CONTRIBUTES {
                     Toggle::from(Some(libp2p::relay::Behaviour::new(local_peer_id, libp2p::relay::Config {
-                        max_circuits: 1024,
-                        max_circuits_per_peer: 32,
-                        max_reservations: 1024,
-                        max_circuit_duration: Duration::from_secs(24 * 60 * 60),
-                        max_circuit_bytes: u64::MAX,
+                        max_circuits: CONTRIB_MAX_CIRCUITS,
+                        max_circuits_per_peer: CONTRIB_MAX_CIRCUITS_PER_PEER,
+                        max_reservations: CONTRIB_MAX_RESERVATIONS,
+                        max_circuit_duration: CONTRIB_MAX_CIRCUIT_DURATION,
+                        max_circuit_bytes: CONTRIB_MAX_CIRCUIT_BYTES,
                         reservation_rate_limiters: Vec::new(),
                         circuit_src_rate_limiters: Vec::new(),
                         ..Default::default()
@@ -306,9 +386,17 @@ impl SwarmHandle {
                     Toggle::from(None)
                 };
 
+                let autonat_client = libp2p::autonat::v2::client::Behaviour::default();
+
+                let autonat_server = if CONTRIBUTES {
+                    Toggle::from(Some(libp2p::autonat::v2::server::Behaviour::default()))
+                } else {
+                    Toggle::from(None)
+                };
+
                 let streaming = libp2p_stream::Behaviour::new();
 
-                let limiter = if relay_config.enabled {
+                let limiter = if CONTRIBUTES {
                     ConnectionLimiter::new(
                         relay_config.max_connections,
                         relay_config.max_connections_per_ip,
@@ -328,6 +416,8 @@ impl SwarmHandle {
                     relay,
                     relay_server,
                     dcutr,
+                    autonat_client,
+                    autonat_server,
                     kad,
                     #[cfg(not(target_os = "ios"))]
                     mdns,
@@ -419,11 +509,23 @@ impl SwarmHandle {
             let mut nearby_enabled = false;
             let mut mdns_peers: HashMap<PeerId, Multiaddr> = HashMap::new();
             let mut peer_conns: HashMap<ConnectionId, (PeerId, ConnectionKind)> = HashMap::new();
+            let mut discovered_relays: HashMap<PeerId, RelayCandidate> = HashMap::new();
+            let mut circuit_listeners: HashMap<libp2p::core::transport::ListenerId, PeerId> =
+                HashMap::new();
+            let mut contribution = ContributionStatus {
+                reachability: Reachability::Checking,
+                dht_server: false,
+                relay_active: false,
+                reservations: 0,
+                circuits: 0,
+            };
 
             let mut stream_control = swarm.behaviour().streaming.new_control();
             let peer_streams: PeerStreams = Arc::new(Mutex::new(HashMap::new()));
             let (validated_tx, mut validated_rx) =
                 mpsc::channel::<libp2p::kad::Record>(KAD_VALIDATED_QUEUE);
+
+            let mut node_addrs: Vec<Multiaddr> = bootstrap_peers();
 
             for multiaddr in bootstrap_peers() {
                 if let Some(Protocol::P2p(peer_id)) = multiaddr.iter().last() {
@@ -442,7 +544,7 @@ impl SwarmHandle {
 
             loop {
                 tokio::select! {
-                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &peer_streams, &validated_tx).await,
+                    event = swarm.select_next_some() => handle_swarm_event(event, &event_tx, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut swarm, nearby_enabled, &mut mdns_peers, &mut peer_conns, &peer_streams, &validated_tx, &node_addrs, &mut discovered_relays, &mut circuit_listeners, &mut contribution).await,
                     Some(record) = validated_rx.recv() => {
                         if let Err(err) = swarm.behaviour_mut().kad.store_mut().put(record) {
                             log::debug!("[kad] validated record not stored: {err:?}");
@@ -459,7 +561,7 @@ impl SwarmHandle {
 
                                 log::info!("Nearby enabled ({} known mdns peers)", mdns_peers.len());
                             },
-                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns).await,
+                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns, &mut node_addrs, &mut discovered_relays, &contribution).await,
                             None => break
                         }
                     }

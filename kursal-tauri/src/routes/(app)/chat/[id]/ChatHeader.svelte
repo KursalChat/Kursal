@@ -118,9 +118,11 @@
     transition: background var(--transition);
     -webkit-app-region: no-drag;
   }
-  .menu-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .menu-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .menu-btn:active {
     background: var(--bg-hover);
@@ -146,8 +148,10 @@
     max-width: min(320px, 60vw);
     -webkit-app-region: no-drag;
   }
-  .header-profile:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    .header-profile:hover {
+      background: var(--bg-hover);
+    }
   }
   .header-info {
     display: flex;
@@ -221,18 +225,12 @@
   .icon-btn {
     width: 36px;
     height: 36px;
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-      background var(--transition),
-      color var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .icon-btn:active {
     transform: scale(0.95);
@@ -248,8 +246,10 @@
     justify-content: center;
     transition: background var(--transition);
   }
-  .verify-btn:hover {
-    background: rgba(251, 191, 36, 0.22);
+  @media (hover: hover) {
+    .verify-btn:hover {
+      background: rgba(251, 191, 36, 0.22);
+    }
   }
   .verify-btn:active {
     transform: scale(0.95);

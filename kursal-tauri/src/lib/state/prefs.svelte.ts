@@ -1,5 +1,7 @@
 import { browser } from '$app/environment';
 import { setNotificationPreviewCore, setNotificationDndCore } from '$lib/api/settings';
+import { readJson, writeJson } from '$lib/utils/storage';
+import { APP_LOCK_KEY } from '$lib/utils/storage-keys';
 
 export type NotificationPreview = 'content' | 'sender' | 'generic' | 'none';
 
@@ -21,25 +23,9 @@ export interface DndSchedule {
 const KEYS = {
   preview: 'kursal_notif_preview',
   dnd: 'kursal_notif_dnd',
-  appLock: 'kursal_app_lock_biometric',
+  appLock: APP_LOCK_KEY,
   mirrorSelfView: 'kursal_mirror_self_view',
 };
-
-function readJson<T>(key: string, fallback: T): T {
-  if (!browser) return fallback;
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson<T>(key: string, value: T) {
-  if (!browser) return;
-  localStorage.setItem(key, JSON.stringify(value));
-}
 
 function createPrefsState() {
   let notificationPreview = $state<NotificationPreview>('content');

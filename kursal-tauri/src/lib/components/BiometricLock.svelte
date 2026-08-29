@@ -101,7 +101,7 @@
   }
   .err {
     color: #fda4af;
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .auth-btn {
     margin-top: 12px;

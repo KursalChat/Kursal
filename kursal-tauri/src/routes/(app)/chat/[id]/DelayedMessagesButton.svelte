@@ -38,8 +38,10 @@
     z-index: 5;
     animation: slideDown 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  .delayed-jump:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .delayed-jump:hover {
+      background: var(--accent-hover);
+    }
   }
 
   @keyframes slideDown {

@@ -9,7 +9,6 @@ export interface AppLockConfig {
 }
 
 export interface RelayConfig {
-  enabled: boolean;
   maxConnections: number;
   maxConnectionsPerIp: number;
 }
@@ -77,9 +76,6 @@ export const getReadReceiptsEnabled = (): Promise<boolean> => invoke('get_read_r
 export const setReadReceiptsEnabled = (enabled: boolean): Promise<void> =>
   invoke('set_read_receipts_enabled', { value: enabled });
 
-export const listBlockedContacts = (): Promise<import('$lib/types').ContactResponse[]> =>
-  invoke('list_blocked_contacts');
-
 export const clearMessageHistory = (contactId: string | null): Promise<void> =>
   invoke('clear_message_history', { contactId });
 export const deleteAllLocalData = (): Promise<void> => invoke('delete_all_local_data');
@@ -99,10 +95,18 @@ export const removeCustomNode = (addr: string): Promise<void> =>
   invoke('remove_custom_node', { addr });
 export const dialAddress = (addr: string): Promise<void> => invoke('dial_address', { addr });
 
+export type Reachability = 'checking' | 'private' | 'public';
+
 export interface NetworkStatus {
   peerCount: number;
   connectedPeers: string[];
   listenAddresses: string[];
+  reachability: Reachability;
+  dhtServer: boolean;
+  relayActive: boolean;
+  reservations: number;
+  circuits: number;
+  port: number;
 }
 export const getNetworkStatus = (): Promise<NetworkStatus> => invoke('get_network_status');
 

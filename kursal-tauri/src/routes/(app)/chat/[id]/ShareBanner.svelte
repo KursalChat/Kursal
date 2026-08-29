@@ -38,7 +38,7 @@
     gap: 10px;
     padding: 10px max(16px, var(--safe-right)) 10px max(16px, var(--safe-left));
     background: var(--accent-dim);
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     flex-shrink: 0;
     animation: share-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -61,7 +61,7 @@
   .banner-btn {
     padding: 6px 12px;
     border-radius: var(--radius-sm);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-secondary);
     transition: all var(--transition);
@@ -76,9 +76,11 @@
     align-items: center;
     justify-content: center;
   }
-  .banner-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .banner-btn:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .banner-btn:disabled {
     opacity: 0.6;
@@ -88,7 +90,9 @@
     background: var(--accent);
     color: #fff;
   }
-  .banner-btn.primary:hover {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .banner-btn.primary:hover {
+      background: var(--accent-hover);
+    }
   }
 </style>

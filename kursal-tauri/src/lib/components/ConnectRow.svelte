@@ -90,8 +90,10 @@
     transition: background var(--transition);
   }
 
-  button.row-head:hover {
-    background: var(--bg-hover);
+  @media (hover: hover) {
+    button.row-head:hover {
+      background: var(--bg-hover);
+    }
   }
 
   .row-head > :global(svg:first-child) {
@@ -108,20 +110,20 @@
   }
 
   .row-text strong {
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     color: var(--text-primary);
   }
 
   .row-text span {
-    font-size: 12px;
+    font-size: var(--text-xs);
     line-height: 1.4;
     color: var(--text-muted);
   }
 
   .row-status {
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--text-secondary);

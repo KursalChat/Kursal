@@ -82,9 +82,13 @@
     border-radius: var(--radius-sm);
     text-align: left;
   }
-  .sc-row.sel,
-  .sc-row:hover {
+  .sc-row.sel {
     background: var(--bg-hover);
+  }
+  @media (hover: hover) {
+    .sc-row:hover {
+      background: var(--bg-hover);
+    }
   }
   .sc-em {
     font-size: 18px;

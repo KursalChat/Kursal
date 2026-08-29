@@ -7,6 +7,7 @@
     visible?: boolean;
     floatDelay?: number;
     src?: string;
+    says?: string | null;
   };
 
   let {
@@ -15,6 +16,7 @@
     visible = true,
     floatDelay = 0,
     src = '/winston.webp',
+    says = null,
   }: Props = $props();
 
   let wrap = $state<HTMLDivElement>();
@@ -49,6 +51,10 @@
     speechTimer = setTimeout(() => (speech = null), ms);
   }
 
+  const styleVars = $derived(
+    `--size: ${size}px; --px: ${parallaxX}px; --py: ${parallaxY}px; --float-delay: ${floatDelay}ms;`
+  );
+
   function onPoke() {
     if (!interactive) return;
     wiggling = false;
@@ -63,32 +69,40 @@
 
 <svelte:window onmousemove={onMove} />
 
-<div
-  bind:this={wrap}
-  class="winston"
-  class:interactive
-  class:hidden={!visible}
-  class:wiggling
-  style="--size: {size}px; --px: {parallaxX}px; --py: {parallaxY}px; --float-delay: {floatDelay}ms;"
-  onmouseleave={onLeave}
-  onclick={onPoke}
-  onanimationend={(e) => {
-    if ((e as AnimationEvent).animationName.includes('wiggle')) wiggling = false;
-  }}
-  role="button"
-  tabindex="0"
-  onkeydown={(e) => e.key === 'Enter' && onPoke()}
-  aria-label="Winston"
->
+{#snippet body()}
   <div class="glow"></div>
   <div class="inner">
-    <img {src} alt="Winston" draggable="false" />
+    <img {src} alt="" draggable="false" />
+    {#if speech ?? says}
+      <div class="speech">{speech ?? says}</div>
+    {/if}
   </div>
+{/snippet}
 
-  {#if speech}
-    <div class="speech">{speech}</div>
-  {/if}
-</div>
+{#if interactive}
+  <div
+    bind:this={wrap}
+    class="winston interactive"
+    class:hidden={!visible}
+    class:wiggling
+    style={styleVars}
+    onmouseleave={onLeave}
+    onclick={onPoke}
+    onanimationend={(e) => {
+      if ((e as AnimationEvent).animationName.includes('wiggle')) wiggling = false;
+    }}
+    onkeydown={(e) => e.key === 'Enter' && onPoke()}
+    role="button"
+    tabindex="0"
+    aria-label="Winston"
+  >
+    {@render body()}
+  </div>
+{:else}
+  <div class="winston" class:hidden={!visible} style={styleVars} aria-hidden="true">
+    {@render body()}
+  </div>
+{/if}
 
 <style>
   .winston {
@@ -120,6 +134,7 @@
   }
 
   .inner {
+    position: relative;
     width: 100%;
     height: 100%;
     animation: float 5s ease-in-out var(--float-delay, 0ms) infinite;
@@ -132,29 +147,26 @@
       wiggle 550ms ease-in-out;
   }
 
-  .winston.interactive:hover .inner {
-    transform: scale(1.04);
+  @media (hover: hover) {
+    .winston.interactive:hover .inner {
+      transform: scale(1.04);
+    }
   }
 
   .winston img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    filter: drop-shadow(0 0 12px rgba(46, 91, 215, 0.28));
     user-select: none;
     -webkit-user-drag: none;
-    transition: filter 500ms ease;
-  }
-
-  .winston.interactive:hover img {
-    filter: drop-shadow(0 0 18px rgba(123, 163, 247, 0.38));
   }
 
   .glow {
     position: absolute;
-    inset: 12%;
-    background: radial-gradient(circle, rgba(46, 91, 215, 0.22) 0%, rgba(46, 91, 215, 0) 70%);
-    filter: blur(24px);
+    inset: 14%;
+    background: color-mix(in srgb, var(--ob-accent, #4d8dff) 16%, transparent);
+    border-radius: 50%;
+    filter: blur(26px);
     z-index: -1;
     animation: pulse 5s ease-in-out infinite;
     pointer-events: none;
@@ -162,29 +174,41 @@
 
   .speech {
     position: absolute;
-    bottom: calc(100% + 14px);
+    bottom: calc(100% + 12px);
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(20, 26, 50, 0.95);
-    border: 1px solid rgba(123, 163, 247, 0.35);
-    color: #e8eeff;
-    padding: 8px 14px;
-    border-radius: var(--radius-md);
-    font-size: 13px;
+    background: var(--ob-fill, #eef2f8);
+    border: 2.5px solid var(--ob-ink, #0d1017);
+    color: var(--ob-ink, #0d1017);
+    padding: 7px 13px;
+    border-radius: 12px;
+    font-size: var(--text-sm);
+    font-weight: 600;
     white-space: nowrap;
-    box-shadow: 0 0 24px rgba(46, 91, 215, 0.4);
-    animation: speechIn 220ms ease-out;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 2px 2px 0 var(--ob-accent, #4d8dff);
+    animation: speechIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
     pointer-events: none;
   }
 
-  .speech::after {
+  .speech::after,
+  .speech::before {
     content: '';
     position: absolute;
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: rgba(20, 26, 50, 0.95);
+    border: 8px solid transparent;
+  }
+  .speech::before {
+    border-top-color: var(--ob-ink, #0d1017);
+  }
+  .speech::after {
+    margin-top: -3.5px;
+    border-width: 7px;
+    border-top-color: var(--ob-fill, #eef2f8);
   }
 
   @keyframes float {
@@ -216,10 +240,10 @@
   @keyframes pulse {
     0%,
     100% {
-      opacity: 0.4;
+      opacity: 0.45;
     }
     50% {
-      opacity: 0.8;
+      opacity: 0.85;
     }
   }
 

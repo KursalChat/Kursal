@@ -209,10 +209,11 @@ pub fn security_code(
     let both = [id, dili].concat();
     let hash: [u8; 32] = Sha256::digest(both).into();
 
-    hash.chunks_exact(4)
-        .take(8)
+    hash.as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| {
-            let chunk = u32::from_be_bytes([c[0], c[1], c[2], c[3]]);
+            let chunk = u32::from_be_bytes(*c);
             format!("{:04}", chunk % 10000)
         })
         .collect::<Vec<_>>()

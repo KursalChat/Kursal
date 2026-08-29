@@ -1,4 +1,5 @@
 import { log } from '$lib/utils/log';
+import { optimistic } from '$lib/utils/optimistic';
 import {
   getPeerRotationInterval,
   setPeerRotationInterval,
@@ -30,7 +31,6 @@ import {
 } from '$lib/api/settings';
 
 const DEFAULT_RELAY: RelayConfig = {
-  enabled: false,
   maxConnections: 100,
   maxConnectionsPerIp: 10,
 };
@@ -96,96 +96,70 @@ function createSettingsState() {
     return loading;
   }
 
-  async function setPeerRotation(v: PeerRotationInterval) {
-    const prev = peerRotation;
-    peerRotation = v;
-    try {
-      await setPeerRotationInterval(v);
-    } catch (e) {
-      peerRotation = prev;
-      throw e;
-    }
-  }
-  async function setTyping(v: boolean) {
-    const prev = typingIndicators;
-    typingIndicators = v;
-    try {
-      await setTypingIndicatorsEnabled(v);
-    } catch (e) {
-      typingIndicators = prev;
-      throw e;
-    }
-  }
-  async function setReadReceipts(v: boolean) {
-    const prev = readReceipts;
-    readReceipts = v;
-    try {
-      await setReadReceiptsEnabled(v);
-    } catch (e) {
-      readReceipts = prev;
-      throw e;
-    }
-  }
-  async function setRelay(v: RelayConfig) {
-    const prev = relay;
-    relay = v;
-    try {
-      await setRelayConfig(v);
-    } catch (e) {
-      relay = prev;
-      throw e;
-    }
-  }
-  async function setPort(v: number | null) {
-    const prev = listeningPort;
-    listeningPort = v ?? 0;
-    try {
-      await setListeningPort(v);
-    } catch (e) {
-      listeningPort = prev;
-      throw e;
-    }
-  }
-  async function setNearby(v: boolean) {
-    const prev = nearbyShare;
-    nearbyShare = v;
-    try {
-      await setNearbyShareEnabled(v);
-    } catch (e) {
-      nearbyShare = prev;
-      throw e;
-    }
-  }
-  async function setAutoAccept(v: AutoAcceptConfig) {
-    const prev = autoAccept;
-    autoAccept = v;
-    try {
-      await setAutoAcceptConfig(v);
-    } catch (e) {
-      autoAccept = prev;
-      throw e;
-    }
-  }
-  async function setAutoDownload(v: AutoDownloadConfig) {
-    const prev = autoDownload;
-    autoDownload = v;
-    try {
-      await setAutoDownloadConfig(v);
-    } catch (e) {
-      autoDownload = prev;
-      throw e;
-    }
-  }
-  async function setLocalApi(v: LocalApiConfig) {
-    const prev = localApi;
-    localApi = v;
-    try {
-      await setLocalApiConfig(v);
-    } catch (e) {
-      localApi = prev;
-      throw e;
-    }
-  }
+  const setPeerRotation = (v: PeerRotationInterval) =>
+    optimistic(
+      () => peerRotation,
+      (x) => (peerRotation = x),
+      setPeerRotationInterval,
+      v
+    );
+  const setTyping = (v: boolean) =>
+    optimistic(
+      () => typingIndicators,
+      (x) => (typingIndicators = x),
+      setTypingIndicatorsEnabled,
+      v
+    );
+  const setReadReceipts = (v: boolean) =>
+    optimistic(
+      () => readReceipts,
+      (x) => (readReceipts = x),
+      setReadReceiptsEnabled,
+      v
+    );
+  const setRelay = (v: RelayConfig) =>
+    optimistic(
+      () => relay,
+      (x) => (relay = x),
+      setRelayConfig,
+      v
+    );
+  // Stored as 0 for "any port", but the command takes null.
+  const setPort = (v: number | null) =>
+    optimistic(
+      () => listeningPort,
+      (x) => (listeningPort = x),
+      () => setListeningPort(v),
+      v ?? 0
+    );
+  const setNearby = (v: boolean) =>
+    optimistic(
+      () => nearbyShare,
+      (x) => (nearbyShare = x),
+      setNearbyShareEnabled,
+      v
+    );
+  const setAutoAccept = (v: AutoAcceptConfig) =>
+    optimistic(
+      () => autoAccept,
+      (x) => (autoAccept = x),
+      setAutoAcceptConfig,
+      v
+    );
+  const setAutoDownload = (v: AutoDownloadConfig) =>
+    optimistic(
+      () => autoDownload,
+      (x) => (autoDownload = x),
+      setAutoDownloadConfig,
+      v
+    );
+  const setLocalApi = (v: LocalApiConfig) =>
+    optimistic(
+      () => localApi,
+      (x) => (localApi = x),
+      setLocalApiConfig,
+      v
+    );
 
   async function loadNodes() {
     nodes = await getNodes();
@@ -194,16 +168,13 @@ function createSettingsState() {
     await addCustomNode(addr);
     await loadNodes();
   }
-  async function removeNode(addr: string) {
-    const prev = nodes;
-    nodes = { ...nodes, custom: nodes.custom.filter((n) => n !== addr) };
-    try {
-      await removeCustomNode(addr);
-    } catch (e) {
-      nodes = prev;
-      throw e;
-    }
-  }
+  const removeNode = (addr: string) =>
+    optimistic(
+      () => nodes,
+      (x) => (nodes = x),
+      () => removeCustomNode(addr),
+      { ...nodes, custom: nodes.custom.filter((n) => n !== addr) }
+    );
 
   return {
     get loaded() {

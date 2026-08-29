@@ -2,6 +2,7 @@ import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
 import { log } from '$lib/utils/log';
 import { getContacts, getContactMeta, setContactMuted, setContactAlias } from '$lib/api/contacts';
 import { shouldStampLastSeen } from '$lib/utils/presence';
+import { optimistic } from '$lib/utils/optimistic';
 import { messagesState } from './messages.svelte';
 
 function createContactsState() {
@@ -89,17 +90,13 @@ function createContactsState() {
     else delete terminated[contactId];
   }
 
-  async function setMuted(contactId: string, value: boolean) {
-    const prev = !!muted[contactId];
-    muted[contactId] = value;
-    try {
-      await setContactMuted(contactId, value);
-    } catch (e) {
-      muted[contactId] = prev;
-      log.error('Failed to set mute:', e);
-      throw e;
-    }
-  }
+  const setMuted = (contactId: string, value: boolean) =>
+    optimistic(
+      () => !!muted[contactId],
+      (x) => (muted[contactId] = x),
+      () => setContactMuted(contactId, value),
+      value
+    );
 
   function lastSeenAt(contactId: string): number | null {
     return lastSeen[contactId] ?? null;

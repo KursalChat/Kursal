@@ -1,12 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { scale } from 'svelte/transition';
   import { Copy } from 'lucide-svelte';
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-  import { log } from '$lib/utils/log';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { notifyError } from '$lib/utils/errors';
+  import { copyText } from '$lib/utils/clipboard';
+  import { renderQrDataUrl } from '$lib/utils/qr';
   import { flash } from '$lib/utils/flash.svelte';
+  import Modal from './Modal.svelte';
   import Button from './Button.svelte';
   import { t } from '$lib/i18n';
 
@@ -16,104 +14,43 @@
   const copied = flash();
 
   onMount(async () => {
-    try {
-      const { default: QRCode } = await import('qrcode');
-      qrDataUrl = await QRCode.toDataURL(link, {
-        errorCorrectionLevel: 'M',
-        margin: 4,
-        width: 320,
-        color: { dark: '#000000', light: '#ffffff' },
-      });
-    } catch (e) {
-      qrDataUrl = null;
-      log.error('Failed to render share QR:', e);
-    }
+    qrDataUrl = await renderQrDataUrl(link);
   });
 
   async function copyLink() {
-    try {
-      await writeText(link);
-      copied.trigger();
-    } catch (e) {
-      notifyError(e);
-    }
-  }
-
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
+    await copyText(link, { flash: copied });
   }
 </script>
 
-<div
-  class="backdrop"
-  role="presentation"
-  onclick={handleBackdropClick}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onClose();
-  }}
->
-  <div
-    class="modal"
-    in:scale={{ duration: 220, start: 0.94, opacity: 0 }}
-    out:scale={{ duration: 160, start: 0.94, opacity: 0 }}
-    role="dialog"
-    aria-modal="true"
-    aria-label={title}
-    tabindex="-1"
-    use:trapFocus
-  >
-    <h2>{title}</h2>
+<Modal {title} {onClose}>
+  <h2>{title}</h2>
 
-    <div class="qr-card">
-      {#if qrDataUrl}
-        <img class="qr-image" src={qrDataUrl} alt={t('share.qrAlt')} />
-      {:else}
-        <p class="qr-fallback">{t('share.qrUnavailable')}</p>
-      {/if}
-    </div>
-
-    <code class="link-text">{link}</code>
-
-    <Button
-      variant="secondary"
-      onclick={copyLink}
-      success={copied.active}
-      successLabel={t('common.copied')}
-    >
-      <Copy size={14} />
-      {t('share.copyLink')}
-    </Button>
-    <button class="link" onclick={onClose}>{t('share.close')}</button>
+  <div class="qr-card">
+    {#if qrDataUrl}
+      <img class="qr-image" src={qrDataUrl} alt={t('share.qrAlt')} />
+    {:else}
+      <p class="qr-fallback">{t('share.qrUnavailable')}</p>
+    {/if}
   </div>
-</div>
+
+  <code class="link-text">{link}</code>
+
+  <Button
+    variant="secondary"
+    onclick={copyLink}
+    success={copied.active}
+    successLabel={t('common.copied')}
+  >
+    <Copy size={14} />
+    {t('share.copyLink')}
+  </Button>
+  <button class="link" onclick={onClose}>{t('share.close')}</button>
+</Modal>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom))
-      max(16px, var(--safe-left));
-  }
-  .modal {
-    background: var(--bg-secondary, var(--surface));
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg, 16px);
-    padding: 22px;
-    width: 100%;
-    max-width: 380px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
-  }
   h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--text-md);
     color: var(--text-primary);
   }
   .qr-card {
@@ -133,7 +70,7 @@
   .qr-fallback {
     margin: 0;
     color: #0f172a;
-    font-size: 13px;
+    font-size: var(--text-sm);
   }
   .link-text {
     overflow-wrap: anywhere;
@@ -148,10 +85,12 @@
   .link {
     align-self: center;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--text-sm);
     padding: 4px 8px;
   }
-  .link:hover {
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .link:hover {
+      color: var(--text-primary);
+    }
   }
 </style>

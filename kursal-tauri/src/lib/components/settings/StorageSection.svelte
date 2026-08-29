@@ -10,9 +10,9 @@
     FolderSearch,
     ScrollText,
   } from 'lucide-svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { isMobile } from '$lib/api/window';
+  import { openLogFolder, openFilesFolder } from '$lib/api/fs';
   import { confirmDialog } from '$lib/state/confirm.svelte';
   import {
     listSharedFiles,
@@ -31,6 +31,10 @@
   import { contactsState } from '$lib/state/contacts.svelte';
   import { notifyError } from '$lib/utils/errors';
   import { flash } from '$lib/utils/flash.svelte';
+  import { formatBytes, bytesToMB, mbToBytes } from '$lib/utils/bytes';
+  import { formatDate } from '$lib/utils/dateFormat.svelte';
+  import { basename, shortenId } from '$lib/utils/text';
+  import { identityColor } from '$lib/utils/identityColor';
   import Button from '$lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -38,6 +42,8 @@
   import Select from './Select.svelte';
   import Checkbox from './Checkbox.svelte';
   import TextInput from './TextInput.svelte';
+  import UsageBar from './UsageBar.svelte';
+  import type { UsageSegment } from './UsageBar.svelte';
   import LogViewerModal from './LogViewerModal.svelte';
   import { clearLogs } from '$lib/api/logs';
   import { t, dateLocale } from '$lib/i18n';
@@ -214,7 +220,7 @@
   // the in-app viewer is the only way to read logs there.
   async function openLogs() {
     try {
-      await invoke('open_log_folder');
+      await openLogFolder();
     } catch (e) {
       notifyError(e);
     }
@@ -222,60 +228,33 @@
 
   async function openFiles() {
     try {
-      await invoke('open_files_folder');
+      await openFilesFolder();
     } catch (e) {
       notifyError(e);
     }
   }
 
-  function fmtBytes(n: number): string {
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
-
   function fmtDate(ts: number | null): string {
     if (ts === null) return t('settings.storage.never');
-    return new Date(ts * 1000).toLocaleDateString(dateLocale());
-  }
-
-  function basename(p: string): string {
-    const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-    return i >= 0 ? p.slice(i + 1) : p;
+    return formatDate(ts * 1000);
   }
 
   function recipientLabel(id: string): string {
     return contactsState.getById(id)?.displayName ?? id;
   }
 
-  function shortId(id: string): string {
-    return id.length > 10 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
-  }
   function contactLabel(id: string): string {
-    return contactsState.getById(id)?.displayName ?? shortId(id);
+    return contactsState.getById(id)?.displayName ?? shortenId(id);
   }
+
   function colorFor(id: string): string {
-    let h = 2166136261 >>> 0;
-    for (let i = 0; i < id.length; i++) {
-      h ^= id.charCodeAt(i);
-      h = Math.imul(h, 16777619) >>> 0;
-    }
-    return `hsl(${h % 360} 65% 58%)`;
+    return identityColor(contactLabel(id));
   }
 
-  type Segment = {
-    id: string;
-    label: string;
-    bytes: number;
-    pct: number;
-    color: string;
-  };
-
-  const dbSegments = $derived.by<Segment[]>(() => {
+  const dbSegments = $derived.by<UsageSegment[]>(() => {
     if (!usage) return [];
     const total = Math.max(usage.dbBytes, 1);
-    const segs: Segment[] = usage.perContact
+    const segs: UsageSegment[] = usage.perContact
       .filter((c) => c.dbBytes > 0)
       .map((c) => ({
         id: c.contactId,
@@ -299,7 +278,7 @@
     return segs;
   });
 
-  const filesSegments = $derived.by<Segment[]>(() => {
+  const filesSegments = $derived.by<UsageSegment[]>(() => {
     if (!usage) return [];
     const total = Math.max(usage.filesBytes, 1);
     return usage.perContact
@@ -320,13 +299,6 @@
     } catch (e) {
       notifyError(e);
     }
-  }
-
-  function toMB(bytes: number): string {
-    return String(Math.round(bytes / (1024 * 1024)));
-  }
-  function fromMB(mb: string): number {
-    return Math.max(0, Math.floor(Number(mb) || 0)) * 1024 * 1024;
   }
 
   const acceptModes: { value: AutoAcceptMode; label: string }[] = [
@@ -421,7 +393,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each filtered as f}
+          {#each filtered as f (f.id)}
             <tr>
               <td class="chk-col">
                 <Checkbox
@@ -433,7 +405,7 @@
               <td class="file-cell" title={f.filepath}>
                 <span class="file-name">{basename(f.filepath)}</span>
               </td>
-              <td class="nowrap">{fmtBytes(f.sizeBytes)}</td>
+              <td class="nowrap">{formatBytes(f.sizeBytes)}</td>
               <td class="ellipsis" title={f.recipientId}>{recipientLabel(f.recipientId)}</td>
               <td class="nowrap">{fmtDate(f.sharedAt)}</td>
               <td class="nowrap">{fmtDate(f.lastAccessedAt)}</td>
@@ -484,8 +456,8 @@
         type="number"
         min={0}
         width="84px"
-        value={toMB(acceptCfg.sizeCapBytes)}
-        onchange={(v) => (acceptCfg = { ...acceptCfg, sizeCapBytes: fromMB(v) })}
+        value={bytesToMB(acceptCfg.sizeCapBytes)}
+        onchange={(v) => (acceptCfg = { ...acceptCfg, sizeCapBytes: mbToBytes(v) })}
       />
       <span class="suffix">{t('settings.storage.mbSuffix')}</span>
     </div>
@@ -527,8 +499,8 @@
         type="number"
         min={0}
         width="84px"
-        value={toMB(downloadCfg.limitBytes)}
-        onchange={(v) => (downloadCfg = { ...downloadCfg, limitBytes: fromMB(v) })}
+        value={bytesToMB(downloadCfg.limitBytes)}
+        onchange={(v) => (downloadCfg = { ...downloadCfg, limitBytes: mbToBytes(v) })}
       />
       <span class="suffix">{t('settings.storage.mbSuffix')}</span>
     </div>
@@ -562,7 +534,7 @@
       title={t('settings.storage.logsRow')}
       description={t('settings.storage.logsDescription')}
     >
-      <span class="usage-value">{fmtBytes(usage.logsBytes)}</span>
+      <span class="usage-value">{formatBytes(usage.logsBytes)}</span>
       <button class="clear-btn" onclick={handleClearLogs} disabled={logsClearing}>
         <Trash2 size={12} />
         {t('settings.storage.clearLogs')}
@@ -573,65 +545,21 @@
       title={t('settings.storage.avatarsRow')}
       description={t('settings.storage.avatarsDescription')}
     >
-      <span class="usage-value">{fmtBytes(usage.avatarsBytes)}</span>
+      <span class="usage-value">{formatBytes(usage.avatarsBytes)}</span>
     </SettingRow>
 
     <div class="usage-stack">
-      <div class="usage-row">
-        <div class="usage-row-head">
-          <span class="usage-row-title">{t('settings.storage.databaseSection')}</span>
-          <span class="usage-row-total mono">{fmtBytes(usage.dbBytes)}</span>
-        </div>
-        <div class="bar" class:bar-empty={dbSegments.length === 0}>
-          {#each dbSegments as s (s.id)}
-            <div
-              class="bar-seg"
-              style="width: {s.pct}%; background: {s.color};"
-              title="{s.label}: {fmtBytes(s.bytes)}"
-            ></div>
-          {/each}
-        </div>
-        {#if dbSegments.length > 0}
-          <div class="legend">
-            {#each dbSegments as s (s.id)}
-              <div class="legend-item">
-                <span class="dot" style="background: {s.color};"></span>
-                <span class="legend-label ellipsis">{s.label}</span>
-                <span class="mono legend-bytes">{fmtBytes(s.bytes)}</span>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
-      <div class="usage-row">
-        <div class="usage-row-head">
-          <span class="usage-row-title">{t('settings.storage.fileSharesSection')}</span>
-          <span class="usage-row-total mono">{fmtBytes(usage.filesBytes)}</span>
-        </div>
-        <div class="bar" class:bar-empty={filesSegments.length === 0}>
-          {#each filesSegments as s (s.id)}
-            <div
-              class="bar-seg"
-              style="width: {s.pct}%; background: {s.color};"
-              title="{s.label}: {fmtBytes(s.bytes)}"
-            ></div>
-          {/each}
-        </div>
-        {#if filesSegments.length > 0}
-          <div class="legend">
-            {#each filesSegments as s (s.id)}
-              <div class="legend-item">
-                <span class="dot" style="background: {s.color};"></span>
-                <span class="legend-label ellipsis">{s.label}</span>
-                <span class="mono legend-bytes">{fmtBytes(s.bytes)}</span>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="legend muted-empty">{t('settings.storage.noSharedFilesLegend')}</div>
-        {/if}
-      </div>
+      <UsageBar
+        title={t('settings.storage.databaseSection')}
+        total={usage.dbBytes}
+        segments={dbSegments}
+      />
+      <UsageBar
+        title={t('settings.storage.fileSharesSection')}
+        total={usage.filesBytes}
+        segments={filesSegments}
+        emptyLegend={t('settings.storage.noSharedFilesLegend')}
+      />
     </div>
   {/if}
   {#snippet footer()}
@@ -686,7 +614,7 @@
     align-items: center;
   }
   .selection-count {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
   }
 
@@ -699,14 +627,16 @@
     border: 1px solid var(--border);
     background: var(--bg-input);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 500;
     cursor: pointer;
     transition: all var(--transition);
   }
-  .chip:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .chip:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .chip[data-active='true'] {
     background: var(--accent-dim);
@@ -715,22 +645,15 @@
   }
 
   .icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     padding: 7px;
-    border-radius: var(--radius-md);
     background: var(--bg-input);
     border: 1px solid var(--border);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition:
-      background var(--transition),
-      color var(--transition);
   }
-  .icon-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .icon-btn:disabled {
     opacity: 0.5;
@@ -740,7 +663,7 @@
   .empty {
     padding: 24px 14px;
     text-align: center;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-muted);
   }
 
@@ -750,7 +673,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
   th,
   td {
@@ -814,9 +737,11 @@
       background var(--transition),
       color var(--transition);
   }
-  .icon-btn-sm:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .icon-btn-sm:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .revoke-btn {
     background: transparent;
@@ -824,14 +749,16 @@
     color: var(--danger);
     padding: 4px 10px;
     border-radius: var(--radius-sm);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transition);
   }
-  .revoke-btn:hover {
-    background: var(--danger-dim);
-    border-color: rgba(248, 113, 113, 0.35);
+  @media (hover: hover) {
+    .revoke-btn:hover {
+      background: var(--danger-dim);
+      border-color: rgba(248, 113, 113, 0.35);
+    }
   }
   .clear-btn {
     display: inline-flex;
@@ -842,15 +769,17 @@
     color: var(--text-secondary);
     padding: 4px 10px;
     border-radius: var(--radius-sm);
-    font-size: 11px;
+    font-size: var(--text-2xs);
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transition);
   }
-  .clear-btn:hover:not(:disabled) {
-    background: var(--danger-dim);
-    border-color: rgba(248, 113, 113, 0.35);
-    color: var(--danger);
+  @media (hover: hover) {
+    .clear-btn:hover:not(:disabled) {
+      background: var(--danger-dim);
+      border-color: rgba(248, 113, 113, 0.35);
+      color: var(--danger);
+    }
   }
   .clear-btn:disabled {
     opacity: 0.5;
@@ -870,10 +799,12 @@
     cursor: pointer;
     transition: all var(--transition);
   }
-  .bulk-revoke-btn:hover {
-    background: var(--danger);
-    color: #fff;
-    border-color: var(--danger);
+  @media (hover: hover) {
+    .bulk-revoke-btn:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
   }
 
   .number-input {
@@ -882,18 +813,13 @@
     gap: 6px;
   }
   .suffix {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-    font-size: 12px;
   }
 
   .usage-value {
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-primary);
   }
 
@@ -904,78 +830,6 @@
     gap: 18px;
     border-top: 1px solid var(--border-light);
   }
-  .usage-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .usage-row-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-  }
-  .usage-row-title {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-  }
-  .usage-row-total {
-    font-size: 13px;
-    color: var(--text-primary);
-  }
-  .bar {
-    display: flex;
-    width: 100%;
-    height: 18px;
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-  }
-  .bar-empty {
-    opacity: 0.5;
-  }
-  .bar-seg {
-    height: 100%;
-    min-width: 2px;
-    transition: width var(--transition);
-  }
-  .bar-seg + .bar-seg {
-    border-left: 1px solid rgba(0, 0, 0, 0.18);
-  }
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-  .legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .legend-label {
-    max-width: 160px;
-    color: var(--text-primary);
-  }
-  .legend-bytes {
-    color: var(--text-muted);
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: var(--radius-md);
-    flex: 0 0 auto;
-  }
-  .muted-empty {
-    color: var(--text-muted);
-    font-size: 12px;
-  }
   .usage-cta {
     display: flex;
     flex-direction: column;
@@ -984,7 +838,7 @@
     padding: 24px 14px;
   }
   .usage-cta-msg {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-muted);
     text-align: center;
     max-width: 320px;

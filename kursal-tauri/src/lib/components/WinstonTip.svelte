@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
+  import DOMPurify from 'dompurify';
   import { t } from '$lib/i18n';
   import { winstonTips } from '$lib/state/winstonTips.svelte';
   import WinstonCard from './WinstonCard.svelte';
@@ -8,9 +9,10 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
   function formatBody(s: string) {
-    return escapeHtml(s)
+    const marked = escapeHtml(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>');
+    return DOMPurify.sanitize(marked, { ALLOWED_TAGS: ['strong', 'em'], ALLOWED_ATTR: [] });
   }
 
   const def = $derived(winstonTips.def);
@@ -66,7 +68,7 @@
     letter-spacing: -0.01em;
   }
   .body {
-    font-size: 13px;
+    font-size: var(--text-sm);
     line-height: 1.55;
     color: var(--text-secondary);
   }
@@ -83,21 +85,23 @@
     gap: 10px;
   }
   .skip {
-    font-size: 12px;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-muted);
     padding: 6px 4px;
     transition: color var(--transition);
   }
-  .skip:hover {
-    color: var(--text-secondary);
+  @media (hover: hover) {
+    .skip:hover {
+      color: var(--text-secondary);
+    }
   }
   .primary {
     padding: 8px 16px;
     border-radius: var(--radius-md);
     background: var(--accent-solid);
     color: #fff;
-    font-size: 13px;
+    font-size: var(--text-sm);
     font-weight: 700;
     transition:
       transform var(--transition),
@@ -105,10 +109,12 @@
       background var(--transition);
     box-shadow: 0 4px 14px var(--accent-dim);
   }
-  .primary:hover {
-    background: var(--accent-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px var(--accent-dim);
+  @media (hover: hover) {
+    .primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px var(--accent-dim);
+    }
   }
   .primary:active {
     transform: translateY(0);

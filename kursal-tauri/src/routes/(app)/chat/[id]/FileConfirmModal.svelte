@@ -2,7 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import { FileText, X } from 'lucide-svelte';
   import Spinner from '$lib/components/Spinner.svelte';
-  import { formatFileSize } from './chat-utils';
+  import { formatFileSize } from '$lib/utils/bytes';
   import { t } from '$lib/i18n';
 
   interface PendingFile {
@@ -166,14 +166,6 @@
     z-index: 400;
     animation: fadeIn 0.14s ease;
   }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
   .file-confirm {
     width: min(380px, 100%);
     max-height: 100%;
@@ -245,7 +237,7 @@
   .f-name {
     flex: 1;
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--text-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -275,15 +267,17 @@
       background var(--transition),
       color var(--transition);
   }
-  .f-remove:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .f-remove:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .f-remove:disabled {
     opacity: 0.4;
   }
   .f-total {
-    font-size: 12px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
   }
   .fc-caption {
@@ -335,16 +329,20 @@
     color: var(--text-secondary);
     border: 1px solid var(--border);
   }
-  .fc-btn.ghost:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  @media (hover: hover) {
+    .fc-btn.ghost:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
   }
   .fc-btn.primary {
     background: var(--accent);
     color: #fff;
   }
-  .fc-btn.primary:hover:not(:disabled) {
-    background: var(--accent-hover);
+  @media (hover: hover) {
+    .fc-btn.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
   }
   .fc-btn:disabled {
     opacity: 0.5;

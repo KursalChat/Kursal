@@ -11,6 +11,8 @@ pub struct KursalBehaviour {
     pub relay: libp2p::relay::client::Behaviour,
     pub relay_server: Toggle<libp2p::relay::Behaviour>,
     pub dcutr: libp2p::dcutr::Behaviour,
+    pub autonat_client: libp2p::autonat::v2::client::Behaviour,
+    pub autonat_server: Toggle<libp2p::autonat::v2::server::Behaviour>,
     pub kad: libp2p::kad::Behaviour<KursalKadStore>,
     #[cfg(not(target_os = "ios"))]
     pub mdns: Toggle<libp2p::mdns::tokio::Behaviour>,
@@ -26,6 +28,8 @@ pub enum KursalBehaviourEvent {
     Relay(libp2p::relay::client::Event),
     RelayServer(libp2p::relay::Event),
     Dcutr(libp2p::dcutr::Event),
+    AutonatClient(libp2p::autonat::v2::client::Event),
+    AutonatServer(libp2p::autonat::v2::server::Event),
     Kad(libp2p::kad::Event),
     #[cfg(not(target_os = "ios"))]
     Mdns(libp2p::mdns::Event),
@@ -48,6 +52,16 @@ impl From<libp2p::relay::Event> for KursalBehaviourEvent {
 impl From<libp2p::dcutr::Event> for KursalBehaviourEvent {
     fn from(value: libp2p::dcutr::Event) -> Self {
         Self::Dcutr(value)
+    }
+}
+impl From<libp2p::autonat::v2::client::Event> for KursalBehaviourEvent {
+    fn from(value: libp2p::autonat::v2::client::Event) -> Self {
+        Self::AutonatClient(value)
+    }
+}
+impl From<libp2p::autonat::v2::server::Event> for KursalBehaviourEvent {
+    fn from(value: libp2p::autonat::v2::server::Event) -> Self {
+        Self::AutonatServer(value)
     }
 }
 impl From<libp2p::ping::Event> for KursalBehaviourEvent {

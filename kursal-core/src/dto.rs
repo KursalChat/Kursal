@@ -293,6 +293,14 @@ pub struct LtcStatusDto {
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct CameraInfo {
+    pub id: String,
+    pub label: String,
+    pub facing: Option<String>,
+}
+
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct NodesResponse {
     pub defaults: Vec<String>,
     pub custom: Vec<String>,
@@ -304,6 +312,12 @@ pub struct NetworkStatusDto {
     pub peer_count: usize,
     pub connected_peers: Vec<String>,
     pub listen_addresses: Vec<String>,
+    pub reachability: String,
+    pub dht_server: bool,
+    pub relay_active: bool,
+    pub reservations: usize,
+    pub circuits: usize,
+    pub port: u16,
 }
 
 #[derive(Serialize, Clone, ToSchema)]
