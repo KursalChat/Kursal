@@ -50,6 +50,7 @@
         "staleHint": "Deze code vervalt nooit en is al {n} maanden actief. Hem af en toe veranderen is een goed idee.",
         "usesOfMax": "{used}/{max} keer gebruikt"
       },
+      "createButton": "Code creëren",
       "createError": "Kon de code niet creëren",
       "created": "Langetermijncode gecreëerd",
       "expiredError": "Deze langetermijncode is vervallen. Vraag uw contact om een nieuwe te genereren.",
@@ -432,7 +433,8 @@
   },
   "commandPalette": {
     "ariaLabel": "Opdrachtenmenu",
-    "resetWindowSize": "Venstergrootte opnieuw instellen"
+    "resetWindowSize": "Venstergrootte opnieuw instellen",
+    "searchMessagesPlaceholder": "Zoek in alle berichten…"
   },
   "emojiPicker": {
     "groups": {
@@ -820,6 +822,7 @@
     },
     "searchPlaceholder": "Instellingen zoeken",
     "storage": {
+      "avatarsRow": "Avatars",
       "clearLogs": "",
       "clearLogsConfirm": "",
       "clearLogsConfirmDetail": "",
