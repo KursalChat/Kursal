@@ -132,8 +132,8 @@
       "pasteLabel": "Coller",
       "qrCodeAlt": "QR code du contact à usage unique",
       "qrScanError": "Échec du scan QR",
-      "scanHint": "Pointez l'appareil photo vers le QR code de l'autre appareil",
       "replaceWith": "Remplacer par {word}",
+      "scanHint": "Pointez l'appareil photo vers le QR code de l'autre appareil",
       "wordAriaLabel": "Mot {n}",
       "wordCheckError": "Certains de ces mots ne figurent pas dans la liste de mots. Choisissez une correction ou modifiez-les vous-même.",
       "wordCountError": "Un code est composé de huit mots. Celui-ci en a {count}."
@@ -483,12 +483,12 @@
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
-    "tryAgain": "Veuillez réessayer",
     "relayBadge": "Relai",
     "relayBadgeVia": "Relai · {transport}",
     "save": "Enregistrer",
     "saved": "Sauvegardé",
-    "savedToDevice": "Sauvegardé sur l'appareil"
+    "savedToDevice": "Sauvegardé sur l'appareil",
+    "tryAgain": "Veuillez réessayer"
   },
   "connectionInfo": {
     "closeButton": "Fermer",
@@ -645,45 +645,45 @@
     "justNow": "Vérifié hors ligne à l'instant"
   },
   "onboarding": {
-    "skip": "Passer",
     "back": "Retour",
+    "direct": {
+      "cta": "Et mon compte ?",
+      "lead": "Kursal le remet en main propre.",
+      "note": "Scellé avant de partir. Rien au milieu à pirater."
+    },
     "hello": {
-      "heading": "Salut. Moi, c'est Winston.",
-      "subtitle": "Et je suis convaincu que la vie privée est fondamentale.",
       "cta": "Montre-moi",
+      "heading": "Salut. Moi, c'est Winston.",
       "skip": "Je sais ce que je fais",
-      "skipTooltip": "ça m'étonnerait ! suis le guide :p"
+      "skipTooltip": "ça m'étonnerait ! suis le guide :p",
+      "subtitle": "Et je suis convaincu que la vie privée est fondamentale."
     },
     "middleman": {
+      "cta": "Et Kursal alors ?",
       "lead": "Tes messages passent d'abord par une entreprise.",
-      "note": "Elle les garde et te demande de lui faire confiance.",
-      "cta": "Et Kursal alors ?"
-    },
-    "direct": {
-      "lead": "Kursal le remet en main propre.",
-      "note": "Scellé avant de partir. Rien au milieu à pirater.",
-      "cta": "Et mon compte ?"
+      "note": "Elle les garde et te demande de lui faire confiance."
     },
     "noAccounts": {
+      "cta": "Suivant",
       "lead": "Il n'y a pas de compte.",
-      "note": "Pas d'e-mail, pas de mot de passe. Tu ajoutes quelqu'un en échangeant huit mots.",
-      "cta": "Suivant"
+      "note": "Pas d'e-mail, pas de mot de passe. Tu ajoutes quelqu'un en échangeant huit mots."
     },
     "profile": {
-      "lead": "Alors, qui es-tu ?",
-      "note": "Seules les personnes que tu ajoutes le verront.",
-      "greeting": "Salut, {name} !",
-      "namePlaceholder": "Ton nom",
-      "nameHint": "Tu pourras le changer plus tard dans les Réglages.",
-      "uploadPhoto": "Choisir une photo",
-      "removePhoto": "Retirer la photo",
+      "consentLink": "Conditions d'utilisation",
+      "consentPrefix": "En continuant, tu acceptes les",
+      "cta": "C'est parti",
       "errorPickName": "Choisis d'abord un nom",
       "errorSave": "Impossible d'enregistrer ton profil. Tu pourras le configurer plus tard dans les Réglages.",
+      "greeting": "Salut, {name} !",
+      "lead": "Alors, qui es-tu ?",
+      "nameHint": "Tu pourras le changer plus tard dans les Réglages.",
+      "namePlaceholder": "Ton nom",
+      "note": "Seules les personnes que tu ajoutes le verront.",
+      "removePhoto": "Retirer la photo",
       "saving": "Enregistrement…",
-      "cta": "C'est parti",
-      "consentPrefix": "En continuant, tu acceptes les",
-      "consentLink": "Conditions d'utilisation"
-    }
+      "uploadPhoto": "Choisir une photo"
+    },
+    "skip": "Passer"
   },
   "profile": {
     "blockConfirmLabel": "Bloquer",
