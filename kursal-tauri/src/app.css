@@ -105,6 +105,17 @@
   --sidebar-width: 260px;
   --header-height: 52px;
   --transition: 150ms ease;
+  --code-bg: #0b0f16;
+  --code-bar: rgba(147, 161, 186, 0.07);
+  --code-border: rgba(147, 161, 186, 0.16);
+  --code-fg: #d3dae6;
+  --code-muted: #7c8ba3;
+  --hl-c: #6d7789;
+  --hl-s: #8fcb8a;
+  --hl-n: #e0a468;
+  --hl-k: #c48fe0;
+  --hl-f: #6fb0f0;
+  --hl-t: #55c5b8;
 }
 
 :root[data-theme='light'] {
@@ -138,6 +149,17 @@
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08);
   --shadow-2: 0 6px 20px rgba(15, 23, 42, 0.1);
   --shadow-3: 0 16px 40px rgba(15, 23, 42, 0.16);
+  --code-bg: #f7f9fc;
+  --code-bar: rgba(11, 14, 20, 0.04);
+  --code-border: rgba(11, 14, 20, 0.13);
+  --code-fg: #1b2230;
+  --code-muted: #66707f;
+  --hl-c: #7b8494;
+  --hl-s: #1a7f4b;
+  --hl-n: #a2591a;
+  --hl-k: #8a3cbe;
+  --hl-f: #1f62cc;
+  --hl-t: #0e7a71;
 }
 
 /* Palette presets. [data-palette][data-theme="light"] beats
@@ -736,6 +758,140 @@ img[src^='/winston'] {
     background var(--transition),
     border-color var(--transition),
     color var(--transition);
+}
+
+/* Fenced code blocks, rendered by the markdown renderer in chat-utils.ts.
+ * Global so the chat bubble and the select-text modal render them the same. */
+.md-code {
+  margin: 0.5em 0 0.2em;
+  min-width: 180px;
+  max-width: 100%;
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-md);
+  background: var(--code-bg);
+  color: var(--code-fg);
+  overflow: hidden;
+}
+.md-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 3px 0 10px;
+  background: var(--code-bar);
+  border-bottom: 1px solid var(--code-border);
+}
+.md-code-lang {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--code-muted);
+}
+.md-code-copy {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--code-muted);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+@media (hover: hover) {
+  .md-code-copy:hover {
+    background: var(--code-border);
+    color: var(--code-fg);
+  }
+}
+.md-code-copy .copy-done,
+.md-code-copy.copied .copy-idle {
+  display: none;
+}
+.md-code-copy.copied {
+  color: var(--success);
+}
+.md-code pre {
+  margin: 0;
+  padding: 9px 11px;
+  background: none;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+  scrollbar-color: var(--code-border) transparent;
+}
+.md-code pre::-webkit-scrollbar {
+  height: 6px;
+}
+.md-code pre::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--code-border);
+}
+.md-code code {
+  font-family: var(--font-mono);
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+/* highlight.js scopes, mapped onto the palette above. */
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-c);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-tag,
+.hljs-doctag,
+.hljs-meta .hljs-keyword {
+  color: var(--hl-k);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-char.escape_,
+.hljs-symbol,
+.hljs-template-tag {
+  color: var(--hl-s);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-meta,
+.hljs-bullet,
+.hljs-link {
+  color: var(--hl-n);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--hl-f);
+}
+.hljs-type,
+.hljs-title.class_,
+.hljs-built_in,
+.hljs-name,
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--hl-t);
+}
+.hljs-addition {
+  color: var(--success);
+}
+.hljs-deletion {
+  color: var(--danger);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
 }
 
 .empty-state {

@@ -985,21 +985,14 @@
   .msg-content :global(code) {
     font-family: var(--font-mono);
     font-size: 0.88em;
-    background: rgba(0, 0, 0, 0.28);
-    border-radius: 2px;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 3px;
     padding: 0.1em 0.35em;
   }
-  .msg-content :global(pre) {
-    margin: 0.5em 0 0.1em;
-    padding: 0.6em 0.7em;
-    border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.35);
-    overflow-x: auto;
-    font-size: 12.5px;
-  }
   .msg-content :global(pre code) {
-    background: transparent;
+    background: none;
     padding: 0;
+    font-size: 1em;
   }
   .msg-content :global(ul),
   .msg-content :global(ol) {
@@ -1060,42 +1053,6 @@
     font-size: 2.6em;
     line-height: 1.1;
   }
-  .msg-content :global(.code-wrap) {
-    position: relative;
-  }
-  .msg-content :global(.code-copy) {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.35);
-    color: #fff;
-    opacity: 0;
-    transition: opacity 0.15s;
-    font-size: var(--text-sm);
-    cursor: pointer;
-    border: none;
-    padding: 0;
-  }
-  @media (hover: hover) {
-    .msg-content :global(.code-wrap:hover .code-copy) {
-      opacity: 1;
-    }
-  }
-  @media (hover: none) {
-    .msg-content :global(.code-copy) {
-      opacity: 0.75;
-    }
-  }
-  .msg-content :global(.code-copy.copied) {
-    background: var(--success);
-  }
-
   .reply-ref {
     display: flex;
     flex-direction: column;

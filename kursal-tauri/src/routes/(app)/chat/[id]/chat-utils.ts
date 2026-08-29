@@ -10,6 +10,7 @@ import { formatCalendarDay, formatTime, formatFullTimestamp } from '$lib/utils/d
 import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
 import { copyText } from '$lib/utils/clipboard';
 import { truncate, extensionOf } from '$lib/utils/text';
+import { highlightCode } from '$lib/utils/highlight';
 import { clamp, percent } from '$lib/utils/geometry';
 import { formatClock } from '$lib/utils/duration';
 import { t } from '$lib/i18n';
@@ -43,17 +44,22 @@ marked.use({
   ],
 });
 
-const LANG_RE = /^[A-Za-z]{1,10}$/;
+const LANG_RE = /^[A-Za-z][A-Za-z0-9+#-]{0,14}$/;
 
 marked.use({
   renderer: {
     code({ text, lang }: { text: string; lang?: string }) {
       const source = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
       const encoded = encodeUtf8Base64(source);
-      const escapedCode = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const aria = t('chat.bubble.copyCodeAria');
-      const langAttr = lang && LANG_RE.test(lang) ? ` class="language-${lang}"` : '';
-      return `<div class="code-wrap"><button class="code-copy" data-code="${encoded}" aria-label="${aria}">⧉</button><pre><code${langAttr}>${escapedCode}</code></pre></div>`;
+      const language = lang && LANG_RE.test(lang) ? lang.toLowerCase() : '';
+      const body = highlightCode(source, language);
+      const label = language ? `<span class="md-code-lang">${language}</span>` : '';
+      const langAttr = language ? ` class="language-${language}"` : '';
+      const copy =
+        `<button class="md-code-copy" data-code="${encoded}" aria-label="${t('chat.bubble.copyCodeAria')}">` +
+        `<span class="copy-idle">${t('common.copy')}</span>` +
+        `<span class="copy-done">${t('common.copied')}</span></button>`;
+      return `<div class="md-code"><div class="md-code-bar">${label}${copy}</div><pre><code${langAttr}>${body}</code></pre></div>`;
     },
   },
 });
@@ -356,7 +362,7 @@ export function receivedHoverLabel(msg: {
 
 export async function handleMarkdownClick(e: MouseEvent) {
   const target = e.target as HTMLElement | null;
-  const copyBtn = target?.closest('button.code-copy') as HTMLElement | null;
+  const copyBtn = target?.closest('button.md-code-copy') as HTMLElement | null;
   if (copyBtn) {
     e.preventDefault();
     const enc = copyBtn.getAttribute('data-code') ?? '';

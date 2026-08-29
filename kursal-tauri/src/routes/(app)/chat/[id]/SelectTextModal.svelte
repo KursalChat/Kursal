@@ -227,16 +227,16 @@
   .select-body :global(p + p) {
     margin-top: 0.5em;
   }
-  .select-body :global(pre) {
-    margin: 0.5em 0;
-    padding: 0.6em 0.7em;
-    border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.28);
-    overflow-x: auto;
-  }
   .select-body :global(code) {
     font-family: var(--font-mono);
     font-size: 0.88em;
+  }
+  /* Nothing listens for clicks in here, so the copy button would be inert. */
+  .select-body :global(.md-code-bar) {
+    display: none;
+  }
+  .select-body :global(pre code) {
+    font-size: 1em;
   }
   .select-body :global(ul),
   .select-body :global(ol) {
