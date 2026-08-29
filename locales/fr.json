@@ -24,7 +24,7 @@
       "scanCta": "Scanner leur code",
       "shareButton": "Envoyer une invitation",
       "theirCodeTitle": "Leur code",
-      "unverifiedToast": "Contact ajouté. Vérifiez le code de sécurité dés que vous pouvez.",
+      "unverifiedToast": "Contact ajouté. Vérifiez le code de sécurité dès que vous pouvez.",
       "yourCodeTitle": "Votre code"
     },
     "ltc": {
@@ -104,6 +104,7 @@
     "nearby": {
       "acceptButton": "Accepter",
       "acceptFailed": "Échec de l'acceptation",
+      "bluetoothDeniedDescription": "La permission Bluetooth a été refusée, donc seule la découverte via Wi-Fi est active. Vérifiez les permissions système pour trouver des pairs via Bluetooth.",
       "connectButton": "Connecter",
       "connectionAccepted": "Connexion acceptée",
       "connectionDeclined": "Connexion refusée",
@@ -132,8 +133,8 @@
       "pasteLabel": "Coller",
       "qrCodeAlt": "QR code du contact à usage unique",
       "qrScanError": "Échec du scan QR",
-      "scanHint": "Pointez l'appareil photo vers le QR code de l'autre appareil",
       "replaceWith": "Remplacer par {word}",
+      "scanHint": "Pointez l'appareil photo vers le QR code de l'autre appareil",
       "wordAriaLabel": "Mot {n}",
       "wordCheckError": "Certains de ces mots ne figurent pas dans la liste de mots. Choisissez une correction ou modifiez-les vous-même.",
       "wordCountError": "Un code est composé de huit mots. Celui-ci en a {count}."
@@ -167,7 +168,15 @@
     "updateInstalledCancel": "Plus tard",
     "updateInstalledConfirm": "Redémarrer maintenant",
     "updateInstalledMessage": "Redémarrer Kursal pour appliquer la mise à jour ? Vous pouvez également redémarrer plus tard.",
-    "updateInstalledTitle": "Mise à jour installée"
+    "updateInstalledTitle": "Mise à jour installée",
+    "updateStoreConfirm": "Compris",
+    "updateStoreFromApple": "Mettre Kursal à jour par l'App Store.",
+    "updateStoreFromPlay": "Mettre Kursal à jour par le Play Store.",
+    "updateStoreLater": "Plus tard",
+    "updateStoreMessage": "La version {version} est disponible. Vous êtes actuellement sur la {currentVersion}.",
+    "updateStoreOpenApple": "Ouvrir l'App Store",
+    "updateStoreOpenPlay": "Ouvrir le Play Store",
+    "updateStoreTitle": "Mise à jour disponible"
   },
   "biometricLock": {
     "androidSubtitle": "Authentifiez-vous pour accéder à vos messages",
@@ -234,6 +243,7 @@
       "fileSizeReceived": "Reçu",
       "fileSizeSent": "Envoyé",
       "linkConfirm": {
+        "appMessage": "Ce lien s'ouvre en dehors de Kursal, dans une autre app sur votre appareil.",
         "cancel": "Annuler",
         "error": "Échec de l'ouverture.",
         "message": "Ce lien s'ouvrira dans votre navigateur.",
@@ -265,8 +275,11 @@
     "call": {
       "accept": "Accepter",
       "busyToast": "Contact occupé",
+      "cameraBack": "Caméra arrière",
       "cameraDenied": "Caméra bloquée",
       "cameraDeniedToast": "L'accès à la caméra a été refusé. Vérifiez vos permissions.",
+      "cameraFront": "Caméra avant",
+      "cameraNumbered": "Caméra {id}",
       "cameraOff": "Éteindre la caméra",
       "cameraOn": "Caméra",
       "connecting": "Connexion…",
@@ -276,8 +289,10 @@
       "expand": "Retourner à l'appel",
       "hangup": "Raccrocher",
       "incoming": "Appel entrant",
+      "micDeniedToast": "Accès microphone requis pour appeler. Vérifiez vos permissions système.",
       "microphone": "Microphone",
       "minimize": "Minimiser",
+      "mirrorSelfView": "Aperçu miroir",
       "missed": "Appel manqué",
       "mute": "Couper le micro",
       "noAnswer": "Aucune réponse",
@@ -297,6 +312,7 @@
       "recordEnded": "Appel terminé",
       "recordStarted": "Appel démarré",
       "ringing": "Sonnerie…",
+      "selectCamera": "Sélectionner la caméra",
       "startCall": "Démarrer un appel vocal",
       "startFailed": "Impossible de démarrer un appel",
       "systemDefault": "Par défaut du système",
@@ -345,6 +361,7 @@
       "errorEditMessage": "Échec de la modification",
       "errorExportFile": "Le fichier n'a pas pu être sauvegardé à cet endroit.",
       "errorMessageTooLong": "Message trop long ({length}/{max})",
+      "errorNoSpace": "Pas assez d'espace libre pour télécharger ce fichier.",
       "errorOpenFile": "Échec de l'ouverture.",
       "errorPasteImage": "Impossible de coller l'image.",
       "errorPasteText": "Impossible d'envoyer le texte en tant que fichier.",
@@ -483,12 +500,12 @@
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
-    "tryAgain": "Veuillez réessayer",
     "relayBadge": "Relai",
     "relayBadgeVia": "Relai · {transport}",
     "save": "Enregistrer",
     "saved": "Sauvegardé",
-    "savedToDevice": "Sauvegardé sur l'appareil"
+    "savedToDevice": "Sauvegardé sur l'appareil",
+    "tryAgain": "Veuillez réessayer"
   },
   "connectionInfo": {
     "closeButton": "Fermer",
@@ -538,6 +555,7 @@
   },
   "fileTransfer": {
     "errorAutoDownload": "Échec du téléchargement automatique.",
+    "errorNoSpace": "Échec du téléchargement automatique : espace libre insuffisant.",
     "transferFailed": "Le transfert de fichier a échoué au contrôle d'intégrité et a été rejeté"
   },
   "home": {
@@ -645,45 +663,45 @@
     "justNow": "Vérifié hors ligne à l'instant"
   },
   "onboarding": {
-    "skip": "Passer",
     "back": "Retour",
+    "direct": {
+      "cta": "Et mon compte ?",
+      "lead": "Kursal le remet en main propre.",
+      "note": "Scellé avant de partir. Rien au milieu à pirater."
+    },
     "hello": {
-      "heading": "Salut. Moi, c'est Winston.",
-      "subtitle": "Et je suis convaincu que la vie privée est fondamentale.",
       "cta": "Montre-moi",
+      "heading": "Salut. Moi, c'est Winston.",
       "skip": "Je sais ce que je fais",
-      "skipTooltip": "ça m'étonnerait ! suis le guide :p"
+      "skipTooltip": "ça m'étonnerait ! suis le guide :p",
+      "subtitle": "Et je suis convaincu que la vie privée est fondamentale."
     },
     "middleman": {
+      "cta": "Et Kursal alors ?",
       "lead": "Tes messages passent d'abord par une entreprise.",
-      "note": "Elle les garde et te demande de lui faire confiance.",
-      "cta": "Et Kursal alors ?"
-    },
-    "direct": {
-      "lead": "Kursal le remet en main propre.",
-      "note": "Scellé avant de partir. Rien au milieu à pirater.",
-      "cta": "Et mon compte ?"
+      "note": "Elle les garde et te demande de lui faire confiance."
     },
     "noAccounts": {
+      "cta": "Suivant",
       "lead": "Il n'y a pas de compte.",
-      "note": "Pas d'e-mail, pas de mot de passe. Tu ajoutes quelqu'un en échangeant huit mots.",
-      "cta": "Suivant"
+      "note": "Pas d'e-mail, pas de mot de passe. Tu ajoutes quelqu'un en échangeant huit mots."
     },
     "profile": {
-      "lead": "Alors, qui es-tu ?",
-      "note": "Seules les personnes que tu ajoutes le verront.",
-      "greeting": "Salut, {name} !",
-      "namePlaceholder": "Ton nom",
-      "nameHint": "Tu pourras le changer plus tard dans les Réglages.",
-      "uploadPhoto": "Choisir une photo",
-      "removePhoto": "Retirer la photo",
+      "consentLink": "Conditions d'utilisation",
+      "consentPrefix": "En continuant, tu acceptes les",
+      "cta": "C'est parti",
       "errorPickName": "Choisis d'abord un nom",
       "errorSave": "Impossible d'enregistrer ton profil. Tu pourras le configurer plus tard dans les Réglages.",
+      "greeting": "Salut, {name} !",
+      "lead": "Alors, qui es-tu ?",
+      "nameHint": "Tu pourras le changer plus tard dans les Réglages.",
+      "namePlaceholder": "Ton nom",
+      "note": "Seules les personnes que tu ajoutes le verront.",
+      "removePhoto": "Retirer la photo",
       "saving": "Enregistrement…",
-      "cta": "C'est parti",
-      "consentPrefix": "En continuant, tu acceptes les",
-      "consentLink": "Conditions d'utilisation"
-    }
+      "uploadPhoto": "Choisir une photo"
+    },
+    "skip": "Passer"
   },
   "profile": {
     "blockConfirmLabel": "Bloquer",
@@ -868,6 +886,8 @@
       "termsRow": "Conditions d'utilisation",
       "toggleVisibilityAriaLabel": "Basculer la visibilité",
       "tokenLabel": "Nouveau jeton — affiché une seule fois",
+      "updateNoticesDescription": "Recevez une notification lorsqu'une nouvelle version est disponible sur le store.",
+      "updateNoticesRow": "Notification de mises à jour",
       "updatesCard": "Mises à jour",
       "versionRow": "Version",
       "versionUnknown": "Inconnu"
@@ -967,7 +987,7 @@
       "importPartial": "{count} sur {total} nœud(s) importés",
       "importPlaceholder": "Coller des adresses de nœud, une par ligne",
       "listenAddresses": "Adresses d'écoute",
-      "listeningPortDescription": "Port d'écoute de Kursal. Laissez vide pour un port aléatoire.",
+      "listeningPortDescription": "Port d'écoute de Kursal (4891 par défaut). Laissez vide pour un port aléatoire.",
       "listeningPortRow": "Port d'écoute",
       "maxConnectionsDescription": "Pairs relayés simultanés au total.",
       "maxConnectionsRow": "Connexions max",
@@ -983,9 +1003,18 @@
       "nodesCard": "Nœuds",
       "nodesDescription": "Nœuds de démarrage et de relais auxquels Kursal se connecte au démarrage.",
       "portPlaceholder": "aléatoire",
+      "reachDescChecking": "Demande aux autres pairs s'ils peuvent atteindre cet appareil. Cette opération peut prendre un moment.",
+      "reachDescPrivate": "Redirigez le port TCP et UDP {port} vers votre appareil pour héberger des données et relayer le trafic pour d'autres utilisateurs.",
+      "reachDescPublic": "Diffusion des entrées DHT · {reservations} réservations · {circuits} circuits ouverts",
+      "reachTitle_checking": "Vérification de l'accessibilité",
+      "reachTitle_private": "Non atteignable depuis internet",
+      "reachTitle_public": "Contribution au réseau",
+      "reachability_checking": "Vérification",
+      "reachability_private": "Inaccessible",
+      "reachability_public": "Contribution",
       "refresh": "Rafraîchir",
-      "relayCard": "Relai",
-      "relayDescription": "Paramètres de l'opérateur pour la retransmission du trafic chiffré.",
+      "relayCard": "Relais",
+      "relayDescription": "Comment cet appareil aide le réseau. Ordinateur uniquement.",
       "removeNodeAriaLabel": "Retirer le nœud",
       "savePortButton": "Enregistrer",
       "saveRelayButton": "Enregistrer le relai",
