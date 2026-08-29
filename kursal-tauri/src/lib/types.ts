@@ -104,7 +104,7 @@ export interface BackendDialogPayload {
   id: number;
   kind: string;
   message?: string;
-  params: Record<string, string | number | null>;
+  params: Record<string, string | number | boolean | null>;
   tone: ConfirmTone;
   dismissible: boolean;
 }

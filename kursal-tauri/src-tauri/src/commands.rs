@@ -783,18 +783,9 @@ pub fn close_force_quit(app: tauri::AppHandle) {
 setting_cmd!(set ref set_notification_preview(value: String), kursal_core::storage::set_notification_preview);
 setting_cmd!(set ref set_notification_dnd(value: String), kursal_core::storage::set_notification_dnd);
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 pub async fn check_for_updates(app: tauri::AppHandle) -> std::result::Result<(), String> {
-    crate::check_for_updates_impl(app, true)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[cfg(any(target_os = "android", target_os = "ios"))]
-#[tauri::command]
-pub async fn check_for_updates(_app: tauri::AppHandle) -> std::result::Result<(), String> {
-    Err("Updates are handled by the app store on mobile devices.".to_string())
+    crate::update::check(app, true).await
 }
 
 #[tauri::command]

@@ -30,10 +30,34 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
           currentVersion: String(p.params.currentVersion ?? ''),
         }),
         detail: groups.length ? t('backendDialog.updateAvailableNotes') : undefined,
-        sections: groups.map((g) => ({ title: groupLabel(g.kind), items: g.items })),
+        sections: groups.map((g) => ({
+          title: groupLabel(g.kind),
+          items: g.items,
+        })),
         code: notes && !groups.length ? notes : undefined,
         confirmLabel: t('backendDialog.updateAvailableConfirm'),
         cancelLabel: t('backendDialog.updateAvailableCancel'),
+      };
+    }
+    case 'update_store': {
+      const apple = p.params.store === 'appstore';
+      const opens = p.params.open === true;
+      const from = apple
+        ? t('backendDialog.updateStoreFromApple')
+        : t('backendDialog.updateStoreFromPlay');
+      const open = apple
+        ? t('backendDialog.updateStoreOpenApple')
+        : t('backendDialog.updateStoreOpenPlay');
+      return {
+        ...base,
+        title: t('backendDialog.updateStoreTitle'),
+        message: t('backendDialog.updateStoreMessage', {
+          version: String(p.params.version ?? ''),
+          currentVersion: String(p.params.currentVersion ?? ''),
+        }),
+        detail: opens ? undefined : from,
+        confirmLabel: opens ? open : t('backendDialog.updateStoreConfirm'),
+        cancelLabel: t('backendDialog.updateStoreLater'),
       };
     }
     case 'update_installed':
@@ -47,7 +71,9 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
     case 'file_open_confirm':
       return {
         ...base,
-        title: t('backendDialog.fileOpenTitle', { fileName: String(p.params.fileName ?? '') }),
+        title: t('backendDialog.fileOpenTitle', {
+          fileName: String(p.params.fileName ?? ''),
+        }),
         message: p.message,
         confirmLabel: t('backendDialog.fileOpenConfirm'),
         cancelLabel: t('backendDialog.fileOpenCancel'),
@@ -55,7 +81,9 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
     case 'file_open_blocked':
       return {
         ...base,
-        title: t('backendDialog.fileOpenTitle', { fileName: String(p.params.fileName ?? '') }),
+        title: t('backendDialog.fileOpenTitle', {
+          fileName: String(p.params.fileName ?? ''),
+        }),
         message: p.message,
         confirmLabel: t('backendDialog.fileBlockedConfirm'),
       };

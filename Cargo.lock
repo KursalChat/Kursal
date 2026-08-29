@@ -4430,6 +4430,8 @@ dependencies = [
  "log",
  "objc2-foundation 0.3.2",
  "rayon",
+ "reqwest",
+ "semver",
  "sentry",
  "sentry-panic",
  "serde",

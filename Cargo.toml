@@ -46,6 +46,10 @@ libp2p = { version = "0.56.0", features = [
     "metrics",
 ] }
 libp2p-stream = "0.4.0-alpha"
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "json",
+    "rustls",
+] }
 
 v4l = "0.14.0"
 openh264 = "0.9.8"
@@ -109,6 +113,7 @@ windows = "0.61.3"
 
 # Misc
 emojis = "0.9.0"
+semver = "1.0.28"
 
 # Tauri
 tauri-build = "2.6.3"

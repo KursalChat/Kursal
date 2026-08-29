@@ -69,6 +69,8 @@ chrono = { workspace = true }
 tauri-plugin-barcode-scanner = { workspace = true }
 tauri-plugin-biometric = { workspace = true }
 tauri-plugin-haptics = { workspace = true }
+reqwest = { workspace = true }
+semver = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { workspace = true, features = [

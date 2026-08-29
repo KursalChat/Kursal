@@ -336,8 +336,12 @@
     </Button>
   </SettingRow>
   <SettingRow
-    title={t('settings.advanced.autoUpdaterRow')}
-    description={t('settings.advanced.autoUpdaterDescription')}
+    title={isMobile
+      ? t('settings.advanced.updateNoticesRow')
+      : t('settings.advanced.autoUpdaterRow')}
+    description={isMobile
+      ? t('settings.advanced.updateNoticesDescription')
+      : t('settings.advanced.autoUpdaterDescription')}
   >
     <Toggle
       checked={autoUpdater}
