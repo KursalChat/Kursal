@@ -71,6 +71,7 @@
   import { draftsState } from '$lib/state/drafts.svelte';
   import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
   import { listen } from '@tauri-apps/api/event';
+  import { isMobile } from '$lib/api/window';
   import { getNodeStats, startNodeStats, stopNodeStats } from '$lib/api/settings';
   import { formatFileSize } from '$lib/utils/bytes';
   import { readRaw, writeRaw } from '$lib/utils/storage';
@@ -81,7 +82,7 @@
 
   function applyStats(s: NodeStats) {
     nodeStats = s;
-    if (s.memBytes > 0) {
+    if (!isMobile && s.memBytes > 0) {
       pushSample('cpu', s.cpuPercent);
       pushSample('mem', s.memBytes);
     }
@@ -112,7 +113,7 @@
     };
   });
 
-  const processStatsAvailable = $derived(!!nodeStats && nodeStats.memBytes > 0);
+  const processStatsAvailable = $derived(!isMobile && !!nodeStats && nodeStats.memBytes > 0);
 
   const greetingKey = (() => {
     const h = new Date().getHours();
