@@ -84,5 +84,5 @@ if [ "$PUSH" = 1 ]; then
   fi
   echo "==> pushing ${TAGS[*]}"
   docker buildx build --builder "$BUILDER" --platform "$PLATFORMS" -f docker/relay/Dockerfile \
-    "${TAGS[@]}" --push .
+    --build-arg "VERSION=$VERSION" "${TAGS[@]}" --push .
 fi

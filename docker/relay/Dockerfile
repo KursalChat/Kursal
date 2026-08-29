@@ -18,9 +18,12 @@ FROM scratch AS export
 COPY --from=builder /kursal-relay /kursal-relay
 
 FROM debian:bookworm-slim
+ARG VERSION=0.0.0
 LABEL org.opencontainers.image.source="https://github.com/KursalChat/Kursal" \
       org.opencontainers.image.description="Kursal relay node" \
-      org.opencontainers.image.licenses="AGPL-3.0-only"
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.title="kursal-relay" \
+      org.opencontainers.image.version="${VERSION}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
