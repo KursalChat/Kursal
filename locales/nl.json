@@ -104,7 +104,6 @@
     "nearby": {
       "acceptButton": "Accepteren",
       "acceptFailed": "Het mislukte om de verbinding te accepteren",
-      "bluetoothDeniedDescription": "",
       "connectButton": "Verbinden",
       "connectionAccepted": "Verbinding geaccepteerd",
       "connectionDeclined": "Verbinding geweigerd",
@@ -168,15 +167,7 @@
     "updateInstalledCancel": "Later",
     "updateInstalledConfirm": "Nu herstarten",
     "updateInstalledMessage": "Kursal herstarten om de update toe te passen? U kunt ook later herstarten.",
-    "updateInstalledTitle": "Update geïnstalleerd",
-    "updateStoreConfirm": "",
-    "updateStoreFromApple": "",
-    "updateStoreFromPlay": "",
-    "updateStoreLater": "",
-    "updateStoreMessage": "",
-    "updateStoreOpenApple": "",
-    "updateStoreOpenPlay": "",
-    "updateStoreTitle": ""
+    "updateInstalledTitle": "Update geïnstalleerd"
   },
   "biometricLock": {
     "androidSubtitle": "Authenticeer om toegang tot uw berichten te krijgen",
@@ -243,7 +234,6 @@
       "fileSizeReceived": "Ontvangen",
       "fileSizeSent": "Verstuurd",
       "linkConfirm": {
-        "appMessage": "",
         "cancel": "Annuleren",
         "error": "Het mislukte om de link te openen.",
         "message": "De link zal in uw browser openen.",
@@ -275,11 +265,8 @@
     "call": {
       "accept": "Accepteren",
       "busyToast": "Contact heeft het druk",
-      "cameraBack": "",
       "cameraDenied": "Camera geblokkeerd",
       "cameraDeniedToast": "Cameratoegang was afgewezen. Controleer uw systeemrechten.",
-      "cameraFront": "",
-      "cameraNumbered": "",
       "cameraOff": "Camera stoppen",
       "cameraOn": "Camera",
       "connecting": "Verbinden…",
@@ -289,10 +276,8 @@
       "expand": "Ga terug naar de oproep",
       "hangup": "Ophangen",
       "incoming": "Inkomende oproep",
-      "micDeniedToast": "",
       "microphone": "Microfoon",
       "minimize": "Minimaliseren",
-      "mirrorSelfView": "",
       "missed": "Gemiste oproep",
       "mute": "Dempen",
       "noAnswer": "Geen antwoord",
@@ -312,7 +297,6 @@
       "recordEnded": "Oproep beëindigd",
       "recordStarted": "Oproep gestart",
       "ringing": "Bellen…",
-      "selectCamera": "",
       "startCall": "Spraakoproep starten",
       "startFailed": "Kon de oproep niet starten",
       "systemDefault": "Systeemstandaard",
@@ -361,7 +345,6 @@
       "errorEditMessage": "Het mislukte om het bericht te bewerken",
       "errorExportFile": "Kon het bestand niet op die locatie opslaan.",
       "errorMessageTooLong": "Bericht is te lang ({length}/{max})",
-      "errorNoSpace": "",
       "errorOpenFile": "Het mislukte om het bestand te openen.",
       "errorPasteImage": "Het mislukte om de afbeelding te plakken.",
       "errorPasteText": "Het mislukte om de tekst bij te voegen als bestand.",
@@ -555,7 +538,6 @@
   },
   "fileTransfer": {
     "errorAutoDownload": "Auto-download mislukte.",
-    "errorNoSpace": "",
     "transferFailed": "Bestandsoverdracht mislukte de integriteitscontrole en was verworpen"
   },
   "home": {
@@ -663,44 +645,6 @@
     "justNow": "Zojuist offline gecontroleerd"
   },
   "onboarding": {
-    "back": "",
-    "direct": {
-      "cta": "",
-      "lead": "",
-      "note": ""
-    },
-    "hello": {
-      "cta": "",
-      "heading": "",
-      "skip": "",
-      "skipTooltip": "",
-      "subtitle": ""
-    },
-    "middleman": {
-      "cta": "",
-      "lead": "",
-      "note": ""
-    },
-    "noAccounts": {
-      "cta": "",
-      "lead": "",
-      "note": ""
-    },
-    "profile": {
-      "consentLink": "",
-      "consentPrefix": "",
-      "cta": "",
-      "errorPickName": "",
-      "errorSave": "",
-      "greeting": "",
-      "lead": "",
-      "nameHint": "",
-      "namePlaceholder": "",
-      "note": "",
-      "removePhoto": "",
-      "saving": "",
-      "uploadPhoto": ""
-    },
     "skip": "Overslaan"
   },
   "profile": {
@@ -886,8 +830,6 @@
       "termsRow": "Gebruikersvoorwaarden",
       "toggleVisibilityAriaLabel": "Zichtbaarheid in-/uitschakelen",
       "tokenLabel": "Nieuwe token (eenmaal tonen)",
-      "updateNoticesDescription": "",
-      "updateNoticesRow": "",
       "updatesCard": "Updates",
       "versionRow": "Versie",
       "versionUnknown": "Onbekend"
@@ -1003,15 +945,6 @@
       "nodesCard": "Knooppunten",
       "nodesDescription": "Bootstrap- en relais-knooppunten waarmee Kursal bij het opstarten verbinding maakt.",
       "portPlaceholder": "willekeurig",
-      "reachDescChecking": "",
-      "reachDescPrivate": "",
-      "reachDescPublic": "",
-      "reachTitle_checking": "",
-      "reachTitle_private": "",
-      "reachTitle_public": "",
-      "reachability_checking": "",
-      "reachability_private": "",
-      "reachability_public": "",
       "refresh": "Ververs",
       "relayCard": "Relais",
       "relayDescription": "Operatorinstellingen voor het doorgeven van versleuteld verkeer.",
@@ -1103,11 +1036,6 @@
       "autoDownloadDescription": "Auto-accepteren stops zodra de quota is bereikt.",
       "avatarsDescription": "Profielfoto's voor u en uw contacten.",
       "avatarsRow": "Avatars",
-      "clearLogs": "",
-      "clearLogsConfirm": "",
-      "clearLogsConfirmDetail": "",
-      "clearLogsConfirmMessage": "",
-      "clearLogsConfirmTitle": "",
       "computeUsageButton": "Gebruik berekenen",
       "computeUsageMessage": "Bij het berekenen van het schijfgebruik worden de bestanden en berichten van elk contact gescand. Dit kan enige tijd duren.",
       "databaseSection": "Database",
@@ -1240,8 +1168,7 @@
   },
   "updateDownload": {
     "installing": "Installeren…",
-    "titleVersion": "{version} aan het downloaden",
-    "upToDate": ""
+    "titleVersion": "{version} aan het downloaden"
   },
   "winston": {
     "poke0": "hoi",
