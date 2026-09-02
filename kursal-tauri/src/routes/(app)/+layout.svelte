@@ -118,6 +118,15 @@
     }
   }
 
+  function isTyping() {
+    const el = document.activeElement;
+    return (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLTextAreaElement ||
+      (el instanceof HTMLElement && el.isContentEditable)
+    );
+  }
+
   function onGlobalKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
 
@@ -134,6 +143,8 @@
     }
     if (commandOpen || helpOpen) return;
 
+    // Option+digit types { [ ] } | on German and French layouts, so the jump-to-
+    // conversation shortcut has to stay out of focused text fields.
     if (e.altKey && !mod) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -141,7 +152,7 @@
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         switchConversation(-1, e.shiftKey);
-      } else if (!e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
+      } else if (!e.shiftKey && !isTyping() && /^Digit[1-9]$/.test(e.code)) {
         e.preventDefault();
         const c = sortedContacts[Number(e.code.slice(5)) - 1];
         if (c) {
