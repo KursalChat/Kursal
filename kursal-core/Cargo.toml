@@ -76,7 +76,7 @@ pqcrypto-dilithium = { workspace = true }
 pqcrypto-traits = { workspace = true }
 
 # Network
-libp2p = { workspace = true }
+libp2p = { workspace = true, features = ["mdns"] }
 libp2p-stream = { workspace = true }
 btleplug = { workspace = true, optional = true }
 
@@ -107,10 +107,6 @@ rayon = { workspace = true }
 
 [dev-dependencies]
 dirs = { workspace = true }
-
-# TODO: remove that
-[target.'cfg(not(target_os = "ios"))'.dependencies]
-libp2p = { workspace = true, features = ["mdns"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 ble-peripheral-rust = { workspace = true, optional = true }

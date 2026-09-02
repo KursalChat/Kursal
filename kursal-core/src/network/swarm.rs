@@ -1,4 +1,3 @@
-// TODO: remove all "#[cfg(not(target_os = "ios"))]" and accept mdns with apple dev cert (ios)
 use crate::{
     KursalError, Result,
     api::handle_incoming::handle_incoming_stream,
@@ -12,7 +11,6 @@ use crate::{
     },
     storage::RelayConfig,
 };
-#[cfg(not(target_os = "ios"))]
 use libp2p::mdns;
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
@@ -346,7 +344,6 @@ impl SwarmHandle {
                     kad_config,
                 );
 
-                #[cfg(not(target_os = "ios"))]
                 let mdns = if mdns_enabled {
                     Toggle::from(Some(libp2p::mdns::tokio::Behaviour::new(mdns::Config {
                         query_interval: Duration::from_secs(60),
@@ -357,8 +354,6 @@ impl SwarmHandle {
                     log::info!("mDNS disabled");
                     Toggle::from(None)
                 };
-                #[cfg(target_os = "ios")]
-                let _ = mdns_enabled;
 
                 let identify = libp2p::identify::Behaviour::new(libp2p::identify::Config::new(
                     "/kursal/v1.0.0".to_string(),
@@ -419,7 +414,6 @@ impl SwarmHandle {
                     autonat_client,
                     autonat_server,
                     kad,
-                    #[cfg(not(target_os = "ios"))]
                     mdns,
                     identify,
                     request_response,

@@ -14,7 +14,6 @@ pub struct KursalBehaviour {
     pub autonat_client: libp2p::autonat::v2::client::Behaviour,
     pub autonat_server: Toggle<libp2p::autonat::v2::server::Behaviour>,
     pub kad: libp2p::kad::Behaviour<KursalKadStore>,
-    #[cfg(not(target_os = "ios"))]
     pub mdns: Toggle<libp2p::mdns::tokio::Behaviour>,
     pub identify: libp2p::identify::Behaviour,
     pub request_response: request_response::Behaviour<super::KursalMsgCodec>,
@@ -31,7 +30,6 @@ pub enum KursalBehaviourEvent {
     AutonatClient(libp2p::autonat::v2::client::Event),
     AutonatServer(libp2p::autonat::v2::server::Event),
     Kad(libp2p::kad::Event),
-    #[cfg(not(target_os = "ios"))]
     Mdns(libp2p::mdns::Event),
     Identify(libp2p::identify::Event),
     RequestResponse(request_response::Event<Vec<u8>, Vec<u8>>),
@@ -74,7 +72,6 @@ impl From<libp2p::kad::Event> for KursalBehaviourEvent {
         Self::Kad(value)
     }
 }
-#[cfg(not(target_os = "ios"))]
 impl From<libp2p::mdns::Event> for KursalBehaviourEvent {
     fn from(value: libp2p::mdns::Event) -> Self {
         Self::Mdns(value)

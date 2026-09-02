@@ -31,8 +31,8 @@ jq -n \
   --arg lx_url  "$BASE_URL/Kursal_x64.AppImage"     --arg lx_sig  "$(sig Kursal_x64.AppImage)"    --arg lx_sha  "$(sha Kursal_x64.AppImage)" \
   --arg lxr_url "$BASE_URL/Kursal_x64.rpm"          --arg lxr_sig "$(sig Kursal_x64.rpm)"         --arg lxr_sha "$(sha Kursal_x64.rpm)" \
   --arg lxd_url "$BASE_URL/Kursal_x64.deb"          --arg lxd_sig "$(sig Kursal_x64.deb)"         --arg lxd_sha "$(sha Kursal_x64.deb)" \
-  --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sha "$(sha Kursal.apk)" \
-  --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sha "$(sha Kursal.ipa)" \
+  --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sig "$(sig Kursal.apk)"             --arg and_sha "$(sha Kursal.apk)" \
+  --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sig "$(sig Kursal.ipa)"             --arg ios_sha "$(sha Kursal.ipa)" \
   '{
     version: $version,
     notes: $notes,
@@ -48,8 +48,8 @@ jq -n \
       "linux-x86_64":      { url: $lx_url,    signature: $lx_sig,    sha256: $lx_sha },
       "linux-x86_64-rpm":  { url: $lxr_url,   signature: $lxr_sig,   sha256: $lxr_sha },
       "linux-x86_64-deb":  { url: $lxd_url,   signature: $lxd_sig,   sha256: $lxd_sha },
-      "android":           { url: $and_url,   signature: "",         sha256: $and_sha },
-      "ios":               { url: $ios_url,   signature: "",         sha256: $ios_sha }
+      "android":           { url: $and_url,   signature: $and_sig,   sha256: $and_sha },
+      "ios":               { url: $ios_url,   signature: $ios_sig,   sha256: $ios_sha }
     }
   }' > "$BUILD/latest.json"
 
@@ -62,8 +62,7 @@ for f in \
   Kursal.app.tar.gz Kursal_x64.app.tar.gz \
   Kursal_x64.AppImage Kursal_x64.rpm Kursal_x64.deb \
   Kursal_arm.AppImage Kursal_arm.rpm Kursal_arm.deb \
-  Kursal.apk; do
-  # Kursal.ipa
+  Kursal.apk Kursal.ipa; do
   [ -f "$BUILD/$f" ] && ( cd "$BUILD" && shasum -a 256 "$f" >> SHA256SUMS.txt )
 done
 

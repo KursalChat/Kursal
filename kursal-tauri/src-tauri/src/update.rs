@@ -8,7 +8,7 @@ const BETA_ENDPOINT: &str = "https://app.kursal.chat/v/beta/latest.json";
 #[cfg(any(target_os = "android", target_os = "ios"))]
 const PLAY_LISTING: &str = "https://play.google.com/store/apps/details?id=chat.kursal";
 #[cfg(any(target_os = "android", target_os = "ios"))]
-const APP_STORE_LISTING: &str = "https://app.kursal.chat"; // TODO: when i get it
+const APP_STORE_LISTING: &str = "https://apps.apple.com/us/app/kursal/id6807047934";
 const DAILY: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
 
 fn fail(err: impl std::fmt::Display) -> String {

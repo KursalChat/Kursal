@@ -8,7 +8,6 @@ use super::{
     lock_peer_streams, prune_relay_candidates, relay_provider_key,
 };
 use crate::network::kademlia::spawn_record_validation;
-#[cfg(not(target_os = "ios"))]
 use libp2p::mdns;
 use libp2p::{
     Multiaddr, PeerId, Swarm,
@@ -196,7 +195,6 @@ pub(super) async fn handle_swarm_event(
                 swarm.behaviour_mut().kad.add_address(&peer_id, addr);
             }
         }
-        #[cfg(not(target_os = "ios"))]
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(libp2p::mdns::Event::Discovered(
             peers,
         ))) => {
@@ -235,7 +233,6 @@ pub(super) async fn handle_swarm_event(
         }
 
         // TODO: add a PeerExpired or similar, connection is not lost
-        #[cfg(not(target_os = "ios"))]
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, addr) in &peers {
                 log::debug!("[mDNS] peer expired {} at {}", peer_id, addr);

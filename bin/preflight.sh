@@ -19,8 +19,8 @@ required=(
   Kursal_arm.AppImage Kursal_arm.AppImage.sig
   Kursal_arm.rpm Kursal_arm.rpm.sig
   Kursal_arm.deb Kursal_arm.deb.sig
-  Kursal.apk
-  # Kursal.ipa
+  Kursal.apk Kursal.apk.sig
+  Kursal.ipa Kursal.ipa.sig
   latest.json
 )
 for f in "${required[@]}"; do
@@ -31,10 +31,9 @@ if [ -f "$BUILD/latest.json" ]; then
   mver="$(jq -r '.version' "$BUILD/latest.json")"
   [ "$mver" = "$VERSION" ] || err "latest.json version ($mver) != $VERSION (stale manifest? run: just gen-manifest)"
 
-  # TODO: do not allow empty sha when ios builds
   bad="$(jq -r '
-    .platforms | del(.ios) | to_entries
-    | map(select(.value.sha256 == "" or (.key != "android" and (.value.signature // "") == "")))
+    .platforms | to_entries
+    | map(select(.value.sha256 == "" or (.value.signature // "") == ""))
     | map(.key) | join(", ")
   ' "$BUILD/latest.json")"
   [ -z "$bad" ] || err "latest.json has empty signature/sha256: $bad"

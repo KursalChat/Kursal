@@ -18,4 +18,11 @@ tauri() {
   fi
 }
 
+# mobiles are not signed by tauri
+sign_artifact() {
+  rm -f "$1.sig"
+  tauri signer sign "$1" >/dev/null
+  echo "  signed $(basename "$1")"
+}
+
 mkdir -p "$ROOT/build"

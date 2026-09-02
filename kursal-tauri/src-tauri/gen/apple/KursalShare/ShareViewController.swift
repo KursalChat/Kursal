@@ -18,7 +18,7 @@ private struct SharePayload: Encodable {
 // Streams shared items into the app group container and writes manifest.json last,
 // via a move, so take_pending_shares never sees a half-copied payload.
 final class ShareViewController: UIViewController {
-  private static let appGroup = "group.chat.kursal"
+  private static let appGroup = "group.kursal.chat"
   private static let shareDir = "kursal-shares"
   private static let manifest = "manifest.json"
 

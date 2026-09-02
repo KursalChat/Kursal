@@ -12,6 +12,7 @@ settingGroups:
     base:
       PRODUCT_NAME: Kursal
       PRODUCT_BUNDLE_IDENTIFIER: chat.kursal
+      DEVELOPMENT_TEAM: Q4L6S4627U
 targetTemplates:
   app:
     type: application
@@ -31,8 +32,10 @@ targets:
       - path: Sources
       - path: Assets.xcassets
       - path: Externals
+        buildPhase: none
         excludes:
           - "**/debug/**"
+          - "**/*.a"
       - path: kursal-app_iOS
       - path: assets
         buildPhase: resources
@@ -43,7 +46,7 @@ targets:
       path: kursal-app_iOS/kursal-app_iOS.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.chat.kursal
+          - group.kursal.chat
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -51,6 +54,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: kursal-app_iOS/Info.plist
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.social-networking
         ENABLE_BITCODE: false
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
@@ -58,6 +62,13 @@ targets:
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+      configs:
+        debug:
+          CODE_SIGN_STYLE: Automatic
+        release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Kursal App Store
       groups: [app]
     dependencies:
       - target: KursalShare
@@ -102,8 +113,6 @@ targets:
       path: KursalShare/Info.plist
       properties:
         CFBundleDisplayName: Kursal
-        CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: "1.0.0"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -118,16 +127,24 @@ targets:
       path: KursalShare/KursalShare.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.chat.kursal
+          - group.kursal.chat
     settings:
       base:
         PRODUCT_NAME: KursalShare
         PRODUCT_BUNDLE_IDENTIFIER: chat.kursal.share
+        DEVELOPMENT_TEAM: Q4L6S4627U
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         ARCHS: [arm64]
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: false
+      configs:
+        debug:
+          CODE_SIGN_STYLE: Automatic
+        release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Kursal Share App Store
     dependencies:
       - sdk: UIKit.framework
       - sdk: UniformTypeIdentifiers.framework

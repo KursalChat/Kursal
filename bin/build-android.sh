@@ -19,5 +19,6 @@ export PATH="$JAVA_HOME/bin:$PATH"
 cargo clean -p audiopus_sys --release --target aarch64-linux-android
 tauri android build --apk --target aarch64 --config '{"build":{"beforeBuildCommand":""}}'
 cp -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk ../build/Kursal.apk
+sign_artifact ../build/Kursal.apk
 
 echo "✓ android done"

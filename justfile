@@ -88,8 +88,7 @@ build-android: build-opus build-frontend
     ./bin/build-android.sh
 
 build-ios: build-opus build-frontend
-    echo "TODO: build iOS (waiting for paid apple cert)"
-    # ./bin/build-ios.sh
+    ./bin/build-ios.sh
 
 gen-manifest:
     ./bin/gen-manifest.sh

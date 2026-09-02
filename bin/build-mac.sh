@@ -18,6 +18,37 @@ check_no_homebrew() {
   fi
 }
 
+signing_enabled() { [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; }
+
+notarize() {
+  if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+    xcrun notarytool submit "$1" \
+      --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" \
+      --wait
+  else
+    xcrun notarytool submit "$1" \
+      --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+      --wait
+  fi
+}
+
+# Tauri notarizes the .app but not the dmg
+staple_dmg() {
+  signing_enabled || return 0
+  echo "==> notarizing $(basename "$1")"
+  notarize "$1"
+  xcrun stapler staple "$1"
+}
+
+check_signed() {
+  signing_enabled || return 0
+  echo "==> verifying $(basename "$1")"
+  codesign --verify --strict --verbose=2 "$1"
+  spctl -a -vvv -t install "$1"
+  xcrun stapler validate "$1" ||
+    echo "warning: $1 is notarized but not stapled; it will fail Gatekeeper offline"
+}
+
 build_arm64() {
   echo "==> macos aarch64 (v$VERSION)"
   rm -rf ../target/aarch64-apple-darwin/release/bundle/
@@ -25,9 +56,11 @@ build_arm64() {
   PKG_CONFIG_PATH="$ROOT/bin/deps/mac-arm64/abseil/lib/pkgconfig" \
     tauri build --bundles app,dmg,updater --target aarch64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
   check_no_homebrew ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app/Contents/MacOS/kursal
+  check_signed ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app
   cp ../target/aarch64-apple-darwin/release/bundle/dmg/Kursal_*.dmg            ../build/Kursal.dmg
   cp ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz     ../build/Kursal.app.tar.gz
   cp ../target/aarch64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz.sig ../build/Kursal.app.tar.gz.sig
+  staple_dmg ../build/Kursal.dmg
 }
 
 build_x64() {
@@ -39,9 +72,11 @@ build_x64() {
   OPUS_NO_PKG=1 OPUS_STATIC=1 OPUS_LIB_DIR="$ROOT/bin/deps/mac-x64" \
     tauri build --bundles app,dmg,updater --target x86_64-apple-darwin --config '{"build":{"beforeBuildCommand":""}}'
   check_no_homebrew ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app/Contents/MacOS/kursal
+  check_signed ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app
   cp ../target/x86_64-apple-darwin/release/bundle/dmg/Kursal_*.dmg            ../build/Kursal_x64.dmg
   cp ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz     ../build/Kursal_x64.app.tar.gz
   cp ../target/x86_64-apple-darwin/release/bundle/macos/Kursal.app.tar.gz.sig ../build/Kursal_x64.app.tar.gz.sig
+  staple_dmg ../build/Kursal_x64.dmg
 }
 
 ARCH="${1:-}"
