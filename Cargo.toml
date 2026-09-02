@@ -142,12 +142,12 @@ libsignal-core = { path = "externals/libsignal/rust/core" }
 libsignal-debug = { path = "externals/libsignal/rust/debug" }
 signal-crypto = { path = "externals/libsignal/rust/crypto" }
 
-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.0.2", package = "boring", default-features = false }
+boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.2.0", package = "boring", default-features = false }
 spqr = { git = "https://github.com/signalapp/SparsePostQuantumRatchet.git", tag = "v1.5.3" }
-tokio-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.0.2", package = "tokio-boring" }
+tokio-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.2.0", package = "tokio-boring" }
 
 aes = "0.9.1"
-aes-gcm-siv = "0.11.1"
+aes-gcm-siv = "0.12.0"
 anyhow = "1.0.97"
 arbitrary = "1.4.2"
 argon2 = "0.5.0"
@@ -212,9 +212,9 @@ linkme = "0.3.33"
 log = "0.4.21"
 macro_rules_attribute = "0.2.0"
 mediasan-common = "0.5.3"
-minidump = { version = "0.22.1", default-features = false }
-minidump-processor = { version = "0.22.1", default-features = false }
-minidump-unwind = { version = "0.22.1", default-features = false }
+minidump = { version = "0.27.0", default-features = false }
+minidump-processor = { version = "0.27.0", default-features = false }
+minidump-unwind = { version = "0.27.0", default-features = false }
 minijinja = "2.19.0"
 mp4san = "0.5.3"
 neon = { version = "1.1.0", default-features = false }
@@ -288,8 +288,8 @@ zerocopy = "0.8.33"
 zeroize = "1.8.2"
 
 [patch.crates-io]
-boring = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.0.2" }
-boring-sys = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.0.2" }
+boring = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
+boring-sys = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
 
 ble-peripheral-rust = { path = "externals/ble-peripheral-rust" }
 

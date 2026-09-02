@@ -44,6 +44,7 @@ commit_parsers = [
   { message = "^ci", group = "<!-- 07 -->CI" },
   { message = "^style", group = "<!-- 08 -->Styling" },
   { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore\\(deps\\)", skip = true },
   { message = "^chore", group = "<!-- 09 -->Miscellaneous" },
   { message = "^revert", group = "<!-- 10 -->Revert" },
 ]
