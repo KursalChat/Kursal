@@ -397,7 +397,10 @@ pub async fn handle_fc_response(
         .ok_kursal(KursalError::Network)?;
 
     event_tx
-        .send(AppEvent::ContactAdded { contact })
+        .send(AppEvent::ContactAdded {
+            contact,
+            via_nearby: false,
+        })
         .await
         .ok_kursal(KursalError::Network)?;
 

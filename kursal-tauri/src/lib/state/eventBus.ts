@@ -35,11 +35,12 @@ import type {
   FileTransferProgressPayload,
   TypingIndicatorPayload,
   UpdateDownloadProgressPayload,
+  ContactAddedPayload,
 } from '$lib/types';
 
 export interface CoreListenerHooks {
   notifyIncoming: (contactId: string, senderName: string, body: string) => void;
-  onContactAdded: (contact: ContactResponse) => void;
+  onContactAdded: (contact: ContactAddedPayload) => void;
 }
 
 function senderName(contactId: string): string {
@@ -105,7 +106,7 @@ export function registerCoreListeners(hooks: CoreListenerHooks): () => void {
     messagesState.addGapNotice(p.contactId, p.counter);
   });
 
-  on<ContactResponse>('contact_added', (p) => {
+  on<ContactAddedPayload>('contact_added', (p) => {
     contactsState.upsert(p);
     hooks.onContactAdded(p);
   });

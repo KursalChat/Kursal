@@ -11,7 +11,7 @@
   import { log } from '$lib/utils/log';
   import { flushSync, onMount, tick, untrack } from 'svelte';
   import { browser } from '$app/environment';
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
   import { stat } from '@tauri-apps/plugin-fs';
   import { t } from '$lib/i18n';
   import { contactsState } from '$lib/state/contacts.svelte';
@@ -140,6 +140,18 @@
     winstonTips.show('verifyContact', openSecurityCodeModal);
   });
 
+  // Both people are still standing next to each other right after pairing, so
+  // this is the only moment the comparison is effortless.
+  $effect(() => {
+    if (verifyPromptedFor === contactId || !contact || contact.verified) return;
+    if (page.url.searchParams.get('verify') !== '1') return;
+
+    verifyPromptedFor = contactId;
+    verifyJustPaired = true;
+    openSecurityCodeModal();
+    replaceState('/chat/' + contactId, {});
+  });
+
   // Only messages created after the chat was opened get the entrance animation;
   // everything loaded from history renders without the pop. Reset per chat.
   let chatOpenedAt = $state(Date.now());
@@ -151,6 +163,8 @@
   let inputText = $state('');
   let sending = $state(false);
   let showSecurityCode = $state(false);
+  let verifyPromptedFor = $state<string | null>(null);
+  let verifyJustPaired = $state(false);
   let showConnectionInfo = $state(false);
   let showProfile = $state(false);
   let hoveredMessageId = $state<string | null>(null);
@@ -342,6 +356,7 @@
   }
   function closeSecurityCodeModal() {
     showSecurityCode = false;
+    verifyJustPaired = false;
     tick().then(() => lastFocusedBeforeModal?.focus());
   }
   function openConnectionInfoModal() {
@@ -2084,6 +2099,7 @@
     <SecurityCodeModal
       contactId={contact.userId}
       contactVerified={contact.verified}
+      justPaired={verifyJustPaired}
       onClose={closeSecurityCodeModal}
     />
   {/if}

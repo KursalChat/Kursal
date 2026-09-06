@@ -1201,6 +1201,7 @@
     "heading": "Security Code Verification",
     "loading": "Loading security code…",
     "explanation": "Read this code out loud with your contact over a separate channel. If the codes match, tap Confirm.",
+    "explanationJustPaired": "Compare this code on both screens right now, while you are still together. If the codes match, tap Confirm.",
     "copyButton": "Copy Code",
     "closeButton": "Close",
     "confirmButton": "Confirm, codes match",
@@ -1246,7 +1247,7 @@
     },
     "verifyContact": {
       "title": "Quick security check?",
-      "body": "You two are chatting a lot! To be sure nobody slipped between you during first contact, compare your **security code** together. Over a call or in person. Match means the encryption is airtight.",
+      "body": "To be sure nobody is listening, compare your **security code** together. Over a call or in person. Match means the encryption is airtight.",
       "cta": "Show security code"
     }
   }

@@ -340,7 +340,10 @@ pub async fn handle_nearby_request(
                 .ok_kursal(KursalError::Network)?;
 
             event_tx
-                .send(AppEvent::ContactAdded { contact })
+                .send(AppEvent::ContactAdded {
+                    contact,
+                    via_nearby: true,
+                })
                 .await
                 .ok_kursal(KursalError::Network)?;
 
@@ -445,7 +448,10 @@ pub async fn nearby_connect(
                 .ok_kursal(KursalError::Network)?;
 
             event_tx
-                .send(AppEvent::ContactAdded { contact })
+                .send(AppEvent::ContactAdded {
+                    contact,
+                    via_nearby: true,
+                })
                 .await
                 .ok_kursal(KursalError::Network)?;
 

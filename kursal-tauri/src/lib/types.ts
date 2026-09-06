@@ -98,6 +98,8 @@ export interface NearbyPeerResponse {
 // Tauri event payloads: mirrors what the Rust AppEvent forwarder emits
 export type MessageReceivedPayload = MessageResponse;
 
+export type ContactAddedPayload = ContactResponse & { viaNearby: boolean };
+
 export type ConfirmTone = 'default' | 'warning' | 'danger';
 
 export interface BackendDialogPayload {

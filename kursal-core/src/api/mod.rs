@@ -83,6 +83,7 @@ pub enum AppEvent {
     },
     ContactAdded {
         contact: Contact,
+        via_nearby: bool,
     },
     LtcUpdated {
         status: Option<LtcStatusDto>,

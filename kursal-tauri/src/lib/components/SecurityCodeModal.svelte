@@ -17,10 +17,12 @@
     contactId,
     onClose,
     contactVerified = false,
+    justPaired = false,
   }: {
     contactId: string;
     onClose: () => void;
     contactVerified?: boolean;
+    justPaired?: boolean;
   } = $props();
 
   let code = $state<string | null>(null);
@@ -77,7 +79,7 @@
     <div class="loading">{t('securityCode.loading')}</div>
   {:else if code}
     <p class="explanation">
-      {t('securityCode.explanation')}
+      {justPaired ? t('securityCode.explanationJustPaired') : t('securityCode.explanation')}
     </p>
 
     <ol class="code-grid">

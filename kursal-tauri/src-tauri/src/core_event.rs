@@ -219,13 +219,17 @@ pub async fn handle_core_event(
             );
         }
 
-        AppEvent::ContactAdded { contact } => {
-            emitter(
-                handle,
-                api_handle,
-                "contact_added",
-                ContactResponse::from(contact),
-            );
+        AppEvent::ContactAdded {
+            contact,
+            via_nearby,
+        } => {
+            let mut payload = serde_json::to_value(ContactResponse::from(contact))
+                .unwrap_or(serde_json::Value::Null);
+            if let Some(fields) = payload.as_object_mut() {
+                fields.insert("viaNearby".to_string(), via_nearby.into());
+            }
+
+            emitter(handle, api_handle, "contact_added", payload);
         }
 
         AppEvent::LtcUpdated { status } => {
