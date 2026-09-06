@@ -35,8 +35,8 @@ pub use behaviour::{KursalBehaviour, KursalBehaviourEvent};
 pub use codec::KursalMsgCodec;
 pub use helpers::{
     any_public_address, get_all_listen_addrs, get_connected_peer_count, get_connected_peers,
-    get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_peer_connected,
-    is_routable_multiaddr, open_peer_stream, str_to_multiaddr,
+    get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_lan_multiaddr,
+    is_peer_connected, is_routable_multiaddr, open_peer_stream, str_to_multiaddr,
 };
 
 use commands::handle_swarm_command;
@@ -216,6 +216,13 @@ impl ConnectionKind {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ConnInfo {
+    pub peer: PeerId,
+    pub kind: ConnectionKind,
+    pub lan: bool,
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reachability {
     Checking,
@@ -236,6 +243,7 @@ pub enum NetworkEvent {
     MessageReceived {
         from: PeerId,
         data: Vec<u8>,
+        lan: bool,
     },
     PeerDiscovered {
         peer_id: PeerId,
@@ -244,6 +252,9 @@ pub enum NetworkEvent {
     LocalPeerDiscovered {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
+    },
+    PeerExpired {
+        peer_id: PeerId,
     },
     ConnectionEstablished {
         peer_id: PeerId,
@@ -502,7 +513,7 @@ impl SwarmHandle {
             let mut listen_addresses: HashSet<Multiaddr> = HashSet::new();
             let mut nearby_enabled = false;
             let mut mdns_peers: HashMap<PeerId, Multiaddr> = HashMap::new();
-            let mut peer_conns: HashMap<ConnectionId, (PeerId, ConnectionKind)> = HashMap::new();
+            let mut peer_conns: HashMap<ConnectionId, ConnInfo> = HashMap::new();
             let mut discovered_relays: HashMap<PeerId, RelayCandidate> = HashMap::new();
             let mut circuit_listeners: HashMap<libp2p::core::transport::ListenerId, PeerId> =
                 HashMap::new();

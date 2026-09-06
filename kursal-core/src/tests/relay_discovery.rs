@@ -1,7 +1,7 @@
 use crate::network::swarm::{
     MAX_RELAY_CANDIDATES, MAX_RELAY_RESERVATIONS, RelayCandidate, any_public_address,
-    best_relay_candidates, is_circuit, is_routable_multiaddr, prune_relay_candidates,
-    relay_provider_key,
+    best_relay_candidates, is_circuit, is_lan_multiaddr, is_routable_multiaddr,
+    prune_relay_candidates, relay_provider_key,
 };
 use libp2p::{Multiaddr, PeerId};
 use std::collections::{HashMap, HashSet};
@@ -215,4 +215,44 @@ fn a_penalised_relay_recovers_its_rank_after_enough_decay() {
         vec![punished],
         "a recovered low-latency relay should win again"
     );
+}
+
+#[test]
+fn lan_multiaddr_accepts_private_ranges() {
+    let lan = [
+        "/ip4/192.168.1.42/tcp/4001",
+        "/ip4/10.0.0.7/udp/4001/quic-v1",
+        "/ip4/172.16.3.9/tcp/4001",
+        "/ip4/169.254.10.1/tcp/4001",
+        "/ip4/127.0.0.1/tcp/4001",
+        "/ip6/fe80::1/tcp/4001",
+        "/ip6/fd00::1/tcp/4001",
+    ];
+
+    for addr in lan {
+        assert!(
+            is_lan_multiaddr(&addr.parse::<Multiaddr>().unwrap()),
+            "{addr} should count as LAN"
+        );
+    }
+}
+
+#[test]
+fn lan_multiaddr_rejects_public_and_circuit() {
+    let remote = [
+        "/ip4/93.184.216.34/tcp/4001",
+        "/ip4/100.64.0.1/tcp/4001",
+        "/ip6/2001:db8::1/tcp/4001",
+        "/dns4/relay.example.com/tcp/4001",
+        &format!("/ip4/93.184.216.34/tcp/4001/p2p/{RELAY}/p2p-circuit"),
+        &format!("/ip4/192.168.1.5/tcp/4001/p2p/{RELAY}/p2p-circuit"),
+    ];
+
+    for addr in remote {
+        let parsed: Multiaddr = addr.parse().unwrap();
+        assert!(
+            !is_lan_multiaddr(&parsed) || is_circuit(&parsed),
+            "{addr} must not pass the nearby locality gate"
+        );
+    }
 }

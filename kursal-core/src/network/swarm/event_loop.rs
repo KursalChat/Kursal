@@ -1,9 +1,10 @@
 use super::{
-    CONTRIBUTES, ConnectionKind, ContributionStatus, KursalBehaviour, KursalBehaviourEvent,
-    MAX_RELAY_RESERVATIONS, NetworkEvent, PeerStreams, Reachability, RelayCandidate,
+    CONTRIBUTES, ConnInfo, ConnectionKind, ContributionStatus, KursalBehaviour,
+    KursalBehaviourEvent, MAX_RELAY_RESERVATIONS, NetworkEvent, PeerStreams, Reachability,
+    RelayCandidate,
     helpers::{
-        any_public_address, dial_error_summary, is_circuit, is_node_peer, is_routable_multiaddr,
-        reserved_relay_count,
+        any_public_address, dial_error_summary, is_circuit, is_lan_multiaddr, is_node_peer,
+        is_routable_multiaddr, reserved_relay_count,
     },
     lock_peer_streams, prune_relay_candidates, relay_provider_key,
 };
@@ -49,19 +50,19 @@ fn penalise_circuit_listener(
 }
 
 fn best_kind(
-    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_conns: &HashMap<ConnectionId, ConnInfo>,
     peer_id: &PeerId,
 ) -> Option<ConnectionKind> {
     peer_conns
         .values()
-        .filter(|(p, _)| p == peer_id)
-        .map(|(_, k)| *k)
+        .filter(|info| &info.peer == peer_id)
+        .map(|info| info.kind)
         .max_by_key(|k| k.rank())
 }
 
 fn prune_duplicate_connections(
     swarm: &mut Swarm<KursalBehaviour>,
-    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_conns: &HashMap<ConnectionId, ConnInfo>,
     peer_streams: &PeerStreams,
     node_addrs: &[Multiaddr],
     peer_id: PeerId,
@@ -73,7 +74,7 @@ fn prune_duplicate_connections(
 
     let mut conns: Vec<(ConnectionId, ConnectionKind)> = peer_conns
         .iter()
-        .filter_map(|(cid, (p, kind))| (*p == peer_id).then_some((*cid, *kind)))
+        .filter_map(|(cid, info)| (info.peer == peer_id).then_some((*cid, info.kind)))
         .collect();
 
     if conns.len() < 2 {
@@ -103,7 +104,7 @@ pub(super) async fn handle_swarm_event(
     swarm: &mut Swarm<KursalBehaviour>,
     #[allow(unused_variables)] nearby_enabled: bool,
     #[allow(unused_variables)] mdns_peers: &mut HashMap<PeerId, Multiaddr>,
-    peer_conns: &mut HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_conns: &mut HashMap<ConnectionId, ConnInfo>,
     peer_streams: &PeerStreams,
     validated_tx: &mpsc::Sender<libp2p::kad::Record>,
     node_addrs: &[Multiaddr],
@@ -232,12 +233,14 @@ pub(super) async fn handle_swarm_event(
             }
         }
 
-        // TODO: add a PeerExpired or similar, connection is not lost
         SwarmEvent::Behaviour(KursalBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, addr) in &peers {
                 log::debug!("[mDNS] peer expired {} at {}", peer_id, addr);
                 if mdns_peers.get(peer_id) == Some(addr) {
                     mdns_peers.remove(peer_id);
+                    let _ = event_tx
+                        .send(NetworkEvent::PeerExpired { peer_id: *peer_id })
+                        .await;
                 }
             }
         }
@@ -248,7 +251,15 @@ pub(super) async fn handle_swarm_event(
                     "[dcutr] hole punch succeeded peer={} conn={connection_id:?}",
                     e.remote_peer_id
                 );
-                peer_conns.insert(connection_id, (e.remote_peer_id, ConnectionKind::HolePunch));
+                let lan = peer_conns.get(&connection_id).is_some_and(|info| info.lan);
+                peer_conns.insert(
+                    connection_id,
+                    ConnInfo {
+                        peer: e.remote_peer_id,
+                        kind: ConnectionKind::HolePunch,
+                        lan,
+                    },
+                );
 
                 prune_duplicate_connections(
                     swarm,
@@ -445,8 +456,16 @@ pub(super) async fn handle_swarm_event(
             } else {
                 ConnectionKind::Direct
             };
+            let lan = !is_relayed_check && is_lan_multiaddr(endpoint.get_remote_address());
 
-            peer_conns.insert(connection_id, (peer_id, kind));
+            peer_conns.insert(
+                connection_id,
+                ConnInfo {
+                    peer: peer_id,
+                    kind,
+                    lan,
+                },
+            );
             if let Some(candidate) = discovered_relays.get_mut(&peer_id) {
                 candidate.failures = 0;
             }
@@ -523,12 +542,16 @@ pub(super) async fn handle_swarm_event(
             match e {
                 Event::Message {
                     peer,
+                    connection_id,
                     message:
                         Message::Request {
                             request, channel, ..
                         },
-                    ..
                 } => {
+                    let lan = peer_conns
+                        .get(&connection_id)
+                        .is_some_and(|info| info.lan && info.kind != ConnectionKind::Relay);
+
                     let _ = swarm
                         .behaviour_mut()
                         .request_response
@@ -537,6 +560,7 @@ pub(super) async fn handle_swarm_event(
                         .send(NetworkEvent::MessageReceived {
                             from: peer,
                             data: request,
+                            lan,
                         })
                         .await;
                 }

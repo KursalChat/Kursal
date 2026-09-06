@@ -221,6 +221,23 @@ fn innermost_cause(err: &impl std::fmt::Display) -> String {
         .map_or_else(|| rendered.clone(), |cause| (*cause).to_string())
 }
 
+pub fn is_lan_multiaddr(addr: &Multiaddr) -> bool {
+    for proto in addr.iter() {
+        match proto {
+            Protocol::Ip4(ip) => {
+                return ip.is_private() || ip.is_link_local() || ip.is_loopback();
+            }
+            Protocol::Ip6(ip) => {
+                let is_link_local = (ip.segments()[0] & 0xffc0) == 0xfe80;
+                let is_unique_local = (ip.segments()[0] & 0xfe00) == 0xfc00;
+                return ip.is_loopback() || is_link_local || is_unique_local;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub fn is_routable_multiaddr(addr: &Multiaddr) -> bool {
     for proto in addr.iter() {
         match proto {

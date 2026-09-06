@@ -512,6 +512,7 @@ pub async fn handle_incoming_stream(
                     .send(NetworkEvent::MessageReceived {
                         from: peer_id,
                         data,
+                        lan: false,
                     })
                     .await;
             }

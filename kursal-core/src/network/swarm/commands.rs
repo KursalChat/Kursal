@@ -1,6 +1,7 @@
 use super::{
-    CALL_PROTOCOL, ConnectionKind, ContributionStatus, KursalBehaviour, MAX_RELAY_RESERVATIONS,
-    PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL, best_relay_candidates,
+    CALL_PROTOCOL, ConnInfo, ConnectionKind, ContributionStatus, KursalBehaviour,
+    MAX_RELAY_RESERVATIONS, PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL,
+    best_relay_candidates,
     helpers::{open_peer_stream, peer_of, reserved_relay_count},
     lock_peer_streams, relay_provider_key,
 };
@@ -28,7 +29,7 @@ pub(super) async fn handle_swarm_command(
     nearby_enabled: &mut bool,
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
-    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_conns: &HashMap<ConnectionId, ConnInfo>,
     node_addrs: &mut Vec<Multiaddr>,
     discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
     contribution: &ContributionStatus,
@@ -41,7 +42,7 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::DialLocal { peer_id, addresses } => {
             let has_direct = peer_conns
                 .values()
-                .any(|(p, kind)| *p == peer_id && *kind != ConnectionKind::Relay);
+                .any(|info| info.peer == peer_id && info.kind != ConnectionKind::Relay);
 
             if !has_direct {
                 let opts = DialOpts::peer_id(peer_id)
@@ -255,14 +256,14 @@ pub(super) async fn handle_swarm_command(
         }
         SwarmCommand::GetPeerConnectionKinds { reply_tx } => {
             let mut best: HashMap<PeerId, ConnectionKind> = HashMap::new();
-            for (peer_id, kind) in peer_conns.values() {
-                best.entry(*peer_id)
+            for info in peer_conns.values() {
+                best.entry(info.peer)
                     .and_modify(|current| {
-                        if kind.rank() > current.rank() {
-                            *current = *kind;
+                        if info.kind.rank() > current.rank() {
+                            *current = info.kind;
                         }
                     })
-                    .or_insert(*kind);
+                    .or_insert(info.kind);
             }
             let _ = reply_tx.send(best);
         }

@@ -189,6 +189,24 @@ pub(super) async fn handle_internal_network_event(
             }
         }
 
+        NetworkEvent::PeerExpired { peer_id } => {
+            let peer_id = peer_id.to_base58();
+            let network = network.lock().await;
+
+            network
+                .mdns_transport
+                .nearby_addresses
+                .lock()
+                .await
+                .remove(&peer_id);
+
+            network
+                .nearby_peers
+                .lock()
+                .await
+                .remove(&(peer_id, NearbyOrigin::mDNS));
+        }
+
         NetworkEvent::LocalPeerDiscovered { peer_id, addresses } => {
             let peer_id_str = peer_id.to_base58();
             let found = Contact::find_by_peer_id(db, &peer_id_str);
@@ -203,8 +221,22 @@ pub(super) async fn handle_internal_network_event(
                 .await;
         }
 
-        NetworkEvent::MessageReceived { from, data } => {
+        NetworkEvent::MessageReceived { from, data, lan } => {
             let route = async {
+                if !lan {
+                    return NearbyRouteResult::NotNearby;
+                }
+
+                let nearby_active = {
+                    let network = network.lock().await;
+                    let beacon = network.my_beacon.lock().await;
+                    beacon.is_some()
+                };
+
+                if !nearby_active {
+                    return NearbyRouteResult::NotNearby;
+                }
+
                 let packet = match NearbyPacket::deserialize(&data) {
                     Ok(p) => p,
                     Err(_) => return NearbyRouteResult::NotNearby,
