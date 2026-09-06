@@ -626,6 +626,45 @@ fn answered_calls_are_never_unread() {
     assert_eq!(summary.count, 0);
 }
 
+// A peer reusing the id of a message we sent must not replace our own row.
+#[test]
+fn inbound_message_cannot_overwrite_a_sent_one() {
+    let env = TestEnv::new();
+    let db = Database::open(&env.db_path("overwrite"), [0u8; 32]).unwrap();
+    let contact = UserId([9; 32]);
+    let id = MessageId([42; 16]);
+
+    let mut mine = call_record(CallOutcome::Completed, contact.clone(), 42);
+    mine.direction = Direction::Sent;
+    mine.timestamp = 111;
+    mine.save(&db).unwrap();
+
+    let mut theirs = call_record(CallOutcome::Missed, contact.clone(), 42);
+    theirs.timestamp = 222;
+
+    assert!(!theirs.save_new(&db).unwrap());
+
+    let kept = StoredMessage::load(&db, &contact, &id).unwrap().unwrap();
+    assert!(matches!(kept.direction, Direction::Sent));
+    assert_eq!(kept.timestamp, 111);
+}
+
+#[test]
+fn save_new_stores_a_message_with_a_fresh_id() {
+    let env = TestEnv::new();
+    let db = Database::open(&env.db_path("fresh"), [0u8; 32]).unwrap();
+    let contact = UserId([10; 32]);
+
+    let msg = call_record(CallOutcome::Completed, contact.clone(), 7);
+
+    assert!(msg.save_new(&db).unwrap());
+    assert!(
+        StoredMessage::load(&db, &contact, &MessageId([7; 16]))
+            .unwrap()
+            .is_some()
+    );
+}
+
 #[test]
 fn unanswered_calls_stay_unread() {
     let env = TestEnv::new();

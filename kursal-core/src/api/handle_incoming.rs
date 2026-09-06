@@ -150,16 +150,22 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&db)?;
-
-            event_tx
-                .send(AppEvent::MessageReceived {
-                    contact_id: contact.user_id.clone(),
-                    message: stored,
-                    via_offline: false,
-                })
-                .await
-                .ok_kursal(KursalError::Network)?;
+            if stored.save_new(&db)? {
+                event_tx
+                    .send(AppEvent::MessageReceived {
+                        contact_id: contact.user_id.clone(),
+                        message: stored,
+                        via_offline: false,
+                    })
+                    .await
+                    .ok_kursal(KursalError::Network)?;
+            } else {
+                log::warn!(
+                    "[msg] {} reused message id {}, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(msg_id.0)
+                );
+            }
 
             send_delivery_receipt(db.clone(), msg_id, &contact, cmd_tx).await?;
         }
@@ -249,7 +255,16 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&db)?;
+            if !stored.save_new(&db)? {
+                log::warn!(
+                    "[file] {} reused message id {} for an offer, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                );
+                send_delivery_receipt(db.clone(), offer_id, &contact, cmd_tx).await?;
+
+                return Ok(());
+            }
 
             let mut autodownload = None;
             let auto_accept = get_auto_accept_config(&db);

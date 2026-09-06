@@ -342,16 +342,22 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&db)?;
-
-            event_tx
-                .send(AppEvent::MessageReceived {
-                    contact_id: contact.user_id.clone(),
-                    message: stored,
-                    via_offline: true,
-                })
-                .await
-                .ok_kursal(KursalError::Network)?;
+            if stored.save_new(&db)? {
+                event_tx
+                    .send(AppEvent::MessageReceived {
+                        contact_id: contact.user_id.clone(),
+                        message: stored,
+                        via_offline: true,
+                    })
+                    .await
+                    .ok_kursal(KursalError::Network)?;
+            } else {
+                log::warn!(
+                    "[msg] {} reused message id {}, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(msg_id.0)
+                );
+            }
 
             send_offline_delivery_receipt(db, msg_id, contact, cmd_tx).await?;
         }
@@ -365,15 +371,6 @@ async fn dispatch_offline_kmessage(
                 hash: file.hash,
                 created_at: now,
             };
-            db.raw_write(
-                TABLE_FILE_TRANSFERS,
-                &format!(
-                    "recv:{}:{}",
-                    hex::encode(contact.user_id.0),
-                    hex::encode(offer_id.0)
-                ),
-                &incoming.serialize()?,
-            )?;
 
             let stored = StoredMessage {
                 id: offer_id,
@@ -387,7 +384,27 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&db)?;
+
+            if !stored.save_new(&db)? {
+                log::warn!(
+                    "[file] {} reused message id {} for an offer, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                );
+                send_offline_delivery_receipt(db, offer_id, contact, cmd_tx).await?;
+
+                return Ok(());
+            }
+
+            db.raw_write(
+                TABLE_FILE_TRANSFERS,
+                &format!(
+                    "recv:{}:{}",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                ),
+                &incoming.serialize()?,
+            )?;
 
             event_tx
                 .send(AppEvent::FileOffered {
