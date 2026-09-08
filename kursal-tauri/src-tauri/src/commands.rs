@@ -273,12 +273,19 @@ pub async fn send_file_offer(
     state: tauri::State<'_, AppState>,
     contact_id: String,
     file_path: String,
+    allow_unstripped: bool,
 ) -> Result<(String, u64, String)> {
     let app_data_dir = app_data_dir()?.to_path_buf();
 
-    cmd_wrapper::send_file_offer(AppStateWrapper(state), contact_id, file_path, app_data_dir)
-        .await
-        .map_err(Into::into)
+    cmd_wrapper::send_file_offer(
+        AppStateWrapper(state),
+        contact_id,
+        file_path,
+        app_data_dir,
+        allow_unstripped,
+    )
+    .await
+    .map_err(Into::into)
 }
 
 #[tauri::command]

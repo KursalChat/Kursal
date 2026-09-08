@@ -107,12 +107,18 @@ pub async fn stage_outgoing(
     offer_hex: String,
     source: PathBuf,
     filename: String,
+    allow_unstripped: bool,
 ) -> Result<Option<PathBuf>> {
     tokio::task::spawn_blocking(move || -> Result<Option<PathBuf>> {
         let pending_dir = outgoing_pending_dir(&app_data_dir);
         let from_pending = source.starts_with(&pending_dir);
 
-        let plan = image_metadata::plan_strip(&source)?;
+        let plan = match image_metadata::plan_strip(&source) {
+            Err(KursalError::UnstrippableImage) if allow_unstripped => {
+                image_metadata::StripPlan::identity()
+            }
+            other => other?,
+        };
         if !plan.changed() && !from_pending {
             return Ok(None);
         }

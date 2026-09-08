@@ -95,6 +95,7 @@
     "network": "Network problem. Check your connection and try again.",
     "identity": "There was a problem with your identity keys.",
     "io": "Couldn't read or write a file. Please try again.",
+    "unstrippable_image": "This image's hidden data (like location) couldn't be removed, so it wasn't sent.",
     "unknown": "Something went wrong. Please try again."
   },
   "avatar": {
@@ -509,6 +510,11 @@
       "errorOpenFile": "Failed to open file.",
       "errorPrepareFile": "Failed to prepare file.",
       "errorSendFile": "Failed to send file.",
+      "unstrippedTitle": "Hidden data can't be removed",
+      "unstrippedMessage": "Kursal couldn't strip the metadata from {filename}.",
+      "unstrippedDetail": "It may carry the location where it was taken, the device that made it, and the date. Sending it as-is shares all of that.",
+      "unstrippedConfirm": "Send anyway",
+      "unstrippedCancel": "Don't send",
       "errorPasteImage": "Failed to paste image.",
       "errorPasteText": "Failed to attach the text as a file.",
       "errorMessageTooLong": "Message too long ({length}/{max})",

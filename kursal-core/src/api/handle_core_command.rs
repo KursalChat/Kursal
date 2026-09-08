@@ -742,6 +742,7 @@ pub async fn handle_core_command(
             contact_id,
             file_path,
             app_data_dir,
+            allow_unstripped,
             reply,
         } => {
             let result = async {
@@ -776,6 +777,7 @@ pub async fn handle_core_command(
                     offer_hex.clone(),
                     PathBuf::from(&file_path),
                     filename.clone(),
+                    allow_unstripped,
                 )
                 .await?;
 

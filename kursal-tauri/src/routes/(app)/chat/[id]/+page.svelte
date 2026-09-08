@@ -1547,6 +1547,17 @@
       });
   }
 
+  function confirmUnstripped(filename: string): Promise<boolean> {
+    return confirmDialog({
+      title: t('chat.conversation.unstrippedTitle'),
+      message: t('chat.conversation.unstrippedMessage', { filename }),
+      detail: t('chat.conversation.unstrippedDetail'),
+      confirmLabel: t('chat.conversation.unstrippedConfirm'),
+      cancelLabel: t('chat.conversation.unstrippedCancel'),
+      tone: 'warning',
+    });
+  }
+
   async function confirmSendFile(caption = '') {
     if (!pendingFiles.length || !contactId || sendingFile) return;
     const files = pendingFiles;
@@ -1568,7 +1579,15 @@
       for (const file of files) {
         // The core moves staged bytes out of the pending dir, so the preview
         // has to point at the copy it kept, not the path we handed it.
-        const [messageId, fileSize, storedPath] = await sendFileOffer(cid, file.backendPath);
+        let offer: [string, number, string];
+        try {
+          offer = await sendFileOffer(cid, file.backendPath);
+        } catch (e) {
+          if (parseError(e).code !== 'unstrippable_image') throw e;
+          if (!(await confirmUnstripped(file.filename))) continue;
+          offer = await sendFileOffer(cid, file.backendPath, true);
+        }
+        const [messageId, fileSize, storedPath] = offer;
         messagesState.appendOptimistic({
           id: messageId,
           contactId: cid,

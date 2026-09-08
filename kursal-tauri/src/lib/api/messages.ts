@@ -48,8 +48,10 @@ export const getPinnedMessages = async (contactId: string): Promise<MessageRespo
 /** Returns [messageId, sizeBytes, storedPath]: storedPath is the path the core kept the copy at. */
 export const sendFileOffer = (
   contactId: string,
-  filePath: string
-): Promise<[string, number, string]> => invoke('send_file_offer', { contactId, filePath });
+  filePath: string,
+  allowUnstripped = false
+): Promise<[string, number, string]> =>
+  invoke('send_file_offer', { contactId, filePath, allowUnstripped });
 
 export const createOutgoingPendingPath = (filename: string): Promise<string> =>
   invoke('create_outgoing_pending_path', { filename });

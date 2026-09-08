@@ -670,7 +670,7 @@ core_request!(pin_message(contact_id: String, message_id: String, pinned: bool) 
 core_request!(edit_message(contact_id: String, message_id: String, new_content: String) => EditMessage -> bool);
 core_request!(add_reaction(contact_id: String, message_id: String, emoji: String) => ReactionAdd -> bool);
 core_request!(remove_reaction(contact_id: String, message_id: String, emoji: String) => ReactionRemove -> bool);
-core_request!(send_file_offer(contact_id: String, file_path: String, app_data_dir: std::path::PathBuf) => SendFileOffer -> (String, u64, String), map |(msg_id, file_size, stored_path): (MessageId, u64, String)| (hex::encode(msg_id.0), file_size, stored_path));
+core_request!(send_file_offer(contact_id: String, file_path: String, app_data_dir: std::path::PathBuf, allow_unstripped: bool) => SendFileOffer -> (String, u64, String), map |(msg_id, file_size, stored_path): (MessageId, u64, String)| (hex::encode(msg_id.0), file_size, stored_path));
 core_request!(accept_file_offer(contact_id: String, offer_id: String, save_path: String) => AcceptFileOffer -> ());
 core_request!(cancel_file_transfer(contact_id: String, offer_id: String) => CancelFileTransfer -> ());
 core_request!(flush_offline(contact_id: String) => FlushOffline -> ());
