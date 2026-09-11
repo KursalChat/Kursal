@@ -14,7 +14,9 @@ use crate::{
     network::{
         dht::DHTRecord,
         kademlia::KAD_MAX_AGE,
-        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, is_peer_connected, str_to_multiaddr},
+        swarm::{
+            SwarmCommand, SwarmHandle, get_listen_addrs, is_peer_connected, routable_multiaddrs,
+        },
     },
     storage::{
         SharedDatabase, TABLE_SESSIONS, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs,
@@ -298,7 +300,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
     let response_bytes = bincode::serialize(&wire)?;
 
     let publisher_peer = PeerId::from_str(&payload.peer_id).ok_kursal(KursalError::Network)?;
-    let publisher_addrs = str_to_multiaddr(&contact.known_addresses)?;
+    let publisher_addrs = routable_multiaddrs(&contact.known_addresses)?;
 
     if !is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
         log::info!(

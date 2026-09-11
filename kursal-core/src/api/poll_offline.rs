@@ -152,6 +152,9 @@ async fn poll_contact_offline_inner(
     loop {
         let mut contact = Contact::load(db, contact_id)?
             .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
+        if contact.blocked {
+            return Ok(());
+        }
 
         if let Some(since) = contact.offline.recv_stuck_since
             && get_timestamp_secs()?.saturating_sub(since) > GAP_SKIP_SECS

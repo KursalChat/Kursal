@@ -305,6 +305,9 @@ pub async fn handle_core_command(
 
                 let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
+                if contact.blocked {
+                    return Ok(());
+                }
 
                 let ids: Vec<MessageId> = message_ids
                     .iter()
@@ -413,7 +416,7 @@ pub async fn handle_core_command(
                 let contacts = Contact::load_all(&db)?;
 
                 for contact in contacts {
-                    if contact.profile_shared {
+                    if contact.profile_shared && !contact.blocked {
                         share_profile_with(
                             &contact,
                             display_name.clone(),

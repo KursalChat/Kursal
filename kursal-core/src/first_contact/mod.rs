@@ -7,7 +7,7 @@ use crate::{
     crypto::{DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, session_initiate},
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
-    network::swarm::{SwarmCommand, str_to_multiaddr},
+    network::swarm::SwarmCommand,
     storage::{SharedDatabase, TABLE_SETTINGS, get_timestamp_secs},
     sync::LockExt,
 };
@@ -19,7 +19,6 @@ use libsignal_protocol::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
-use std::str::FromStr;
 use std::sync::{LazyLock, Mutex as StdMutex};
 use tokio::sync::{mpsc, oneshot};
 use zeroize::Zeroizing;
@@ -126,17 +125,14 @@ pub fn resolve_ack_waiter(payload_id: MessageId, ack: FcAck) {
 
 async fn send_wire(
     wire: WireMessage,
-    peer_id: &str,
-    addresses: &[String],
+    peer_id: PeerId,
     cmd_tx: &mpsc::Sender<SwarmCommand>,
 ) -> Result<()> {
-    let peer = PeerId::from_str(peer_id).ok_kursal(KursalError::Network)?;
-
     cmd_tx
         .send(SwarmCommand::SendMessage {
-            peer_id: peer,
+            peer_id,
             data: bincode::serialize(&wire)?,
-            addresses: str_to_multiaddr(addresses)?,
+            addresses: vec![],
         })
         .await
         .ok_kursal(KursalError::Network)
@@ -150,6 +146,7 @@ pub fn make_username(peer_id: &str) -> String {
 }
 
 pub async fn handle_fc_response(
+    from: PeerId,
     response: ContactResponse,
     db: SharedDatabase,
     cmd_tx: &mpsc::Sender<SwarmCommand>,
@@ -227,13 +224,7 @@ pub async fn handle_fc_response(
             payload_id: response.payload_id,
             reason,
         };
-        let _ = send_wire(
-            rejection,
-            &response.peer_id,
-            &response.relay_addresses,
-            cmd_tx,
-        )
-        .await;
+        let _ = send_wire(rejection, from, cmd_tx).await;
 
         return Ok(());
     };
@@ -251,8 +242,7 @@ pub async fn handle_fc_response(
         );
         let _ = send_wire(
             WireMessage::ContactAccepted(response.payload_id),
-            &response.peer_id,
-            &response.relay_addresses,
+            from,
             cmd_tx,
         )
         .await;
@@ -313,10 +303,11 @@ pub async fn handle_fc_response(
         }
     };
 
+    let peer_id = from.to_base58();
     let contact = Contact {
         user_id: user_id.clone(),
-        peer_id: response.peer_id.clone(),
-        display_name: make_username(&response.peer_id),
+        display_name: make_username(&peer_id),
+        peer_id,
         avatar: None,
         identity_pub_key: identity_key_bytes.clone(),
         dilithium_pub_key: response.dilithium_pub_key.clone(),
@@ -369,8 +360,7 @@ pub async fn handle_fc_response(
                 payload_id: response.payload_id,
                 reason: FcRejectReason::AlreadyUsed,
             },
-            &response.peer_id,
-            &response.relay_addresses,
+            from,
             cmd_tx,
         )
         .await;
@@ -379,8 +369,7 @@ pub async fn handle_fc_response(
 
     let _ = send_wire(
         WireMessage::ContactAccepted(response.payload_id),
-        &response.peer_id,
-        &response.relay_addresses,
+        from,
         cmd_tx,
     )
     .await;

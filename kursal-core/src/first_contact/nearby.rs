@@ -47,6 +47,7 @@ pub mod bluetooth {
             cmd_tx: mpsc::Sender<SwarmCommand>,
             my_beacon: Arc<Mutex<Option<NearbyBeacon>>>,
             bt_event_tx: mpsc::Sender<BtEvent>,
+            _keypair: libp2p::identity::Keypair,
         ) -> Self {
             Self {
                 cmd_tx,
@@ -268,7 +269,10 @@ pub async fn handle_nearby_request(
         )
         .await?;
 
-    let result = match tokio::time::timeout(Duration::from_secs(30), rx.recv()).await {
+    let reply = tokio::time::timeout(Duration::from_secs(30), rx.recv()).await;
+    transport.unregister_handshake(from_peer_id).await;
+
+    match reply {
         Ok(Some(NearbyMessage::BundleReply {
             bundle,
             dilithium_pub,
@@ -280,6 +284,9 @@ pub async fn handle_nearby_request(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
+            if Contact::load(&db, &user_id)?.is_some() {
+                return Err(already_a_contact());
+            }
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             session_initiate(db.clone(), bundle, &address).await?;
@@ -350,10 +357,11 @@ pub async fn handle_nearby_request(
             Ok(())
         }
         _ => Err(KursalError::Network("No bundle reply received".to_string())),
-    };
+    }
+}
 
-    transport.unregister_handshake(from_peer_id).await;
-    result
+fn already_a_contact() -> KursalError {
+    KursalError::Storage("Nearby peer is already a contact".to_string())
 }
 
 pub async fn nearby_connect(
@@ -376,7 +384,10 @@ pub async fn nearby_connect(
         )
         .await?;
 
-    let result = match tokio::time::timeout(Duration::from_secs(60), rx.recv()).await {
+    let reply = tokio::time::timeout(Duration::from_secs(60), rx.recv()).await;
+    transport.unregister_handshake(peer_id).await;
+
+    match reply {
         Ok(Some(NearbyMessage::ConnectAccept {
             bundle,
             dilithium_pub,
@@ -386,6 +397,10 @@ pub async fn nearby_connect(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
+            if Contact::load(&db, &user_id)?.is_some() {
+                let _ = transport.send(peer_id, NearbyMessage::ConnectDecline).await;
+                return Err(already_a_contact());
+            }
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
@@ -463,8 +478,5 @@ pub async fn nearby_connect(
             )) // not sure but i think no one emits this for more privacy
         }
         _ => Err(KursalError::Network("No response received".to_string())),
-    };
-
-    transport.unregister_handshake(peer_id).await;
-    result
+    }
 }

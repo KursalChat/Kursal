@@ -56,6 +56,10 @@ async fn contact_response(peer: &SharedDatabase, payload_id: MessageId) -> Conta
     }
 }
 
+fn sender(response: &ContactResponse) -> PeerId {
+    response.peer_id.parse().unwrap()
+}
+
 fn responder_id(response: &ContactResponse) -> UserId {
     let bundle = PreKeyBundleData::deserialize(&response.pre_key_bundle).unwrap();
     let identity = bundle.identity_key.public_key().serialize().to_vec();
@@ -311,9 +315,15 @@ async fn ltc_use_is_counted_on_accept() {
     let response = contact_response(&bob, state.payload_id).await;
 
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_accepted(&mut cmd_rx);
     assert!(contact_saved(&alice, &response).await);
@@ -334,9 +344,15 @@ async fn ltc_unlimited_code_accepts_repeatedly() {
         let peer = make_peer(&env, &format!("ltc_unlimited_peer{i}")).await;
         let response = contact_response(&peer, state.payload_id).await;
 
-        handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-            .await
-            .unwrap();
+        handle_fc_response(
+            sender(&response),
+            response.clone(),
+            alice.clone(),
+            &cmd_tx,
+            &event_tx,
+        )
+        .await
+        .unwrap();
 
         assert_accepted(&mut cmd_rx);
         assert!(contact_saved(&alice, &response).await);
@@ -358,16 +374,28 @@ async fn ltc_rejects_once_max_uses_is_reached() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&first),
+        first.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
     assert_accepted(&mut cmd_rx);
     assert_eq!(uses(&alice).await, 1);
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::AlreadyUsed);
     assert!(!contact_saved(&alice, &second).await);
@@ -387,7 +415,7 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&first), first, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
     assert_accepted(&mut cmd_rx);
@@ -400,9 +428,15 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
     assert_eq!(dto.uses, 1);
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::AlreadyUsed);
     assert!(!contact_saved(&alice, &second).await);
@@ -421,7 +455,7 @@ async fn ltc_raising_max_uses_revives_an_exhausted_code() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&first), first, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
     assert_accepted(&mut cmd_rx);
@@ -431,9 +465,15 @@ async fn ltc_raising_max_uses_revives_an_exhausted_code() {
         .unwrap();
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_accepted(&mut cmd_rx);
     assert!(contact_saved(&alice, &second).await);
@@ -455,9 +495,15 @@ async fn ltc_expired_code_is_rejected() {
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Expired);
     assert!(!contact_saved(&alice, &response).await);
@@ -479,9 +525,15 @@ async fn ltc_revoked_code_is_rejected() {
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Unknown);
     assert!(!contact_saved(&alice, &response).await);
@@ -499,9 +551,15 @@ async fn ltc_unknown_payload_id_is_rejected() {
 
     let response = contact_response(&bob, MessageId::new()).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Unknown);
     assert!(!contact_saved(&alice, &response).await);
@@ -520,15 +578,21 @@ async fn ltc_existing_contact_does_not_burn_a_use() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let response = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
     assert_accepted(&mut cmd_rx);
     assert_eq!(uses(&alice).await, 1);
 
     let mut again = response.clone();
     again.peer_id = PeerId::random().to_base58();
-    handle_fc_response(again, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&again), again, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
 
@@ -583,9 +647,15 @@ async fn ltc_response_replay_ignored() {
     let bob_user_id = responder_id(&response);
 
     let (cmd_tx, _cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     let stored_peer_id = response.peer_id.clone();
     let mut contact = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
@@ -593,14 +663,20 @@ async fn ltc_response_replay_ignored() {
     contact.offline.send_counter = 5;
     contact.save(&alice).unwrap();
 
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     let mut altered = response.clone();
     altered.relay_addresses = vec!["/ip4/6.6.6.6/tcp/4001".to_string()];
     altered.peer_id = PeerId::random().to_base58();
-    handle_fc_response(altered, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&altered), altered, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
 

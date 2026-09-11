@@ -3,7 +3,7 @@ use crate::{
     api::{AppEvent, CoreCommand, send_message},
     contacts::Contact,
     first_contact::nearby::{bluetooth::BTTransport, mdns::MdnsTransport},
-    identity::TransportIdentity,
+    identity::{TransportIdentity, init_transport},
     messaging::enums::{AddressAnnounce, KursalMessage},
     network::{
         NetworkManager,
@@ -43,6 +43,10 @@ impl NetworkManager {
         let cmd_tx = secondary.cmd_tx.clone();
         self.secondary = Some(secondary);
 
+        for contact in Contact::load_all(db)? {
+            let _ = cmd_tx.send(SwarmCommand::ContactAdded { contact }).await;
+        }
+
         Ok(cmd_tx)
     }
 
@@ -62,6 +66,9 @@ impl NetworkManager {
         let new_addresses = get_listen_addrs(&secondary.cmd_tx).await?;
 
         for contact in contacts {
+            if contact.blocked {
+                continue;
+            }
             let content = KursalMessage::AddressAnnounce(AddressAnnounce {
                 peer_id: new_peer_id.clone(),
                 addresses: new_addresses.clone(),
@@ -91,7 +98,10 @@ impl NetworkManager {
             .ok_or_else(|| KursalError::Network("No secondary swarm".to_string()))?;
         self.primary = new_primary;
 
-        TransportIdentity::promote_next(db)?;
+        let keypair = match TransportIdentity::promote_next(db)? {
+            Some(next) => next.keypair,
+            None => init_transport(db)?.keypair,
+        };
 
         // update transports to use new swarm's command channel
         self.mdns_transport = Arc::new(MdnsTransport::new(
@@ -102,6 +112,7 @@ impl NetworkManager {
             self.primary.cmd_tx.clone(),
             self.my_beacon.clone(),
             self.bt_event_tx.clone(),
+            keypair,
         ));
 
         Ok(())

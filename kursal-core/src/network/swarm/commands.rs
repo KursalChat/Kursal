@@ -2,7 +2,7 @@ use super::{
     CALL_PROTOCOL, ConnInfo, ConnectionKind, ContributionStatus, KursalBehaviour,
     MAX_RELAY_RESERVATIONS, PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL,
     best_relay_candidates,
-    helpers::{open_peer_stream, peer_of, reserved_relay_count},
+    helpers::{is_routable_multiaddr, open_peer_stream, peer_of, reserved_relay_count},
     lock_peer_streams, relay_provider_key,
 };
 use libp2p::{
@@ -214,11 +214,19 @@ pub(super) async fn handle_swarm_command(
             pending_queries.insert(query_id, reply_tx);
         }
         SwarmCommand::ContactAdded { contact } => {
-            if let Ok(peer_id) = contact.peer_id.parse::<PeerId>() {
+            let peer_id = contact.peer_id.parse::<PeerId>().ok();
+            if contact.blocked {
+                if let Some(peer_id) = peer_id {
+                    swarm.behaviour_mut().limiter.block(peer_id);
+                }
+                return;
+            }
+            if let Some(peer_id) = peer_id {
                 swarm.behaviour_mut().limiter.protect(peer_id);
             }
             for addr_str in &contact.known_addresses {
                 if let Ok(addr) = addr_str.parse::<Multiaddr>()
+                    && is_routable_multiaddr(&addr)
                     && let Some(Protocol::P2p(peer_id)) = addr.iter().last()
                 {
                     swarm.behaviour_mut().kad.add_address(&peer_id, addr);
@@ -227,7 +235,19 @@ pub(super) async fn handle_swarm_command(
         }
         SwarmCommand::ContactRemoved { peer_id } => {
             if let Ok(peer_id) = peer_id.parse::<PeerId>() {
-                swarm.behaviour_mut().limiter.unprotect(&peer_id);
+                let limiter = &mut swarm.behaviour_mut().limiter;
+                limiter.unprotect(&peer_id);
+                limiter.unblock(&peer_id);
+            }
+        }
+        SwarmCommand::SetPeerBlocked { peer_id, blocked } => {
+            let limiter = &mut swarm.behaviour_mut().limiter;
+            if blocked {
+                limiter.block(peer_id);
+                let _ = swarm.disconnect_peer_id(peer_id);
+            } else {
+                limiter.unblock(&peer_id);
+                limiter.protect(peer_id);
             }
         }
         SwarmCommand::SendMessage {

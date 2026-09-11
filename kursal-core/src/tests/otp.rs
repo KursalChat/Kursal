@@ -13,6 +13,7 @@ use crate::{
     identity::generators::{generate_dilithium_keypair, generate_identity_keypair},
     storage::{Database, SharedDatabase, TABLE_SETTINGS},
 };
+use libp2p::PeerId;
 use libsignal_protocol::{DeviceId, IdentityKeyStore, KeyPair, ProtocolAddress};
 use rand::TryRngCore;
 use tokio::sync::mpsc;
@@ -140,14 +141,15 @@ async fn otp_response_ignored_after_consumed() {
     };
 
     // First call succeeds
+    let bob_peer = PeerId::random();
     let (cmd_tx, _cmd_rx) = mpsc::channel(8);
     let (event_tx, _event_rx) = mpsc::channel(8);
-    handle_fc_response(response.clone(), db.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(bob_peer, response.clone(), db.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
 
     // Second call should be silently ignored - otp_pending is now false
-    let result = handle_fc_response(response, db.clone(), &cmd_tx, &event_tx).await;
+    let result = handle_fc_response(bob_peer, response, db.clone(), &cmd_tx, &event_tx).await;
     assert!(result.is_ok());
 }
 
@@ -182,7 +184,8 @@ async fn otp_response_rejected_after_expiry() {
     };
     let (cmd_tx, _cmd_rx) = mpsc::channel(8);
     let (event_tx, _event_rx) = mpsc::channel(8);
-    let result = handle_fc_response(response, db.clone(), &cmd_tx, &event_tx).await;
+    let result =
+        handle_fc_response(PeerId::random(), response, db.clone(), &cmd_tx, &event_tx).await;
     assert!(result.is_ok()); // silently ignored... cant actually really test that lol
 }
 
@@ -251,9 +254,15 @@ async fn otp_mailbox_chains_match_after_handshake() {
 
     let (cmd_tx, _cmd_rx) = mpsc::channel(8);
     let (event_tx, _event_rx) = mpsc::channel(8);
-    handle_fc_response(response, alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        PeerId::random(),
+        response,
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     let bob_user_id = UserId(Sha256::digest(&bob_identity_pub).into());
     let alice_contact = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
@@ -313,20 +322,15 @@ async fn otp_replayed_response_is_refused_as_already_used() {
         }
     };
 
-    let bob_peer = libp2p::identity::Keypair::generate_ed25519()
-        .public()
-        .to_peer_id()
-        .to_base58();
-    let carol_peer = libp2p::identity::Keypair::generate_ed25519()
-        .public()
-        .to_peer_id()
-        .to_base58();
+    let bob_peer = PeerId::random();
+    let carol_peer = PeerId::random();
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel(16);
     let (event_tx, mut event_rx) = mpsc::channel(16);
 
     handle_fc_response(
-        make_response(bob.clone(), bob_peer).await,
+        bob_peer,
+        make_response(bob.clone(), bob_peer.to_base58()).await,
         alice.clone(),
         &cmd_tx,
         &event_tx,
@@ -351,7 +355,8 @@ async fn otp_replayed_response_is_refused_as_already_used() {
     while cmd_rx.try_recv().is_ok() {}
 
     handle_fc_response(
-        make_response(carol.clone(), carol_peer).await,
+        carol_peer,
+        make_response(carol.clone(), carol_peer.to_base58()).await,
         alice.clone(),
         &cmd_tx,
         &event_tx,

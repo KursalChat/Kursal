@@ -124,11 +124,17 @@ pub fn any_public_address<'a>(addrs: impl Iterator<Item = &'a Multiaddr>) -> boo
         .any(|addr| !is_circuit(addr) && is_routable_multiaddr(addr))
 }
 
-pub fn str_to_multiaddr(addresses: &[String]) -> Result<Vec<Multiaddr>> {
-    addresses
-        .iter()
-        .map(|el| el.parse::<Multiaddr>().ok_kursal(KursalError::Storage))
-        .collect()
+pub fn routable_multiaddrs(addresses: &[String]) -> Result<Vec<Multiaddr>> {
+    let mut parsed = Vec::with_capacity(addresses.len());
+    for address in addresses {
+        let addr = address
+            .parse::<Multiaddr>()
+            .ok_kursal(KursalError::Storage)?;
+        if is_routable_multiaddr(&addr) {
+            parsed.push(addr);
+        }
+    }
+    Ok(parsed)
 }
 
 pub async fn open_peer_stream(

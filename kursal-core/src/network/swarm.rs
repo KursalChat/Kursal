@@ -36,7 +36,7 @@ pub use codec::KursalMsgCodec;
 pub use helpers::{
     any_public_address, get_all_listen_addrs, get_connected_peer_count, get_connected_peers,
     get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_lan_multiaddr,
-    is_peer_connected, is_routable_multiaddr, open_peer_stream, str_to_multiaddr,
+    is_peer_connected, is_routable_multiaddr, open_peer_stream, routable_multiaddrs,
 };
 
 use commands::handle_swarm_command;
@@ -176,6 +176,10 @@ pub enum SwarmCommand {
     },
     ContactRemoved {
         peer_id: String,
+    },
+    SetPeerBlocked {
+        peer_id: PeerId,
+        blocked: bool,
     },
     GetListenAddresses {
         reply_tx: oneshot::Sender<Vec<Multiaddr>>,

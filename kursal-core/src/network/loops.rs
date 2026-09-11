@@ -14,7 +14,7 @@ use crate::{
     network::{
         NetworkManager,
         kademlia::KAD_LONG_MAX_AGE,
-        swarm::{ConnectionKind, SwarmCommand},
+        swarm::{ConnectionKind, SwarmCommand, is_routable_multiaddr},
     },
     storage::{SharedDatabase, get_last_offline_sweep, get_timestamp_secs, set_last_offline_sweep},
 };
@@ -221,6 +221,7 @@ pub(super) async fn presence_dial_loop(db: SharedDatabase, network: Arc<Mutex<Ne
                 .known_addresses
                 .iter()
                 .filter_map(|addr| addr.parse().ok())
+                .filter(is_routable_multiaddr)
                 .collect();
             if addresses.is_empty() {
                 continue;
@@ -300,6 +301,10 @@ pub(super) async fn periodic_offline_poll(
         let _ = event_tx.send(AppEvent::OfflineSync { active: true }).await;
 
         for contact in contacts {
+            if contact.blocked {
+                continue;
+            }
+
             if let Err(err) =
                 deliver_queue_direct(&contact.user_id, &cmd_tx, db.clone(), Some(&event_tx)).await
             {

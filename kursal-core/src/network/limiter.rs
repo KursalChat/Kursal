@@ -24,6 +24,7 @@ pub struct ConnectionLimiter {
     total: u32,
     transient_cap: Option<usize>,
     protected: HashSet<PeerId>,
+    blocked: HashSet<PeerId>,
     transient: VecDeque<(ConnectionId, PeerId)>,
     pending: VecDeque<ToSwarm<Infallible, Infallible>>,
     waker: Option<Waker>,
@@ -39,6 +40,7 @@ impl ConnectionLimiter {
             by_peer: HashMap::new(),
             transient_cap,
             protected: HashSet::new(),
+            blocked: HashSet::new(),
             transient: VecDeque::new(),
             pending: VecDeque::new(),
             waker: None,
@@ -53,6 +55,22 @@ impl ConnectionLimiter {
 
     pub fn unprotect(&mut self, peer_id: &PeerId) {
         self.protected.remove(peer_id);
+    }
+
+    pub fn block(&mut self, peer_id: PeerId) {
+        self.protected.remove(&peer_id);
+        self.blocked.insert(peer_id);
+    }
+
+    pub fn unblock(&mut self, peer_id: &PeerId) {
+        self.blocked.remove(peer_id);
+    }
+
+    fn refuse_blocked(&self, peer_id: &PeerId) -> Result<(), ConnectionDenied> {
+        if self.blocked.contains(peer_id) {
+            return Err(ConnectionDenied::new("peer is blocked"));
+        }
+        Ok(())
     }
 
     fn track_transient(&mut self, connection_id: ConnectionId, peer_id: PeerId) {
@@ -182,6 +200,8 @@ impl NetworkBehaviour for ConnectionLimiter {
         _local_addr: &Multiaddr,
         remote_addr: &Multiaddr,
     ) -> Result<libp2p::swarm::THandler<Self>, ConnectionDenied> {
+        self.refuse_blocked(&peer)?;
+
         if is_relayed(remote_addr)
             && self.max_per_ip != 0
             && self.by_peer.get(&peer).copied().unwrap_or(0) >= self.max_per_ip
@@ -198,14 +218,28 @@ impl NetworkBehaviour for ConnectionLimiter {
         Ok(dummy::ConnectionHandler)
     }
 
+    fn handle_pending_outbound_connection(
+        &mut self,
+        _connection_id: libp2p::swarm::ConnectionId,
+        maybe_peer: Option<libp2p::PeerId>,
+        _addresses: &[Multiaddr],
+        _effective_role: libp2p::core::Endpoint,
+    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        if let Some(peer) = maybe_peer {
+            self.refuse_blocked(&peer)?;
+        }
+        Ok(vec![])
+    }
+
     fn handle_established_outbound_connection(
         &mut self,
         _connection_id: libp2p::swarm::ConnectionId,
-        _peer: libp2p::PeerId,
+        peer: libp2p::PeerId,
         _addr: &Multiaddr,
         _role_override: libp2p::core::Endpoint,
         _port_use: libp2p::core::transport::PortUse,
     ) -> Result<libp2p::swarm::THandler<Self>, ConnectionDenied> {
+        self.refuse_blocked(&peer)?;
         Ok(dummy::ConnectionHandler)
     }
 

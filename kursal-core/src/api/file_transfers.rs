@@ -13,7 +13,7 @@ use crate::{
     first_contact::{FileTransferMessage, WireMessage},
     identity::UserId,
     messaging::enums::{FileAccept, KursalMessage, MessageId},
-    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, str_to_multiaddr},
+    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, routable_multiaddrs},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
         filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
@@ -738,7 +738,7 @@ pub async fn send_file_chunks(
     cmd_tx
         .send(SwarmCommand::OpenStream {
             peer_id: PeerId::from_str(&contact.peer_id).ok_kursal(KursalError::Network)?,
-            addresses: str_to_multiaddr(&contact.known_addresses)?,
+            addresses: routable_multiaddrs(&contact.known_addresses)?,
             reply: reply_tx,
         })
         .await
@@ -888,6 +888,10 @@ pub async fn resume_incoming_transfers(
     cmd_tx: mpsc::Sender<SwarmCommand>,
     event_tx: mpsc::Sender<crate::api::AppEvent>,
 ) -> Result<()> {
+    if contact.blocked {
+        return Ok(());
+    }
+
     let contact_hex = hex::encode(contact.user_id.0);
     let prefix = format!("recvprog:{contact_hex}:");
     let end = format!("recvprog:{contact_hex};");

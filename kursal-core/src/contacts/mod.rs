@@ -18,19 +18,41 @@ struct Roster {
 }
 
 impl Roster {
+    fn check_peer_claim(&self, contact: &Contact) -> Result<()> {
+        let unchanged = self
+            .by_user
+            .get(&contact.user_id)
+            .is_some_and(|previous| previous.peer_id == contact.peer_id);
+        let foreign = self
+            .by_peer
+            .get(&contact.peer_id)
+            .is_some_and(|owner| owner != &contact.user_id);
+
+        if foreign && !unchanged {
+            return Err(KursalError::Storage(
+                "Peer id already belongs to another contact".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     fn insert(&mut self, contact: Contact) {
         if let Some(previous) = self.by_user.get(&contact.user_id)
             && previous.peer_id != contact.peer_id
+            && self.by_peer.get(&previous.peer_id) == Some(&contact.user_id)
         {
             self.by_peer.remove(&previous.peer_id);
         }
         self.by_peer
-            .insert(contact.peer_id.clone(), contact.user_id.clone());
+            .entry(contact.peer_id.clone())
+            .or_insert_with(|| contact.user_id.clone());
         self.by_user.insert(contact.user_id.clone(), contact);
     }
 
     fn remove(&mut self, user_id: &UserId) {
-        if let Some(contact) = self.by_user.remove(user_id) {
+        if let Some(contact) = self.by_user.remove(user_id)
+            && self.by_peer.get(&contact.peer_id) == Some(user_id)
+        {
             self.by_peer.remove(&contact.peer_id);
         }
     }
@@ -92,11 +114,14 @@ impl Contact {
     }
 
     pub fn save(&self, db: &Database) -> Result<()> {
+        let roster = roster(db)?;
+        roster.read_recover().check_peer_claim(self)?;
+
         let user_id = hex::encode(self.user_id.0);
         let serialized = self.serialize()?;
 
         db.raw_write(TABLE_CONTACTS, &user_id, &serialized)?;
-        roster(db)?.write_recover().insert(self.clone());
+        roster.write_recover().insert(self.clone());
 
         Ok(())
     }
@@ -106,6 +131,7 @@ impl Contact {
         if !roster.read_recover().by_user.contains_key(&self.user_id) {
             return Ok(());
         }
+        roster.read_recover().check_peer_claim(self)?;
 
         let user_id = hex::encode(self.user_id.0);
         let serialized = self.serialize()?;
@@ -133,6 +159,7 @@ impl Contact {
             .read_recover()
             .by_user
             .values()
+            .filter(|c| !c.blocked)
             .map(|c| ContactRoute {
                 user_id: c.user_id.clone(),
                 peer_id: c.peer_id.clone(),
@@ -162,14 +189,14 @@ impl Contact {
         Ok(())
     }
 
-    pub fn set_blocked(db: &Database, user_id: &UserId, value: bool) -> Result<()> {
+    pub fn set_blocked(db: &Database, user_id: &UserId, value: bool) -> Result<Contact> {
         let mut contact = Contact::load(db, user_id)?
             .ok_or(KursalError::Storage("Contact not found".to_string()))?;
 
         contact.blocked = value;
         contact.save(db)?;
 
-        Ok(())
+        Ok(contact)
     }
 
     pub fn set_addresses(db: &Database, user_id: &UserId, addresses: Vec<String>) -> Result<()> {

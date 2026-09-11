@@ -15,13 +15,14 @@ use crate::{
         StoredMessage, UNREAD_BADGE_CAP, enums::MessageId, message_before, newest_message,
         newest_received, pin_index_list, received_since_rev, unread_after,
     },
-    network::NetworkManager,
+    network::{NetworkManager, swarm::SwarmCommand},
     storage::{
         Database, SharedDatabase, avatars, conversation, get_dilithium_pub, get_local_avatar_bytes,
         get_local_identity_pub, get_local_profile, get_local_user_id, get_read_receipts_enabled,
         set_local_avatar, set_local_display_name,
     },
 };
+use libp2p::PeerId;
 use std::collections::HashMap;
 use tokio::sync::{MutexGuard, mpsc, oneshot};
 
@@ -562,7 +563,21 @@ pub async fn set_contact_blocked<S: StateWrapper>(
 ) -> Result<()> {
     let user_id = parse_contact_id(&contact_id)?;
 
-    Contact::set_blocked(state.db(), &user_id, value)?;
+    let contact = Contact::set_blocked(state.db(), &user_id, value)?;
+    let Ok(peer_id) = contact.peer_id.parse::<PeerId>() else {
+        return Ok(());
+    };
+
+    let network = state.network_lock().await;
+    for swarm in std::iter::once(&network.primary).chain(&network.secondary) {
+        let _ = swarm
+            .cmd_tx
+            .send(SwarmCommand::SetPeerBlocked {
+                peer_id,
+                blocked: value,
+            })
+            .await;
+    }
 
     Ok(())
 }

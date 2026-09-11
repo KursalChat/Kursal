@@ -82,11 +82,32 @@ fn contact_load_all_three() {
     let db = make_db(&env, "load_all");
 
     for i in 1u8..=3 {
-        make_contact(UserId([i; 32])).save(&db).unwrap();
+        let mut contact = make_contact(UserId([i; 32]));
+        contact.peer_id = format!("peer-{i}");
+        contact.save(&db).unwrap();
     }
 
     let all = Contact::load_all(&db).unwrap();
     assert_eq!(all.len(), 3);
+}
+
+#[test]
+fn a_contact_cannot_take_over_another_contacts_peer_id() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "peer_takeover");
+    let owner = UserId([10u8; 32]);
+    make_contact(owner.clone()).save(&db).unwrap();
+
+    let mut intruder = make_contact(UserId([11u8; 32]));
+    intruder.peer_id = "intruder".to_string();
+    intruder.save(&db).unwrap();
+
+    intruder.peer_id = "Test User".to_string();
+    assert!(intruder.save(&db).is_err());
+    assert!(intruder.save_if_exists(&db).is_err());
+
+    let found = Contact::find_by_peer_id(&db, "Test User").unwrap().unwrap();
+    assert_eq!(found.user_id.0, owner.0);
 }
 
 #[test]

@@ -18,7 +18,7 @@ use crate::{
     network::{
         dht::DHTRecord,
         kademlia::KAD_LONG_MAX_AGE,
-        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, str_to_multiaddr},
+        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, routable_multiaddrs},
     },
     storage::{
         SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SESSIONS, TABLE_SETTINGS,
@@ -522,7 +522,7 @@ async fn deliver_response(
 ) -> Result<()> {
     let peer = PeerId::from_str(peer_id)
         .map_err(|err| KursalError::Network(format!("Invalid peer_id: {err}")))?;
-    let addresses = str_to_multiaddr(addresses)
+    let addresses = routable_multiaddrs(addresses)
         .map_err(|err| KursalError::Network(format!("Invalid addresses: {err}")))?;
 
     let ack_rx = register_ack_waiter(payload_id);

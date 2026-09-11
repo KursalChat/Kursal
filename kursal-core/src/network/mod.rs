@@ -71,6 +71,7 @@ impl NetworkManager {
         };
         let relay_config = get_relay_config(db);
         let mdns_enabled = get_swarm_mdns_enabled(db);
+        let keypair = identity.keypair.clone();
 
         let primary = SwarmHandle::spawn(
             identity,
@@ -88,6 +89,7 @@ impl NetworkManager {
             primary.cmd_tx.clone(),
             my_beacon.clone(),
             bt_event_tx.clone(),
+            keypair,
         );
 
         Ok((

@@ -51,7 +51,7 @@ pub async fn handle_incoming(
 
     let encrypted_payload = match bincode::deserialize::<WireMessage>(&ciphertext) {
         Ok(WireMessage::ContactResponse(response)) => {
-            let _ = handle_fc_response(response, db.clone(), cmd_tx, event_tx).await;
+            let _ = handle_fc_response(from, response, db.clone(), cmd_tx, event_tx).await;
             return Ok(());
         }
         Ok(WireMessage::FileTransfer(chunk)) => {
@@ -68,7 +68,9 @@ pub async fn handle_incoming(
         }
         Ok(WireMessage::Terminate) => {
             let known = Contact::find_by_peer_id(&db, &peer_id_str)?;
-            if let Some(contact) = known {
+            if let Some(contact) = known
+                && !contact.blocked
+            {
                 mark_terminated(&db, &contact.user_id, true, event_tx).await?;
             }
             return Ok(());
