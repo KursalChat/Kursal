@@ -149,6 +149,12 @@ async fn connected_call_context()
     ))
 }
 
+pub(crate) async fn is_connected(call_id: MessageId) -> bool {
+    slot().lock().await.as_ref().is_some_and(|active| {
+        active.call_id == call_id && matches!(active.engine.state, CallState::Connected)
+    })
+}
+
 fn arm_capture_watchdog(
     db: SharedDatabase,
     cmd_tx: mpsc::Sender<SwarmCommand>,

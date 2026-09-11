@@ -10,17 +10,20 @@ use crate::crypto::stream::{stream_decrypt_aad, stream_encrypt_aad};
 use crate::messaging::enums::MessageId;
 use crate::network::swarm::SwarmCommand;
 use crate::storage::SharedDatabase;
+use crate::sync::LockExt;
 use futures::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use libp2p::{PeerId, Stream};
 use ringbuf::traits::{Consumer, Producer};
 use ringbuf::{HeapCons, HeapProd};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 use tokio::sync::{Mutex, Notify, mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 const MAX_FRAME_BYTES: usize = 8192;
 const JITTER_FRAMES: usize = 3;
+const STREAM_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn frame_samples(sample_rate: u32) -> usize {
     (sample_rate / 50) as usize
@@ -56,9 +59,21 @@ struct Session {
     audio: AudioHandle,
 }
 
+impl Session {
+    fn shutdown(self) {
+        self.stop.store(true, Ordering::Relaxed);
+        self.notify.notify_waiters();
+    }
+}
+
 fn session_slot() -> &'static Mutex<Option<Session>> {
     static S: OnceLock<Mutex<Option<Session>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(None))
+}
+
+fn pending_slot() -> &'static StdMutex<Option<CancellationToken>> {
+    static P: OnceLock<StdMutex<Option<CancellationToken>>> = OnceLock::new();
+    P.get_or_init(|| StdMutex::new(None))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -72,20 +87,40 @@ pub fn establish(
     call_id: MessageId,
     db: SharedDatabase,
 ) {
+    let cancel = CancellationToken::new();
+    if let Some(previous) = pending_slot().lock_recover().replace(cancel.clone()) {
+        previous.cancel();
+    }
+
     tokio::task::spawn_local(async move {
-        let stream = if is_caller {
-            open_outgoing(peer_id, &cmd_tx).await
-        } else {
-            await_incoming(peer_id).await
+        let acquire = async {
+            if is_caller {
+                open_outgoing(peer_id, &cmd_tx).await
+            } else {
+                await_incoming(peer_id).await
+            }
+        };
+        let stream = tokio::select! {
+            _ = cancel.cancelled() => return,
+            stream = acquire => stream,
         };
         let Some(stream) = stream else {
             log::warn!("[call] media: failed to establish stream");
             let _ = crate::call::manager::media_failed(call_id, db, &cmd_tx, &app_event_tx).await;
             return;
         };
+        if cancel.is_cancelled() || !crate::call::manager::is_connected(call_id).await {
+            log::info!("[call] media: call ended before the stream arrived, dropping it");
+            return;
+        }
         match start_session(keys, stream, app_event_tx.clone(), sample_rate) {
             Ok(session) => {
-                *session_slot().lock().await = Some(session);
+                let mut slot = session_slot().lock().await;
+                if cancel.is_cancelled() {
+                    session.shutdown();
+                    return;
+                }
+                *slot = Some(session);
                 log::info!("[call] media session started");
             }
             Err(e) => {
@@ -98,9 +133,11 @@ pub fn establish(
 }
 
 pub async fn stop() {
+    if let Some(pending) = pending_slot().lock_recover().take() {
+        pending.cancel();
+    }
     if let Some(session) = session_slot().lock().await.take() {
-        session.stop.store(true, Ordering::Relaxed);
-        session.notify.notify_waiters();
+        session.shutdown();
     }
 }
 
@@ -130,10 +167,15 @@ async fn open_outgoing(peer_id: PeerId, cmd_tx: &mpsc::Sender<SwarmCommand>) -> 
         .send(SwarmCommand::OpenCallStream { peer_id, reply })
         .await
         .ok()?;
-    reply_rx.await.ok().flatten()
+    tokio::time::timeout(STREAM_TIMEOUT, reply_rx)
+        .await
+        .ok()?
+        .ok()
+        .flatten()
 }
 
 async fn await_incoming(peer_id: PeerId) -> Option<Stream> {
+    let deadline = tokio::time::Instant::now() + STREAM_TIMEOUT;
     let mut rx = incoming_channel().1.lock().await;
     let mut candidate: Option<Stream> = None;
     while let Ok((pid, stream)) = rx.try_recv() {
@@ -145,7 +187,7 @@ async fn await_incoming(peer_id: PeerId) -> Option<Stream> {
         return candidate;
     }
     loop {
-        match tokio::time::timeout(Duration::from_secs(10), rx.recv()).await {
+        match tokio::time::timeout_at(deadline, rx.recv()).await {
             Ok(Some((pid, stream))) if pid == peer_id => return Some(stream),
             Ok(Some(_)) => continue,
             _ => return None,
