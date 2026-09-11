@@ -52,6 +52,7 @@ const WRITE_ACK_WINDOW: u16 = 8;
 const REASSEMBLY_TTL: Duration = Duration::from_secs(60);
 const PEER_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 const WIRE_DOMAIN: &[u8] = b"kursal/nearby-bt/1";
+const BEACON_DOMAIN: &[u8] = b"kursal/nearby-bt-beacon/1";
 const WIRE_MAX_SKEW_SECS: u64 = 300;
 
 #[derive(Clone)]
@@ -75,19 +76,40 @@ struct BtWireMessage {
     signature: Vec<u8>,
 }
 
-impl BtWireMessage {
-    fn signed_bytes(to_peer_id: &str, sent_at: u64, msg: &[u8]) -> Result<Vec<u8>> {
-        let mut bytes = WIRE_DOMAIN.to_vec();
-        bytes.extend(bincode::serialize(&(to_peer_id, sent_at, msg))?);
-        Ok(bytes)
-    }
+fn domain_bytes(domain: &[u8], payload: &impl Serialize) -> Result<Vec<u8>> {
+    let mut bytes = domain.to_vec();
+    bytes.extend(bincode::serialize(payload)?);
+    Ok(bytes)
+}
 
+fn sign_payload(keypair: &Keypair, domain: &[u8], payload: &impl Serialize) -> Result<Vec<u8>> {
+    keypair
+        .sign(&domain_bytes(domain, payload)?)
+        .ok_kursal(KursalError::Crypto)
+}
+
+fn verified_signer(
+    key: &[u8],
+    signature: &[u8],
+    domain: &[u8],
+    payload: &impl Serialize,
+) -> Result<PeerId> {
+    let key = PublicKey::try_decode_protobuf(key).ok_kursal(KursalError::Crypto)?;
+    if !key.verify(&domain_bytes(domain, payload)?, signature) {
+        return Err(KursalError::Crypto("bt: bad signature".into()));
+    }
+    Ok(PeerId::from_public_key(&key))
+}
+
+fn local_peer_id(keypair: &Keypair) -> String {
+    keypair.public().to_peer_id().to_base58()
+}
+
+impl BtWireMessage {
     fn seal(keypair: &Keypair, to_peer_id: &str, msg: &NearbyMessage) -> Result<Self> {
         let msg = msg.serialize()?;
         let sent_at = get_timestamp_secs()?;
-        let signature = keypair
-            .sign(&Self::signed_bytes(to_peer_id, sent_at, &msg)?)
-            .ok_kursal(KursalError::Crypto)?;
+        let signature = sign_payload(keypair, WIRE_DOMAIN, &(to_peer_id, sent_at, &msg))?;
 
         Ok(Self {
             from_key: keypair.public().encode_protobuf(),
@@ -106,16 +128,57 @@ impl BtWireMessage {
             return Err(KursalError::Network("bt: stale message".into()));
         }
 
-        let key = PublicKey::try_decode_protobuf(&self.from_key).ok_kursal(KursalError::Crypto)?;
-        let signed = Self::signed_bytes(&self.to_peer_id, self.sent_at, &self.msg)?;
-        if !key.verify(&signed, &self.signature) {
-            return Err(KursalError::Crypto("bt: bad message signature".into()));
-        }
+        let from = verified_signer(
+            &self.from_key,
+            &self.signature,
+            WIRE_DOMAIN,
+            &(&self.to_peer_id, self.sent_at, &self.msg),
+        )?;
 
-        Ok((
-            PeerId::from_public_key(&key).to_base58(),
-            NearbyMessage::deserialize(&self.msg)?,
-        ))
+        Ok((from.to_base58(), NearbyMessage::deserialize(&self.msg)?))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct BtBeacon {
+    key: Vec<u8>,
+    session_name: String,
+    signature: Vec<u8>,
+}
+
+impl BtBeacon {
+    fn seal(keypair: &Keypair, beacon: Option<&NearbyBeacon>) -> Vec<u8> {
+        let Some(beacon) = beacon else {
+            return Vec::new();
+        };
+        let sealed = sign_payload(keypair, BEACON_DOMAIN, &beacon.session_name).and_then(|sig| {
+            bincode::serialize(&Self {
+                key: keypair.public().encode_protobuf(),
+                session_name: beacon.session_name.clone(),
+                signature: sig,
+            })
+            .map_err(Into::into)
+        });
+
+        sealed.unwrap_or_else(|err| {
+            log::warn!("[bt] beacon signing failed: {err}");
+            Vec::new()
+        })
+    }
+
+    fn open(bytes: &[u8]) -> Result<NearbyBeacon> {
+        let sealed: Self = bincode::deserialize(bytes)?;
+        let signer = verified_signer(
+            &sealed.key,
+            &sealed.signature,
+            BEACON_DOMAIN,
+            &sealed.session_name,
+        )?;
+
+        Ok(NearbyBeacon {
+            peer_id: signer.to_base58(),
+            session_name: sealed.session_name,
+        })
     }
 }
 
@@ -135,19 +198,28 @@ fn open_wire(bytes: &[u8], my_peer_id: Option<&str>) -> Option<BtEvent> {
 }
 
 struct BtPeer {
-    bt_id: String,
+    peer_id: String,
     peripheral: PlatformPeripheral,
     write_char: Characteristic,
 }
 
-impl BtPeer {
-    fn new(peripheral: PlatformPeripheral, write_char: Characteristic) -> Self {
-        Self {
-            bt_id: peripheral.id().to_string(),
-            peripheral,
-            write_char,
-        }
-    }
+// Keyed by device id so a copied beacon sits beside the real peer instead of replacing it.
+type PeerMap = Arc<Mutex<HashMap<String, BtPeer>>>;
+
+async fn register_device(
+    peers: &PeerMap,
+    peer_id: &str,
+    peripheral: &PlatformPeripheral,
+    write_char: &Characteristic,
+) {
+    peers.lock().await.insert(
+        peripheral.id().to_string(),
+        BtPeer {
+            peer_id: peer_id.to_string(),
+            peripheral: peripheral.clone(),
+            write_char: write_char.clone(),
+        },
+    );
 }
 
 #[cfg(not(target_os = "android"))]
@@ -168,7 +240,7 @@ pub struct BTTransport {
     pub pending_handshakes: Arc<Mutex<HashMap<String, mpsc::Sender<NearbyMessage>>>>,
     pub bt_event_tx: mpsc::Sender<BtEvent>,
     keypair: Keypair,
-    peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: PeerMap,
     peer_added: Arc<Notify>,
     gatt_locks: GattLocks,
     #[cfg(not(target_os = "android"))]
@@ -223,6 +295,7 @@ impl NearbyTransport for BTTransport {
             &self.adv,
             beacon,
             self.my_beacon.clone(),
+            self.keypair.clone(),
             self.bt_event_tx.clone(),
             self.reassembly.clone(),
         )
@@ -235,6 +308,7 @@ impl NearbyTransport for BTTransport {
         if let Err(err) = start_advertiser_android(
             beacon,
             self.my_beacon.clone(),
+            self.keypair.clone(),
             self.bt_event_tx.clone(),
             self.reassembly.clone(),
         ) {
@@ -287,10 +361,52 @@ impl NearbyTransport for BTTransport {
         let wire = BtWireMessage::seal(&self.keypair, peer_id, &msg)?;
         let bytes = bincode::serialize(&wire)?;
 
-        let (peripheral, mut write_char) =
+        let devices =
             ensure_peer_connected(&self.peers, &self.peer_added, &self.gatt_locks, peer_id).await?;
 
-        let chunk_size = chunk_size_for(&peripheral);
+        let mut last_err = None;
+        let mut delivered = false;
+        for (peripheral, write_char) in devices {
+            match self
+                .write_frames(peer_id, &peripheral, write_char, &bytes)
+                .await
+            {
+                Ok(()) => delivered = true,
+                Err(err) => last_err = Some(err),
+            }
+        }
+
+        match last_err {
+            Some(err) if !delivered => Err(err),
+            _ => Ok(()),
+        }
+    }
+
+    async fn register_handshake(&self, peer_id: &str) -> mpsc::Receiver<NearbyMessage> {
+        let (tx, rx) = mpsc::channel::<NearbyMessage>(8);
+
+        self.pending_handshakes
+            .lock()
+            .await
+            .insert(peer_id.to_string(), tx);
+
+        rx
+    }
+
+    async fn unregister_handshake(&self, peer_id: &str) {
+        self.pending_handshakes.lock().await.remove(peer_id);
+    }
+}
+
+impl BTTransport {
+    async fn write_frames(
+        &self,
+        peer_id: &str,
+        peripheral: &PlatformPeripheral,
+        mut write_char: Characteristic,
+        bytes: &[u8],
+    ) -> Result<()> {
+        let chunk_size = chunk_size_for(peripheral);
         let unacked_writes = write_char
             .properties
             .contains(CharPropFlags::WRITE_WITHOUT_RESPONSE);
@@ -320,9 +436,9 @@ impl NearbyTransport for BTTransport {
             if let Err(e) = peripheral.write(&write_char, &frame, write_type).await {
                 log::warn!("[bt] write to {peer_id} failed: {e}, attempting reconnect");
                 let _ = peripheral.disconnect().await;
-                self.peers.lock().await.remove(peer_id);
+                self.peers.lock().await.remove(&peripheral.id().to_string());
                 write_char =
-                    connect_and_register(&self.peers, &self.gatt_locks, peer_id, &peripheral)
+                    connect_and_register(&self.peers, &self.gatt_locks, peer_id, peripheral)
                         .await?;
                 peripheral
                     .write(&write_char, &frame, write_type)
@@ -332,21 +448,6 @@ impl NearbyTransport for BTTransport {
         }
 
         Ok(())
-    }
-
-    async fn register_handshake(&self, peer_id: &str) -> mpsc::Receiver<NearbyMessage> {
-        let (tx, rx) = mpsc::channel::<NearbyMessage>(8);
-
-        self.pending_handshakes
-            .lock()
-            .await
-            .insert(peer_id.to_string(), tx);
-
-        rx
-    }
-
-    async fn unregister_handshake(&self, peer_id: &str) {
-        self.pending_handshakes.lock().await.remove(peer_id);
     }
 }
 
@@ -401,38 +502,38 @@ async fn connect_and_discover(
 }
 
 async fn connect_and_register(
-    peers: &Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: &PeerMap,
     locks: &GattLocks,
     peer_id: &str,
     peripheral: &PlatformPeripheral,
 ) -> Result<Characteristic> {
     let write_char = connect_and_discover(locks, peripheral).await?;
-
-    peers.lock().await.insert(
-        peer_id.to_string(),
-        BtPeer::new(peripheral.clone(), write_char.clone()),
-    );
+    register_device(peers, peer_id, peripheral, &write_char).await;
 
     Ok(write_char)
 }
 
 async fn ensure_peer_connected(
-    peers: &Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: &PeerMap,
     peer_added: &Notify,
     locks: &GattLocks,
     peer_id: &str,
-) -> Result<(PlatformPeripheral, Characteristic)> {
+) -> Result<Vec<(PlatformPeripheral, Characteristic)>> {
     let deadline = Instant::now() + PEER_WAIT_TIMEOUT;
 
-    let (peripheral, write_char) = loop {
+    let candidates = loop {
         let mut wait = Box::pin(peer_added.notified());
         wait.as_mut().enable();
 
-        {
-            let guard = peers.lock().await;
-            if let Some(peer) = guard.get(peer_id) {
-                break (peer.peripheral.clone(), peer.write_char.clone());
-            }
+        let found: Vec<_> = peers
+            .lock()
+            .await
+            .values()
+            .filter(|peer| peer.peer_id == peer_id)
+            .map(|peer| (peer.peripheral.clone(), peer.write_char.clone()))
+            .collect();
+        if !found.is_empty() {
+            break found;
         }
 
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -443,20 +544,32 @@ async fn ensure_peer_connected(
         }
     };
 
-    match peripheral.is_connected().await {
-        Ok(true) => Ok((peripheral, write_char)),
-        Ok(false) => {
-            log::info!("[bt] peer {peer_id} disconnected, reconnecting");
-            let new_char = connect_and_register(peers, locks, peer_id, &peripheral).await?;
-            Ok((peripheral, new_char))
+    let mut connected = Vec::with_capacity(candidates.len());
+    for (peripheral, write_char) in candidates {
+        match peripheral.is_connected().await {
+            Ok(true) => connected.push((peripheral, write_char)),
+            Ok(false) => {
+                log::info!("[bt] peer {peer_id} disconnected, reconnecting");
+                match connect_and_register(peers, locks, peer_id, &peripheral).await {
+                    Ok(new_char) => connected.push((peripheral, new_char)),
+                    Err(err) => log::warn!("[bt] reconnect to {peer_id} failed: {err}"),
+                }
+            }
+            Err(err) => log::warn!("[bt] connection check for {peer_id} failed: {err}"),
         }
-        Err(err) => Err(KursalError::Network(err.to_string())),
     }
+
+    if connected.is_empty() {
+        return Err(KursalError::Network(format!(
+            "bt: peer {peer_id} not connected"
+        )));
+    }
+    Ok(connected)
 }
 
 async fn start_scanner(
     scan: &Arc<Mutex<Option<ScanState>>>,
-    peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: PeerMap,
     peer_added: Arc<Notify>,
     gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
@@ -532,7 +645,7 @@ async fn start_scanner(
 async fn run_scanner_events(
     events: std::pin::Pin<Box<dyn futures::Stream<Item = CentralEvent> + Send>>,
     central: Adapter,
-    peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: PeerMap,
     peer_added: Arc<Notify>,
     gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
@@ -545,7 +658,7 @@ async fn run_scanner_events(
             CentralEvent::DeviceDiscovered(id) | CentralEvent::DeviceUpdated(id) => id,
             CentralEvent::DeviceDisconnected(id) => {
                 let bt_id = id.to_string();
-                remove_peer_by_bt_id(&peers, &bt_id).await;
+                peers.lock().await.remove(&bt_id);
                 inflight.lock().await.remove(&bt_id);
                 prune_gatt_locks(&gatt_locks).await;
                 log::info!("[bt] device disconnected {bt_id}, cleared peer");
@@ -555,7 +668,7 @@ async fn run_scanner_events(
         };
         let bt_id = id.to_string();
 
-        if peers_contains_bt_id(&peers, &bt_id).await {
+        if peers.lock().await.contains_key(&bt_id) {
             continue;
         }
         if !inflight.lock().await.insert(bt_id.clone()) {
@@ -590,19 +703,9 @@ async fn run_scanner_events(
     log::warn!("[bt] scanner event loop exited");
 }
 
-async fn peers_contains_bt_id(peers: &Arc<Mutex<HashMap<String, BtPeer>>>, bt_id: &str) -> bool {
-    let guard = peers.lock().await;
-    guard.values().any(|p| p.bt_id == bt_id)
-}
-
-async fn remove_peer_by_bt_id(peers: &Arc<Mutex<HashMap<String, BtPeer>>>, bt_id: &str) {
-    let mut guard = peers.lock().await;
-    guard.retain(|_, p| p.bt_id != bt_id);
-}
-
 async fn handshake_with_peer(
     peripheral: PlatformPeripheral,
-    peers: Arc<Mutex<HashMap<String, BtPeer>>>,
+    peers: PeerMap,
     peer_added: Arc<Notify>,
     gatt_locks: GattLocks,
     bt_event_tx: mpsc::Sender<BtEvent>,
@@ -612,17 +715,14 @@ async fn handshake_with_peer(
     let write_char = connect_and_discover(&gatt_locks, &peripheral).await?;
 
     let beacon_bytes = peripheral.read(&write_char).await.map_err(bt_err)?;
-    let beacon = NearbyBeacon::deserialize(&beacon_bytes)?;
+    let beacon = BtBeacon::open(&beacon_bytes)?;
     let peer_id = beacon.peer_id.clone();
     log::info!(
         "[bt] got beacon from {peer_id} session={:?}",
         beacon.session_name
     );
 
-    peers
-        .lock()
-        .await
-        .insert(peer_id.clone(), BtPeer::new(peripheral, write_char));
+    register_device(&peers, &peer_id, &peripheral, &write_char).await;
     peer_added.notify_waiters();
 
     bt_event_tx
@@ -638,6 +738,7 @@ async fn start_advertiser(
     adv: &Arc<Mutex<Option<AdvState>>>,
     beacon: NearbyBeacon,
     my_beacon: Arc<Mutex<Option<NearbyBeacon>>>,
+    keypair: Keypair,
     bt_event_tx: mpsc::Sender<BtEvent>,
     reassembly: ReassemblyMap,
 ) -> Result<()> {
@@ -658,6 +759,7 @@ async fn start_advertiser(
         tokio::spawn(run_peripheral_events(
             event_rx,
             my_beacon,
+            keypair,
             bt_event_tx,
             reassembly,
         ));
@@ -747,11 +849,12 @@ async fn wait_powered(peripheral: &mut PeripheralAd) -> bool {
 async fn run_peripheral_events(
     mut event_rx: mpsc::Receiver<PeripheralEvent>,
     my_beacon: Arc<Mutex<Option<NearbyBeacon>>>,
+    keypair: Keypair,
     bt_event_tx: mpsc::Sender<BtEvent>,
     reassembly: ReassemblyMap,
 ) {
     while let Some(event) = event_rx.recv().await {
-        handle_peripheral_event(event, &my_beacon, &bt_event_tx, &reassembly).await;
+        handle_peripheral_event(event, &my_beacon, &keypair, &bt_event_tx, &reassembly).await;
     }
 }
 
@@ -759,6 +862,7 @@ async fn run_peripheral_events(
 async fn handle_peripheral_event(
     event: PeripheralEvent,
     my_beacon: &Arc<Mutex<Option<NearbyBeacon>>>,
+    keypair: &Keypair,
     bt_event_tx: &mpsc::Sender<BtEvent>,
     reassembly: &ReassemblyMap,
 ) {
@@ -767,11 +871,15 @@ async fn handle_peripheral_event(
             log::info!("[bt] power state: {is_powered:?}");
         }
         PeripheralEvent::CharacteristicSubscriptionUpdate { .. } => {}
-        PeripheralEvent::ReadRequest { responder, .. } => {
-            let value = match my_beacon.lock().await.as_ref() {
-                Some(b) => b.serialize().unwrap_or_default(),
-                None => Vec::new(),
-            };
+        PeripheralEvent::ReadRequest {
+            offset, responder, ..
+        } => {
+            let full = BtBeacon::seal(keypair, my_beacon.lock().await.as_ref());
+            let value = usize::try_from(offset)
+                .ok()
+                .and_then(|offset| full.get(offset..))
+                .map(<[u8]>::to_vec)
+                .unwrap_or_default();
             let _ = responder.send(ReadRequestResponse {
                 value,
                 response: RequestResponse::Success,
@@ -788,7 +896,11 @@ async fn handle_peripheral_event(
             });
 
             if let Some(bytes) = push_fragment(reassembly, &request.client, &value) {
-                let my_peer_id = my_beacon.lock().await.as_ref().map(|b| b.peer_id.clone());
+                let my_peer_id = my_beacon
+                    .lock()
+                    .await
+                    .is_some()
+                    .then(|| local_peer_id(keypair));
                 if let Some(event) = open_wire(&bytes, my_peer_id.as_deref()) {
                     let _ = bt_event_tx.send(event).await;
                 }
@@ -855,6 +967,7 @@ fn push_fragment(reassembly: &ReassemblyMap, client: &str, frame: &[u8]) -> Opti
 #[cfg(target_os = "android")]
 struct AndroidAdvState {
     my_beacon: Arc<Mutex<Option<NearbyBeacon>>>,
+    keypair: Keypair,
     bt_event_tx: mpsc::Sender<BtEvent>,
     reassembly: ReassemblyMap,
 }
@@ -884,12 +997,14 @@ fn android_state_lock<R>(f: impl FnOnce(&mut Option<AndroidAdvState>) -> R) -> R
 fn start_advertiser_android(
     beacon: NearbyBeacon,
     my_beacon: Arc<Mutex<Option<NearbyBeacon>>>,
+    keypair: Keypair,
     bt_event_tx: mpsc::Sender<BtEvent>,
     reassembly: ReassemblyMap,
 ) -> Result<()> {
     android_state_lock(|s| {
         *s = Some(AndroidAdvState {
             my_beacon,
+            keypair,
             bt_event_tx,
             reassembly,
         });
@@ -1001,25 +1116,24 @@ fn load_kursal_class<'a>(
 
 #[cfg(target_os = "android")]
 pub fn android_handle_read() -> Vec<u8> {
-    let my_beacon = match android_state_lock(|s| s.as_ref().map(|st| st.my_beacon.clone())) {
-        Some(mb) => mb,
-        None => return Vec::new(),
+    let Some((my_beacon, keypair)) = android_state_lock(|s| {
+        s.as_ref()
+            .map(|st| (st.my_beacon.clone(), st.keypair.clone()))
+    }) else {
+        return Vec::new();
     };
-    let beacon_opt = my_beacon.blocking_lock();
-    match beacon_opt.as_ref() {
-        Some(b) => b.serialize().unwrap_or_default(),
-        None => Vec::new(),
-    }
+    BtBeacon::seal(&keypair, my_beacon.blocking_lock().as_ref())
 }
 
 #[cfg(target_os = "android")]
 pub fn android_handle_write(client: &str, data: &[u8]) {
-    let (reassembly, bt_event_tx, my_beacon) = match android_state_lock(|s| {
+    let (reassembly, bt_event_tx, my_beacon, keypair) = match android_state_lock(|s| {
         s.as_ref().map(|st| {
             (
                 st.reassembly.clone(),
                 st.bt_event_tx.clone(),
                 st.my_beacon.clone(),
+                st.keypair.clone(),
             )
         })
     }) {
@@ -1030,8 +1144,8 @@ pub fn android_handle_write(client: &str, data: &[u8]) {
     if let Some(bytes) = push_fragment(&reassembly, client, data) {
         let my_peer_id = my_beacon
             .blocking_lock()
-            .as_ref()
-            .map(|b| b.peer_id.clone());
+            .is_some()
+            .then(|| local_peer_id(&keypair));
         if let Some(event) = open_wire(&bytes, my_peer_id.as_deref())
             && let Err(e) = bt_event_tx.try_send(event)
         {
