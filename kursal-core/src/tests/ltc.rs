@@ -722,10 +722,10 @@ async fn signed_pointer(
     pointer
 }
 
-async fn pointer_record(tag: &[u8; 32], pointer: &LtcPointer) -> Vec<u8> {
+async fn pointer_record(tag: &[u8; 32], pointer: &LtcPointer, dilithium_pub: &[u8]) -> Vec<u8> {
     DHTRecord::new(
         tag.to_vec(),
-        pointer.serialize().unwrap(),
+        pointer.seal(dilithium_pub).unwrap(),
         get_timestamp_secs().unwrap(),
         true,
     )
@@ -836,6 +836,27 @@ async fn ltc_pointer_signature_roundtrip_and_tampering() {
 }
 
 #[tokio::test]
+async fn ltc_pointer_record_hides_its_contents_from_storers() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_sealed").await;
+
+    let alice_pub = get_dilithium_pub(&alice).unwrap();
+    let payload_id = MessageId::new();
+    let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
+    let peer = PeerId::random().to_base58();
+
+    let pointer = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    let sealed = pointer.seal(&alice_pub).unwrap();
+
+    assert!(!sealed.windows(16).any(|w| w == payload_id.0.as_slice()));
+    assert!(!sealed.windows(peer.len()).any(|w| w == peer.as_bytes()));
+    assert!(LtcPointer::open(&sealed, &MessageId::new(), &alice_pub).is_err());
+
+    let opened = LtcPointer::open(&sealed, &payload_id, &alice_pub).unwrap();
+    assert_eq!(opened.peer_id, peer);
+}
+
+#[tokio::test]
 async fn ltc_pointer_fetch_keeps_the_highest_seq() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_ptr_seq").await;
@@ -848,8 +869,8 @@ async fn ltc_pointer_fetch_keeps_the_highest_seq() {
     let fresh = signed_pointer(&alice, &tag, payload_id, "fresh-peer", 20).await;
 
     let records = vec![
-        pointer_record(&tag, &stale).await,
-        pointer_record(&tag, &fresh).await,
+        pointer_record(&tag, &stale, &alice_pub).await,
+        pointer_record(&tag, &fresh, &alice_pub).await,
     ];
 
     let (cmd_tx, cmd_rx) = mpsc::channel(64);
@@ -883,8 +904,8 @@ async fn ltc_pointer_fetch_discards_forged_and_foreign_records() {
     let foreign = signed_pointer(&alice, &tag, MessageId::new(), "other-code-peer", 60).await;
 
     let records = vec![
-        pointer_record(&tag, &forged).await,
-        pointer_record(&tag, &foreign).await,
+        pointer_record(&tag, &forged, &alice_pub).await,
+        pointer_record(&tag, &foreign, &alice_pub).await,
     ];
 
     let (cmd_tx, cmd_rx) = mpsc::channel(64);
@@ -996,7 +1017,7 @@ async fn ltc_import_falls_back_to_the_rendezvous_pointer() {
     let seen = Arc::new(StdMutex::new(vec![]));
     spawn_swarm_responder(
         cmd_rx,
-        vec![pointer_record(&tag, &pointer).await],
+        vec![pointer_record(&tag, &pointer, &payload.dilithium_pub_key).await],
         payload.payload_id,
         Some(Ok(())),
         seen.clone(),
@@ -1033,7 +1054,7 @@ async fn ltc_import_does_not_retry_after_a_rejection() {
     let seen = Arc::new(StdMutex::new(vec![]));
     spawn_swarm_responder(
         cmd_rx,
-        vec![pointer_record(&tag, &elsewhere).await],
+        vec![pointer_record(&tag, &elsewhere, &payload.dilithium_pub_key).await],
         payload.payload_id,
         Some(Err(FcRejectReason::AlreadyUsed)),
         seen.clone(),

@@ -6,9 +6,10 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        DEVICE_ID, PreKeyBundleData,
+        DEVICE_ID, PreKeyBundleData, derive_key,
         dilithium::{dilithium_sign, dilithium_verify},
         mailbox_kem_encapsulate, session_initiate,
+        stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
         ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
@@ -36,6 +37,7 @@ use zeroize::Zeroizing;
 
 const ACK_TIMEOUT_SECS: u64 = 20;
 const LTC_RV_DOMAIN: &[u8] = b"kursal-ltc-rv01";
+const LTC_POINTER_KEY_INFO: &[u8] = b"kursal-ltc-pointer-key01";
 const POINTER_PUT_TIMEOUT_SECS: u64 = 90;
 const POINTER_FETCH_TIMEOUT_SECS: u64 = 15;
 
@@ -423,10 +425,14 @@ impl LtcState {
         swarm: SwarmHandle,
         event_tx: mpsc::Sender<AppEvent>,
     ) -> Result<()> {
-        let (tag, payload_id) = {
+        let (tag, payload_id, dilithium_pub_key) = {
             let lock = &*db;
             match Self::load(lock)? {
-                Some(state) if state.follow_rotation => (state.rendezvous_tag(), state.payload_id),
+                Some(state) if state.follow_rotation => (
+                    state.rendezvous_tag(),
+                    state.payload_id,
+                    state.dilithium_pub_key,
+                ),
                 _ => return Ok(()),
             }
         };
@@ -445,7 +451,8 @@ impl LtcState {
         let secret = get_dilithium_secret(&db)?;
         pointer.sign(&tag, secret)?;
 
-        let record = DHTRecord::new(tag.to_vec(), pointer.serialize()?, seq, true).await?;
+        let sealed = pointer.seal(&dilithium_pub_key)?;
+        let record = DHTRecord::new(tag.to_vec(), sealed, seq, true).await?;
         let (reply_tx, reply_rx) = oneshot::channel();
 
         swarm
@@ -603,6 +610,24 @@ impl LtcPointer {
         )
         .unwrap_or(false)
     }
+
+    pub fn seal(&self, dilithium_pub_key: &[u8]) -> Result<Vec<u8>> {
+        let key = ltc_pointer_key(&self.payload_id, dilithium_pub_key)?;
+        stream_encrypt(&key, &self.serialize()?)
+    }
+
+    pub fn open(sealed: &[u8], payload_id: &MessageId, dilithium_pub_key: &[u8]) -> Result<Self> {
+        let key = ltc_pointer_key(payload_id, dilithium_pub_key)?;
+        Self::deserialize(&stream_decrypt(&key, sealed)?)
+    }
+}
+
+fn ltc_pointer_key(
+    payload_id: &MessageId,
+    dilithium_pub_key: &[u8],
+) -> Result<Zeroizing<[u8; 32]>> {
+    let secret = [payload_id.0.as_slice(), dilithium_pub_key].concat();
+    derive_key(&secret, LTC_POINTER_KEY_INFO).map(Zeroizing::new)
 }
 
 fn signing_bytes(tag: &[u8; 32], p: &LtcPointer) -> Vec<u8> {
@@ -646,7 +671,7 @@ pub async fn fetch_ltc_pointer(
             let Ok(inner) = DHTRecord::deserialize(tag, &bytes) else {
                 continue;
             };
-            let Ok(pointer) = LtcPointer::deserialize(&inner) else {
+            let Ok(pointer) = LtcPointer::open(&inner, &payload_id, dilithium_pub_key) else {
                 continue;
             };
             if pointer.payload_id != payload_id {
