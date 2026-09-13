@@ -59,11 +59,11 @@ pub async fn handle_incoming(
             return Ok(());
         }
         Ok(WireMessage::ContactAccepted(payload_id)) => {
-            resolve_ack_waiter(payload_id, Ok(()));
+            resolve_ack_waiter(from, payload_id, Ok(()));
             return Ok(());
         }
         Ok(WireMessage::ContactRejected { payload_id, reason }) => {
-            resolve_ack_waiter(payload_id, Err(reason));
+            resolve_ack_waiter(from, payload_id, Err(reason));
             return Ok(());
         }
         Ok(WireMessage::Terminate) => {

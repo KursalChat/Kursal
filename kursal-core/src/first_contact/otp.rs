@@ -7,8 +7,8 @@ use crate::{
         stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
-        ContactResponse, WireMessage, claim_import, forget_ack_waiter, make_username,
-        register_ack_waiter,
+        ContactResponse, WireMessage, claim_new_contact, drop_half_open_session, forget_ack_waiter,
+        make_username, register_ack_waiter,
     },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
@@ -19,9 +19,7 @@ use crate::{
             SwarmCommand, SwarmHandle, get_listen_addrs, is_peer_connected, routable_multiaddrs,
         },
     },
-    storage::{
-        SharedDatabase, TABLE_SESSIONS, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs,
-    },
+    storage::{SharedDatabase, TABLE_SETTINGS, get_dilithium_pub, get_timestamp_secs},
 };
 use argon2::{Argon2, ParamsBuilder};
 use libp2p::PeerId;
@@ -247,7 +245,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
 
     let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
     let user_id: [u8; 32] = Sha256::digest(&identity_pub_key).into();
-    let _claim = claim_import(&db, &UserId(user_id))?;
+    let _claim = claim_new_contact(&db, &UserId(user_id), &payload.peer_id)?;
 
     let remote_address = ProtocolAddress::new(hex::encode(user_id), DEVICE_ID);
     let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
@@ -256,121 +254,122 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
         .pre_key_public
         .ok_or_else(|| KursalError::Crypto("OTP bundle missing one-time prekey".to_string()))?;
     session_initiate(db.clone(), bundle, &remote_address).await?;
-    let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-    let mut rng = OsRng.unwrap_err();
-    let mailbox_ephemeral = KeyPair::generate(&mut rng);
-    let classical_secret = Zeroizing::new(
-        mailbox_ephemeral
-            .private_key
-            .calculate_agreement(&mailbox_opk_pub)
-            .ok_kursal(KursalError::Crypto)?,
-    );
-    let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
+    let result = async {
+        let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-    let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-    let dilithium_pub_key = get_dilithium_pub(&db)?;
-
-    let contact = Contact {
-        user_id: UserId(user_id),
-        peer_id: payload.peer_id.clone(),
-        display_name: make_username(&payload.peer_id),
-        avatar: None,
-        identity_pub_key: identity_pub_key.clone(),
-        dilithium_pub_key: payload.dilithium_pub_key.clone(),
-        known_addresses: payload.relay_addresses,
-        verified: false,
-        profile_shared: false,
-        blocked: false,
-        created_at: timestamp,
-        offline: new_offline_state(&db, &identity_pub_key, &classical_secret, &pq_secret).await?,
-    };
-
-    // now build bundle back
-    let response = ContactResponse {
-        payload_id: payload.payload_id,
-        pre_key_bundle: my_bundle.serialize()?,
-        peer_id: swarm.peer_id.to_base58(),
-        dilithium_pub_key,
-        relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
-        mailbox_kem_ct,
-        mailbox_kem_prekey_id,
-        mailbox_ephemeral_pub,
-    };
-
-    let wire = WireMessage::ContactResponse(response);
-    let response_bytes = bincode::serialize(&wire)?;
-
-    let publisher_peer = PeerId::from_str(&payload.peer_id).ok_kursal(KursalError::Network)?;
-    let publisher_addrs = routable_multiaddrs(&contact.known_addresses)?;
-
-    if !is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
-        log::info!(
-            "[otp] dialing publisher {publisher_peer} via {} addr(s)",
-            publisher_addrs.len()
+        let mut rng = OsRng.unwrap_err();
+        let mailbox_ephemeral = KeyPair::generate(&mut rng);
+        let classical_secret = Zeroizing::new(
+            mailbox_ephemeral
+                .private_key
+                .calculate_agreement(&mailbox_opk_pub)
+                .ok_kursal(KursalError::Crypto)?,
         );
-        for addr in &publisher_addrs {
-            let _ = swarm.cmd_tx.send(SwarmCommand::Dial(addr.clone())).await;
+        let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
+
+        let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
+        let dilithium_pub_key = get_dilithium_pub(&db)?;
+
+        let contact = Contact {
+            user_id: UserId(user_id),
+            peer_id: payload.peer_id.clone(),
+            display_name: make_username(&payload.peer_id),
+            avatar: None,
+            identity_pub_key: identity_pub_key.clone(),
+            dilithium_pub_key: payload.dilithium_pub_key.clone(),
+            known_addresses: payload.relay_addresses.clone(),
+            verified: false,
+            profile_shared: false,
+            blocked: false,
+            created_at: timestamp,
+            offline: new_offline_state(&db, &identity_pub_key, &classical_secret, &pq_secret)
+                .await?,
+        };
+
+        // now build bundle back
+        let response = ContactResponse {
+            payload_id: payload.payload_id,
+            pre_key_bundle: my_bundle.serialize()?,
+            peer_id: swarm.peer_id.to_base58(),
+            dilithium_pub_key,
+            relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
+            mailbox_kem_ct,
+            mailbox_kem_prekey_id,
+            mailbox_ephemeral_pub,
+        };
+
+        let wire = WireMessage::ContactResponse(response);
+        let response_bytes = bincode::serialize(&wire)?;
+
+        let publisher_peer = PeerId::from_str(&payload.peer_id).ok_kursal(KursalError::Network)?;
+        let publisher_addrs = routable_multiaddrs(&contact.known_addresses)?;
+
+        if !is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
+            log::info!(
+                "[otp] dialing publisher {publisher_peer} via {} addr(s)",
+                publisher_addrs.len()
+            );
+            for addr in &publisher_addrs {
+                let _ = swarm.cmd_tx.send(SwarmCommand::Dial(addr.clone())).await;
+            }
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+            while tokio::time::Instant::now() < deadline {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                if is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
+                    break;
+                }
+            }
         }
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
-        while tokio::time::Instant::now() < deadline {
-            tokio::time::sleep(Duration::from_millis(250)).await;
-            if is_peer_connected(&swarm.cmd_tx, publisher_peer).await {
-                break;
+
+        let connected = is_peer_connected(&swarm.cmd_tx, publisher_peer).await;
+        log::info!("[otp] sending ContactResponse to {publisher_peer} connected={connected}");
+
+        let ack_rx = register_ack_waiter(payload.payload_id, publisher_peer);
+
+        let sent = swarm
+            .cmd_tx
+            .send(SwarmCommand::SendMessage {
+                peer_id: publisher_peer,
+                data: response_bytes,
+                addresses: publisher_addrs,
+            })
+            .await;
+
+        if sent.is_err() {
+            forget_ack_waiter(payload.payload_id);
+            return Err(KursalError::Network("Could not send response".to_string()));
+        }
+
+        match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
+            Ok(Ok(Ok(()))) => {
+                contact.save(&db)?;
+                let _ = swarm
+                    .cmd_tx
+                    .send(SwarmCommand::ContactAdded {
+                        contact: contact.clone(),
+                    })
+                    .await;
+                Ok(contact)
+            }
+            Ok(Ok(Err(reason))) => {
+                log::warn!("[otp] publisher refused the handshake: {}", reason.as_str());
+                Err(KursalError::Identity(reason.as_str().to_string()))
+            }
+            _ => {
+                forget_ack_waiter(payload.payload_id);
+                Err(KursalError::Network(
+                    "No answer from the other device".to_string(),
+                ))
             }
         }
     }
+    .await;
 
-    let connected = is_peer_connected(&swarm.cmd_tx, publisher_peer).await;
-    log::info!("[otp] sending ContactResponse to {publisher_peer} connected={connected}");
-
-    let ack_rx = register_ack_waiter(payload.payload_id);
-
-    let sent = swarm
-        .cmd_tx
-        .send(SwarmCommand::SendMessage {
-            peer_id: publisher_peer,
-            data: response_bytes,
-            addresses: publisher_addrs,
-        })
-        .await;
-
-    if sent.is_err() {
-        forget_ack_waiter(payload.payload_id);
-        rollback_handshake(&db, &remote_address).await;
-        return Err(KursalError::Network("Could not send response".to_string()));
+    if result.is_err() {
+        drop_half_open_session(&db, &remote_address).await;
     }
-
-    match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
-        Ok(Ok(Ok(()))) => {
-            contact.save(&db)?;
-            let _ = swarm
-                .cmd_tx
-                .send(SwarmCommand::ContactAdded {
-                    contact: contact.clone(),
-                })
-                .await;
-            Ok(contact)
-        }
-        Ok(Ok(Err(reason))) => {
-            log::warn!("[otp] publisher refused the handshake: {}", reason.as_str());
-            rollback_handshake(&db, &remote_address).await;
-            Err(KursalError::Identity(reason.as_str().to_string()))
-        }
-        _ => {
-            forget_ack_waiter(payload.payload_id);
-            rollback_handshake(&db, &remote_address).await;
-            Err(KursalError::Network(
-                "No answer from the other device".to_string(),
-            ))
-        }
-    }
-}
-
-async fn rollback_handshake(db: &SharedDatabase, remote_address: &ProtocolAddress) {
-    if let Err(err) = db.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
-        log::warn!("[otp] could not drop the half-open session: {err}");
-    }
+    result
 }
 
 // None = is in wordlist

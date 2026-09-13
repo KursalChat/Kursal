@@ -18,15 +18,15 @@ struct Roster {
 }
 
 impl Roster {
-    fn check_peer_claim(&self, contact: &Contact) -> Result<()> {
+    fn check_peer_claim(&self, user_id: &UserId, peer_id: &str) -> Result<()> {
         let unchanged = self
             .by_user
-            .get(&contact.user_id)
-            .is_some_and(|previous| previous.peer_id == contact.peer_id);
+            .get(user_id)
+            .is_some_and(|previous| previous.peer_id == peer_id);
         let foreign = self
             .by_peer
-            .get(&contact.peer_id)
-            .is_some_and(|owner| owner != &contact.user_id);
+            .get(peer_id)
+            .is_some_and(|owner| owner != user_id);
 
         if foreign && !unchanged {
             return Err(KursalError::Storage(
@@ -134,11 +134,17 @@ impl Contact {
     pub fn save(&self, db: &Database) -> Result<()> {
         let roster = roster(db)?;
         let mut roster = roster.write_recover();
-        roster.check_peer_claim(self)?;
+        roster.check_peer_claim(&self.user_id, &self.peer_id)?;
         self.write_row(db)?;
         roster.insert(self.clone());
 
         Ok(())
+    }
+
+    pub fn check_peer_available(db: &Database, user_id: &UserId, peer_id: &str) -> Result<()> {
+        roster(db)?
+            .read_recover()
+            .check_peer_claim(user_id, peer_id)
     }
 
     pub fn save_offline_if_exists(&self, db: &Database) -> Result<()> {

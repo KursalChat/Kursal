@@ -7,7 +7,7 @@ use crate::{
         DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate,
         session_initiate,
     },
-    first_contact::{already_a_contact, claim_handshake, make_username},
+    first_contact::{already_a_contact, claim_new_contact, drop_half_open_session, make_username},
     identity::UserId,
     messaging::offline::new_offline_state,
     network::swarm::{SwarmCommand, get_listen_addrs},
@@ -285,67 +285,88 @@ pub async fn handle_nearby_request(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let claim = claim_handshake(&user_id);
-            if claim.is_err() || Contact::load(&db, &user_id)?.is_some() {
-                let _ = transport
-                    .send(from_peer_id, NearbyMessage::ConnectDecline)
-                    .await;
-                return Err(claim.err().unwrap_or_else(already_a_contact));
-            }
+            let _claim = match claim_new_contact(&db, &user_id, from_peer_id) {
+                Ok(claim) => claim,
+                Err(err) => {
+                    let _ = transport
+                        .send(from_peer_id, NearbyMessage::ConnectDecline)
+                        .await;
+                    return Err(err);
+                }
+            };
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             session_initiate(db.clone(), bundle, &address).await?;
 
-            let pq_secret = if mailbox_kem_ct.is_empty() {
-                Zeroizing::new(Vec::new())
-            } else {
-                let record = db
-                    .get_kyber_pre_key(KyberPreKeyId::from(mailbox_kem_prekey_id))
+            let result = async {
+                let pq_secret = if mailbox_kem_ct.is_empty() {
+                    Zeroizing::new(Vec::new())
+                } else {
+                    let record = db
+                        .get_kyber_pre_key(KyberPreKeyId::from(mailbox_kem_prekey_id))
+                        .await
+                        .ok_kursal(KursalError::Crypto)?;
+                    let secret_key = record.secret_key().ok_kursal(KursalError::Crypto)?;
+                    mailbox_kem_decapsulate(&secret_key, &mailbox_kem_ct)?
+                };
+
+                if mailbox_ephemeral_pub.is_empty() {
+                    return Err(KursalError::Crypto(
+                        "Nearby reply missing mailbox ephemeral".to_string(),
+                    ));
+                }
+                let prekey_record = db
+                    .get_pre_key(mailbox_dh_prekey_id)
                     .await
                     .ok_kursal(KursalError::Crypto)?;
-                let secret_key = record.secret_key().ok_kursal(KursalError::Crypto)?;
-                mailbox_kem_decapsulate(&secret_key, &mailbox_kem_ct)?
-            };
+                let ephemeral_pub = PublicKey::deserialize(&mailbox_ephemeral_pub)
+                    .ok_kursal(KursalError::Crypto)?;
+                let classical_secret = Zeroizing::new(
+                    prekey_record
+                        .private_key()
+                        .ok_kursal(KursalError::Crypto)?
+                        .calculate_agreement(&ephemeral_pub)
+                        .ok_kursal(KursalError::Crypto)?,
+                );
 
-            if mailbox_ephemeral_pub.is_empty() {
-                return Err(KursalError::Crypto(
-                    "Nearby reply missing mailbox ephemeral".to_string(),
-                ));
-            }
-            let prekey_record = db
-                .get_pre_key(mailbox_dh_prekey_id)
-                .await
-                .ok_kursal(KursalError::Crypto)?;
-            let ephemeral_pub =
-                PublicKey::deserialize(&mailbox_ephemeral_pub).ok_kursal(KursalError::Crypto)?;
-            let classical_secret = Zeroizing::new(
-                prekey_record
-                    .private_key()
-                    .ok_kursal(KursalError::Crypto)?
-                    .calculate_agreement(&ephemeral_pub)
-                    .ok_kursal(KursalError::Crypto)?,
-            );
-
-            let contact = Contact {
-                user_id,
-                peer_id: from_peer_id.to_string(),
-                display_name: make_username(from_peer_id),
-                avatar: None,
-                identity_pub_key: identity_pub_key.clone(),
-                dilithium_pub_key: dilithium_pub.clone(),
-                known_addresses: relay_addresses,
-                verified: false,
-                profile_shared: false,
-                blocked: false,
-                created_at: now,
-                offline: new_offline_state(&db, &identity_pub_key, &classical_secret, &pq_secret)
+                let contact = Contact {
+                    user_id: user_id.clone(),
+                    peer_id: from_peer_id.to_string(),
+                    display_name: make_username(from_peer_id),
+                    avatar: None,
+                    identity_pub_key: identity_pub_key.clone(),
+                    dilithium_pub_key: dilithium_pub.clone(),
+                    known_addresses: relay_addresses.clone(),
+                    verified: false,
+                    profile_shared: false,
+                    blocked: false,
+                    created_at: now,
+                    offline: new_offline_state(
+                        &db,
+                        &identity_pub_key,
+                        &classical_secret,
+                        &pq_secret,
+                    )
                     .await?,
-            };
+                };
 
-            transport
-                .send(from_peer_id, NearbyMessage::BundleAck)
-                .await?;
-            contact.save(&db)?;
+                transport
+                    .send(from_peer_id, NearbyMessage::BundleAck)
+                    .await?;
+                contact.save(&db)?;
+                Ok::<_, KursalError>(contact)
+            }
+            .await;
+
+            let contact = match result {
+                Ok(contact) => contact,
+                Err(err) => {
+                    drop_half_open_session(&db, &address).await;
+                    return Err(err);
+                }
+            };
+            let _ =
+                crate::api::handle_incoming::mark_terminated(&db, &user_id, false, event_tx).await;
 
             cmd_tx
                 .send(SwarmCommand::ContactAdded {
@@ -401,11 +422,13 @@ pub async fn nearby_connect(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            let claim = claim_handshake(&user_id);
-            if claim.is_err() || Contact::load(&db, &user_id)?.is_some() {
-                let _ = transport.send(peer_id, NearbyMessage::ConnectDecline).await;
-                return Err(claim.err().unwrap_or_else(already_a_contact));
-            }
+            let _claim = match claim_new_contact(&db, &user_id, peer_id) {
+                Ok(claim) => claim,
+                Err(err) => {
+                    let _ = transport.send(peer_id, NearbyMessage::ConnectDecline).await;
+                    return Err(err);
+                }
+            };
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
             let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
@@ -413,66 +436,86 @@ pub async fn nearby_connect(
                 KursalError::Crypto("Nearby bundle missing one-time prekey".to_string())
             })?;
             session_initiate(db.clone(), bundle, &address).await?;
-            let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-            let mut key_rng = OsRng.unwrap_err();
-            let mailbox_ephemeral = KeyPair::generate(&mut key_rng);
-            let classical_secret = Zeroizing::new(
-                mailbox_ephemeral
-                    .private_key
-                    .calculate_agreement(&mailbox_opk_pub)
-                    .ok_kursal(KursalError::Crypto)?,
-            );
-            let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
+            let result = async {
+                let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-            let our_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-            let our_dilithium = get_dilithium_pub(&db)?;
+                let mut key_rng = OsRng.unwrap_err();
+                let mailbox_ephemeral = KeyPair::generate(&mut key_rng);
+                let classical_secret = Zeroizing::new(
+                    mailbox_ephemeral
+                        .private_key
+                        .calculate_agreement(&mailbox_opk_pub)
+                        .ok_kursal(KursalError::Crypto)?,
+                );
+                let mailbox_ephemeral_pub = mailbox_ephemeral.public_key.serialize().to_vec();
 
-            let contact = Contact {
-                user_id,
-                peer_id: peer_id.to_string(),
-                display_name: make_username(peer_id),
-                avatar: None,
-                identity_pub_key: identity_pub_key.clone(),
-                dilithium_pub_key: dilithium_pub.clone(),
-                known_addresses: relay_addresses,
-                verified: false,
-                profile_shared: false,
-                blocked: false,
-                created_at: now,
-                offline: new_offline_state(&db, &identity_pub_key, &classical_secret, &pq_secret)
+                let our_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
+                let our_dilithium = get_dilithium_pub(&db)?;
+
+                let contact = Contact {
+                    user_id: user_id.clone(),
+                    peer_id: peer_id.to_string(),
+                    display_name: make_username(peer_id),
+                    avatar: None,
+                    identity_pub_key: identity_pub_key.clone(),
+                    dilithium_pub_key: dilithium_pub.clone(),
+                    known_addresses: relay_addresses.clone(),
+                    verified: false,
+                    profile_shared: false,
+                    blocked: false,
+                    created_at: now,
+                    offline: new_offline_state(
+                        &db,
+                        &identity_pub_key,
+                        &classical_secret,
+                        &pq_secret,
+                    )
                     .await?,
-            };
+                };
 
-            let bundle_reply = NearbyMessage::BundleReply {
-                bundle: our_bundle.serialize()?,
-                dilithium_pub: our_dilithium,
-                relay_addresses: get_listen_addrs(cmd_tx).await?,
-                mailbox_kem_ct,
-                mailbox_ephemeral_pub,
-            };
+                let bundle_reply = NearbyMessage::BundleReply {
+                    bundle: our_bundle.serialize()?,
+                    dilithium_pub: our_dilithium,
+                    relay_addresses: get_listen_addrs(cmd_tx).await?,
+                    mailbox_kem_ct,
+                    mailbox_ephemeral_pub,
+                };
 
-            let mut ack_rx = transport.register_handshake(peer_id).await;
-            let ack = match transport.send(peer_id, bundle_reply).await {
-                Ok(()) => tokio::time::timeout(Duration::from_secs(30), ack_rx.recv()).await,
+                let mut ack_rx = transport.register_handshake(peer_id).await;
+                let ack = match transport.send(peer_id, bundle_reply).await {
+                    Ok(()) => tokio::time::timeout(Duration::from_secs(30), ack_rx.recv()).await,
+                    Err(err) => {
+                        transport.unregister_handshake(peer_id).await;
+                        return Err(err);
+                    }
+                };
+                transport.unregister_handshake(peer_id).await;
+
+                match ack {
+                    Ok(Some(NearbyMessage::BundleAck)) => {}
+                    Ok(Some(NearbyMessage::ConnectDecline)) => return Err(already_a_contact()),
+                    _ => {
+                        return Err(KursalError::Network(
+                            "Nearby peer did not confirm the contact".to_string(),
+                        ));
+                    }
+                }
+
+                contact.save(&db)?;
+                Ok::<_, KursalError>(contact)
+            }
+            .await;
+
+            let contact = match result {
+                Ok(contact) => contact,
                 Err(err) => {
-                    transport.unregister_handshake(peer_id).await;
+                    drop_half_open_session(&db, &address).await;
                     return Err(err);
                 }
             };
-            transport.unregister_handshake(peer_id).await;
-
-            match ack {
-                Ok(Some(NearbyMessage::BundleAck)) => {}
-                Ok(Some(NearbyMessage::ConnectDecline)) => return Err(already_a_contact()),
-                _ => {
-                    return Err(KursalError::Network(
-                        "Nearby peer did not confirm the contact".to_string(),
-                    ));
-                }
-            }
-
-            contact.save(&db)?;
+            let _ =
+                crate::api::handle_incoming::mark_terminated(&db, &user_id, false, event_tx).await;
 
             cmd_tx
                 .send(SwarmCommand::ContactAdded {

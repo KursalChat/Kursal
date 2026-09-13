@@ -5,11 +5,13 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, session_initiate},
+    dto::LtcStatusDto,
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::swarm::SwarmCommand,
     storage::{
-        Database, SharedDatabase, TABLE_SETTINGS, get_contact_terminated, get_timestamp_secs,
+        Database, SharedDatabase, TABLE_SESSIONS, TABLE_SETTINGS, get_contact_terminated,
+        get_timestamp_secs,
     },
     sync::LockExt,
 };
@@ -69,12 +71,17 @@ pub(crate) fn claim_handshake(user_id: &UserId) -> Result<HandshakeClaim> {
     Ok(HandshakeClaim(user_id.clone()))
 }
 
-pub(crate) fn claim_import(db: &Database, user_id: &UserId) -> Result<HandshakeClaim> {
+pub(crate) fn claim_new_contact(
+    db: &Database,
+    user_id: &UserId,
+    peer_id: &str,
+) -> Result<HandshakeClaim> {
     let claim = claim_handshake(user_id)?;
     if Contact::load(db, user_id)?.is_some() && !get_contact_terminated(db, &hex::encode(user_id.0))
     {
         return Err(already_a_contact());
     }
+    Contact::check_peer_available(db, user_id, peer_id)?;
     Ok(claim)
 }
 
@@ -90,6 +97,7 @@ pub struct ContactResponse {
     pub mailbox_ephemeral_pub: Vec<u8>,
 }
 
+#[derive(Clone, Copy)]
 enum HandshakeKind {
     Otp,
     Ltc,
@@ -136,12 +144,16 @@ pub enum WireMessage {
 
 pub type FcAck = std::result::Result<(), FcRejectReason>;
 
-static FC_ACK_WAITERS: LazyLock<StdMutex<HashMap<[u8; 16], oneshot::Sender<FcAck>>>> =
+type AckWaiter = (PeerId, oneshot::Sender<FcAck>);
+
+static FC_ACK_WAITERS: LazyLock<StdMutex<HashMap<[u8; 16], AckWaiter>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 
-pub fn register_ack_waiter(payload_id: MessageId) -> oneshot::Receiver<FcAck> {
+pub fn register_ack_waiter(payload_id: MessageId, peer: PeerId) -> oneshot::Receiver<FcAck> {
     let (tx, rx) = oneshot::channel();
-    FC_ACK_WAITERS.lock_recover().insert(payload_id.0, tx);
+    FC_ACK_WAITERS
+        .lock_recover()
+        .insert(payload_id.0, (peer, tx));
     rx
 }
 
@@ -149,10 +161,22 @@ pub fn forget_ack_waiter(payload_id: MessageId) {
     FC_ACK_WAITERS.lock_recover().remove(&payload_id.0);
 }
 
-pub fn resolve_ack_waiter(payload_id: MessageId, ack: FcAck) {
-    let waiter = FC_ACK_WAITERS.lock_recover().remove(&payload_id.0);
-    if let Some(tx) = waiter {
+pub fn resolve_ack_waiter(from: PeerId, payload_id: MessageId, ack: FcAck) {
+    let mut waiters = FC_ACK_WAITERS.lock_recover();
+    if waiters
+        .get(&payload_id.0)
+        .is_none_or(|(peer, _)| *peer != from)
+    {
+        return;
+    }
+    if let Some((_, tx)) = waiters.remove(&payload_id.0) {
         let _ = tx.send(ack);
+    }
+}
+
+pub(crate) async fn drop_half_open_session(db: &SharedDatabase, remote_address: &ProtocolAddress) {
+    if let Err(err) = db.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
+        log::warn!("[fc] could not drop the half-open session: {err}");
     }
 }
 
@@ -280,11 +304,10 @@ pub async fn handle_fc_response(
         return Ok(());
     };
 
-    let already_exists = Contact::load(&db, &user_id)?.is_some();
-    if already_exists {
+    let contact_hex = hex::encode(user_id.0);
+    if Contact::load(&db, &user_id)?.is_some() && !get_contact_terminated(&db, &contact_hex) {
         log::warn!(
-            "[fc] ignoring ContactResponse for already-established contact {} (replay or duplicate)",
-            hex::encode(user_id.0)
+            "[fc] ignoring ContactResponse for already-established contact {contact_hex} (replay or duplicate)"
         );
         let _ = send_wire(
             WireMessage::ContactAccepted(response.payload_id),
@@ -295,9 +318,112 @@ pub async fn handle_fc_response(
         return Ok(());
     }
 
-    let bob_address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
-    session_initiate(db.clone(), bundle, &bob_address).await?;
+    let peer_id = from.to_base58();
+    if let Err(err) = Contact::check_peer_available(&db, &user_id, &peer_id) {
+        log::warn!("Rejected incoming ContactResponse: {err}");
+        let rejection = WireMessage::ContactRejected {
+            payload_id: response.payload_id,
+            reason: FcRejectReason::Unknown,
+        };
+        let _ = send_wire(rejection, from, cmd_tx).await;
+        return Ok(());
+    }
 
+    let address = ProtocolAddress::new(contact_hex, DEVICE_ID);
+    session_initiate(db.clone(), bundle, &address).await?;
+
+    let accepted = accept_contact_response(
+        &db,
+        handshake,
+        &response,
+        user_id,
+        identity_key_bytes,
+        peer_id,
+        now,
+    )
+    .await;
+    let AcceptedContact {
+        contact,
+        otp_dht_key,
+        ltc_status,
+    } = match accepted {
+        Ok(Some(accepted)) => accepted,
+        outcome => {
+            drop_half_open_session(&db, &address).await;
+            let reason = match outcome {
+                Ok(None) => FcRejectReason::AlreadyUsed,
+                _ => FcRejectReason::Unknown,
+            };
+            let rejection = WireMessage::ContactRejected {
+                payload_id: response.payload_id,
+                reason,
+            };
+            let _ = send_wire(rejection, from, cmd_tx).await;
+            return outcome.map(|_| ());
+        }
+    };
+
+    let _ = send_wire(
+        WireMessage::ContactAccepted(response.payload_id),
+        from,
+        cmd_tx,
+    )
+    .await;
+
+    let _ =
+        crate::api::handle_incoming::mark_terminated(&db, &contact.user_id, false, event_tx).await;
+
+    if let Some(key) = otp_dht_key {
+        let _ = cmd_tx.send(SwarmCommand::RemoveDht { key }).await;
+    }
+
+    cmd_tx
+        .send(SwarmCommand::ContactAdded {
+            contact: contact.clone(),
+        })
+        .await
+        .ok_kursal(KursalError::Network)?;
+
+    event_tx
+        .send(AppEvent::ContactAdded {
+            contact,
+            via_nearby: false,
+        })
+        .await
+        .ok_kursal(KursalError::Network)?;
+
+    if matches!(handshake, HandshakeKind::Otp) {
+        let _ = event_tx.send(AppEvent::OtpConsumed).await;
+    }
+
+    if let Some(status) = ltc_status {
+        let _ = event_tx
+            .send(AppEvent::LtcUpdated {
+                status: Some(status),
+            })
+            .await;
+    }
+
+    fc_replay_remember(response_hash);
+    Ok(())
+}
+
+struct AcceptedContact {
+    contact: Contact,
+    otp_dht_key: Option<Vec<u8>>,
+    ltc_status: Option<LtcStatusDto>,
+}
+
+// Ok(None) means the LTC ran out of uses while this handshake was running
+async fn accept_contact_response(
+    db: &SharedDatabase,
+    handshake: HandshakeKind,
+    response: &ContactResponse,
+    user_id: UserId,
+    identity_key_bytes: Vec<u8>,
+    peer_id: String,
+    now: u64,
+) -> Result<Option<AcceptedContact>> {
     let pq_secret = if response.mailbox_kem_ct.is_empty() {
         Zeroizing::new(Vec::new())
     } else {
@@ -312,8 +438,9 @@ pub async fn handle_fc_response(
     let classical_secret = match handshake {
         HandshakeKind::Otp => {
             if response.mailbox_ephemeral_pub.is_empty() {
-                log::warn!("Rejected incoming ContactResponse: missing mailbox ephemeral");
-                return Ok(());
+                return Err(KursalError::Crypto(
+                    "ContactResponse missing mailbox ephemeral".to_string(),
+                ));
             }
             let prekey_id = db
                 .raw_read(TABLE_SETTINGS, "otp_prekey_id")?
@@ -349,9 +476,8 @@ pub async fn handle_fc_response(
         }
     };
 
-    let peer_id = from.to_base58();
     let contact = Contact {
-        user_id: user_id.clone(),
+        user_id,
         display_name: make_username(&peer_id),
         peer_id,
         avatar: None,
@@ -362,95 +488,55 @@ pub async fn handle_fc_response(
         profile_shared: false,
         blocked: false,
         created_at: now,
-        offline: new_offline_state(&db, &identity_key_bytes, &classical_secret, &pq_secret).await?,
+        offline: new_offline_state(db, &identity_key_bytes, &classical_secret, &pq_secret).await?,
     };
 
-    let (otp_dht_key, ltc_denied, ltc_status) = {
-        let mut ltc_denied = false;
-        let mut ltc_status = None;
-        if matches!(handshake, HandshakeKind::Ltc) {
-            match LtcState::load(&db)? {
-                Some(mut state)
-                    if state.payload_id == response.payload_id
-                        && now <= state.expires_at
-                        && state.max_uses.is_none_or(|max| state.uses < max) =>
-                {
-                    state.uses += 1;
-                    state.save(&db)?;
-                    ltc_status = Some(state.dto_serialize()?);
-                }
-                _ => ltc_denied = true,
+    let ltc_state = match handshake {
+        HandshakeKind::Ltc => match LtcState::load(db)? {
+            Some(state)
+                if state.payload_id == response.payload_id
+                    && now <= state.expires_at
+                    && state.max_uses.is_none_or(|max| state.uses < max) =>
+            {
+                Some(state)
             }
-        }
-
-        if ltc_denied {
-            (None, true, None)
-        } else {
-            contact.save(&db)?;
-            crate::storage::set_contact_terminated(&db, &hex::encode(user_id.0), false)?;
-
-            let dht_key = db.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
-            db.raw_write(TABLE_SETTINGS, "otp_consumed_id", &response.payload_id.0)?;
-            db.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
-            db.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
-            db.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
-            db.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
-
-            (dht_key, false, ltc_status)
-        }
+            _ => return Ok(None),
+        },
+        HandshakeKind::Otp => None,
     };
 
-    if ltc_denied {
-        let _ = send_wire(
-            WireMessage::ContactRejected {
-                payload_id: response.payload_id,
-                reason: FcRejectReason::AlreadyUsed,
-            },
-            from,
-            cmd_tx,
-        )
-        .await;
-        return Ok(());
-    }
+    contact.save(db)?;
 
-    let _ = send_wire(
-        WireMessage::ContactAccepted(response.payload_id),
-        from,
-        cmd_tx,
-    )
-    .await;
+    let ltc_status = ltc_state.and_then(|mut state| {
+        state.uses += 1;
+        state
+            .save(db)
+            .and_then(|()| state.dto_serialize())
+            .inspect_err(|err| log::warn!("[fc] could not record the LTC use: {err}"))
+            .ok()
+    });
 
-    if let Some(key) = otp_dht_key {
-        let _ = cmd_tx.send(SwarmCommand::RemoveDht { key }).await;
-    }
+    let otp_dht_key = match handshake {
+        HandshakeKind::Otp => consume_otp(db, &response.payload_id)
+            .inspect_err(|err| log::warn!("[fc] could not consume the OTP: {err}"))
+            .ok()
+            .flatten(),
+        HandshakeKind::Ltc => None,
+    };
 
-    cmd_tx
-        .send(SwarmCommand::ContactAdded {
-            contact: contact.clone(),
-        })
-        .await
-        .ok_kursal(KursalError::Network)?;
+    Ok(Some(AcceptedContact {
+        contact,
+        otp_dht_key,
+        ltc_status,
+    }))
+}
 
-    event_tx
-        .send(AppEvent::ContactAdded {
-            contact,
-            via_nearby: false,
-        })
-        .await
-        .ok_kursal(KursalError::Network)?;
-
-    if matches!(handshake, HandshakeKind::Otp) {
-        let _ = event_tx.send(AppEvent::OtpConsumed).await;
-    }
-
-    if let Some(status) = ltc_status {
-        let _ = event_tx
-            .send(AppEvent::LtcUpdated {
-                status: Some(status),
-            })
-            .await;
-    }
-
-    fc_replay_remember(response_hash);
-    Ok(())
+fn consume_otp(db: &Database, payload_id: &MessageId) -> Result<Option<Vec<u8>>> {
+    let dht_key = db.raw_read(TABLE_SETTINGS, "otp_dht_key")?;
+    db.raw_write(TABLE_SETTINGS, "otp_consumed_id", &payload_id.0)?;
+    db.raw_delete(TABLE_SETTINGS, "otp_pending_id")?;
+    db.raw_delete(TABLE_SETTINGS, "otp_published_at")?;
+    db.raw_delete(TABLE_SETTINGS, "otp_prekey_id")?;
+    db.raw_delete(TABLE_SETTINGS, "otp_dht_key")?;
+    Ok(dht_key)
 }

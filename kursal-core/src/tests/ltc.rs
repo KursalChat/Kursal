@@ -20,8 +20,8 @@ use crate::{
         swarm::{SwarmCommand, SwarmHandle},
     },
     storage::{
-        Database, RelayConfig, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_dilithium_pub,
-        get_dilithium_secret, get_timestamp_secs,
+        Database, RelayConfig, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_contact_terminated,
+        get_dilithium_pub, get_dilithium_secret, get_timestamp_secs, set_contact_terminated,
     },
     tests::TestEnv,
 };
@@ -443,6 +443,52 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
 }
 
 #[tokio::test]
+async fn ltc_response_from_a_removed_contact_re_adds_them() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_readd_alice").await;
+    let bob = make_peer(&env, "ltc_readd_bob").await;
+
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
+
+    let first = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&first),
+        first.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+
+    let bob_hex = hex::encode(responder_id(&first).0);
+    set_contact_terminated(&alice, &bob_hex, true).unwrap();
+
+    let again = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&again),
+        again.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+
+    let readded = Contact::load(&alice, &responder_id(&again))
+        .unwrap()
+        .unwrap();
+    assert_eq!(readded.peer_id, again.peer_id);
+    assert!(!get_contact_terminated(&alice, &bob_hex));
+    assert_eq!(uses(&alice).await, 2);
+}
+
+#[tokio::test]
 async fn ltc_response_during_another_handshake_is_refused() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_busy_alice").await;
@@ -798,7 +844,8 @@ fn spawn_swarm_responder(
                 SwarmCommand::SendMessage { peer_id, .. } => {
                     seen.lock().unwrap().push(peer_id.to_base58());
                     if let Some(ack) = ack {
-                        resolve_ack_waiter(payload_id, ack);
+                        resolve_ack_waiter(PeerId::random(), payload_id, ack);
+                        resolve_ack_waiter(peer_id, payload_id, ack);
                     }
                 }
                 _ => {}
