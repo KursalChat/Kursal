@@ -79,6 +79,25 @@ pub(super) async fn presence_sync_loop(
             }
         };
 
+        let routed: HashSet<UserId> = contacts.iter().map(|c| c.user_id.clone()).collect();
+        let mut unrouted = Vec::new();
+        status_map.lock().await.retain(|user_id, status| {
+            let keep = routed.contains(user_id);
+            if !keep && *status != ConnectionStatus::Disconnected {
+                unrouted.push(user_id.clone());
+            }
+            keep
+        });
+        for contact_id in unrouted {
+            event_tx
+                .send(AppEvent::ConnectionChange {
+                    contact_id,
+                    status: ConnectionStatus::Disconnected,
+                })
+                .await
+                .ok();
+        }
+
         for contact in contacts {
             let Ok(peer_id) = PeerId::from_str(&contact.peer_id) else {
                 continue;

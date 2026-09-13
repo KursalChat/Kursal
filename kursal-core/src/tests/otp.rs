@@ -366,7 +366,7 @@ async fn otp_replayed_response_is_refused_as_already_used() {
 
     let mut refusal = None;
     while let Ok(command) = cmd_rx.try_recv() {
-        if let crate::network::swarm::SwarmCommand::SendMessage { data, .. } = command
+        if let crate::network::swarm::SwarmCommand::SendIfConnected { data, .. } = command
             && let Ok(crate::first_contact::WireMessage::ContactRejected { reason, .. }) =
                 bincode::deserialize::<crate::first_contact::WireMessage>(&data)
         {

@@ -245,22 +245,34 @@ pub fn is_lan_multiaddr(addr: &Multiaddr) -> bool {
 }
 
 pub fn is_routable_multiaddr(addr: &Multiaddr) -> bool {
-    for proto in addr.iter() {
-        match proto {
-            Protocol::Ip4(ip)
-                if (ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()) =>
-            {
-                return false;
-            }
-            Protocol::Ip6(ip) => {
-                let is_link_local = (ip.segments()[0] & 0xffc0) == 0xfe80;
-                if ip.is_loopback() || ip.is_unspecified() || is_link_local {
-                    return false;
-                }
-                let _ = IpAddr::V6(ip);
-            }
-            _ => {}
+    addr.iter().all(|proto| match proto {
+        Protocol::Ip4(ip) => is_routable_ip(IpAddr::V4(ip)),
+        Protocol::Ip6(ip) => is_routable_ip(IpAddr::V6(ip)),
+        Protocol::Dns(name)
+        | Protocol::Dns4(name)
+        | Protocol::Dns6(name)
+        | Protocol::Dnsaddr(name) => is_routable_host(&name),
+        _ => true,
+    })
+}
+
+fn is_routable_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => !(ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()),
+        IpAddr::V6(ip) => {
+            let is_link_local = (ip.segments()[0] & 0xffc0) == 0xfe80;
+            !(ip.is_loopback() || ip.is_unspecified() || is_link_local)
+                && ip
+                    .to_ipv4()
+                    .is_none_or(|embedded| is_routable_ip(IpAddr::V4(embedded)))
         }
     }
-    true
+}
+
+fn is_routable_host(name: &str) -> bool {
+    let name = name.trim_end_matches('.').to_ascii_lowercase();
+    if let Ok(ip) = name.parse::<IpAddr>() {
+        return is_routable_ip(ip);
+    }
+    name != "localhost" && !name.ends_with(".localhost")
 }

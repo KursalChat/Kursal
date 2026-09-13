@@ -349,6 +349,7 @@ fn address_announce_roundtrips() {
     let msg = KursalMessage::AddressAnnounce(AddressAnnounce {
         peer_id: "P".to_string(),
         addresses: vec!["/ip4/1.2.3.4/tcp/1".to_string()],
+        peer_proof: vec![7u8; 64],
     });
     let bytes = msg.serialize().unwrap();
     let back = KursalMessage::deserialize(&bytes).unwrap();
@@ -358,18 +359,11 @@ fn address_announce_roundtrips() {
     assert_eq!(back.kind_name(), "AddressAnnounce");
 }
 
-#[tokio::test]
-async fn address_announce_updates_contact() {
-    use crate::api::AppEvent;
-    use crate::api::apply_address_announce;
+fn save_announce_contact(db: &crate::storage::Database) {
     use crate::contacts::Contact;
     use crate::messaging::offline::OfflineState;
-    use crate::network::swarm::SwarmCommand;
 
-    let env = TestEnv::new();
-    let db = make_db(&env, "announce").await;
-
-    let contact = Contact {
+    Contact {
         user_id: UserId([7u8; 32]),
         peer_id: "OldPeer".to_string(),
         display_name: "T".to_string(),
@@ -382,16 +376,35 @@ async fn address_announce_updates_contact() {
         blocked: false,
         created_at: 1,
         offline: OfflineState::default(),
-    };
-    contact.save(&db).unwrap();
+    }
+    .save(db)
+    .unwrap();
+}
+
+#[tokio::test]
+async fn address_announce_updates_contact() {
+    use crate::api::AppEvent;
+    use crate::api::apply_address_announce;
+    use crate::contacts::Contact;
+    use crate::identity::TransportIdentity;
+    use crate::network::swarm::SwarmCommand;
+
+    let env = TestEnv::new();
+    let db = make_db(&env, "announce").await;
+    save_announce_contact(&db);
 
     let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::channel(16);
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(16);
 
+    let identity = TransportIdentity::generate();
+    let new_peer = identity.peer_id.to_base58();
+    let proof = identity.peer_binding(&UserId([7u8; 32])).unwrap();
+
     apply_address_announce(
         &UserId([7u8; 32]),
-        "NewPeer".to_string(),
+        new_peer.clone(),
         vec!["/ip4/1.2.3.4/tcp/4001".to_string()],
+        &proof,
         &db,
         &cmd_tx,
         Some(&event_tx),
@@ -400,7 +413,7 @@ async fn address_announce_updates_contact() {
     .unwrap();
 
     let reloaded = Contact::load(&db, &UserId([7u8; 32])).unwrap().unwrap();
-    assert_eq!(reloaded.peer_id, "NewPeer");
+    assert_eq!(reloaded.peer_id, new_peer);
     assert_eq!(
         reloaded.known_addresses,
         vec!["/ip4/1.2.3.4/tcp/4001".to_string()]
@@ -409,8 +422,41 @@ async fn address_announce_updates_contact() {
     let ev = event_rx.try_recv().expect("ContactUpdated event");
     assert!(matches!(ev, AppEvent::ContactUpdated { .. }));
 
-    let cmd = cmd_rx.try_recv().expect("Dial command");
-    assert!(matches!(cmd, SwarmCommand::Dial(_)));
+    let mut dialed = false;
+    while let Ok(cmd) = cmd_rx.try_recv() {
+        dialed |= matches!(cmd, SwarmCommand::Dial(_));
+    }
+    assert!(dialed);
+}
+
+#[tokio::test]
+async fn address_announce_ignores_a_proof_made_for_another_contact() {
+    use crate::api::apply_address_announce;
+    use crate::contacts::Contact;
+    use crate::identity::TransportIdentity;
+
+    let env = TestEnv::new();
+    let db = make_db(&env, "announce_foreign").await;
+    save_announce_contact(&db);
+
+    let (cmd_tx, _cmd_rx) = tokio::sync::mpsc::channel(16);
+    let identity = TransportIdentity::generate();
+    let foreign_proof = identity.peer_binding(&UserId([8u8; 32])).unwrap();
+
+    apply_address_announce(
+        &UserId([7u8; 32]),
+        identity.peer_id.to_base58(),
+        vec!["/ip4/1.2.3.4/tcp/4001".to_string()],
+        &foreign_proof,
+        &db,
+        &cmd_tx,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let reloaded = Contact::load(&db, &UserId([7u8; 32])).unwrap().unwrap();
+    assert_eq!(reloaded.peer_id, "OldPeer");
 }
 
 #[test]

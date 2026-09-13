@@ -300,7 +300,7 @@ where
         return Ok(None);
     };
     let out = f(&mut contact.offline)?;
-    contact.save_if_exists(db)?;
+    contact.save_offline_if_exists(db)?;
     Ok(Some(out))
 }
 
@@ -314,15 +314,7 @@ where
 {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(db, user_id)? else {
-        return Ok(None);
-    };
-    if f(&mut contact) {
-        contact.save_if_exists(db)?;
-        Ok(Some(contact))
-    } else {
-        Ok(None)
-    }
+    Contact::update_if_exists(db, user_id, f)
 }
 
 pub async fn queue_for_offline(
@@ -372,7 +364,7 @@ pub async fn discard_queued(
     }
 
     if dropped {
-        contact.save_if_exists(db)?;
+        contact.save_offline_if_exists(db)?;
     }
 
     Ok(dropped)
@@ -510,7 +502,7 @@ pub async fn deliver_queue_direct(
     if drained {
         contact.offline.queue_first_at = None;
     }
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     log::info!(
         "[offline] direct drain contact={contact_dbg} delivered={sent}/{queued} peer={peer_id}"
@@ -797,11 +789,11 @@ async fn queue_for_offline_locked(
         contact.offline.send_queue.len()
     );
 
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     maybe_flush_locked(contact, cmd_tx, db.clone(), event_tx).await?;
 
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     if was_empty && !contact.offline.send_queue.is_empty() {
         log::info!(
@@ -890,7 +882,7 @@ async fn flush_now_locked(
     if contact.offline.send_queue.is_empty() && contact.offline.pending_bundles.is_empty() {
         log::debug!("[offline] flush contact={contact_dbg} nothing to flush");
         contact.offline.queue_first_at = None;
-        contact.save_if_exists(&db)?;
+        contact.save_offline_if_exists(&db)?;
         return Ok(());
     }
 
@@ -960,7 +952,7 @@ async fn flush_now_locked(
             tag,
             message_ids: new_bundle_message_ids.clone(),
         });
-        contact.save_if_exists(&db)?;
+        contact.save_offline_if_exists(&db)?;
     }
 
     let published = new_bundle.is_some();

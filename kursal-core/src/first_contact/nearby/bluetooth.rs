@@ -4,6 +4,7 @@ use crate::{
     first_contact::nearby::{BtEvent, NearbyBeacon, NearbyMessage, NearbyTransport},
     network::swarm::SwarmCommand,
     storage::get_timestamp_secs,
+    sync::LockExt,
 };
 #[cfg(not(target_os = "android"))]
 use ble_peripheral_rust::{
@@ -30,7 +31,7 @@ use libp2p::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::{Duration, Instant},
 };
 use tokio::sync::{Mutex, Notify, mpsc};
@@ -51,9 +52,21 @@ const MAX_CHUNK_SIZE: usize = 500;
 const WRITE_ACK_WINDOW: u16 = 8;
 const REASSEMBLY_TTL: Duration = Duration::from_secs(60);
 const PEER_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
+const DEVICE_SEND_TIMEOUT: Duration = Duration::from_secs(10);
 const WIRE_DOMAIN: &[u8] = b"kursal/nearby-bt/1";
 const BEACON_DOMAIN: &[u8] = b"kursal/nearby-bt-beacon/1";
 const WIRE_MAX_SKEW_SECS: u64 = 300;
+const WIRE_REPLAY_WINDOW: Duration = Duration::from_secs(2 * WIRE_MAX_SKEW_SECS);
+
+static SEEN_WIRE: LazyLock<std::sync::Mutex<HashMap<Vec<u8>, Instant>>> =
+    LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn first_sighting(signature: &[u8]) -> bool {
+    let now = Instant::now();
+    let mut seen = SEEN_WIRE.lock_recover();
+    seen.retain(|_, at| now.duration_since(*at) < WIRE_REPLAY_WINDOW);
+    seen.insert(signature.to_vec(), now).is_none()
+}
 
 #[derive(Clone)]
 struct PartialMsg {
@@ -134,6 +147,9 @@ impl BtWireMessage {
             WIRE_DOMAIN,
             &(&self.to_peer_id, self.sent_at, &self.msg),
         )?;
+        if !first_sighting(&self.signature) {
+            return Err(KursalError::Network("bt: replayed message".into()));
+        }
 
         Ok((from.to_base58(), NearbyMessage::deserialize(&self.msg)?))
     }
@@ -361,25 +377,32 @@ impl NearbyTransport for BTTransport {
         let wire = BtWireMessage::seal(&self.keypair, peer_id, &msg)?;
         let bytes = bincode::serialize(&wire)?;
 
-        let devices =
-            ensure_peer_connected(&self.peers, &self.peer_added, &self.gatt_locks, peer_id).await?;
+        let devices = wait_for_devices(&self.peers, &self.peer_added, peer_id).await?;
+        let attempts = devices.into_iter().map(|(peripheral, write_char)| {
+            let bytes = &bytes;
+            async move {
+                tokio::time::timeout(
+                    DEVICE_SEND_TIMEOUT,
+                    self.deliver(peer_id, peripheral, write_char, bytes),
+                )
+                .await
+                .unwrap_or_else(|_| {
+                    Err(KursalError::Network(format!(
+                        "bt: write to {peer_id} timed out"
+                    )))
+                })
+            }
+        });
 
         let mut last_err = None;
-        let mut delivered = false;
-        for (peripheral, write_char) in devices {
-            match self
-                .write_frames(peer_id, &peripheral, write_char, &bytes)
-                .await
-            {
-                Ok(()) => delivered = true,
+        for result in futures::future::join_all(attempts).await {
+            match result {
+                Ok(()) => return Ok(()),
                 Err(err) => last_err = Some(err),
             }
         }
-
-        match last_err {
-            Some(err) if !delivered => Err(err),
-            _ => Ok(()),
-        }
+        Err(last_err
+            .unwrap_or_else(|| KursalError::Network(format!("bt: peer {peer_id} not connected"))))
     }
 
     async fn register_handshake(&self, peer_id: &str) -> mpsc::Receiver<NearbyMessage> {
@@ -399,6 +422,28 @@ impl NearbyTransport for BTTransport {
 }
 
 impl BTTransport {
+    async fn deliver(
+        &self,
+        peer_id: &str,
+        peripheral: PlatformPeripheral,
+        write_char: Characteristic,
+        bytes: &[u8],
+    ) -> Result<()> {
+        let connected = peripheral
+            .is_connected()
+            .await
+            .ok_kursal(KursalError::Network)?;
+        let write_char = if connected {
+            write_char
+        } else {
+            log::info!("[bt] peer {peer_id} disconnected, reconnecting");
+            connect_and_register(&self.peers, &self.gatt_locks, peer_id, &peripheral).await?
+        };
+
+        self.write_frames(peer_id, &peripheral, write_char, bytes)
+            .await
+    }
+
     async fn write_frames(
         &self,
         peer_id: &str,
@@ -513,15 +558,14 @@ async fn connect_and_register(
     Ok(write_char)
 }
 
-async fn ensure_peer_connected(
+async fn wait_for_devices(
     peers: &PeerMap,
     peer_added: &Notify,
-    locks: &GattLocks,
     peer_id: &str,
 ) -> Result<Vec<(PlatformPeripheral, Characteristic)>> {
     let deadline = Instant::now() + PEER_WAIT_TIMEOUT;
 
-    let candidates = loop {
+    loop {
         let mut wait = Box::pin(peer_added.notified());
         wait.as_mut().enable();
 
@@ -533,7 +577,7 @@ async fn ensure_peer_connected(
             .map(|peer| (peer.peripheral.clone(), peer.write_char.clone()))
             .collect();
         if !found.is_empty() {
-            break found;
+            return Ok(found);
         }
 
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -542,29 +586,7 @@ async fn ensure_peer_connected(
                 "bt: peer {peer_id} not connected"
             )));
         }
-    };
-
-    let mut connected = Vec::with_capacity(candidates.len());
-    for (peripheral, write_char) in candidates {
-        match peripheral.is_connected().await {
-            Ok(true) => connected.push((peripheral, write_char)),
-            Ok(false) => {
-                log::info!("[bt] peer {peer_id} disconnected, reconnecting");
-                match connect_and_register(peers, locks, peer_id, &peripheral).await {
-                    Ok(new_char) => connected.push((peripheral, new_char)),
-                    Err(err) => log::warn!("[bt] reconnect to {peer_id} failed: {err}"),
-                }
-            }
-            Err(err) => log::warn!("[bt] connection check for {peer_id} failed: {err}"),
-        }
     }
-
-    if connected.is_empty() {
-        return Err(KursalError::Network(format!(
-            "bt: peer {peer_id} not connected"
-        )));
-    }
-    Ok(connected)
 }
 
 async fn start_scanner(

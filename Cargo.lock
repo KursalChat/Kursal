@@ -4498,6 +4498,7 @@ dependencies = [
  "dbus-secret-service-keyring-store",
  "dirs 6.0.0",
  "dispatch2",
+ "either",
  "emojis",
  "futures",
  "hex",

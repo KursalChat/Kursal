@@ -23,6 +23,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
 pub mod bootstrap;
+pub mod dcutr_gate;
 pub mod dht;
 mod events;
 pub mod kademlia;

@@ -6,7 +6,7 @@ use crate::{
         session_initiate,
     },
     first_contact::{
-        ContactResponse, FcRejectReason, WireMessage, handle_fc_response,
+        ContactResponse, FcRejectReason, WireMessage, claim_handshake, handle_fc_response,
         ltc::{LtcPayload, LtcPointer, LtcState, fetch_ltc_pointer, ltc_rendezvous_tag},
         resolve_ack_waiter,
     },
@@ -84,7 +84,7 @@ async fn uses(db: &SharedDatabase) -> u32 {
 fn last_wire(rx: &mut mpsc::Receiver<SwarmCommand>) -> Option<WireMessage> {
     let mut wire = None;
     while let Ok(cmd) = rx.try_recv() {
-        if let SwarmCommand::SendMessage { data, .. } = cmd {
+        if let SwarmCommand::SendIfConnected { data, .. } = cmd {
             wire = bincode::deserialize::<WireMessage>(&data).ok();
         }
     }
@@ -440,6 +440,48 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
 
     assert_rejected(&mut cmd_rx, FcRejectReason::AlreadyUsed);
     assert!(!contact_saved(&alice, &second).await);
+}
+
+#[tokio::test]
+async fn ltc_response_during_another_handshake_is_refused() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_busy_alice").await;
+    let bob = make_peer(&env, "ltc_busy_bob").await;
+
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
+
+    let response = contact_response(&bob, state.payload_id).await;
+    let claim = claim_handshake(&responder_id(&response)).unwrap();
+
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_rejected(&mut cmd_rx, FcRejectReason::InProgress);
+    assert!(!contact_saved(&alice, &response).await);
+    assert_eq!(uses(&alice).await, 0);
+
+    drop(claim);
+    let retry = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&retry),
+        retry.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+    assert!(contact_saved(&alice, &retry).await);
 }
 
 #[tokio::test]

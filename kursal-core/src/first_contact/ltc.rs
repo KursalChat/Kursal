@@ -12,7 +12,8 @@ use crate::{
         stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
-        ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
+        ContactResponse, WireMessage, claim_import, forget_ack_waiter, make_username,
+        register_ack_waiter,
     },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
@@ -299,6 +300,7 @@ impl LtcState {
         let identity_key_bytes = bundle.identity_key.public_key().serialize().to_vec();
 
         let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
+        let _claim = claim_import(&db, &user_id)?;
         let remote_address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
         let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
         let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
@@ -416,6 +418,12 @@ impl LtcState {
         };
 
         contact.save(&db)?;
+        let _ = swarm
+            .cmd_tx
+            .send(SwarmCommand::ContactAdded {
+                contact: contact.clone(),
+            })
+            .await;
 
         Ok(contact)
     }

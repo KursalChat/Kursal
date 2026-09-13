@@ -432,6 +432,7 @@ pub async fn handle_incoming(
                 &contact.user_id,
                 announce.peer_id.clone(),
                 announce.addresses.clone(),
+                &announce.peer_proof,
                 &db,
                 cmd_tx,
                 Some(event_tx),
@@ -461,10 +462,9 @@ async fn reply_terminate_once(peer: PeerId, cmd_tx: &mpsc::Sender<SwarmCommand>)
         return;
     };
     let _ = cmd_tx
-        .send(SwarmCommand::SendMessage {
+        .send(SwarmCommand::SendIfConnected {
             peer_id: peer,
             data,
-            addresses: Vec::with_capacity(0),
         })
         .await;
 }

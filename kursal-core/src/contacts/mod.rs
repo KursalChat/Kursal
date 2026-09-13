@@ -37,15 +37,24 @@ impl Roster {
     }
 
     fn insert(&mut self, contact: Contact) {
-        if let Some(previous) = self.by_user.get(&contact.user_id)
-            && previous.peer_id != contact.peer_id
-            && self.by_peer.get(&previous.peer_id) == Some(&contact.user_id)
-        {
-            self.by_peer.remove(&previous.peer_id);
+        let previous = self
+            .by_user
+            .get(&contact.user_id)
+            .map(|c| c.peer_id.clone());
+
+        if previous.as_ref() == Some(&contact.peer_id) {
+            self.by_peer
+                .entry(contact.peer_id.clone())
+                .or_insert_with(|| contact.user_id.clone());
+        } else {
+            if let Some(previous) = previous
+                && self.by_peer.get(&previous) == Some(&contact.user_id)
+            {
+                self.by_peer.remove(&previous);
+            }
+            self.by_peer
+                .insert(contact.peer_id.clone(), contact.user_id.clone());
         }
-        self.by_peer
-            .entry(contact.peer_id.clone())
-            .or_insert_with(|| contact.user_id.clone());
         self.by_user.insert(contact.user_id.clone(), contact);
     }
 
@@ -113,32 +122,71 @@ impl Contact {
         bincode::deserialize(bytes).map_err(Into::into)
     }
 
+    fn write_row(&self, db: &Database) -> Result<()> {
+        db.raw_write(
+            TABLE_CONTACTS,
+            &hex::encode(self.user_id.0),
+            &self.serialize()?,
+        )?;
+        Ok(())
+    }
+
     pub fn save(&self, db: &Database) -> Result<()> {
         let roster = roster(db)?;
-        roster.read_recover().check_peer_claim(self)?;
-
-        let user_id = hex::encode(self.user_id.0);
-        let serialized = self.serialize()?;
-
-        db.raw_write(TABLE_CONTACTS, &user_id, &serialized)?;
-        roster.write_recover().insert(self.clone());
+        let mut roster = roster.write_recover();
+        roster.check_peer_claim(self)?;
+        self.write_row(db)?;
+        roster.insert(self.clone());
 
         Ok(())
     }
 
-    pub fn save_if_exists(&self, db: &Database) -> Result<()> {
+    pub fn save_offline_if_exists(&self, db: &Database) -> Result<()> {
         let roster = roster(db)?;
-        if !roster.read_recover().by_user.contains_key(&self.user_id) {
+        let mut roster = roster.write_recover();
+        let Some(current) = roster.by_user.get_mut(&self.user_id) else {
             return Ok(());
-        }
-        roster.read_recover().check_peer_claim(self)?;
+        };
 
-        let user_id = hex::encode(self.user_id.0);
-        let serialized = self.serialize()?;
-        db.raw_write(TABLE_CONTACTS, &user_id, &serialized)?;
-        roster.write_recover().insert(self.clone());
+        let previous = std::mem::replace(&mut current.offline, self.offline.clone());
+        if let Err(err) = current.write_row(db) {
+            current.offline = previous;
+            return Err(err);
+        }
 
         Ok(())
+    }
+
+    pub fn update_if_exists(
+        db: &Database,
+        user_id: &UserId,
+        f: impl FnOnce(&mut Contact) -> bool,
+    ) -> Result<Option<Contact>> {
+        let roster = roster(db)?;
+        let mut roster = roster.write_recover();
+        let Some(mut contact) = roster.by_user.get(user_id).cloned() else {
+            return Ok(None);
+        };
+        if !f(&mut contact) {
+            return Ok(None);
+        }
+
+        contact.write_row(db)?;
+        roster.insert(contact.clone());
+
+        Ok(Some(contact))
+    }
+
+    fn update_existing(
+        db: &Database,
+        user_id: &UserId,
+        f: impl FnOnce(&mut Contact),
+    ) -> Result<Contact> {
+        Self::update_if_exists(db, user_id, |contact| {
+            f(contact);
+            true
+        })?
+        .ok_or(KursalError::Storage("Contact not found".to_string()))
     }
 
     pub fn load(db: &Database, user_id: &UserId) -> Result<Option<Self>> {
@@ -180,31 +228,17 @@ impl Contact {
     }
 
     pub fn set_verified(db: &Database, user_id: &UserId) -> Result<()> {
-        let mut contact = Contact::load(db, user_id)?
-            .ok_or(KursalError::Storage("Contact not found".to_string()))?;
-
-        contact.verified = true;
-        contact.save(db)?;
+        Self::update_existing(db, user_id, |contact| contact.verified = true)?;
 
         Ok(())
     }
 
     pub fn set_blocked(db: &Database, user_id: &UserId, value: bool) -> Result<Contact> {
-        let mut contact = Contact::load(db, user_id)?
-            .ok_or(KursalError::Storage("Contact not found".to_string()))?;
-
-        contact.blocked = value;
-        contact.save(db)?;
-
-        Ok(contact)
+        Self::update_existing(db, user_id, |contact| contact.blocked = value)
     }
 
     pub fn set_addresses(db: &Database, user_id: &UserId, addresses: Vec<String>) -> Result<()> {
-        let mut contact = Contact::load(db, user_id)?
-            .ok_or(KursalError::Storage("Contact not found".to_string()))?;
-
-        contact.known_addresses = addresses;
-        contact.save(db)?;
+        Self::update_existing(db, user_id, |contact| contact.known_addresses = addresses)?;
 
         Ok(())
     }

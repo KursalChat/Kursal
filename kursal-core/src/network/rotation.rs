@@ -3,13 +3,13 @@ use crate::{
     api::{AppEvent, CoreCommand, send_message},
     contacts::Contact,
     first_contact::nearby::{bluetooth::BTTransport, mdns::MdnsTransport},
-    identity::{TransportIdentity, init_transport},
+    identity::TransportIdentity,
     messaging::enums::{AddressAnnounce, KursalMessage},
     network::{
         NetworkManager,
         swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, is_peer_connected},
     },
-    storage::{SharedDatabase, TABLE_SETTINGS, get_peer_rotation_interval},
+    storage::{SharedDatabase, TABLE_SETTINGS, get_local_user_id, get_peer_rotation_interval},
 };
 use libp2p::PeerId;
 use std::str::FromStr;
@@ -43,9 +43,13 @@ impl NetworkManager {
         let cmd_tx = secondary.cmd_tx.clone();
         self.secondary = Some(secondary);
 
-        for contact in Contact::load_all(db)? {
-            let _ = cmd_tx.send(SwarmCommand::ContactAdded { contact }).await;
-        }
+        let contacts = Contact::load_all(db)?;
+        let seed_tx = cmd_tx.clone();
+        tokio::spawn(async move {
+            for contact in contacts {
+                let _ = seed_tx.send(SwarmCommand::ContactAdded { contact }).await;
+            }
+        });
 
         Ok(cmd_tx)
     }
@@ -62,6 +66,10 @@ impl NetworkManager {
             "Could not access secondary identity".to_string(),
         ))?;
 
+        let identity = TransportIdentity::load_next(&db)?
+            .filter(|identity| identity.peer_id == secondary.peer_id)
+            .ok_or_else(|| KursalError::Identity("Rotation identity missing".to_string()))?;
+        let peer_proof = identity.peer_binding(&get_local_user_id(&db)?)?;
         let new_peer_id = secondary.peer_id.to_base58();
         let new_addresses = get_listen_addrs(&secondary.cmd_tx).await?;
 
@@ -72,6 +80,7 @@ impl NetworkManager {
             let content = KursalMessage::AddressAnnounce(AddressAnnounce {
                 peer_id: new_peer_id.clone(),
                 addresses: new_addresses.clone(),
+                peer_proof: peer_proof.clone(),
             });
             let db2 = db.clone();
             let cmd2 = cmd_tx.clone();
@@ -90,18 +99,20 @@ impl NetworkManager {
     }
 
     pub async fn complete_rotation(&mut self, db: &SharedDatabase) -> Result<()> {
-        let _ = self.primary.cmd_tx.send(SwarmCommand::Shutdown).await;
-
         let new_primary = self
             .secondary
             .take()
             .ok_or_else(|| KursalError::Network("No secondary swarm".to_string()))?;
-        self.primary = new_primary;
-
-        let keypair = match TransportIdentity::promote_next(db)? {
-            Some(next) => next.keypair,
-            None => init_transport(db)?.keypair,
+        let keypair = match TransportIdentity::promote_next(db, &new_primary.peer_id) {
+            Ok(next) => next.keypair,
+            Err(err) => {
+                let _ = new_primary.cmd_tx.send(SwarmCommand::Shutdown).await;
+                return Err(err);
+            }
         };
+
+        let _ = self.primary.cmd_tx.send(SwarmCommand::Shutdown).await;
+        self.primary = new_primary;
 
         // update transports to use new swarm's command channel
         self.mdns_transport = Arc::new(MdnsTransport::new(
@@ -180,10 +191,10 @@ pub async fn announce_addresses_to_offline(
 ) -> Result<()> {
     let contacts = Contact::load_all(&db)?;
 
-    let my_peer_id = TransportIdentity::load(&db)?
-        .ok_or_else(|| KursalError::Identity("No transport identity".to_string()))?
-        .peer_id
-        .to_base58();
+    let identity = TransportIdentity::load(&db)?
+        .ok_or_else(|| KursalError::Identity("No transport identity".to_string()))?;
+    let peer_proof = identity.peer_binding(&get_local_user_id(&db)?)?;
+    let my_peer_id = identity.peer_id.to_base58();
     let my_addresses = get_listen_addrs(cmd_tx).await?;
 
     for contact in contacts {
@@ -200,6 +211,7 @@ pub async fn announce_addresses_to_offline(
         let content = KursalMessage::AddressAnnounce(AddressAnnounce {
             peer_id: my_peer_id.clone(),
             addresses: my_addresses.clone(),
+            peer_proof: peer_proof.clone(),
         });
         if let Err(err) =
             send_message(content, &contact, db.clone(), cmd_tx, Some(app_event_tx)).await

@@ -71,7 +71,16 @@ pub async fn handle_core_command(
 
         CoreCommand::FetchOtp { otp, reply } => {
             let swarm = network.lock().await.primary.clone();
-            let result = fetch_otp(&otp, db, &swarm).await;
+            let result = fetch_otp(&otp, db.clone(), &swarm).await;
+            if let Ok(contact) = &result {
+                let _ = crate::api::handle_incoming::mark_terminated(
+                    &db,
+                    &contact.user_id,
+                    false,
+                    &app_event_tx,
+                )
+                .await;
+            }
             reply.send(result).ok();
         }
 
@@ -183,9 +192,18 @@ pub async fn handle_core_command(
             };
 
             let result = match result {
-                Ok(payload) => LtcState::import_ltc(payload, db, &swarm).await,
+                Ok(payload) => LtcState::import_ltc(payload, db.clone(), &swarm).await,
                 Err(e) => Err(e),
             };
+            if let Ok(contact) = &result {
+                let _ = crate::api::handle_incoming::mark_terminated(
+                    &db,
+                    &contact.user_id,
+                    false,
+                    &app_event_tx,
+                )
+                .await;
+            }
 
             reply.send(result).ok();
         }

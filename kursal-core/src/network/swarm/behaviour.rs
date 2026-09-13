@@ -1,4 +1,4 @@
-use crate::network::{kademlia::KursalKadStore, limiter::ConnectionLimiter};
+use crate::network::{dcutr_gate::DcutrGate, kademlia::KursalKadStore, limiter::ConnectionLimiter};
 use libp2p::{
     request_response,
     swarm::{NetworkBehaviour, behaviour::toggle::Toggle},
@@ -8,9 +8,10 @@ use std::convert::Infallible;
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "KursalBehaviourEvent")]
 pub struct KursalBehaviour {
+    pub limiter: ConnectionLimiter,
     pub relay: libp2p::relay::client::Behaviour,
     pub relay_server: Toggle<libp2p::relay::Behaviour>,
-    pub dcutr: libp2p::dcutr::Behaviour,
+    pub dcutr: DcutrGate,
     pub autonat_client: libp2p::autonat::v2::client::Behaviour,
     pub autonat_server: Toggle<libp2p::autonat::v2::server::Behaviour>,
     pub kad: libp2p::kad::Behaviour<KursalKadStore>,
@@ -18,7 +19,6 @@ pub struct KursalBehaviour {
     pub identify: libp2p::identify::Behaviour,
     pub request_response: request_response::Behaviour<super::KursalMsgCodec>,
     pub streaming: libp2p_stream::Behaviour,
-    pub limiter: ConnectionLimiter,
     pub ping: libp2p::ping::Behaviour,
 }
 

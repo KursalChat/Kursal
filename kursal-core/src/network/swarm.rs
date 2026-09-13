@@ -141,6 +141,10 @@ pub enum SwarmCommand {
         data: Vec<u8>,
         addresses: Vec<Multiaddr>,
     },
+    SendIfConnected {
+        peer_id: PeerId,
+        data: Vec<u8>,
+    },
     OpenStream {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
@@ -346,7 +350,7 @@ impl SwarmHandle {
                 let local_peer_id = key.public().to_peer_id();
 
                 let relay = relay_client;
-                let dcutr = libp2p::dcutr::Behaviour::new(local_peer_id);
+                let dcutr = crate::network::dcutr_gate::DcutrGate::new(local_peer_id);
 
                 let mut kad_config = libp2p::kad::Config::new(StreamProtocol::new("/kursal/kad/1.0.0"));
                 kad_config.set_max_packet_size(KAD_MAX_PACKET);
@@ -370,10 +374,10 @@ impl SwarmHandle {
                     Toggle::from(None)
                 };
 
-                let identify = libp2p::identify::Behaviour::new(libp2p::identify::Config::new(
-                    "/kursal/v1.0.0".to_string(),
-                    key.public(),
-                ));
+                let identify = libp2p::identify::Behaviour::new(
+                    libp2p::identify::Config::new("/kursal/v1.0.0".to_string(), key.public())
+                        .with_hide_listen_addrs(true),
+                );
 
                 let request_response = request_response::Behaviour::new(
                     [(StreamProtocol::new("/kursal/msg/1.0.0"), ProtocolSupport::Full)],

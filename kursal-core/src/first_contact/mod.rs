@@ -8,7 +8,9 @@ use crate::{
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::swarm::SwarmCommand,
-    storage::{SharedDatabase, TABLE_SETTINGS, get_timestamp_secs},
+    storage::{
+        Database, SharedDatabase, TABLE_SETTINGS, get_contact_terminated, get_timestamp_secs,
+    },
     sync::LockExt,
 };
 use libp2p::PeerId;
@@ -18,7 +20,7 @@ use libsignal_protocol::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex as StdMutex};
 use tokio::sync::{mpsc, oneshot};
 use zeroize::Zeroizing;
@@ -45,6 +47,35 @@ fn fc_replay_remember(hash: [u8; 32]) {
         cache.pop_front();
     }
     cache.push_back(hash);
+}
+
+static HANDSHAKES: LazyLock<StdMutex<HashSet<UserId>>> =
+    LazyLock::new(|| StdMutex::new(HashSet::new()));
+
+pub(crate) struct HandshakeClaim(UserId);
+
+impl Drop for HandshakeClaim {
+    fn drop(&mut self) {
+        HANDSHAKES.lock_recover().remove(&self.0);
+    }
+}
+
+pub(crate) fn claim_handshake(user_id: &UserId) -> Result<HandshakeClaim> {
+    if !HANDSHAKES.lock_recover().insert(user_id.clone()) {
+        return Err(KursalError::Network(
+            FcRejectReason::InProgress.as_str().to_string(),
+        ));
+    }
+    Ok(HandshakeClaim(user_id.clone()))
+}
+
+pub(crate) fn claim_import(db: &Database, user_id: &UserId) -> Result<HandshakeClaim> {
+    let claim = claim_handshake(user_id)?;
+    if Contact::load(db, user_id)?.is_some() && !get_contact_terminated(db, &hex::encode(user_id.0))
+    {
+        return Err(already_a_contact());
+    }
+    Ok(claim)
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -76,6 +107,7 @@ pub enum FcRejectReason {
     AlreadyUsed,
     Expired,
     Unknown,
+    InProgress,
 }
 
 impl FcRejectReason {
@@ -84,6 +116,7 @@ impl FcRejectReason {
             FcRejectReason::AlreadyUsed => "code already used",
             FcRejectReason::Expired => "code expired",
             FcRejectReason::Unknown => "code not recognized",
+            FcRejectReason::InProgress => "handshake already in progress",
         }
     }
 }
@@ -129,13 +162,16 @@ async fn send_wire(
     cmd_tx: &mpsc::Sender<SwarmCommand>,
 ) -> Result<()> {
     cmd_tx
-        .send(SwarmCommand::SendMessage {
+        .send(SwarmCommand::SendIfConnected {
             peer_id,
             data: bincode::serialize(&wire)?,
-            addresses: vec![],
         })
         .await
         .ok_kursal(KursalError::Network)
+}
+
+pub(crate) fn already_a_contact() -> KursalError {
+    KursalError::Storage("Already a contact".to_string())
 }
 
 pub fn make_username(peer_id: &str) -> String {
@@ -233,6 +269,16 @@ pub async fn handle_fc_response(
     let identity_key_bytes = bundle.identity_key.public_key().serialize().to_vec();
 
     let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
+
+    let Ok(_claim) = claim_handshake(&user_id) else {
+        log::warn!("[fc] refusing ContactResponse while another handshake with this contact runs");
+        let rejection = WireMessage::ContactRejected {
+            payload_id: response.payload_id,
+            reason: FcRejectReason::InProgress,
+        };
+        let _ = send_wire(rejection, from, cmd_tx).await;
+        return Ok(());
+    };
 
     let already_exists = Contact::load(&db, &user_id)?.is_some();
     if already_exists {

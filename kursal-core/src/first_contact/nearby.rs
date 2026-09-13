@@ -7,7 +7,7 @@ use crate::{
         DEVICE_ID, PreKeyBundleData, mailbox_kem_decapsulate, mailbox_kem_encapsulate,
         session_initiate,
     },
-    first_contact::make_username,
+    first_contact::{already_a_contact, claim_handshake, make_username},
     identity::UserId,
     messaging::offline::new_offline_state,
     network::swarm::{SwarmCommand, get_listen_addrs},
@@ -152,6 +152,7 @@ pub enum NearbyMessage {
         mailbox_kem_ct: Vec<u8>,
         mailbox_ephemeral_pub: Vec<u8>,
     },
+    BundleAck,
 }
 
 impl NearbyMessage {
@@ -284,8 +285,12 @@ pub async fn handle_nearby_request(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            if Contact::load(&db, &user_id)?.is_some() {
-                return Err(already_a_contact());
+            let claim = claim_handshake(&user_id);
+            if claim.is_err() || Contact::load(&db, &user_id)?.is_some() {
+                let _ = transport
+                    .send(from_peer_id, NearbyMessage::ConnectDecline)
+                    .await;
+                return Err(claim.err().unwrap_or_else(already_a_contact));
             }
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
@@ -337,6 +342,9 @@ pub async fn handle_nearby_request(
                     .await?,
             };
 
+            transport
+                .send(from_peer_id, NearbyMessage::BundleAck)
+                .await?;
             contact.save(&db)?;
 
             cmd_tx
@@ -358,10 +366,6 @@ pub async fn handle_nearby_request(
         }
         _ => Err(KursalError::Network("No bundle reply received".to_string())),
     }
-}
-
-fn already_a_contact() -> KursalError {
-    KursalError::Storage("Nearby peer is already a contact".to_string())
 }
 
 pub async fn nearby_connect(
@@ -397,9 +401,10 @@ pub async fn nearby_connect(
             let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
 
             let user_id = UserId(Sha256::digest(&identity_pub_key).into());
-            if Contact::load(&db, &user_id)?.is_some() {
+            let claim = claim_handshake(&user_id);
+            if claim.is_err() || Contact::load(&db, &user_id)?.is_some() {
                 let _ = transport.send(peer_id, NearbyMessage::ConnectDecline).await;
-                return Err(already_a_contact());
+                return Err(claim.err().unwrap_or_else(already_a_contact));
             }
             let address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
 
@@ -439,19 +444,33 @@ pub async fn nearby_connect(
                     .await?,
             };
 
-            // send back
-            transport
-                .send(
-                    peer_id,
-                    NearbyMessage::BundleReply {
-                        bundle: our_bundle.serialize()?,
-                        dilithium_pub: our_dilithium,
-                        relay_addresses: get_listen_addrs(cmd_tx).await?,
-                        mailbox_kem_ct,
-                        mailbox_ephemeral_pub,
-                    },
-                )
-                .await?;
+            let bundle_reply = NearbyMessage::BundleReply {
+                bundle: our_bundle.serialize()?,
+                dilithium_pub: our_dilithium,
+                relay_addresses: get_listen_addrs(cmd_tx).await?,
+                mailbox_kem_ct,
+                mailbox_ephemeral_pub,
+            };
+
+            let mut ack_rx = transport.register_handshake(peer_id).await;
+            let ack = match transport.send(peer_id, bundle_reply).await {
+                Ok(()) => tokio::time::timeout(Duration::from_secs(30), ack_rx.recv()).await,
+                Err(err) => {
+                    transport.unregister_handshake(peer_id).await;
+                    return Err(err);
+                }
+            };
+            transport.unregister_handshake(peer_id).await;
+
+            match ack {
+                Ok(Some(NearbyMessage::BundleAck)) => {}
+                Ok(Some(NearbyMessage::ConnectDecline)) => return Err(already_a_contact()),
+                _ => {
+                    return Err(KursalError::Network(
+                        "Nearby peer did not confirm the contact".to_string(),
+                    ));
+                }
+            }
 
             contact.save(&db)?;
 

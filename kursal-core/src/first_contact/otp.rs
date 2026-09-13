@@ -7,7 +7,8 @@ use crate::{
         stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
-        ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
+        ContactResponse, WireMessage, claim_import, forget_ack_waiter, make_username,
+        register_ack_waiter,
     },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
@@ -246,6 +247,7 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
 
     let identity_pub_key = bundle.identity_key.public_key().serialize().to_vec();
     let user_id: [u8; 32] = Sha256::digest(&identity_pub_key).into();
+    let _claim = claim_import(&db, &UserId(user_id))?;
 
     let remote_address = ProtocolAddress::new(hex::encode(user_id), DEVICE_ID);
     let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
@@ -342,6 +344,12 @@ pub async fn fetch_otp(otp: &str, db: SharedDatabase, swarm: &SwarmHandle) -> Re
     match tokio::time::timeout(Duration::from_secs(ACK_TIMEOUT_SECS), ack_rx).await {
         Ok(Ok(Ok(()))) => {
             contact.save(&db)?;
+            let _ = swarm
+                .cmd_tx
+                .send(SwarmCommand::ContactAdded {
+                    contact: contact.clone(),
+                })
+                .await;
             Ok(contact)
         }
         Ok(Ok(Err(reason))) => {

@@ -41,6 +41,20 @@ fn loopback_and_unspecified_are_not_evidence() {
 }
 
 #[test]
+fn loopback_behind_a_name_or_mapped_ipv6_is_not_routable() {
+    for addr in [
+        "/dns4/localhost/tcp/8080",
+        "/dns4/app.localhost./tcp/8080",
+        "/dns4/127.0.0.1/tcp/22",
+        "/ip6/::ffff:127.0.0.1/tcp/22",
+    ] {
+        assert!(!counts_as_public(addr), "{addr} must not be dialable");
+    }
+    assert!(counts_as_public("/dns4/diffie.kursal.chat/tcp/4891"));
+    assert!(counts_as_public("/ip6/::ffff:8.8.8.8/tcp/4891"));
+}
+
+#[test]
 fn a_later_reservation_does_not_mask_a_still_valid_direct_address() {
     let relayed = format!("/dns4/diffie.kursal.chat/tcp/4891/p2p/{RELAY}/p2p-circuit/p2p/{SELF}");
     assert!(

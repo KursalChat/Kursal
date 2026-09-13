@@ -214,20 +214,21 @@ pub(super) async fn handle_swarm_command(
             pending_queries.insert(query_id, reply_tx);
         }
         SwarmCommand::ContactAdded { contact } => {
-            let peer_id = contact.peer_id.parse::<PeerId>().ok();
+            let Ok(peer_id) = contact.peer_id.parse::<PeerId>() else {
+                return;
+            };
             if contact.blocked {
-                if let Some(peer_id) = peer_id {
-                    swarm.behaviour_mut().limiter.block(peer_id);
-                }
+                swarm.behaviour_mut().limiter.block(peer_id);
+                swarm.behaviour_mut().dcutr.disallow(&peer_id);
+                let _ = swarm.disconnect_peer_id(peer_id);
                 return;
             }
-            if let Some(peer_id) = peer_id {
-                swarm.behaviour_mut().limiter.protect(peer_id);
-            }
+            swarm.behaviour_mut().limiter.protect(peer_id);
+            swarm.behaviour_mut().dcutr.allow(peer_id);
             for addr_str in &contact.known_addresses {
                 if let Ok(addr) = addr_str.parse::<Multiaddr>()
                     && is_routable_multiaddr(&addr)
-                    && let Some(Protocol::P2p(peer_id)) = addr.iter().last()
+                    && peer_of(&addr) == Some(peer_id)
                 {
                     swarm.behaviour_mut().kad.add_address(&peer_id, addr);
                 }
@@ -235,19 +236,22 @@ pub(super) async fn handle_swarm_command(
         }
         SwarmCommand::ContactRemoved { peer_id } => {
             if let Ok(peer_id) = peer_id.parse::<PeerId>() {
-                let limiter = &mut swarm.behaviour_mut().limiter;
-                limiter.unprotect(&peer_id);
-                limiter.unblock(&peer_id);
+                let behaviour = swarm.behaviour_mut();
+                behaviour.limiter.unprotect(&peer_id);
+                behaviour.limiter.unblock(&peer_id);
+                behaviour.dcutr.disallow(&peer_id);
             }
         }
         SwarmCommand::SetPeerBlocked { peer_id, blocked } => {
-            let limiter = &mut swarm.behaviour_mut().limiter;
+            let behaviour = swarm.behaviour_mut();
             if blocked {
-                limiter.block(peer_id);
+                behaviour.limiter.block(peer_id);
+                behaviour.dcutr.disallow(&peer_id);
                 let _ = swarm.disconnect_peer_id(peer_id);
             } else {
-                limiter.unblock(&peer_id);
-                limiter.protect(peer_id);
+                behaviour.limiter.unblock(&peer_id);
+                behaviour.limiter.protect(peer_id);
+                behaviour.dcutr.allow(peer_id);
             }
         }
         SwarmCommand::SendMessage {
@@ -259,6 +263,14 @@ pub(super) async fn handle_swarm_command(
                 .behaviour_mut()
                 .request_response
                 .send_request_with_addresses(&peer_id, data, addresses);
+        }
+        SwarmCommand::SendIfConnected { peer_id, data } => {
+            if swarm.is_connected(&peer_id) {
+                swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request_with_addresses(&peer_id, data, Vec::new());
+            }
         }
         SwarmCommand::GetListenAddresses { reply_tx } => {
             let addrs: Vec<Multiaddr> = listen_addresses.iter().cloned().collect();

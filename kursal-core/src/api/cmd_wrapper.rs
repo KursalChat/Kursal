@@ -568,10 +568,15 @@ pub async fn set_contact_blocked<S: StateWrapper>(
         return Ok(());
     };
 
-    let network = state.network_lock().await;
-    for swarm in std::iter::once(&network.primary).chain(&network.secondary) {
-        let _ = swarm
-            .cmd_tx
+    let senders: Vec<_> = {
+        let network = state.network_lock().await;
+        std::iter::once(&network.primary)
+            .chain(&network.secondary)
+            .map(|swarm| swarm.cmd_tx.clone())
+            .collect()
+    };
+    for cmd_tx in senders {
+        let _ = cmd_tx
             .send(SwarmCommand::SetPeerBlocked {
                 peer_id,
                 blocked: value,
