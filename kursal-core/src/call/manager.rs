@@ -186,7 +186,18 @@ pub async fn start_video(
     .await
     .map_err(|e| KursalError::Misc(anyhow::anyhow!("video capture task: {e}")))??;
 
+    let guard = slot().lock().await;
+    let still_connected = guard.as_ref().is_some_and(|active| {
+        active.call_id == call_id && matches!(active.engine.state, CallState::Connected)
+    });
+    if !still_connected {
+        drop(guard);
+        let _ = tokio::task::spawn_blocking(crate::call::capture::stop).await;
+        crate::call::video::clear_local_forwarder();
+        return Err(KursalError::Network("no connected call".into()));
+    }
     crate::call::video::start_tx(peer_id, keys.tx, cmd_tx.clone(), app_event_tx.clone());
+    drop(guard);
     arm_capture_watchdog(db.clone(), cmd_tx.clone(), app_event_tx.clone());
 
     let _ = app_event_tx
@@ -263,6 +274,13 @@ pub async fn stop_video(
     let msg = build_video_stop(call_id, parse_stop_reason(&reason))?;
     send_message(msg, &peer, db, cmd_tx, Some(app_event_tx)).await?;
     Ok(())
+}
+
+async fn teardown_media() {
+    crate::call::media::stop().await;
+    let _ = tokio::task::spawn_blocking(crate::call::capture::stop).await;
+    crate::call::video::clear_local_forwarder();
+    crate::call::video::stop_all().await;
 }
 
 pub async fn request_video_keyframe(
@@ -354,8 +372,7 @@ async fn timeout_fire(
         record = Some((active.peer.clone(), active.engine.is_caller));
     }
 
-    crate::call::media::stop().await;
-    crate::call::video::stop_all().await;
+    teardown_media().await;
     *guard = None;
     drop(guard);
 
@@ -538,7 +555,7 @@ async fn run_step(
     let call_id = active.call_id;
     let peer = active.peer.clone();
     let sample_rate = active.sample_rate;
-    execute(
+    let executed = execute(
         actions,
         call_id,
         &peer,
@@ -547,11 +564,14 @@ async fn run_step(
         app_event_tx,
         sample_rate,
     )
-    .await?;
+    .await;
 
     if matches!(active.engine.state, CallState::Ended) {
-        crate::call::media::stop().await;
-        crate::call::video::stop_all().await;
+        teardown_media().await;
+        // Callers clear the slot only on Ok(true). A failed hangup send must not strand the call.
+        if let Err(e) = executed {
+            log::warn!("[call] failed to signal call end: {e}");
+        }
         let duration_ms = match active.started_at {
             Some(s) => get_timestamp_secs()?.saturating_sub(s).saturating_mul(1000),
             None => 0,
@@ -578,6 +598,7 @@ async fn run_step(
         }
         return Ok(true);
     }
+    executed?;
     Ok(false)
 }
 
