@@ -61,6 +61,11 @@ describe('receivedHoverLabel', () => {
       receivedHoverLabel({ direction: 'received', timestamp: 0, receivedTimestamp: 120_000 })
     ).not.toBeNull();
   });
+  it('returns a label for a future-dated received message', () => {
+    expect(
+      receivedHoverLabel({ direction: 'received', timestamp: 120_000, receivedTimestamp: 0 })
+    ).not.toBeNull();
+  });
   it('returns null for sent messages regardless of gap', () => {
     expect(
       receivedHoverLabel({ direction: 'sent', timestamp: 0, receivedTimestamp: 120_000 })

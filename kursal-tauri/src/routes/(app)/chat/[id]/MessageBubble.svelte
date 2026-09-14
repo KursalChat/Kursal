@@ -19,6 +19,7 @@
     Share,
     X,
     Clock,
+    History,
     Ellipsis,
     ChevronDown,
     ChevronUp,
@@ -464,12 +465,18 @@
       {#if isLast || showMetaAlways || layout === 'flat'}
         {@const receivedLabel = receivedHoverLabel(msg)}
         <div class="msg-meta" class:always-visible={showMetaAlways}>
-          <span
-            class="msg-time"
-            title={receivedLabel
-              ? `${formatFullTimestamp(msg.timestamp)} · ${t('chat.bubble.receivedAtLabel', { time: receivedLabel })}`
-              : formatFullTimestamp(msg.timestamp)}>{formatTime(msg.timestamp)}</span
+          <span class="msg-time" title={formatFullTimestamp(msg.timestamp)}
+            >{formatTime(msg.timestamp)}</span
           >
+          {#if receivedLabel}
+            <span
+              class="msg-received-at"
+              title={t('chat.bubble.receivedAtLabel', { time: receivedLabel })}
+              aria-label={t('chat.bubble.receivedAtLabel', { time: receivedLabel })}
+            >
+              <History size={10} />
+            </span>
+          {/if}
           {#if msg.direction === 'sent'}
             {#if msg.status === 'sending'}
               <span class="msg-status sending" aria-label={t('chat.bubble.statusSending')}>
@@ -1210,6 +1217,13 @@
     font-size: 10.5px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  .msg-received-at {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    color: var(--text-muted);
+    opacity: 0.7;
   }
   /* Message-status indicator (icon-only, color carries the meaning).
      Meta lives outside the bubble now, so colors read on the chat bg. */

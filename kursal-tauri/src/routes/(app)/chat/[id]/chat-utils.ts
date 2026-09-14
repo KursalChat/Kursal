@@ -6,7 +6,7 @@ import { notifications } from '$lib/state/notifications.svelte';
 import { notifyError } from '$lib/utils/errors';
 import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
 import { trustedDomainsState } from '$lib/state/trustedDomains.svelte';
-import { formatCalendarDay, formatTime, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
+import { formatCalendarDay, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
 import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
 import { copyText } from '$lib/utils/clipboard';
 import { truncate, extensionOf } from '$lib/utils/text';
@@ -346,9 +346,9 @@ export function renderMarkdown(
   return sanitized;
 }
 
-// Messages carry a sent time (from the MessageId) and a received time. Only when
-// the gap is meaningful (delayed offline delivery) do we surface "Received …".
-export const DELAYED_RECEIVE_HOVER_THRESHOLD_MS = 60_000;
+// The sent time comes from the sender's MessageId, so it can be forged either way.
+// A large gap is usually offline delivery, but is surfaced regardless.
+export const DELAYED_RECEIVE_HOVER_THRESHOLD_MS = 180_000;
 
 export function receivedHoverLabel(msg: {
   direction: string;
@@ -356,7 +356,9 @@ export function receivedHoverLabel(msg: {
   receivedTimestamp: number;
 }): string | null {
   if (msg.direction !== 'received') return null;
-  if (msg.receivedTimestamp - msg.timestamp < DELAYED_RECEIVE_HOVER_THRESHOLD_MS) return null;
+  if (Math.abs(msg.receivedTimestamp - msg.timestamp) < DELAYED_RECEIVE_HOVER_THRESHOLD_MS) {
+    return null;
+  }
   return formatFullTimestamp(msg.receivedTimestamp);
 }
 
