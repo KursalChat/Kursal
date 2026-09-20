@@ -6,7 +6,7 @@ import { notifications } from '$lib/state/notifications.svelte';
 import { notifyError } from '$lib/utils/errors';
 import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
 import { trustedDomainsState } from '$lib/state/trustedDomains.svelte';
-import { formatCalendarDay, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
+import { formatCalendarDay, formatTime, isSameDay } from '$lib/utils/dateFormat.svelte';
 import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
 import { copyText } from '$lib/utils/clipboard';
 import { truncate, extensionOf } from '$lib/utils/text';
@@ -348,18 +348,17 @@ export function renderMarkdown(
 
 // The sent time comes from the sender's MessageId, so it can be forged either way.
 // A large gap is usually offline delivery, but is surfaced regardless.
-export const DELAYED_RECEIVE_HOVER_THRESHOLD_MS = 180_000;
+export const DELAYED_RECEIVE_THRESHOLD_MS = 180_000;
 
-export function receivedHoverLabel(msg: {
+export function receivedLabel(msg: {
   direction: string;
   timestamp: number;
   receivedTimestamp: number;
 }): string | null {
   if (msg.direction !== 'received') return null;
-  if (Math.abs(msg.receivedTimestamp - msg.timestamp) < DELAYED_RECEIVE_HOVER_THRESHOLD_MS) {
-    return null;
-  }
-  return formatFullTimestamp(msg.receivedTimestamp);
+  if (Math.abs(msg.receivedTimestamp - msg.timestamp) < DELAYED_RECEIVE_THRESHOLD_MS) return null;
+  if (isSameDay(msg.receivedTimestamp, msg.timestamp)) return formatTime(msg.receivedTimestamp);
+  return formatCalendarDay(msg.receivedTimestamp, true);
 }
 
 export async function handleMarkdownClick(e: MouseEvent) {

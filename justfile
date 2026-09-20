@@ -18,6 +18,10 @@ default:
 dev id="0":
     RUST_LOG=info {{ tauri }} dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
 
+mock:
+    {{ install_frontend_deps }}
+    cd kursal-tauri && bun run dev:mock
+
 install-dev-tools:
     install-hooks
     {{ install_frontend_deps }}
