@@ -289,6 +289,8 @@ zerocopy = "0.8.33"
 zeroize = "1.8.2"
 
 [patch.crates-io]
+# TODO: temporary fix while webrtc-audio-processing-sys uses a broken bindgen version on macOS 27
+bindgen = { git = "https://github.com/rust-lang/rust-bindgen", rev = "0acdfdd74054caec85a75ba20c7ac236f6ebd893" }
 boring = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
 boring-sys = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
 
