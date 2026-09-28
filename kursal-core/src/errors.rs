@@ -16,6 +16,8 @@ pub enum KursalError {
     KeyMismatch,
     #[error("not enough free space: {needed} bytes needed, {available} available")]
     InsufficientSpace { needed: u64, available: u64 },
+    #[error("cannot strip metadata from this image")]
+    UnstrippableImage,
 
     // Typed external sources: just use `?`
     #[error("IO error: {0}")]

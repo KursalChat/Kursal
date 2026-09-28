@@ -95,6 +95,7 @@
     "network": "Network problem. Check your connection and try again.",
     "identity": "There was a problem with your identity keys.",
     "io": "Couldn't read or write a file. Please try again.",
+    "unstrippable_image": "This image's hidden data (like location) couldn't be removed, so it wasn't sent.",
     "unknown": "Something went wrong. Please try again."
   },
   "avatar": {
@@ -358,6 +359,9 @@
     },
     "otp": {
       "alreadyUsedError": "This code was already used to add a contact. Ask for a new one.",
+      "alreadyContactError": "This person is already in your contacts.",
+      "inProgressError": "You're already connecting with this person. Try again in a moment.",
+      "peerConflictError": "This code points to a device that already belongs to one of your contacts.",
       "noAnswerError": "The other device never confirmed. Make sure it is online and try again.",
       "passphraseAriaLabel": "One-time passphrase words",
       "qrCodeAlt": "QR code containing the one-time contact phrase",
@@ -434,6 +438,9 @@
       "invalidFileType": "Invalid file type. Please select a .kursal file.",
       "expiredError": "This long-term code has expired. Ask your contact to generate a new one.",
       "alreadyUsedError": "This long-term code has run out of uses. Ask your contact for a new one.",
+      "alreadyContactError": "This person is already in your contacts.",
+      "inProgressError": "You're already connecting with this person. Try again in a moment.",
+      "peerConflictError": "This code points to a device that already belongs to one of your contacts.",
       "invalidFileError": "Invalid file. Please select a valid .kursal long-term code.",
       "selfError": "That's your own contact code, you can't add yourself.",
       "saveCancelled": "Save canceled",
@@ -509,6 +516,11 @@
       "errorOpenFile": "Failed to open file.",
       "errorPrepareFile": "Failed to prepare file.",
       "errorSendFile": "Failed to send file.",
+      "unstrippedTitle": "Hidden data can't be removed",
+      "unstrippedMessage": "Kursal couldn't strip the metadata from {filename}.",
+      "unstrippedDetail": "It may carry the location where it was taken, the device that made it, and the date. Sending it as-is shares all of that.",
+      "unstrippedConfirm": "Send anyway",
+      "unstrippedCancel": "Don't send",
       "errorPasteImage": "Failed to paste image.",
       "errorPasteText": "Failed to attach the text as a file.",
       "errorMessageTooLong": "Message too long ({length}/{max})",
@@ -1201,6 +1213,7 @@
     "heading": "Security Code Verification",
     "loading": "Loading security code…",
     "explanation": "Read this code out loud with your contact over a separate channel. If the codes match, tap Confirm.",
+    "explanationJustPaired": "Compare this code on both screens right now, while you are still together. If the codes match, tap Confirm.",
     "copyButton": "Copy Code",
     "closeButton": "Close",
     "confirmButton": "Confirm, codes match",
@@ -1246,7 +1259,7 @@
     },
     "verifyContact": {
       "title": "Quick security check?",
-      "body": "You two are chatting a lot! To be sure nobody slipped between you during first contact, compare your **security code** together. Over a call or in person. Match means the encryption is airtight.",
+      "body": "To be sure nobody is listening, compare your **security code** together. Over a call or in person. Match means the encryption is airtight.",
       "cta": "Show security code"
     }
   }

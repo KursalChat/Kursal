@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub const SHARE_DIR: &str = "kursal-shares";
-pub const APP_GROUP: &str = "group.chat.kursal";
+pub const APP_GROUP: &str = "group.kursal.chat";
 const MANIFEST: &str = "manifest.json";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

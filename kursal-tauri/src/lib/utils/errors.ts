@@ -13,8 +13,11 @@ const KNOWN_CODES = new Set([
   'errors.network',
   'errors.identity',
   'errors.io',
+  'errors.unstrippable_image',
   'errors.unknown',
 ]);
+
+const PRECISE_CODES = new Set(['errors.unstrippable_image']);
 
 export function parseError(e: unknown): AppError {
   if (e && typeof e === 'object' && 'code' in e && 'message' in e) {
@@ -27,15 +30,16 @@ export function parseError(e: unknown): AppError {
 }
 
 // Resolves a localized, user-safe message. A provided fallbackKey (action
-// context, e.g. "settings.account.errorExport") wins when it exists; otherwise
-// falls back to a per-category message keyed by the backend error code.
+// context, e.g. "settings.account.errorExport") wins when it exists, except
+// over a precise code; otherwise a per-category message keyed by the code.
 export function errorText(e: unknown, fallbackKey?: string): string {
+  const key = `errors.${parseError(e).code}`;
+  if (PRECISE_CODES.has(key)) return t(key);
   if (fallbackKey) {
     const resolved = t(fallbackKey);
     if (resolved && resolved !== fallbackKey) return resolved;
   }
-  const { code } = parseError(e);
-  return t(KNOWN_CODES.has(code) ? code : 'errors.unknown');
+  return t(KNOWN_CODES.has(key) ? key : 'errors.unknown');
 }
 
 // Logs the raw technical detail and shows a localized toast. Replaces the

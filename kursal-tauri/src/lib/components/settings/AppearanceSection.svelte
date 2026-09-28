@@ -108,6 +108,7 @@
         return { value: l.id, label: percent === undefined ? l.label : `${l.label} (${percent}%)` };
       })}
       onchange={(v) => locale.set(v as Locale)}
+      minWidth="180px"
     />
   </SettingRow>
   <SettingRow

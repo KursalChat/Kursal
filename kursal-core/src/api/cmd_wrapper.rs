@@ -15,13 +15,14 @@ use crate::{
         StoredMessage, UNREAD_BADGE_CAP, enums::MessageId, message_before, newest_message,
         newest_received, pin_index_list, received_since_rev, unread_after,
     },
-    network::NetworkManager,
+    network::{NetworkManager, swarm::SwarmCommand},
     storage::{
         Database, SharedDatabase, avatars, conversation, get_dilithium_pub, get_local_avatar_bytes,
         get_local_identity_pub, get_local_profile, get_local_user_id, get_read_receipts_enabled,
         set_local_avatar, set_local_display_name,
     },
 };
+use libp2p::PeerId;
 use std::collections::HashMap;
 use tokio::sync::{MutexGuard, mpsc, oneshot};
 
@@ -562,7 +563,26 @@ pub async fn set_contact_blocked<S: StateWrapper>(
 ) -> Result<()> {
     let user_id = parse_contact_id(&contact_id)?;
 
-    Contact::set_blocked(state.db(), &user_id, value)?;
+    let contact = Contact::set_blocked(state.db(), &user_id, value)?;
+    let Ok(peer_id) = contact.peer_id.parse::<PeerId>() else {
+        return Ok(());
+    };
+
+    let senders: Vec<_> = {
+        let network = state.network_lock().await;
+        std::iter::once(&network.primary)
+            .chain(&network.secondary)
+            .map(|swarm| swarm.cmd_tx.clone())
+            .collect()
+    };
+    for cmd_tx in senders {
+        let _ = cmd_tx
+            .send(SwarmCommand::SetPeerBlocked {
+                peer_id,
+                blocked: value,
+            })
+            .await;
+    }
 
     Ok(())
 }
@@ -670,7 +690,7 @@ core_request!(pin_message(contact_id: String, message_id: String, pinned: bool) 
 core_request!(edit_message(contact_id: String, message_id: String, new_content: String) => EditMessage -> bool);
 core_request!(add_reaction(contact_id: String, message_id: String, emoji: String) => ReactionAdd -> bool);
 core_request!(remove_reaction(contact_id: String, message_id: String, emoji: String) => ReactionRemove -> bool);
-core_request!(send_file_offer(contact_id: String, file_path: String, app_data_dir: std::path::PathBuf) => SendFileOffer -> (String, u64, String), map |(msg_id, file_size, stored_path): (MessageId, u64, String)| (hex::encode(msg_id.0), file_size, stored_path));
+core_request!(send_file_offer(contact_id: String, file_path: String, app_data_dir: std::path::PathBuf, allow_unstripped: bool) => SendFileOffer -> (String, u64, String), map |(msg_id, file_size, stored_path): (MessageId, u64, String)| (hex::encode(msg_id.0), file_size, stored_path));
 core_request!(accept_file_offer(contact_id: String, offer_id: String, save_path: String) => AcceptFileOffer -> ());
 core_request!(cancel_file_transfer(contact_id: String, offer_id: String) => CancelFileTransfer -> ());
 core_request!(flush_offline(contact_id: String) => FlushOffline -> ());

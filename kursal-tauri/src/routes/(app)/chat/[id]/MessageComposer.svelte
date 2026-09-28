@@ -25,10 +25,9 @@
     computeWrap,
     computeCode,
     computeLink,
-    computeFenceBody,
+    computeIndent,
     fenceRanges,
     openFenceAt,
-    opensFence,
     applyTextEdit,
     type TextEdit,
   } from '$lib/utils/markdown-edit';
@@ -194,22 +193,24 @@
 
   // The textarea paints nothing (its text is transparent); this is what the user reads.
   const segments = $derived.by(() => {
-    const text = inputText + '\u200b';
     const out: Array<{ code: boolean; content: string }> = [];
     let pos = 0;
     for (const range of ranges) {
-      if (range.start > pos) out.push({ code: false, content: text.slice(pos, range.start) });
-      out.push({ code: true, content: highlightFence(text.slice(range.start, range.end)) });
+      if (range.start > pos) out.push({ code: false, content: inputText.slice(pos, range.start) });
+      // A block open at the caret ends on an empty line, which has no rect of its
+      // own; the zero-width space gives the panel one to cover.
+      const tail = range.end >= inputText.length ? '\u200b' : '';
+      out.push({
+        code: true,
+        content: highlightFence(inputText.slice(range.start, range.end)) + tail,
+      });
       pos = range.end;
     }
-    out.push({ code: false, content: text.slice(pos) });
+    if (pos < inputText.length || out.length === 0) {
+      out.push({ code: false, content: inputText.slice(pos) + '\u200b' });
+    }
     return out;
   });
-  // One block covering the whole draft can switch the field to monospace: the
-  // mirror follows the same class, so the two layouts stay identical.
-  const allCode = $derived(
-    ranges.length === 1 && ranges[0].start === 0 && ranges[0].end >= inputText.trimEnd().length
-  );
 
   const PANEL_PAD = 3;
 
@@ -253,7 +254,6 @@
 
   $effect(() => {
     void inputText;
-    void allCode;
     const frame = requestAnimationFrame(measureCodeBlocks);
     return () => cancelAnimationFrame(frame);
   });
@@ -426,6 +426,15 @@
       }
     }
 
+    if (e.key === 'Tab' && composerEl && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const { value, selectionStart, selectionEnd } = composerEl;
+      if (openFenceAt(value, selectionStart)) {
+        e.preventDefault();
+        runEdit(computeIndent(value, selectionStart, selectionEnd, e.shiftKey));
+        return;
+      }
+    }
+
     if (e.key === 'ArrowUp' && inputText === '' && !shortcodeQuery && !editActive && !replyActive) {
       e.preventDefault();
       onEditLast();
@@ -493,16 +502,9 @@
     }
 
     if (e.key === 'Enter' && !e.shiftKey && !isCoarsePointer && !shortcodeQuery) {
-      // ``` (plus an optional language) turns into an empty block; inside one,
-      // Enter is a newline and ⌘/Ctrl+Enter is the way out.
+      // Inside a block Enter is a newline; ⌘/Ctrl+Enter is the way out.
       if (composerEl && !e.metaKey && !e.ctrlKey) {
-        const caret = composerEl.selectionStart;
-        if (opensFence(composerEl.value, caret)) {
-          e.preventDefault();
-          runEdit(computeFenceBody(caret));
-          return;
-        }
-        if (openFenceAt(composerEl.value, caret)) return;
+        if (openFenceAt(composerEl.value, composerEl.selectionStart)) return;
       }
       e.preventDefault();
       onSend();
@@ -694,7 +696,7 @@
       </div>
 
       <div class="input-stack" class:composing>
-        <div class="input-mirror" class:mono={allCode} bind:this={mirrorEl} aria-hidden="true">
+        <div class="input-mirror" bind:this={mirrorEl} aria-hidden="true">
           {#each codeBlocks as block, i (i)}
             <div class="code-panel" style="top: {block.top}px; height: {block.height}px"></div>
           {/each}
@@ -707,7 +709,6 @@
         <textarea
           bind:this={composerEl}
           bind:value={inputText}
-          class:mono={allCode}
           oninput={handleInput}
           onkeydown={handleKeydown}
           oncontextmenu={handleContextMenu}
@@ -1056,21 +1057,18 @@
 
   textarea,
   .input-mirror {
-    padding: 6px 6px;
+    padding: 6px 10px;
     font-size: 14.5px;
     line-height: 1.35;
     font-family: inherit;
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
     letter-spacing: normal;
     tab-size: 2;
   }
-  textarea.mono,
-  .input-mirror.mono {
-    font-family: var(--font-mono);
-    font-size: 13px;
+  textarea,
+  .mirror-text {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
   }
-
   textarea {
     display: block;
     width: 100%;
@@ -1120,6 +1118,8 @@
     border-radius: var(--radius-md);
     background: var(--code-bg);
     border: 1px solid var(--code-border);
+    border-left: 2px solid var(--accent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   }
   textarea::placeholder {
     color: var(--text-muted);
@@ -1210,7 +1210,8 @@
       padding-left: 8px;
       padding-right: 8px;
     }
-    textarea {
+    textarea,
+    .input-mirror {
       font-size: 16px;
     }
   }

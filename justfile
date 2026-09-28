@@ -18,6 +18,10 @@ default:
 dev id="0":
     RUST_LOG=info {{ tauri }} dev -- -- --database-id="{{ id }}" --unsafe-write-key-to-file
 
+mock:
+    {{ install_frontend_deps }}
+    cd kursal-tauri && bun run dev:mock
+
 install-dev-tools:
     install-hooks
     {{ install_frontend_deps }}
@@ -88,8 +92,7 @@ build-android: build-opus build-frontend
     ./bin/build-android.sh
 
 build-ios: build-opus build-frontend
-    echo "TODO: build iOS (waiting for paid apple cert)"
-    # ./bin/build-ios.sh
+    ./bin/build-ios.sh
 
 gen-manifest:
     ./bin/gen-manifest.sh

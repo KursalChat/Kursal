@@ -5,13 +5,17 @@ use crate::tests::TestEnv;
 use std::path::PathBuf;
 
 const JPEG_APP1: u8 = 0xe1;
-const JPEG_APP2_ICC: u8 = 0xe2;
+const JPEG_APP2: u8 = 0xe2;
 const JPEG_COM: u8 = 0xfe;
 const JPEG_SOS: u8 = 0xda;
 const JPEG_EOI: u8 = 0xd9;
 
 const WEBP_VP8X_EXIF_FLAG: u8 = 0x08;
 const WEBP_VP8X_XMP_FLAG: u8 = 0x04;
+
+const XMP_UUID: [u8; 16] = [
+    0xbe, 0x7a, 0xcf, 0xcb, 0x97, 0xa9, 0x42, 0xe8, 0x9c, 0x71, 0x99, 0x94, 0x91, 0xe3, 0xaf, 0xac,
+];
 
 fn write(env: &TestEnv, name: &str, bytes: &[u8]) -> PathBuf {
     let path = env.data_dir().join(name);
@@ -35,6 +39,11 @@ fn stripped(env: &TestEnv, name: &str, bytes: &[u8]) -> Vec<u8> {
 fn unchanged(env: &TestEnv, name: &str, bytes: &[u8]) {
     let src = write(env, name, bytes);
     assert!(!plan_strip(&src).unwrap().changed());
+}
+
+fn refused(env: &TestEnv, name: &str, bytes: &[u8]) {
+    let src = write(env, name, bytes);
+    assert!(plan_strip(&src).is_err());
 }
 
 fn jpeg_segment(marker: u8, payload: &[u8]) -> Vec<u8> {
@@ -63,6 +72,80 @@ fn webp_chunk(fourcc: &[u8; 4], data: &[u8]) -> Vec<u8> {
     out
 }
 
+fn bmff_box(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+    let mut out = u32::try_from(body.len() + 8)
+        .unwrap()
+        .to_be_bytes()
+        .to_vec();
+    out.extend_from_slice(kind);
+    out.extend_from_slice(body);
+    out
+}
+
+fn infe(id: u16, item_type: &[u8; 4], name: &[u8]) -> Vec<u8> {
+    let mut body = vec![2, 0, 0, 0];
+    body.extend_from_slice(&id.to_be_bytes());
+    body.extend_from_slice(&0u16.to_be_bytes());
+    body.extend_from_slice(item_type);
+    body.extend_from_slice(name);
+    body.push(0);
+    bmff_box(b"infe", &body)
+}
+
+fn iinf(entries: &[Vec<u8>]) -> Vec<u8> {
+    let mut body = vec![0, 0, 0, 0];
+    body.extend_from_slice(&u16::try_from(entries.len()).unwrap().to_be_bytes());
+    for entry in entries {
+        body.extend_from_slice(entry);
+    }
+    bmff_box(b"iinf", &body)
+}
+
+fn iloc(items: &[(u16, u32, u32)]) -> Vec<u8> {
+    let mut body = vec![0, 0, 0, 0, 0x44, 0x00];
+    body.extend_from_slice(&u16::try_from(items.len()).unwrap().to_be_bytes());
+    for (id, offset, length) in items {
+        body.extend_from_slice(&id.to_be_bytes());
+        body.extend_from_slice(&0u16.to_be_bytes());
+        body.extend_from_slice(&1u16.to_be_bytes());
+        body.extend_from_slice(&offset.to_be_bytes());
+        body.extend_from_slice(&length.to_be_bytes());
+    }
+    bmff_box(b"iloc", &body)
+}
+
+fn heic(exif: Option<&[u8]>, pixels: &[u8]) -> Vec<u8> {
+    let mut ftyp_body = b"heic".to_vec();
+    ftyp_body.extend_from_slice(&0u32.to_be_bytes());
+    ftyp_body.extend_from_slice(b"mif1");
+    let ftyp = bmff_box(b"ftyp", &ftyp_body);
+
+    let exif_len = u32::try_from(exif.map_or(0, <[u8]>::len)).unwrap();
+    let build_meta = |exif_at: u32| {
+        let mut items = vec![infe(2, b"hvc1", b"image")];
+        let mut located = vec![(2, exif_at + exif_len, u32::try_from(pixels.len()).unwrap())];
+        if exif.is_some() {
+            items.insert(0, infe(1, b"Exif", b"exif"));
+            located.insert(0, (1, exif_at, exif_len));
+        }
+
+        let mut body = vec![0, 0, 0, 0];
+        body.extend(iinf(&items));
+        body.extend(iloc(&located));
+        bmff_box(b"meta", &body)
+    };
+
+    let exif_at = u32::try_from(ftyp.len() + build_meta(0).len() + 8).unwrap();
+
+    let mut mdat = exif.unwrap_or(b"").to_vec();
+    mdat.extend_from_slice(pixels);
+
+    let mut out = ftyp;
+    out.extend(build_meta(exif_at));
+    out.extend(bmff_box(b"mdat", &mdat));
+    out
+}
+
 fn riff(body: &[u8]) -> Vec<u8> {
     let mut out = b"RIFF".to_vec();
     out.extend_from_slice(&u32::try_from(body.len() + 4).unwrap().to_le_bytes());
@@ -82,7 +165,63 @@ fn detects_formats() {
         ImageFormat::Png
     );
     assert_eq!(detect_image_format(b"RIFF\0\0\0\0WEBP"), ImageFormat::Webp);
+    assert_eq!(
+        detect_image_format(b"II*\0\x08\0\0\0\0\0\0\0"),
+        ImageFormat::Tiff
+    );
+    assert_eq!(
+        detect_image_format(b"\0\0\0\x18ftypheic"),
+        ImageFormat::Isobmff
+    );
     assert_eq!(detect_image_format(b"not an image"), ImageFormat::Unknown);
+}
+
+#[test]
+fn heic_zeroes_exif_item_and_keeps_layout() {
+    let env = TestEnv::new();
+
+    let bytes = heic(Some(b"Exif\0\0secret gps"), b"pixels");
+    let out = stripped(&env, "photo.heic", &bytes);
+
+    assert_eq!(out.len(), bytes.len());
+    assert!(!out.windows(10).any(|w| w == b"secret gps"));
+    assert!(out.windows(6).any(|w| w == b"pixels"));
+    assert_eq!(&out[..12], &bytes[..12]);
+}
+
+#[test]
+fn heic_zeroes_xmp_uuid_box() {
+    let env = TestEnv::new();
+
+    let mut uuid_body = XMP_UUID.to_vec();
+    uuid_body.extend_from_slice(b"<x:xmpmeta>secret gps</x:xmpmeta>");
+
+    let mut bytes = heic(None, b"pixels");
+    bytes.extend(bmff_box(b"uuid", &uuid_body));
+
+    let out = stripped(&env, "xmp.heic", &bytes);
+
+    assert_eq!(out.len(), bytes.len());
+    assert!(!out.windows(10).any(|w| w == b"secret gps"));
+    assert!(out.windows(6).any(|w| w == b"pixels"));
+}
+
+#[test]
+fn heic_without_exif_item_is_left_alone() {
+    let env = TestEnv::new();
+    unchanged(&env, "clean.heic", &heic(None, b"pixels"));
+}
+
+#[test]
+fn unparsable_image_extension_is_refused() {
+    let env = TestEnv::new();
+    refused(&env, "photo.heic", b"not really an image file");
+}
+
+#[test]
+fn tiff_is_refused() {
+    let env = TestEnv::new();
+    refused(&env, "scan.tif", b"II*\0\x08\0\0\0\0\0\0\0raw exif here");
 }
 
 #[test]
@@ -92,7 +231,8 @@ fn jpeg_drops_exif_keeps_icc_and_scan() {
     let mut bytes = vec![0xff, 0xd8];
     bytes.extend(jpeg_segment(0xe0, b"JFIF\0test"));
     bytes.extend(jpeg_segment(JPEG_APP1, b"Exif\0\0secret gps"));
-    bytes.extend(jpeg_segment(JPEG_APP2_ICC, b"ICC_PROFILE"));
+    bytes.extend(jpeg_segment(JPEG_APP2, b"ICC_PROFILE\0colour data"));
+    bytes.extend(jpeg_segment(JPEG_APP2, b"MPF\0second image gps"));
     bytes.extend(jpeg_segment(0xed, b"Photoshop 3.0"));
     bytes.extend(jpeg_segment(JPEG_COM, b"a comment"));
     bytes.extend(jpeg_segment(0xdb, b"quant table"));
@@ -102,12 +242,31 @@ fn jpeg_drops_exif_keeps_icc_and_scan() {
     let out = stripped(&env, "exif.jpg", &bytes);
 
     assert!(!out.windows(4).any(|w| w == b"Exif"));
+    assert!(!out.windows(17).any(|w| w == b"second image gps"));
     assert!(!out.windows(9).any(|w| w == b"Photoshop"));
     assert!(!out.windows(9).any(|w| w == b"a comment"));
     assert!(out.windows(11).any(|w| w == b"ICC_PROFILE"));
     assert!(out.windows(4).any(|w| w == b"JFIF"));
     assert!(out.windows(11).any(|w| w == b"quant table"));
     assert_eq!(&out[..2], &[0xff, 0xd8]);
+    assert_eq!(&out[out.len() - 2..], &[0xff, JPEG_EOI]);
+}
+
+#[test]
+fn jpeg_drops_trailer_after_end_of_image() {
+    let env = TestEnv::new();
+
+    let mut bytes = vec![0xff, 0xd8];
+    bytes.extend(jpeg_segment(0xdb, b"quant table"));
+    bytes.extend_from_slice(&[0xff, JPEG_SOS, 0x00, 0x04, 1, 2]);
+    bytes.extend_from_slice(&[0xff, 0x00, 0xff, 0xd0, 0x33]);
+    bytes.extend_from_slice(&[0xff, JPEG_EOI]);
+    bytes.extend_from_slice(b"trailing motion photo with gps");
+
+    let out = stripped(&env, "trailer.jpg", &bytes);
+
+    assert!(!out.windows(3).any(|w| w == b"gps"));
+    assert!(out.windows(11).any(|w| w == b"quant table"));
     assert_eq!(&out[out.len() - 2..], &[0xff, JPEG_EOI]);
 }
 
@@ -124,18 +283,18 @@ fn jpeg_without_metadata_is_left_alone() {
 }
 
 #[test]
-fn desynced_jpeg_is_left_alone() {
+fn desynced_jpeg_is_refused() {
     let env = TestEnv::new();
 
     let mut bytes = vec![0xff, 0xd8];
     bytes.extend(jpeg_segment(JPEG_APP1, b"Exif\0\0gps"));
     bytes.extend_from_slice(&[0x11, 0x22, 0x33, 0x44]);
 
-    unchanged(&env, "desync.jpg", &bytes);
+    refused(&env, "desync.jpg", &bytes);
 }
 
 #[test]
-fn png_drops_text_and_exif_keeps_pixels() {
+fn png_drops_text_and_unknown_chunks_keeps_pixels() {
     let env = TestEnv::new();
 
     let mut bytes = vec![0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -143,20 +302,24 @@ fn png_drops_text_and_exif_keeps_pixels() {
     bytes.extend(png_chunk(b"gAMA", &[0, 1, 2, 3]));
     bytes.extend(png_chunk(b"tEXt", b"Author\0someone"));
     bytes.extend(png_chunk(b"eXIf", b"gps here"));
+    bytes.extend(png_chunk(b"prVW", b"preview thumbnail"));
     bytes.extend(png_chunk(b"IDAT", b"pixels"));
     bytes.extend(png_chunk(b"IEND", b""));
+    bytes.extend_from_slice(b"appended junk");
 
     let out = stripped(&env, "meta.png", &bytes);
 
     assert!(!out.windows(6).any(|w| w == b"Author"));
     assert!(!out.windows(8).any(|w| w == b"gps here"));
+    assert!(!out.windows(17).any(|w| w == b"preview thumbnail"));
+    assert!(!out.windows(13).any(|w| w == b"appended junk"));
     assert!(out.windows(4).any(|w| w == b"gAMA"));
     assert!(out.windows(6).any(|w| w == b"pixels"));
     assert!(out.windows(4).any(|w| w == b"IEND"));
 }
 
 #[test]
-fn png_truncated_chunk_is_left_alone() {
+fn png_truncated_chunk_is_refused() {
     let env = TestEnv::new();
 
     let mut bytes = vec![0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -164,7 +327,7 @@ fn png_truncated_chunk_is_left_alone() {
     bytes.extend_from_slice(b"tEXt");
     bytes.extend_from_slice(b"short");
 
-    unchanged(&env, "truncated.png", &bytes);
+    refused(&env, "truncated.png", &bytes);
 }
 
 #[test]
@@ -186,6 +349,20 @@ fn webp_drops_exif_and_clears_vp8x_flags() {
 
     let declared = u32::from_le_bytes(out[4..8].try_into().unwrap());
     assert_eq!(declared as usize, out.len() - 8);
+}
+
+#[test]
+fn webp_drops_data_past_declared_riff_size() {
+    let env = TestEnv::new();
+
+    let mut bytes = riff(&webp_chunk(b"VP8 ", b"pixels"));
+    let inside = bytes.len();
+    bytes.extend_from_slice(b"appended gps");
+
+    let out = stripped(&env, "trailer.webp", &bytes);
+
+    assert_eq!(out.len(), inside);
+    assert!(!out.windows(12).any(|w| w == b"appended gps"));
 }
 
 #[test]

@@ -83,6 +83,7 @@ pub enum AppEvent {
     },
     ContactAdded {
         contact: Contact,
+        via_nearby: bool,
     },
     LtcUpdated {
         status: Option<LtcStatusDto>,
@@ -327,6 +328,7 @@ pub enum CoreCommand {
         contact_id: String,
         file_path: String,
         app_data_dir: PathBuf,
+        allow_unstripped: bool,
         reply: Reply<Result<(MessageId, u64, String)>>,
     },
     AcceptFileOffer {

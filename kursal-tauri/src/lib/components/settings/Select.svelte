@@ -45,11 +45,14 @@
 
     const height = Math.min(wanted, Math.max(placeAbove ? spaceAbove : spaceBelow, 80));
     const top = placeAbove ? Math.max(safe.top + gap, rect.top - height - 4) : rect.bottom + 4;
-    const rightEdge = window.innerWidth - safe.right - gap - rect.width;
+    const maxWidth = window.innerWidth - safe.left - safe.right - gap * 2;
+    const width = Math.min(Math.max(rect.width, menuEl?.offsetWidth ?? 0), maxWidth);
+    const rightEdge = window.innerWidth - safe.right - gap - width;
     const left = Math.max(safe.left + gap, Math.min(rect.left, rightEdge));
 
     menuStyle =
-      `top: ${top}px; left: ${left}px; ` + `min-width: ${rect.width}px; max-height: ${height}px;`;
+      `top: ${top}px; left: ${left}px; ` +
+      `min-width: ${rect.width}px; max-width: ${maxWidth}px; max-height: ${height}px;`;
   }
 
   function scrollHighlightedIntoView() {
@@ -264,6 +267,15 @@
     font-weight: 500;
     color: var(--text-secondary);
     text-align: left;
+  }
+  .item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .item :global(svg) {
+    flex-shrink: 0;
   }
   .item[data-highlighted='true'] {
     background: var(--bg-hover);

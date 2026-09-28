@@ -6,23 +6,25 @@ use crate::{
     api::AppEvent,
     contacts::Contact,
     crypto::{
-        DEVICE_ID, PreKeyBundleData,
+        DEVICE_ID, PreKeyBundleData, derive_key,
         dilithium::{dilithium_sign, dilithium_verify},
         mailbox_kem_encapsulate, session_initiate,
+        stream::{stream_decrypt, stream_encrypt},
     },
     first_contact::{
-        ContactResponse, WireMessage, forget_ack_waiter, make_username, register_ack_waiter,
+        ContactResponse, WireMessage, claim_new_contact, drop_half_open_session, forget_ack_waiter,
+        make_username, register_ack_waiter,
     },
     identity::UserId,
     messaging::{enums::MessageId, offline::new_offline_state},
     network::{
         dht::DHTRecord,
         kademlia::KAD_LONG_MAX_AGE,
-        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, str_to_multiaddr},
+        swarm::{SwarmCommand, SwarmHandle, get_listen_addrs, routable_multiaddrs},
     },
     storage::{
-        SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SESSIONS, TABLE_SETTINGS,
-        file::KursalFile, get_dilithium_pub, get_dilithium_secret, get_timestamp_secs,
+        SharedDatabase, TABLE_KYBER_PRE_KEYS, TABLE_LTC_CACHE, TABLE_SETTINGS, file::KursalFile,
+        get_dilithium_pub, get_dilithium_secret, get_timestamp_secs,
     },
 };
 use libp2p::PeerId;
@@ -36,6 +38,7 @@ use zeroize::Zeroizing;
 
 const ACK_TIMEOUT_SECS: u64 = 20;
 const LTC_RV_DOMAIN: &[u8] = b"kursal-ltc-rv01";
+const LTC_POINTER_KEY_INFO: &[u8] = b"kursal-ltc-pointer-key01";
 const POINTER_PUT_TIMEOUT_SECS: u64 = 90;
 const POINTER_FETCH_TIMEOUT_SECS: u64 = 15;
 
@@ -297,123 +300,135 @@ impl LtcState {
         let identity_key_bytes = bundle.identity_key.public_key().serialize().to_vec();
 
         let user_id = UserId(Sha256::digest(&identity_key_bytes).into());
+        let _claim = claim_new_contact(&db, &user_id, &payload.peer_id)?;
         let remote_address = ProtocolAddress::new(hex::encode(user_id.0), DEVICE_ID);
         let mailbox_kem_prekey_id: u32 = bundle.kyber_pre_key_id.into();
         let mailbox_kem_pub = bundle.kyber_pre_key_public.serialize().to_vec();
         session_initiate(db.clone(), bundle, &remote_address).await?;
-        let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-        let my_keypair = db
-            .get_identity_key_pair()
-            .await
-            .ok_kursal(KursalError::Crypto)?;
-        let peer_identity =
-            PublicKey::deserialize(&identity_key_bytes).ok_kursal(KursalError::Crypto)?;
-        let classical_secret = Zeroizing::new(
-            my_keypair
-                .private_key()
-                .calculate_agreement(&peer_identity)
-                .ok_kursal(KursalError::Crypto)?,
-        );
+        let result = async {
+            let (pq_secret, mailbox_kem_ct) = mailbox_kem_encapsulate(&mailbox_kem_pub)?;
 
-        let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
-        let dilithium_pub_key = get_dilithium_pub(&db)?;
+            let my_keypair = db
+                .get_identity_key_pair()
+                .await
+                .ok_kursal(KursalError::Crypto)?;
+            let peer_identity =
+                PublicKey::deserialize(&identity_key_bytes).ok_kursal(KursalError::Crypto)?;
+            let classical_secret = Zeroizing::new(
+                my_keypair
+                    .private_key()
+                    .calculate_agreement(&peer_identity)
+                    .ok_kursal(KursalError::Crypto)?,
+            );
 
-        // now build bundle back
-        let response = ContactResponse {
-            payload_id: payload.payload_id,
-            pre_key_bundle: my_bundle.serialize()?,
-            peer_id: swarm.peer_id.to_base58(),
-            dilithium_pub_key,
-            relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
-            mailbox_kem_ct,
-            mailbox_kem_prekey_id,
-            mailbox_ephemeral_pub: Vec::new(),
-        };
+            let my_bundle = PreKeyBundleData::build_pre_key_bundle(db.clone()).await?;
+            let dilithium_pub_key = get_dilithium_pub(&db)?;
 
-        let wire = WireMessage::ContactResponse(response);
-        let response_bytes = bincode::serialize(&wire)?;
+            // now build bundle back
+            let response = ContactResponse {
+                payload_id: payload.payload_id,
+                pre_key_bundle: my_bundle.serialize()?,
+                peer_id: swarm.peer_id.to_base58(),
+                dilithium_pub_key,
+                relay_addresses: get_listen_addrs(&swarm.cmd_tx).await?,
+                mailbox_kem_ct,
+                mailbox_kem_prekey_id,
+                mailbox_ephemeral_pub: Vec::new(),
+            };
 
-        let tag = ltc_rendezvous_tag(&payload.payload_id, &payload.dilithium_pub_key);
+            let wire = WireMessage::ContactResponse(response);
+            let response_bytes = bincode::serialize(&wire)?;
 
-        // The rendezvous lookup runs alongside the first attempt so the retry can
-        // start the moment the baked-in peer times out.
-        let (attempt, pointer) = tokio::join!(
-            deliver_response(
-                &payload.peer_id,
-                &payload.relay_addresses,
-                payload.payload_id,
-                &response_bytes,
-                &swarm.cmd_tx,
-            ),
-            fetch_ltc_pointer(
-                &tag,
-                &payload.dilithium_pub_key,
-                payload.payload_id,
-                &swarm.cmd_tx,
-            ),
-        );
+            let tag = ltc_rendezvous_tag(&payload.payload_id, &payload.dilithium_pub_key);
 
-        let (peer_id, known_addresses) = match attempt {
-            Ok(()) => (payload.peer_id.clone(), payload.relay_addresses.clone()),
-            // The publisher answered and refused. Retrying finds the same answer.
-            Err(refused @ KursalError::Identity(_)) => {
-                drop_half_open_session(&db, &remote_address).await;
-                return Err(refused);
-            }
-            Err(unreachable) => {
-                let Some(pointer) = pointer.ok().flatten() else {
-                    drop_half_open_session(&db, &remote_address).await;
-                    return Err(unreachable);
-                };
-
-                if pointer.peer_id == swarm.peer_id.to_base58() {
-                    drop_half_open_session(&db, &remote_address).await;
-                    return Err(KursalError::Network(
-                        "Cannot add yourself as a contact".to_string(),
-                    ));
-                }
-
-                log::info!(
-                    "[ltc] {} unreachable, retrying at rendezvous peer {}",
-                    payload.peer_id,
-                    pointer.peer_id
-                );
-
-                if let Err(err) = deliver_response(
-                    &pointer.peer_id,
-                    &pointer.relay_addresses,
+            // The rendezvous lookup runs alongside the first attempt so the retry can
+            // start the moment the baked-in peer times out.
+            let (attempt, pointer) = tokio::join!(
+                deliver_response(
+                    &payload.peer_id,
+                    &payload.relay_addresses,
                     payload.payload_id,
                     &response_bytes,
                     &swarm.cmd_tx,
-                )
-                .await
-                {
-                    drop_half_open_session(&db, &remote_address).await;
-                    return Err(err);
-                }
+                ),
+                fetch_ltc_pointer(
+                    &tag,
+                    &payload.dilithium_pub_key,
+                    payload.payload_id,
+                    &swarm.cmd_tx,
+                ),
+            );
 
-                (pointer.peer_id, pointer.relay_addresses)
+            let (peer_id, known_addresses) = match attempt {
+                Ok(()) => (payload.peer_id.clone(), payload.relay_addresses.clone()),
+                // The publisher answered and refused. Retrying finds the same answer.
+                Err(refused @ KursalError::Identity(_)) => return Err(refused),
+                Err(unreachable) => {
+                    let Some(pointer) = pointer.ok().flatten() else {
+                        return Err(unreachable);
+                    };
+
+                    if pointer.peer_id == swarm.peer_id.to_base58() {
+                        return Err(KursalError::Network(
+                            "Cannot add yourself as a contact".to_string(),
+                        ));
+                    }
+                    Contact::check_peer_available(&db, &user_id, &pointer.peer_id)?;
+
+                    log::info!(
+                        "[ltc] {} unreachable, retrying at rendezvous peer {}",
+                        payload.peer_id,
+                        pointer.peer_id
+                    );
+
+                    deliver_response(
+                        &pointer.peer_id,
+                        &pointer.relay_addresses,
+                        payload.payload_id,
+                        &response_bytes,
+                        &swarm.cmd_tx,
+                    )
+                    .await?;
+
+                    (pointer.peer_id, pointer.relay_addresses)
+                }
+            };
+
+            let contact = Contact {
+                user_id: user_id.clone(),
+                display_name: make_username(&peer_id),
+                peer_id,
+                known_addresses,
+                avatar: None,
+                identity_pub_key: identity_key_bytes.clone(),
+                dilithium_pub_key: payload.dilithium_pub_key.clone(),
+                verified: false,
+                profile_shared: false,
+                blocked: false,
+                created_at: now,
+                offline: new_offline_state(&db, &identity_key_bytes, &classical_secret, &pq_secret)
+                    .await?,
+            };
+
+            contact.save(&db)?;
+            Ok::<_, KursalError>(contact)
+        }
+        .await;
+
+        let contact = match result {
+            Ok(contact) => contact,
+            Err(err) => {
+                drop_half_open_session(&db, &remote_address).await;
+                return Err(err);
             }
         };
-
-        let contact = Contact {
-            user_id,
-            display_name: make_username(&peer_id),
-            peer_id,
-            known_addresses,
-            avatar: None,
-            identity_pub_key: identity_key_bytes.clone(),
-            dilithium_pub_key: payload.dilithium_pub_key.clone(),
-            verified: false,
-            profile_shared: false,
-            blocked: false,
-            created_at: now,
-            offline: new_offline_state(&db, &identity_key_bytes, &classical_secret, &pq_secret)
-                .await?,
-        };
-
-        contact.save(&db)?;
+        let _ = swarm
+            .cmd_tx
+            .send(SwarmCommand::ContactAdded {
+                contact: contact.clone(),
+            })
+            .await;
 
         Ok(contact)
     }
@@ -423,10 +438,14 @@ impl LtcState {
         swarm: SwarmHandle,
         event_tx: mpsc::Sender<AppEvent>,
     ) -> Result<()> {
-        let (tag, payload_id) = {
+        let (tag, payload_id, dilithium_pub_key) = {
             let lock = &*db;
             match Self::load(lock)? {
-                Some(state) if state.follow_rotation => (state.rendezvous_tag(), state.payload_id),
+                Some(state) if state.follow_rotation => (
+                    state.rendezvous_tag(),
+                    state.payload_id,
+                    state.dilithium_pub_key,
+                ),
                 _ => return Ok(()),
             }
         };
@@ -445,7 +464,8 @@ impl LtcState {
         let secret = get_dilithium_secret(&db)?;
         pointer.sign(&tag, secret)?;
 
-        let record = DHTRecord::new(tag.to_vec(), pointer.serialize()?, seq, true).await?;
+        let sealed = pointer.seal(&dilithium_pub_key)?;
+        let record = DHTRecord::new(tag.to_vec(), sealed, seq, true).await?;
         let (reply_tx, reply_rx) = oneshot::channel();
 
         swarm
@@ -522,10 +542,10 @@ async fn deliver_response(
 ) -> Result<()> {
     let peer = PeerId::from_str(peer_id)
         .map_err(|err| KursalError::Network(format!("Invalid peer_id: {err}")))?;
-    let addresses = str_to_multiaddr(addresses)
+    let addresses = routable_multiaddrs(addresses)
         .map_err(|err| KursalError::Network(format!("Invalid addresses: {err}")))?;
 
-    let ack_rx = register_ack_waiter(payload_id);
+    let ack_rx = register_ack_waiter(payload_id, peer);
 
     let sent = cmd_tx
         .send(SwarmCommand::SendMessage {
@@ -552,12 +572,6 @@ async fn deliver_response(
                 "No answer from the other device".to_string(),
             ))
         }
-    }
-}
-
-async fn drop_half_open_session(db: &SharedDatabase, remote_address: &ProtocolAddress) {
-    if let Err(err) = db.raw_delete(TABLE_SESSIONS, &remote_address.to_string()) {
-        log::warn!("[ltc] could not drop the half-open session: {err}");
     }
 }
 
@@ -603,6 +617,24 @@ impl LtcPointer {
         )
         .unwrap_or(false)
     }
+
+    pub fn seal(&self, dilithium_pub_key: &[u8]) -> Result<Vec<u8>> {
+        let key = ltc_pointer_key(&self.payload_id, dilithium_pub_key)?;
+        stream_encrypt(&key, &self.serialize()?)
+    }
+
+    pub fn open(sealed: &[u8], payload_id: &MessageId, dilithium_pub_key: &[u8]) -> Result<Self> {
+        let key = ltc_pointer_key(payload_id, dilithium_pub_key)?;
+        Self::deserialize(&stream_decrypt(&key, sealed)?)
+    }
+}
+
+fn ltc_pointer_key(
+    payload_id: &MessageId,
+    dilithium_pub_key: &[u8],
+) -> Result<Zeroizing<[u8; 32]>> {
+    let secret = [payload_id.0.as_slice(), dilithium_pub_key].concat();
+    derive_key(&secret, LTC_POINTER_KEY_INFO).map(Zeroizing::new)
 }
 
 fn signing_bytes(tag: &[u8; 32], p: &LtcPointer) -> Vec<u8> {
@@ -646,7 +678,7 @@ pub async fn fetch_ltc_pointer(
             let Ok(inner) = DHTRecord::deserialize(tag, &bytes) else {
                 continue;
             };
-            let Ok(pointer) = LtcPointer::deserialize(&inner) else {
+            let Ok(pointer) = LtcPointer::open(&inner, &payload_id, dilithium_pub_key) else {
                 continue;
             };
             if pointer.payload_id != payload_id {

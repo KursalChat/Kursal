@@ -19,6 +19,7 @@
     Share,
     X,
     Clock,
+    History,
     Ellipsis,
     ChevronDown,
     ChevronUp,
@@ -35,7 +36,7 @@
   import { formatFullTimestamp, formatTime } from '$lib/utils/dateFormat.svelte';
   import MessageAttachment from './MessageAttachment.svelte';
   import {
-    receivedHoverLabel,
+    receivedLabel,
     getMessagePreview,
     renderMarkdown,
     highlightTerm,
@@ -281,6 +282,8 @@
   // Sent messages in a non-terminal state (sending / queued / failed) always
   // show their meta row so the lifecycle icon is visible: independent of the
   // hover/last logic that controls it for delivered messages.
+  const receivedAt = $derived(receivedLabel(msg));
+
   const showMetaAlways = $derived(
     msg.direction === 'sent' &&
       (msg.status === 'sending' ||
@@ -461,15 +464,20 @@
         </div>
       {/if}
 
-      {#if isLast || showMetaAlways || layout === 'flat'}
-        {@const receivedLabel = receivedHoverLabel(msg)}
-        <div class="msg-meta" class:always-visible={showMetaAlways}>
-          <span
-            class="msg-time"
-            title={receivedLabel
-              ? `${formatFullTimestamp(msg.timestamp)} · ${t('chat.bubble.receivedAtLabel', { time: receivedLabel })}`
-              : formatFullTimestamp(msg.timestamp)}>{formatTime(msg.timestamp)}</span
+      {#if isLast || showMetaAlways || layout === 'flat' || receivedAt}
+        <div class="msg-meta" class:always-visible={showMetaAlways || !!receivedAt}>
+          <span class="msg-time" title={formatFullTimestamp(msg.timestamp)}
+            >{formatTime(msg.timestamp)}</span
           >
+          {#if receivedAt}
+            <span
+              class="msg-received-at"
+              aria-label={t('chat.bubble.receivedAtLabel', { time: receivedAt })}
+            >
+              <History size={10} />
+              {receivedAt}
+            </span>
+          {/if}
           {#if msg.direction === 'sent'}
             {#if msg.status === 'sending'}
               <span class="msg-status sending" aria-label={t('chat.bubble.statusSending')}>
@@ -1211,6 +1219,15 @@
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
+  .msg-received-at {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10.5px;
+    line-height: 1;
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
   /* Message-status indicator (icon-only, color carries the meaning).
      Meta lives outside the bubble now, so colors read on the chat bg. */
   .msg-status {
@@ -1291,6 +1308,12 @@
     flex-shrink: 0;
     gap: 4px;
   }
+  .bubble-row.sent .inline-actions {
+    order: -1;
+  }
+  .msg-row[data-layout='flat'] .inline-actions {
+    order: 0;
+  }
   .inline-action {
     flex-shrink: 0;
     width: 24px;
@@ -1329,9 +1352,6 @@
     }
   }
 
-  /* Stacked: bubble, then reaction chips, then the time/status line. A row
-     layout put the meta beside the bubble, so revealing it shoved the bubble
-     sideways and left the chips free to overlap it. */
   .bubble-anchor {
     display: flex;
     flex-direction: column;

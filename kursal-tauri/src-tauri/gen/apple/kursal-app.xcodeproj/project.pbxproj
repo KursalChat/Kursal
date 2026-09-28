@@ -14,7 +14,6 @@
 		1FF138E305757B5C742060DF /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A98585FE9B16019B93BED848 /* AVFoundation.framework */; };
 		27718EF9873752374C674036 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0915A2ECF156877C70B60661 /* CoreGraphics.framework */; };
 		4983C1045396362667825C15 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BBA4FC1672969F8CBFF93A34 /* CoreVideo.framework */; };
-		4CE03CA6C7A522F7864288A2 /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = E28FB20FD916FF54A11C6C59 /* libapp.a */; };
 		53F00FF20501B8D8812BD7DC /* KursalShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5E3C72D67E9106AAF8D44900 /* KursalShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		55001C47F9F6BE0E25625920 /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DBA3D0080FBF0260C681B78C /* VideoToolbox.framework */; };
 		5A69925BB579DBF3AE6E4390 /* CFNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 64EEA9998EFC77FDEE0DF3E0 /* CFNetwork.framework */; };
@@ -58,51 +57,51 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0071CAFE2534BF3EA242FCE7 /* error.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = error.rs; sourceTree = "<group>"; };
-		067E11608129902376C68A11 /* Kursal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kursal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0071CAFE2534BF3EA242FCE7 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		067E11608129902376C68A11 /* kursal-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "kursal-app_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0915A2ECF156877C70B60661 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		130B4D241CBE0F4C748D8B56 /* KursalShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KursalShare.entitlements; sourceTree = "<group>"; };
 		1758DA0F6D10B66828B657CD /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		223FB813171A72F2A61018D1 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		22EE85424D969FC621C6E45F /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
-		37984ACF3EDE5F10C2A71E62 /* background.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = background.rs; sourceTree = "<group>"; };
-		3B2E1B1172C2DE498A2E865A /* dirs.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = dirs.rs; sourceTree = "<group>"; };
-		42C71FF711B5D2F1A76AF368 /* benchmark.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = benchmark.rs; sourceTree = "<group>"; };
-		446E404522CE9FB88AC8F397 /* share_intake.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = share_intake.rs; sourceTree = "<group>"; };
-		4F3207ED8D0A019FDFBE5A9B /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
-		4F8F6C88BFBB48B6DDE6B7B2 /* window_menu.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = window_menu.rs; sourceTree = "<group>"; };
+		37984ACF3EDE5F10C2A71E62 /* background.rs */ = {isa = PBXFileReference; path = background.rs; sourceTree = "<group>"; };
+		3B2E1B1172C2DE498A2E865A /* dirs.rs */ = {isa = PBXFileReference; path = dirs.rs; sourceTree = "<group>"; };
+		42C71FF711B5D2F1A76AF368 /* benchmark.rs */ = {isa = PBXFileReference; path = benchmark.rs; sourceTree = "<group>"; };
+		446E404522CE9FB88AC8F397 /* share_intake.rs */ = {isa = PBXFileReference; path = share_intake.rs; sourceTree = "<group>"; };
+		4F3207ED8D0A019FDFBE5A9B /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		4F8F6C88BFBB48B6DDE6B7B2 /* window_menu.rs */ = {isa = PBXFileReference; path = window_menu.rs; sourceTree = "<group>"; };
 		5E336221FC9FC59C2C8D3E7F /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
-		5E3C72D67E9106AAF8D44900 /* KursalShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KursalShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		5EC8284D7D4720C6473BD159 /* deep_link.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = deep_link.rs; sourceTree = "<group>"; };
+		5E3C72D67E9106AAF8D44900 /* KursalShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KursalShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5EC8284D7D4720C6473BD159 /* deep_link.rs */ = {isa = PBXFileReference; path = deep_link.rs; sourceTree = "<group>"; };
+		6377405CAB4C0F1AAFA36E02 /* update.rs */ = {isa = PBXFileReference; path = update.rs; sourceTree = "<group>"; };
 		64EEA9998EFC77FDEE0DF3E0 /* CFNetwork.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CFNetwork.framework; path = System/Library/Frameworks/CFNetwork.framework; sourceTree = SDKROOT; };
 		696D9A1C0B34A251FC3ACAC8 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		6F02B82A3115DD928D28CE2B /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		753053ED43370DA48B585138 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
+		753053ED43370DA48B585138 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		7B02636B4E22515660BF0BD5 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		80A34972D6AE3775CA2852D3 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		8208DB159B774D618416E141 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		858090C8552CF8A1355899DB /* kursal-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "kursal-app_iOS.entitlements"; sourceTree = "<group>"; };
-		90F5A02C3F81428F7398657A /* dialog_bridge.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = dialog_bridge.rs; sourceTree = "<group>"; };
-		913A5756A077151672169130 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
-		923E8B6C3C488E8E7971095C /* outgoing_sweep.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = outgoing_sweep.rs; sourceTree = "<group>"; };
+		90F5A02C3F81428F7398657A /* dialog_bridge.rs */ = {isa = PBXFileReference; path = dialog_bridge.rs; sourceTree = "<group>"; };
+		913A5756A077151672169130 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		923E8B6C3C488E8E7971095C /* outgoing_sweep.rs */ = {isa = PBXFileReference; path = outgoing_sweep.rs; sourceTree = "<group>"; };
 		961A73FA84BC6CBDDD9B290B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		980D93947BC3CD1677C73EA2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		993A17A9F33B99FDD5D789C5 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		A2EF64A3BADEA36B82EC8147 /* commands.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = commands.rs; sourceTree = "<group>"; };
+		A2EF64A3BADEA36B82EC8147 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
 		A43805F15EC09BF162A4FA9A /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		A98585FE9B16019B93BED848 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
-		AB8B18B7E63AB3C91C46A019 /* file.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = file.rs; sourceTree = "<group>"; };
+		AB8B18B7E63AB3C91C46A019 /* file.rs */ = {isa = PBXFileReference; path = file.rs; sourceTree = "<group>"; };
 		BBA4FC1672969F8CBFF93A34 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
-		BC5C9FB6704137D9DEC4D29A /* core_event.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = core_event.rs; sourceTree = "<group>"; };
-		BC8EB51BC40FAB1E783D4518 /* android_ble.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = android_ble.rs; sourceTree = "<group>"; };
+		BC5C9FB6704137D9DEC4D29A /* core_event.rs */ = {isa = PBXFileReference; path = core_event.rs; sourceTree = "<group>"; };
+		BC8EB51BC40FAB1E783D4518 /* android_ble.rs */ = {isa = PBXFileReference; path = android_ble.rs; sourceTree = "<group>"; };
 		BCB6133124F63490FFCDD057 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
-		BEC444A5328700EEDBDA6590 /* share_intake.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = share_intake.rs; sourceTree = "<group>"; };
+		BEC444A5328700EEDBDA6590 /* share_intake.rs */ = {isa = PBXFileReference; path = share_intake.rs; sourceTree = "<group>"; };
 		CBD4C60E897D9FCCEEF8B189 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		DADAB61BC863AD3EDE7B43E2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DBA3D0080FBF0260C681B78C /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
 		DEF5B3EC8F872F3354FB6483 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		E02141DCC2A04FA3A3F83CD1 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
-		E28FB20FD916FF54A11C6C59 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		F2A9C48386F9EEED7BF64A11 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -144,7 +143,7 @@
 		2AF0DEB36C024529AA8D256C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				067E11608129902376C68A11 /* Kursal.app */,
+				067E11608129902376C68A11 /* kursal-app_iOS.app */,
 				5E3C72D67E9106AAF8D44900 /* KursalShare.appex */,
 			);
 			name = Products;
@@ -175,18 +174,9 @@
 			path = bindings;
 			sourceTree = "<group>";
 		};
-		3F73F702ECB88801B77B6F3F /* arm64 */ = {
-			isa = PBXGroup;
-			children = (
-				BAFDB3F5DF0ED95F6B4DF3DC /* release */,
-			);
-			path = arm64;
-			sourceTree = "<group>";
-		};
 		42257558370C4D67EF297866 /* Externals */ = {
 			isa = PBXGroup;
 			children = (
-				3F73F702ECB88801B77B6F3F /* arm64 */,
 			);
 			path = Externals;
 			sourceTree = "<group>";
@@ -248,14 +238,6 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		BAFDB3F5DF0ED95F6B4DF3DC /* release */ = {
-			isa = PBXGroup;
-			children = (
-				E28FB20FD916FF54A11C6C59 /* libapp.a */,
-			);
-			path = release;
-			sourceTree = "<group>";
-		};
 		E69423A4A8B8866ACC8D9153 /* KursalShare */ = {
 			isa = PBXGroup;
 			children = (
@@ -283,11 +265,26 @@
 				4F3207ED8D0A019FDFBE5A9B /* main.rs */,
 				923E8B6C3C488E8E7971095C /* outgoing_sweep.rs */,
 				BEC444A5328700EEDBDA6590 /* share_intake.rs */,
+				6377405CAB4C0F1AAFA36E02 /* update.rs */,
 				4F8F6C88BFBB48B6DDE6B7B2 /* window_menu.rs */,
 				856B58092362993DF761CB93 /* tests */,
 			);
 			name = src;
 			path = ../../src;
+			sourceTree = "<group>";
+		};
+		"TEMP_0D171B5F-F6AE-4735-B4A4-8E42B10587B5" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+		"TEMP_C4FD3A6C-753C-4C6D-822A-809A48CE14BE" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -330,7 +327,7 @@
 			packageProductDependencies = (
 			);
 			productName = "kursal-app_iOS";
-			productReference = 067E11608129902376C68A11 /* Kursal.app */;
+			productReference = 067E11608129902376C68A11 /* kursal-app_iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -341,6 +338,14 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					543EFCC794C0BE9D0A5AFB50 = {
+						DevelopmentTeam = Q4L6S4627U;
+					};
+					F72A473B4EFC359620FB541D = {
+						DevelopmentTeam = Q4L6S4627U;
+					};
+				};
 			};
 			buildConfigurationList = 231B96CCB52B889246C55B92 /* Build configuration list for PBXProject "kursal-app" */;
 			developmentRegion = en;
@@ -370,7 +375,6 @@
 				7DF08C5EBDB00BBF4470613C /* Assets.xcassets in Resources */,
 				CA305974FA248A6D4C11FE73 /* LaunchScreen.storyboard in Resources */,
 				DF4DCDA9633D9B622190D79D /* assets in Resources */,
-				4CE03CA6C7A522F7864288A2 /* libapp.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,8 +499,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				CODE_SIGN_ENTITLEMENTS = KursalShare/KursalShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = Q4L6S4627U;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				INFOPLIST_FILE = KursalShare/Info.plist;
@@ -517,10 +524,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "kursal-app_iOS/kursal-app_iOS.entitlements";
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				DEVELOPMENT_TEAM = "Q4L6S4627U";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -534,22 +544,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.kursal;
 				PRODUCT_NAME = "Kursal";
+				PROVISIONING_PROFILE_SPECIFIER = "Kursal App Store";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
@@ -616,8 +615,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				CODE_SIGN_ENTITLEMENTS = KursalShare/KursalShare.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				DEVELOPMENT_TEAM = Q4L6S4627U;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				INFOPLIST_FILE = KursalShare/Info.plist;
@@ -628,6 +631,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = chat.kursal.share;
 				PRODUCT_NAME = KursalShare;
+				PROVISIONING_PROFILE_SPECIFIER = "Kursal Share App Store";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -638,10 +642,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "kursal-app_iOS/kursal-app_iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "Q4L6S4627U";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -655,20 +662,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.kursal;
 				PRODUCT_NAME = "Kursal";
 				SDKROOT = iphoneos;

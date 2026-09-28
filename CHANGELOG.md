@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.10] - 2026-08-29
+
+### Features
+
+- Adding dutch translation
+- New camera native backend
+- Autonat to determine if the client can relay
+
+### Bug Fixes
+
+- Improved code blocks (with highlighting!)
+- Don't show RAM/CPU usage on mobile (does not work)
+- Updater on mobile opens app/play store
+- Some more camera improvements
+- Better QR-code
+- Front-end security improvements against injections
+- Onboarding visual rework and improvement
+
+### CI
+
+- Specify exact version + bumps
+- Add node types to package.json
+- Dont include version name in relay builds
+
+### Miscellaneous
+
+- Fix all french translation + add dutch
+- Backmerge release/0.1.0 into dev
+- Dockerfile includes version and title
+- Finalize android building code
+- Fix camera native issue
+- Update deps and docs
+- Front-end rewrite to group util fn (+ QR-code upgrade)
+- Package bump + translation fix
+- Backmerge release/0.1.0 into dev
+- Remove migration code
+
 ## [0.1.0-beta.9] - 2026-08-19
 
 ### Features

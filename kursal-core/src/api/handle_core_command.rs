@@ -71,7 +71,16 @@ pub async fn handle_core_command(
 
         CoreCommand::FetchOtp { otp, reply } => {
             let swarm = network.lock().await.primary.clone();
-            let result = fetch_otp(&otp, db, &swarm).await;
+            let result = fetch_otp(&otp, db.clone(), &swarm).await;
+            if let Ok(contact) = &result {
+                let _ = crate::api::handle_incoming::mark_terminated(
+                    &db,
+                    &contact.user_id,
+                    false,
+                    &app_event_tx,
+                )
+                .await;
+            }
             reply.send(result).ok();
         }
 
@@ -183,9 +192,18 @@ pub async fn handle_core_command(
             };
 
             let result = match result {
-                Ok(payload) => LtcState::import_ltc(payload, db, &swarm).await,
+                Ok(payload) => LtcState::import_ltc(payload, db.clone(), &swarm).await,
                 Err(e) => Err(e),
             };
+            if let Ok(contact) = &result {
+                let _ = crate::api::handle_incoming::mark_terminated(
+                    &db,
+                    &contact.user_id,
+                    false,
+                    &app_event_tx,
+                )
+                .await;
+            }
 
             reply.send(result).ok();
         }
@@ -305,6 +323,9 @@ pub async fn handle_core_command(
 
                 let contact = Contact::load(&db, &UserId(user_id_bytes))?
                     .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
+                if contact.blocked {
+                    return Ok(());
+                }
 
                 let ids: Vec<MessageId> = message_ids
                     .iter()
@@ -413,7 +434,7 @@ pub async fn handle_core_command(
                 let contacts = Contact::load_all(&db)?;
 
                 for contact in contacts {
-                    if contact.profile_shared {
+                    if contact.profile_shared && !contact.blocked {
                         share_profile_with(
                             &contact,
                             display_name.clone(),
@@ -742,6 +763,7 @@ pub async fn handle_core_command(
             contact_id,
             file_path,
             app_data_dir,
+            allow_unstripped,
             reply,
         } => {
             let result = async {
@@ -776,6 +798,7 @@ pub async fn handle_core_command(
                     offer_hex.clone(),
                     PathBuf::from(&file_path),
                     filename.clone(),
+                    allow_unstripped,
                 )
                 .await?;
 

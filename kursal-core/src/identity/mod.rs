@@ -10,7 +10,7 @@ use crate::{
     },
     storage::{Database, SharedDatabase, TABLE_IDENTITY_KEYS, TABLE_SETTINGS, derive_db_key},
 };
-use libp2p::PeerId;
+use libp2p::{PeerId, identity::PublicKey};
 use libsignal_protocol::IdentityKeyStore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -19,6 +19,8 @@ use zeroize::{Zeroize, Zeroizing};
 
 pub mod generators;
 pub mod keychain;
+
+const PEER_BINDING_DOMAIN: &[u8] = b"kursal/peer-binding/1";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UserId(pub [u8; 32]);
@@ -182,14 +184,37 @@ impl TransportIdentity {
         TransportIdentity::load_under(db, "transport_identity_next")
     }
 
-    pub fn promote_next(db: &Database) -> Result<Option<Self>> {
-        let Some(next) = TransportIdentity::load_next(db)? else {
-            return Ok(None);
-        };
+    pub fn promote_next(db: &Database, expected: &PeerId) -> Result<Self> {
+        let next = TransportIdentity::load_next(db)?
+            .filter(|next| &next.peer_id == expected)
+            .ok_or_else(|| KursalError::Identity("Rotation identity missing".to_string()))?;
         next.save(db)?;
         db.raw_delete(TABLE_SETTINGS, "transport_identity_next")?;
-        Ok(Some(next))
+        Ok(next)
     }
+
+    pub fn peer_binding(&self, owner: &UserId) -> Result<Vec<u8>> {
+        self.keypair
+            .sign(&peer_binding_payload(owner, &self.peer_id))
+            .ok_kursal(KursalError::Crypto)
+    }
+}
+
+fn peer_binding_payload(owner: &UserId, peer_id: &PeerId) -> Vec<u8> {
+    [PEER_BINDING_DOMAIN, &owner.0[..], &peer_id.to_bytes()[..]].concat()
+}
+
+pub fn verify_peer_binding(owner: &UserId, peer_id: &str, proof: &[u8]) -> bool {
+    let Ok(peer_id) = peer_id.parse::<PeerId>() else {
+        return false;
+    };
+    let multihash = peer_id.as_ref();
+    if multihash.code() != 0 {
+        return false;
+    }
+
+    PublicKey::try_decode_protobuf(multihash.digest())
+        .is_ok_and(|key| key.verify(&peer_binding_payload(owner, &peer_id), proof))
 }
 
 pub fn security_code(

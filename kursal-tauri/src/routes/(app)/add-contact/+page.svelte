@@ -193,6 +193,9 @@
   function fetchErrorText(e: unknown): string {
     const raw = parseError(e).message.toLowerCase();
     if (raw.includes('already used')) return t('addContact.otp.alreadyUsedError');
+    if (raw.includes('already a contact')) return t('addContact.otp.alreadyContactError');
+    if (raw.includes('in progress')) return t('addContact.otp.inProgressError');
+    if (raw.includes('belongs to another contact')) return t('addContact.otp.peerConflictError');
     if (raw.includes('expired')) return t('addContact.otp.expiredError');
     if (raw.includes('no answer')) return t('addContact.otp.noAnswerError');
     if (raw.includes('not found')) return t('addContact.otp.invalidError');
@@ -270,6 +273,9 @@
     const raw = parseError(e).message.toLowerCase();
     if (raw.includes('expired')) return t('addContact.ltc.expiredError');
     if (raw.includes('already used')) return t('addContact.ltc.alreadyUsedError');
+    if (raw.includes('already a contact')) return t('addContact.ltc.alreadyContactError');
+    if (raw.includes('in progress')) return t('addContact.ltc.inProgressError');
+    if (raw.includes('belongs to another contact')) return t('addContact.ltc.peerConflictError');
     if (raw.includes('yourself')) return t('addContact.ltc.selfError');
     return t('addContact.ltc.invalidFileError');
   }

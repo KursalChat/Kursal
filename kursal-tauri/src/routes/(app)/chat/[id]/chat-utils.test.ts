@@ -29,7 +29,7 @@ const {
   transferPercent,
   isTransferDone,
   emojiPickerPosition,
-  receivedHoverLabel,
+  receivedLabel,
   isMessageActionable,
 } = await import('./chat-utils');
 
@@ -50,20 +50,25 @@ describe('isMessageActionable', () => {
   });
 });
 
-describe('receivedHoverLabel', () => {
+describe('receivedLabel', () => {
   it('returns null for a small sent/received gap', () => {
     expect(
-      receivedHoverLabel({ direction: 'received', timestamp: 0, receivedTimestamp: 30_000 })
+      receivedLabel({ direction: 'received', timestamp: 0, receivedTimestamp: 30_000 })
     ).toBeNull();
   });
   it('returns a label for a delayed received message', () => {
     expect(
-      receivedHoverLabel({ direction: 'received', timestamp: 0, receivedTimestamp: 120_000 })
+      receivedLabel({ direction: 'received', timestamp: 0, receivedTimestamp: 600_000 })
+    ).not.toBeNull();
+  });
+  it('returns a label for a future-dated received message', () => {
+    expect(
+      receivedLabel({ direction: 'received', timestamp: 600_000, receivedTimestamp: 0 })
     ).not.toBeNull();
   });
   it('returns null for sent messages regardless of gap', () => {
     expect(
-      receivedHoverLabel({ direction: 'sent', timestamp: 0, receivedTimestamp: 120_000 })
+      receivedLabel({ direction: 'sent', timestamp: 0, receivedTimestamp: 120_000 })
     ).toBeNull();
   });
 });

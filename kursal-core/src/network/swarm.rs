@@ -1,4 +1,3 @@
-// TODO: remove all "#[cfg(not(target_os = "ios"))]" and accept mdns with apple dev cert (ios)
 use crate::{
     KursalError, Result,
     api::handle_incoming::handle_incoming_stream,
@@ -12,7 +11,6 @@ use crate::{
     },
     storage::RelayConfig,
 };
-#[cfg(not(target_os = "ios"))]
 use libp2p::mdns;
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
@@ -37,8 +35,8 @@ pub use behaviour::{KursalBehaviour, KursalBehaviourEvent};
 pub use codec::KursalMsgCodec;
 pub use helpers::{
     any_public_address, get_all_listen_addrs, get_connected_peer_count, get_connected_peers,
-    get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_peer_connected,
-    is_routable_multiaddr, open_peer_stream, str_to_multiaddr,
+    get_contribution, get_listen_addrs, get_peer_connection_kinds, is_circuit, is_lan_multiaddr,
+    is_peer_connected, is_routable_multiaddr, open_peer_stream, routable_multiaddrs,
 };
 
 use commands::handle_swarm_command;
@@ -143,6 +141,10 @@ pub enum SwarmCommand {
         data: Vec<u8>,
         addresses: Vec<Multiaddr>,
     },
+    SendIfConnected {
+        peer_id: PeerId,
+        data: Vec<u8>,
+    },
     OpenStream {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
@@ -178,6 +180,10 @@ pub enum SwarmCommand {
     },
     ContactRemoved {
         peer_id: String,
+    },
+    SetPeerBlocked {
+        peer_id: PeerId,
+        blocked: bool,
     },
     GetListenAddresses {
         reply_tx: oneshot::Sender<Vec<Multiaddr>>,
@@ -218,6 +224,13 @@ impl ConnectionKind {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ConnInfo {
+    pub peer: PeerId,
+    pub kind: ConnectionKind,
+    pub lan: bool,
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reachability {
     Checking,
@@ -238,6 +251,7 @@ pub enum NetworkEvent {
     MessageReceived {
         from: PeerId,
         data: Vec<u8>,
+        lan: bool,
     },
     PeerDiscovered {
         peer_id: PeerId,
@@ -246,6 +260,9 @@ pub enum NetworkEvent {
     LocalPeerDiscovered {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
+    },
+    PeerExpired {
+        peer_id: PeerId,
     },
     ConnectionEstablished {
         peer_id: PeerId,
@@ -333,7 +350,7 @@ impl SwarmHandle {
                 let local_peer_id = key.public().to_peer_id();
 
                 let relay = relay_client;
-                let dcutr = libp2p::dcutr::Behaviour::new(local_peer_id);
+                let dcutr = crate::network::dcutr_gate::DcutrGate::new(local_peer_id);
 
                 let mut kad_config = libp2p::kad::Config::new(StreamProtocol::new("/kursal/kad/1.0.0"));
                 kad_config.set_max_packet_size(KAD_MAX_PACKET);
@@ -346,7 +363,6 @@ impl SwarmHandle {
                     kad_config,
                 );
 
-                #[cfg(not(target_os = "ios"))]
                 let mdns = if mdns_enabled {
                     Toggle::from(Some(libp2p::mdns::tokio::Behaviour::new(mdns::Config {
                         query_interval: Duration::from_secs(60),
@@ -357,13 +373,11 @@ impl SwarmHandle {
                     log::info!("mDNS disabled");
                     Toggle::from(None)
                 };
-                #[cfg(target_os = "ios")]
-                let _ = mdns_enabled;
 
-                let identify = libp2p::identify::Behaviour::new(libp2p::identify::Config::new(
-                    "/kursal/v1.0.0".to_string(),
-                    key.public(),
-                ));
+                let identify = libp2p::identify::Behaviour::new(
+                    libp2p::identify::Config::new("/kursal/v1.0.0".to_string(), key.public())
+                        .with_hide_listen_addrs(true),
+                );
 
                 let request_response = request_response::Behaviour::new(
                     [(StreamProtocol::new("/kursal/msg/1.0.0"), ProtocolSupport::Full)],
@@ -419,7 +433,6 @@ impl SwarmHandle {
                     autonat_client,
                     autonat_server,
                     kad,
-                    #[cfg(not(target_os = "ios"))]
                     mdns,
                     identify,
                     request_response,
@@ -508,7 +521,7 @@ impl SwarmHandle {
             let mut listen_addresses: HashSet<Multiaddr> = HashSet::new();
             let mut nearby_enabled = false;
             let mut mdns_peers: HashMap<PeerId, Multiaddr> = HashMap::new();
-            let mut peer_conns: HashMap<ConnectionId, (PeerId, ConnectionKind)> = HashMap::new();
+            let mut peer_conns: HashMap<ConnectionId, ConnInfo> = HashMap::new();
             let mut discovered_relays: HashMap<PeerId, RelayCandidate> = HashMap::new();
             let mut circuit_listeners: HashMap<libp2p::core::transport::ListenerId, PeerId> =
                 HashMap::new();

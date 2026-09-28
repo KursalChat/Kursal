@@ -51,7 +51,7 @@ pub async fn handle_incoming(
 
     let encrypted_payload = match bincode::deserialize::<WireMessage>(&ciphertext) {
         Ok(WireMessage::ContactResponse(response)) => {
-            let _ = handle_fc_response(response, db.clone(), cmd_tx, event_tx).await;
+            let _ = handle_fc_response(from, response, db.clone(), cmd_tx, event_tx).await;
             return Ok(());
         }
         Ok(WireMessage::FileTransfer(chunk)) => {
@@ -59,16 +59,18 @@ pub async fn handle_incoming(
             return Ok(());
         }
         Ok(WireMessage::ContactAccepted(payload_id)) => {
-            resolve_ack_waiter(payload_id, Ok(()));
+            resolve_ack_waiter(from, payload_id, Ok(()));
             return Ok(());
         }
         Ok(WireMessage::ContactRejected { payload_id, reason }) => {
-            resolve_ack_waiter(payload_id, Err(reason));
+            resolve_ack_waiter(from, payload_id, Err(reason));
             return Ok(());
         }
         Ok(WireMessage::Terminate) => {
             let known = Contact::find_by_peer_id(&db, &peer_id_str)?;
-            if let Some(contact) = known {
+            if let Some(contact) = known
+                && !contact.blocked
+            {
                 mark_terminated(&db, &contact.user_id, true, event_tx).await?;
             }
             return Ok(());
@@ -150,16 +152,22 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&db)?;
-
-            event_tx
-                .send(AppEvent::MessageReceived {
-                    contact_id: contact.user_id.clone(),
-                    message: stored,
-                    via_offline: false,
-                })
-                .await
-                .ok_kursal(KursalError::Network)?;
+            if stored.save_new(&db)? {
+                event_tx
+                    .send(AppEvent::MessageReceived {
+                        contact_id: contact.user_id.clone(),
+                        message: stored,
+                        via_offline: false,
+                    })
+                    .await
+                    .ok_kursal(KursalError::Network)?;
+            } else {
+                log::warn!(
+                    "[msg] {} reused message id {}, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(msg_id.0)
+                );
+            }
 
             send_delivery_receipt(db.clone(), msg_id, &contact, cmd_tx).await?;
         }
@@ -249,7 +257,16 @@ pub async fn handle_incoming(
                 reactions: Vec::with_capacity(0),
             };
 
-            stored.save(&db)?;
+            if !stored.save_new(&db)? {
+                log::warn!(
+                    "[file] {} reused message id {} for an offer, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                );
+                send_delivery_receipt(db.clone(), offer_id, &contact, cmd_tx).await?;
+
+                return Ok(());
+            }
 
             let mut autodownload = None;
             let auto_accept = get_auto_accept_config(&db);
@@ -415,6 +432,7 @@ pub async fn handle_incoming(
                 &contact.user_id,
                 announce.peer_id.clone(),
                 announce.addresses.clone(),
+                &announce.peer_proof,
                 &db,
                 cmd_tx,
                 Some(event_tx),
@@ -444,10 +462,9 @@ async fn reply_terminate_once(peer: PeerId, cmd_tx: &mpsc::Sender<SwarmCommand>)
         return;
     };
     let _ = cmd_tx
-        .send(SwarmCommand::SendMessage {
+        .send(SwarmCommand::SendIfConnected {
             peer_id: peer,
             data,
-            addresses: Vec::with_capacity(0),
         })
         .await;
 }
@@ -512,6 +529,7 @@ pub async fn handle_incoming_stream(
                     .send(NetworkEvent::MessageReceived {
                         from: peer_id,
                         data,
+                        lan: false,
                     })
                     .await;
             }

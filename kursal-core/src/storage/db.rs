@@ -47,6 +47,24 @@ impl WriteBatch<'_> {
         Ok(())
     }
 
+    pub(crate) fn put_if_absent(
+        &mut self,
+        table: TableDefinition<&str, &[u8]>,
+        key: &str,
+        value: &[u8],
+    ) -> Result<bool> {
+        {
+            let opened = self.txn.open_table(table)?;
+            if opened.get(key)?.is_some() {
+                return Ok(false);
+            }
+        }
+
+        self.put(table, key, value)?;
+
+        Ok(true)
+    }
+
     pub(crate) fn remove(&mut self, table: TableDefinition<&str, &[u8]>, key: &str) -> Result<()> {
         self.txn.open_table(table)?.remove(key)?;
 

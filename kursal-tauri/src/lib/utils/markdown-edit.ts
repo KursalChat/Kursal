@@ -69,23 +69,57 @@ export function fenceRanges(value: string): Array<{ start: number; end: number }
   return ranges;
 }
 
-/** True when the caret rests at the end of a line that opens a block, info string and all. */
-export function opensFence(value: string, caret: number): boolean {
-  const line = value.slice(0, caret).split('\n').pop() ?? '';
-  if (!/^ {0,3}`{3}[\w+#.-]*$/.test(line)) return false;
-  const rest = value.slice(caret);
-  if (rest !== '' && !rest.startsWith('\n')) return false;
-  return openFenceAt(value, caret) !== null;
-}
+const INDENT = '  ';
 
-/** Closes a freshly opened fence, leaving the caret on the empty line inside it. */
-export function computeFenceBody(caret: number): TextEdit {
+/** Tab and Shift+Tab over every line the selection touches. */
+export function computeIndent(
+  value: string,
+  start: number,
+  end: number,
+  outdent: boolean
+): TextEdit {
+  if (!outdent && start === end) {
+    return {
+      start,
+      end,
+      text: INDENT,
+      selStart: start + INDENT.length,
+      selEnd: start + INDENT.length,
+    };
+  }
+
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const nextNl = value.indexOf('\n', end);
+  const lineEnd = nextNl < 0 ? value.length : nextNl;
+
+  let firstDelta = 0;
+  let total = 0;
+  const lines = value
+    .slice(lineStart, lineEnd)
+    .split('\n')
+    .map((line, i) => {
+      let delta: number;
+      let next: string;
+      if (outdent) {
+        const strip = line.startsWith(INDENT) ? INDENT.length : /^[ \t]/.test(line) ? 1 : 0;
+        delta = -strip;
+        next = line.slice(strip);
+      } else {
+        delta = INDENT.length;
+        next = INDENT + line;
+      }
+      if (i === 0) firstDelta = delta;
+      total += delta;
+      return next;
+    });
+
+  const selStart = Math.max(lineStart, start + firstDelta);
   return {
-    start: caret,
-    end: caret,
-    text: '\n\n```',
-    selStart: caret + 1,
-    selEnd: caret + 1,
+    start: lineStart,
+    end: lineEnd,
+    text: lines.join('\n'),
+    selStart,
+    selEnd: Math.max(selStart, end + total),
   };
 }
 

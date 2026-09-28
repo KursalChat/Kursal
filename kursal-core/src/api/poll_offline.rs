@@ -152,6 +152,9 @@ async fn poll_contact_offline_inner(
     loop {
         let mut contact = Contact::load(db, contact_id)?
             .ok_or_else(|| KursalError::Storage("Contact not found".into()))?;
+        if contact.blocked {
+            return Ok(());
+        }
 
         if let Some(since) = contact.offline.recv_stuck_since
             && get_timestamp_secs()?.saturating_sub(since) > GAP_SKIP_SECS
@@ -276,28 +279,36 @@ async fn process_bundle(
         return Ok(false);
     }
 
-    let sender_peer_id = inner.sender_peer_id.clone();
     let sender_addresses = inner.sender_addresses.clone();
-    if let Some(updated) = update_contact(&db, &contact.user_id, move |c| {
-        let mut changed = false;
-        if c.peer_id != sender_peer_id {
-            c.peer_id = sender_peer_id;
-            changed = true;
+    let mut sender_is_current = false;
+    match update_contact(&db, &contact.user_id, |c| {
+        sender_is_current = c.peer_id == inner.sender_peer_id;
+        if !sender_is_current || c.known_addresses == sender_addresses {
+            return false;
         }
-        if c.known_addresses != sender_addresses {
-            c.known_addresses = sender_addresses;
-            changed = true;
-        }
-        changed
+        c.known_addresses = sender_addresses;
+        true
     })
-    .await?
+    .await
     {
-        contact.peer_id = updated.peer_id.clone();
-        contact.known_addresses = updated.known_addresses.clone();
-        event_tx
-            .send(AppEvent::ContactUpdated { contact: updated })
-            .await
-            .ok();
+        Ok(Some(updated)) => {
+            contact.known_addresses = updated.known_addresses.clone();
+            let _ = cmd_tx
+                .send(SwarmCommand::ContactAdded {
+                    contact: updated.clone(),
+                })
+                .await;
+            event_tx
+                .send(AppEvent::ContactUpdated { contact: updated })
+                .await
+                .ok();
+        }
+        Ok(None) => {}
+        Err(err) => log::warn!("[offline] sender address update failed: {err}"),
+    }
+
+    if !sender_is_current {
+        return Ok(true);
     }
 
     for addr_str in &inner.sender_addresses {
@@ -342,16 +353,22 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&db)?;
-
-            event_tx
-                .send(AppEvent::MessageReceived {
-                    contact_id: contact.user_id.clone(),
-                    message: stored,
-                    via_offline: true,
-                })
-                .await
-                .ok_kursal(KursalError::Network)?;
+            if stored.save_new(&db)? {
+                event_tx
+                    .send(AppEvent::MessageReceived {
+                        contact_id: contact.user_id.clone(),
+                        message: stored,
+                        via_offline: true,
+                    })
+                    .await
+                    .ok_kursal(KursalError::Network)?;
+            } else {
+                log::warn!(
+                    "[msg] {} reused message id {}, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(msg_id.0)
+                );
+            }
 
             send_offline_delivery_receipt(db, msg_id, contact, cmd_tx).await?;
         }
@@ -365,15 +382,6 @@ async fn dispatch_offline_kmessage(
                 hash: file.hash,
                 created_at: now,
             };
-            db.raw_write(
-                TABLE_FILE_TRANSFERS,
-                &format!(
-                    "recv:{}:{}",
-                    hex::encode(contact.user_id.0),
-                    hex::encode(offer_id.0)
-                ),
-                &incoming.serialize()?,
-            )?;
 
             let stored = StoredMessage {
                 id: offer_id,
@@ -387,7 +395,27 @@ async fn dispatch_offline_kmessage(
                 pinned: false,
                 reactions: Vec::with_capacity(0),
             };
-            stored.save(&db)?;
+
+            if !stored.save_new(&db)? {
+                log::warn!(
+                    "[file] {} reused message id {} for an offer, dropped",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                );
+                send_offline_delivery_receipt(db, offer_id, contact, cmd_tx).await?;
+
+                return Ok(());
+            }
+
+            db.raw_write(
+                TABLE_FILE_TRANSFERS,
+                &format!(
+                    "recv:{}:{}",
+                    hex::encode(contact.user_id.0),
+                    hex::encode(offer_id.0)
+                ),
+                &incoming.serialize()?,
+            )?;
 
             event_tx
                 .send(AppEvent::FileOffered {
@@ -492,6 +520,7 @@ async fn dispatch_offline_kmessage(
                 &contact.user_id,
                 announce.peer_id.clone(),
                 announce.addresses.clone(),
+                &announce.peer_proof,
                 &db,
                 cmd_tx,
                 Some(event_tx),

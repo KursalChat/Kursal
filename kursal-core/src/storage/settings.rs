@@ -480,7 +480,11 @@ pub fn set_new_api_server_password(db: &Database) -> Result<String> {
 
     let token = hex::encode(bytes);
 
-    let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let mut salt_bytes = [0u8; 16];
+    OsRng
+        .try_fill_bytes(&mut salt_bytes)
+        .ok_kursal(KursalError::Crypto)?;
+    let salt = SaltString::encode_b64(&salt_bytes).ok_kursal(KursalError::Crypto)?;
     let argon2 = Argon2::default();
 
     let password_hash = argon2

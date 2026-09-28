@@ -64,6 +64,9 @@ pub async fn resend_stale_profile(
     let Ok(Some(contact)) = Contact::load(&db, user_id) else {
         return;
     };
+    if contact.blocked {
+        return;
+    }
 
     if !contact.profile_shared {
         let _ = conversation::set_profile_stale(&db, &contact_id, false);

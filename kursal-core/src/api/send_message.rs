@@ -11,7 +11,7 @@ use crate::{
         enums::{Direction, KursalMessage, MessageId, MessageStatus},
         offline::queue_for_offline,
     },
-    network::swarm::{SwarmCommand, is_peer_connected, str_to_multiaddr},
+    network::swarm::{SwarmCommand, is_peer_connected, is_routable_multiaddr, routable_multiaddrs},
     storage::{SharedDatabase, get_local_user_id, get_timestamp_secs},
 };
 use libp2p::{Multiaddr, PeerId};
@@ -69,6 +69,19 @@ pub async fn send_message_tracked(
         contact.peer_id
     );
 
+    let ephemeral = matches!(
+        content,
+        KursalMessage::Typing | KursalMessage::CallSignal(_) | KursalMessage::ContactTerminate
+    );
+
+    if contact.blocked {
+        if ephemeral {
+            log::info!("[send] dropping ephemeral kind={kind} (contact blocked)");
+            return Ok((None, false));
+        }
+        return Err(KursalError::Network("Contact is blocked".to_string()));
+    }
+
     let serialized = content.serialize()?;
     let address = ProtocolAddress::new(hex::encode(contact.user_id.0), DEVICE_ID);
 
@@ -76,11 +89,7 @@ pub async fn send_message_tracked(
 
     let peer_id = PeerId::from_str(&contact.peer_id).ok_kursal(KursalError::Storage)?;
 
-    if matches!(
-        content,
-        KursalMessage::Typing | KursalMessage::CallSignal(_) | KursalMessage::ContactTerminate
-    ) && !is_peer_connected(cmd_tx, peer_id).await
-    {
+    if ephemeral && !is_peer_connected(cmd_tx, peer_id).await {
         log::info!("[send] dropping ephemeral kind={kind} (peer offline)");
         return Ok((None, false));
     }
@@ -119,15 +128,12 @@ pub async fn send_message_tracked(
             .send(SwarmCommand::SendMessage {
                 peer_id,
                 data: bincode::serialize(&wire)?,
-                addresses: str_to_multiaddr(&contact.known_addresses)?,
+                addresses: routable_multiaddrs(&contact.known_addresses)?,
             })
             .await
             .ok_kursal(KursalError::Network)?;
         log::info!("[send] direct queued kind={kind} msg_id={msg_id_dbg} peer={peer_id}");
-    } else if matches!(
-        content,
-        KursalMessage::Typing | KursalMessage::CallSignal(_) | KursalMessage::ContactTerminate
-    ) {
+    } else if ephemeral {
         log::info!("[send] dropping ephemeral kind={kind} (peer offline)");
         return Ok((None, false));
     } else {
@@ -293,10 +299,11 @@ async fn ensure_connected_brief(
     let mut dialed = 0usize;
     for addr_str in known_addresses {
         match addr_str.parse::<Multiaddr>() {
-            Ok(addr) => {
+            Ok(addr) if is_routable_multiaddr(&addr) => {
                 let _ = cmd_tx.send(SwarmCommand::Dial(addr)).await;
                 dialed += 1;
             }
+            Ok(_) => {}
             Err(err) => log::debug!("[send] ensure_connected: bad addr {addr_str}: {err}"),
         }
     }

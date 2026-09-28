@@ -38,6 +38,23 @@ impl StoredMessage {
         batch.commit()
     }
 
+    pub fn save_new(&self, db: &Database) -> Result<bool> {
+        let contact_id = hex::encode(self.contact_id.0);
+        let message_id = hex::encode(self.id.0);
+
+        let serialized = bincode::serialize(self)?;
+
+        let mut batch = db.batch()?;
+        let inserted = batch.put_if_absent(
+            TABLE_MESSAGES,
+            &format!("{contact_id}:{message_id}"),
+            &serialized,
+        )?;
+        batch.commit()?;
+
+        Ok(inserted)
+    }
+
     pub(crate) fn save_into(&self, batch: &mut WriteBatch<'_>) -> Result<()> {
         let contact_id = hex::encode(self.contact_id.0);
         let message_id = hex::encode(self.id.0);

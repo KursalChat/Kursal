@@ -82,11 +82,58 @@ fn contact_load_all_three() {
     let db = make_db(&env, "load_all");
 
     for i in 1u8..=3 {
-        make_contact(UserId([i; 32])).save(&db).unwrap();
+        let mut contact = make_contact(UserId([i; 32]));
+        contact.peer_id = format!("peer-{i}");
+        contact.save(&db).unwrap();
     }
 
     let all = Contact::load_all(&db).unwrap();
     assert_eq!(all.len(), 3);
+}
+
+#[test]
+fn a_stale_row_does_not_reclaim_a_rotated_peer_id() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "peer_takeover");
+    let owner = UserId([10u8; 32]);
+
+    let mut squatter = make_contact(UserId([11u8; 32]));
+    squatter.peer_id = "rotated".to_string();
+    squatter.save(&db).unwrap();
+
+    let mut newcomer = make_contact(owner.clone());
+    newcomer.peer_id = "rotated".to_string();
+    assert!(newcomer.save(&db).is_err());
+
+    make_contact(owner.clone()).save(&db).unwrap();
+    Contact::update_if_exists(&db, &owner, |c| {
+        c.peer_id = "rotated".to_string();
+        true
+    })
+    .unwrap();
+
+    squatter.display_name = "Renamed".to_string();
+    squatter.save(&db).unwrap();
+
+    let found = Contact::find_by_peer_id(&db, "rotated").unwrap().unwrap();
+    assert_eq!(found.user_id.0, owner.0);
+}
+
+#[test]
+fn an_offline_write_keeps_a_concurrent_block() {
+    let env = TestEnv::new();
+    let db = make_db(&env, "offline_merge");
+    let user_id = UserId([12u8; 32]);
+    make_contact(user_id.clone()).save(&db).unwrap();
+
+    let mut stale = Contact::load(&db, &user_id).unwrap().unwrap();
+    Contact::set_blocked(&db, &user_id, true).unwrap();
+    stale.offline.send_counter = 5;
+    stale.save_offline_if_exists(&db).unwrap();
+
+    let loaded = Contact::load(&db, &user_id).unwrap().unwrap();
+    assert!(loaded.blocked);
+    assert_eq!(loaded.offline.send_counter, 5);
 }
 
 #[test]
@@ -143,18 +190,24 @@ fn deleted_contact_leaves_no_peer_binding() {
 }
 
 #[test]
-fn save_if_exists_ignores_an_unknown_contact() {
+fn update_if_exists_ignores_an_unknown_contact() {
     let env = TestEnv::new();
-    let db = make_db(&env, "save_if_exists");
+    let db = make_db(&env, "update_if_exists");
     let user_id = UserId([7u8; 32]);
+    let rename = |contact: &mut Contact| {
+        contact.display_name = "Renamed".to_string();
+        true
+    };
 
-    make_contact(user_id.clone()).save_if_exists(&db).unwrap();
+    assert!(
+        Contact::update_if_exists(&db, &user_id, rename)
+            .unwrap()
+            .is_none()
+    );
     assert!(Contact::load(&db, &user_id).unwrap().is_none());
 
     make_contact(user_id.clone()).save(&db).unwrap();
-    let mut contact = Contact::load(&db, &user_id).unwrap().unwrap();
-    contact.display_name = "Renamed".to_string();
-    contact.save_if_exists(&db).unwrap();
+    Contact::update_if_exists(&db, &user_id, rename).unwrap();
 
     let loaded = Contact::load(&db, &user_id).unwrap().unwrap();
     assert_eq!(loaded.display_name, "Renamed");

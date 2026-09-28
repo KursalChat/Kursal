@@ -211,8 +211,14 @@ fn recover_bitrate() {
     off_thread(move || backend::set_bitrate(next));
 }
 
+fn lifecycle_lock() -> &'static StdMutex<()> {
+    static L: OnceLock<StdMutex<()>> = OnceLock::new();
+    L.get_or_init(|| StdMutex::new(()))
+}
+
 pub fn start(config: CaptureConfig) -> Result<VideoFormat> {
-    stop();
+    let _lifecycle = lifecycle_lock().lock_recover();
+    stop_session();
     let (_, _, bitrate) = quality_dims(config.quality);
     *bitrate_slot().lock_recover() = Some(Bitrate {
         target: bitrate,
@@ -250,6 +256,11 @@ pub fn start(config: CaptureConfig) -> Result<VideoFormat> {
 }
 
 pub fn stop() {
+    let _lifecycle = lifecycle_lock().lock_recover();
+    stop_session();
+}
+
+fn stop_session() {
     backend::stop();
     *format_slot().lock_recover() = None;
     *bitrate_slot().lock_recover() = None;

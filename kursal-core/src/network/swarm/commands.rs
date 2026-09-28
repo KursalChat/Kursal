@@ -1,7 +1,8 @@
 use super::{
-    CALL_PROTOCOL, ConnectionKind, ContributionStatus, KursalBehaviour, MAX_RELAY_RESERVATIONS,
-    PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL, best_relay_candidates,
-    helpers::{open_peer_stream, peer_of, reserved_relay_count},
+    CALL_PROTOCOL, ConnInfo, ConnectionKind, ContributionStatus, KursalBehaviour,
+    MAX_RELAY_RESERVATIONS, PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL,
+    best_relay_candidates,
+    helpers::{is_routable_multiaddr, open_peer_stream, peer_of, reserved_relay_count},
     lock_peer_streams, relay_provider_key,
 };
 use libp2p::{
@@ -28,7 +29,7 @@ pub(super) async fn handle_swarm_command(
     nearby_enabled: &mut bool,
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
-    peer_conns: &HashMap<ConnectionId, (PeerId, ConnectionKind)>,
+    peer_conns: &HashMap<ConnectionId, ConnInfo>,
     node_addrs: &mut Vec<Multiaddr>,
     discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
     contribution: &ContributionStatus,
@@ -41,7 +42,7 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::DialLocal { peer_id, addresses } => {
             let has_direct = peer_conns
                 .values()
-                .any(|(p, kind)| *p == peer_id && *kind != ConnectionKind::Relay);
+                .any(|info| info.peer == peer_id && info.kind != ConnectionKind::Relay);
 
             if !has_direct {
                 let opts = DialOpts::peer_id(peer_id)
@@ -213,12 +214,21 @@ pub(super) async fn handle_swarm_command(
             pending_queries.insert(query_id, reply_tx);
         }
         SwarmCommand::ContactAdded { contact } => {
-            if let Ok(peer_id) = contact.peer_id.parse::<PeerId>() {
-                swarm.behaviour_mut().limiter.protect(peer_id);
+            let Ok(peer_id) = contact.peer_id.parse::<PeerId>() else {
+                return;
+            };
+            if contact.blocked {
+                swarm.behaviour_mut().limiter.block(peer_id);
+                swarm.behaviour_mut().dcutr.disallow(&peer_id);
+                let _ = swarm.disconnect_peer_id(peer_id);
+                return;
             }
+            swarm.behaviour_mut().limiter.protect(peer_id);
+            swarm.behaviour_mut().dcutr.allow(peer_id);
             for addr_str in &contact.known_addresses {
                 if let Ok(addr) = addr_str.parse::<Multiaddr>()
-                    && let Some(Protocol::P2p(peer_id)) = addr.iter().last()
+                    && is_routable_multiaddr(&addr)
+                    && peer_of(&addr) == Some(peer_id)
                 {
                     swarm.behaviour_mut().kad.add_address(&peer_id, addr);
                 }
@@ -226,7 +236,22 @@ pub(super) async fn handle_swarm_command(
         }
         SwarmCommand::ContactRemoved { peer_id } => {
             if let Ok(peer_id) = peer_id.parse::<PeerId>() {
-                swarm.behaviour_mut().limiter.unprotect(&peer_id);
+                let behaviour = swarm.behaviour_mut();
+                behaviour.limiter.unprotect(&peer_id);
+                behaviour.limiter.unblock(&peer_id);
+                behaviour.dcutr.disallow(&peer_id);
+            }
+        }
+        SwarmCommand::SetPeerBlocked { peer_id, blocked } => {
+            let behaviour = swarm.behaviour_mut();
+            if blocked {
+                behaviour.limiter.block(peer_id);
+                behaviour.dcutr.disallow(&peer_id);
+                let _ = swarm.disconnect_peer_id(peer_id);
+            } else {
+                behaviour.limiter.unblock(&peer_id);
+                behaviour.limiter.protect(peer_id);
+                behaviour.dcutr.allow(peer_id);
             }
         }
         SwarmCommand::SendMessage {
@@ -238,6 +263,14 @@ pub(super) async fn handle_swarm_command(
                 .behaviour_mut()
                 .request_response
                 .send_request_with_addresses(&peer_id, data, addresses);
+        }
+        SwarmCommand::SendIfConnected { peer_id, data } => {
+            if swarm.is_connected(&peer_id) {
+                swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request_with_addresses(&peer_id, data, Vec::new());
+            }
         }
         SwarmCommand::GetListenAddresses { reply_tx } => {
             let addrs: Vec<Multiaddr> = listen_addresses.iter().cloned().collect();
@@ -255,14 +288,14 @@ pub(super) async fn handle_swarm_command(
         }
         SwarmCommand::GetPeerConnectionKinds { reply_tx } => {
             let mut best: HashMap<PeerId, ConnectionKind> = HashMap::new();
-            for (peer_id, kind) in peer_conns.values() {
-                best.entry(*peer_id)
+            for info in peer_conns.values() {
+                best.entry(info.peer)
                     .and_modify(|current| {
-                        if kind.rank() > current.rank() {
-                            *current = *kind;
+                        if info.kind.rank() > current.rank() {
+                            *current = info.kind;
                         }
                     })
-                    .or_insert(*kind);
+                    .or_insert(info.kind);
             }
             let _ = reply_tx.send(best);
         }

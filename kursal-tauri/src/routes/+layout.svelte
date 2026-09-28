@@ -293,7 +293,8 @@
       notifyIncoming,
       onContactAdded: (contact) => {
         notifications.push(t('layout.contactAdded'), 'success');
-        goto('/chat/' + contact.userId);
+        const verify = contact.viaNearby && !contact.verified;
+        goto('/chat/' + contact.userId + (verify ? '?verify=1' : ''));
       },
     });
 

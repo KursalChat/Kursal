@@ -13,7 +13,7 @@ use crate::{
     first_contact::{FileTransferMessage, WireMessage},
     identity::UserId,
     messaging::enums::{FileAccept, KursalMessage, MessageId},
-    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, str_to_multiaddr},
+    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, routable_multiaddrs},
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
         filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
@@ -87,18 +87,28 @@ fn move_into_place(source: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-fn discard_pending(source: &Path, pending_dir: &Path) {
-    if !source.starts_with(pending_dir) {
-        return;
+enum PendingCleanup {
+    File(PathBuf),
+    Dir(PathBuf),
+}
+
+fn pending_cleanup(source: &Path, pending_dir: &Path) -> Option<PendingCleanup> {
+    let pending_dir = std::fs::canonicalize(pending_dir).ok()?;
+    let source = std::fs::canonicalize(source).ok()?;
+    let mut parts = source.strip_prefix(&pending_dir).ok()?.components();
+    let first = parts.next()?;
+    match (parts.next(), parts.next()) {
+        (None, _) => Some(PendingCleanup::File(source)),
+        (Some(_), None) => Some(PendingCleanup::Dir(pending_dir.join(first))),
+        _ => None,
     }
-    match source.parent() {
-        Some(parent) if parent != pending_dir => {
-            let _ = std::fs::remove_dir_all(parent);
-        }
-        _ => {
-            let _ = std::fs::remove_file(source);
-        }
-    }
+}
+
+fn discard_pending(cleanup: PendingCleanup) {
+    let _ = match cleanup {
+        PendingCleanup::File(path) => std::fs::remove_file(path),
+        PendingCleanup::Dir(path) => std::fs::remove_dir_all(path),
+    };
 }
 
 pub async fn stage_outgoing(
@@ -107,12 +117,19 @@ pub async fn stage_outgoing(
     offer_hex: String,
     source: PathBuf,
     filename: String,
+    allow_unstripped: bool,
 ) -> Result<Option<PathBuf>> {
     tokio::task::spawn_blocking(move || -> Result<Option<PathBuf>> {
         let pending_dir = outgoing_pending_dir(&app_data_dir);
-        let from_pending = source.starts_with(&pending_dir);
+        let cleanup = pending_cleanup(&source, &pending_dir);
+        let from_pending = cleanup.is_some();
 
-        let plan = image_metadata::plan_strip(&source)?;
+        let plan = match image_metadata::plan_strip(&source) {
+            Err(KursalError::UnstrippableImage) if allow_unstripped => {
+                image_metadata::StripPlan::identity()
+            }
+            other => other?,
+        };
         if !plan.changed() && !from_pending {
             return Ok(None);
         }
@@ -123,12 +140,11 @@ pub async fn stage_outgoing(
 
         if plan.changed() {
             image_metadata::write_stripped(&source, &dest, &plan)?;
-            if from_pending {
-                discard_pending(&source, &pending_dir);
-            }
         } else {
             move_into_place(&source, &dest)?;
-            discard_pending(&source, &pending_dir);
+        }
+        if let Some(cleanup) = cleanup {
+            discard_pending(cleanup);
         }
 
         Ok(Some(dest))
@@ -732,7 +748,7 @@ pub async fn send_file_chunks(
     cmd_tx
         .send(SwarmCommand::OpenStream {
             peer_id: PeerId::from_str(&contact.peer_id).ok_kursal(KursalError::Network)?,
-            addresses: str_to_multiaddr(&contact.known_addresses)?,
+            addresses: routable_multiaddrs(&contact.known_addresses)?,
             reply: reply_tx,
         })
         .await
@@ -882,6 +898,10 @@ pub async fn resume_incoming_transfers(
     cmd_tx: mpsc::Sender<SwarmCommand>,
     event_tx: mpsc::Sender<crate::api::AppEvent>,
 ) -> Result<()> {
+    if contact.blocked {
+        return Ok(());
+    }
+
     let contact_hex = hex::encode(contact.user_id.0);
     let prefix = format!("recvprog:{contact_hex}:");
     let end = format!("recvprog:{contact_hex};");

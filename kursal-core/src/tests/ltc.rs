@@ -6,7 +6,7 @@ use crate::{
         session_initiate,
     },
     first_contact::{
-        ContactResponse, FcRejectReason, WireMessage, handle_fc_response,
+        ContactResponse, FcRejectReason, WireMessage, claim_handshake, handle_fc_response,
         ltc::{LtcPayload, LtcPointer, LtcState, fetch_ltc_pointer, ltc_rendezvous_tag},
         resolve_ack_waiter,
     },
@@ -20,8 +20,8 @@ use crate::{
         swarm::{SwarmCommand, SwarmHandle},
     },
     storage::{
-        Database, RelayConfig, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_dilithium_pub,
-        get_dilithium_secret, get_timestamp_secs,
+        Database, RelayConfig, SharedDatabase, TABLE_KYBER_PRE_KEYS, get_contact_terminated,
+        get_dilithium_pub, get_dilithium_secret, get_timestamp_secs, set_contact_terminated,
     },
     tests::TestEnv,
 };
@@ -56,6 +56,10 @@ async fn contact_response(peer: &SharedDatabase, payload_id: MessageId) -> Conta
     }
 }
 
+fn sender(response: &ContactResponse) -> PeerId {
+    response.peer_id.parse().unwrap()
+}
+
 fn responder_id(response: &ContactResponse) -> UserId {
     let bundle = PreKeyBundleData::deserialize(&response.pre_key_bundle).unwrap();
     let identity = bundle.identity_key.public_key().serialize().to_vec();
@@ -80,7 +84,7 @@ async fn uses(db: &SharedDatabase) -> u32 {
 fn last_wire(rx: &mut mpsc::Receiver<SwarmCommand>) -> Option<WireMessage> {
     let mut wire = None;
     while let Ok(cmd) = rx.try_recv() {
-        if let SwarmCommand::SendMessage { data, .. } = cmd {
+        if let SwarmCommand::SendIfConnected { data, .. } = cmd {
             wire = bincode::deserialize::<WireMessage>(&data).ok();
         }
     }
@@ -311,9 +315,15 @@ async fn ltc_use_is_counted_on_accept() {
     let response = contact_response(&bob, state.payload_id).await;
 
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_accepted(&mut cmd_rx);
     assert!(contact_saved(&alice, &response).await);
@@ -334,9 +344,15 @@ async fn ltc_unlimited_code_accepts_repeatedly() {
         let peer = make_peer(&env, &format!("ltc_unlimited_peer{i}")).await;
         let response = contact_response(&peer, state.payload_id).await;
 
-        handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-            .await
-            .unwrap();
+        handle_fc_response(
+            sender(&response),
+            response.clone(),
+            alice.clone(),
+            &cmd_tx,
+            &event_tx,
+        )
+        .await
+        .unwrap();
 
         assert_accepted(&mut cmd_rx);
         assert!(contact_saved(&alice, &response).await);
@@ -358,16 +374,28 @@ async fn ltc_rejects_once_max_uses_is_reached() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&first),
+        first.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
     assert_accepted(&mut cmd_rx);
     assert_eq!(uses(&alice).await, 1);
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::AlreadyUsed);
     assert!(!contact_saved(&alice, &second).await);
@@ -387,7 +415,7 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&first), first, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
     assert_accepted(&mut cmd_rx);
@@ -400,12 +428,106 @@ async fn ltc_lowering_max_uses_below_current_uses_exhausts_the_code() {
     assert_eq!(dto.uses, 1);
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::AlreadyUsed);
     assert!(!contact_saved(&alice, &second).await);
+}
+
+#[tokio::test]
+async fn ltc_response_from_a_removed_contact_re_adds_them() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_readd_alice").await;
+    let bob = make_peer(&env, "ltc_readd_bob").await;
+
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
+
+    let first = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&first),
+        first.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+
+    let bob_hex = hex::encode(responder_id(&first).0);
+    set_contact_terminated(&alice, &bob_hex, true).unwrap();
+
+    let again = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&again),
+        again.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+
+    let readded = Contact::load(&alice, &responder_id(&again))
+        .unwrap()
+        .unwrap();
+    assert_eq!(readded.peer_id, again.peer_id);
+    assert!(!get_contact_terminated(&alice, &bob_hex));
+    assert_eq!(uses(&alice).await, 2);
+}
+
+#[tokio::test]
+async fn ltc_response_during_another_handshake_is_refused() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_busy_alice").await;
+    let bob = make_peer(&env, "ltc_busy_bob").await;
+
+    let state = LtcState::create(alice.clone(), &no_swarm(), None, Some(3600))
+        .await
+        .unwrap();
+    let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
+
+    let response = contact_response(&bob, state.payload_id).await;
+    let claim = claim_handshake(&responder_id(&response)).unwrap();
+
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_rejected(&mut cmd_rx, FcRejectReason::InProgress);
+    assert!(!contact_saved(&alice, &response).await);
+    assert_eq!(uses(&alice).await, 0);
+
+    drop(claim);
+    let retry = contact_response(&bob, state.payload_id).await;
+    handle_fc_response(
+        sender(&retry),
+        retry.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
+    assert_accepted(&mut cmd_rx);
+    assert!(contact_saved(&alice, &retry).await);
 }
 
 #[tokio::test]
@@ -421,7 +543,7 @@ async fn ltc_raising_max_uses_revives_an_exhausted_code() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let first = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(first, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&first), first, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
     assert_accepted(&mut cmd_rx);
@@ -431,9 +553,15 @@ async fn ltc_raising_max_uses_revives_an_exhausted_code() {
         .unwrap();
 
     let second = contact_response(&carol, state.payload_id).await;
-    handle_fc_response(second.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&second),
+        second.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_accepted(&mut cmd_rx);
     assert!(contact_saved(&alice, &second).await);
@@ -455,9 +583,15 @@ async fn ltc_expired_code_is_rejected() {
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Expired);
     assert!(!contact_saved(&alice, &response).await);
@@ -479,9 +613,15 @@ async fn ltc_revoked_code_is_rejected() {
 
     let response = contact_response(&bob, state.payload_id).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Unknown);
     assert!(!contact_saved(&alice, &response).await);
@@ -499,9 +639,15 @@ async fn ltc_unknown_payload_id_is_rejected() {
 
     let response = contact_response(&bob, MessageId::new()).await;
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     assert_rejected(&mut cmd_rx, FcRejectReason::Unknown);
     assert!(!contact_saved(&alice, &response).await);
@@ -520,15 +666,21 @@ async fn ltc_existing_contact_does_not_burn_a_use() {
     let (cmd_tx, mut cmd_rx, event_tx, _event_rx) = channels();
 
     let response = contact_response(&bob, state.payload_id).await;
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
     assert_accepted(&mut cmd_rx);
     assert_eq!(uses(&alice).await, 1);
 
     let mut again = response.clone();
     again.peer_id = PeerId::random().to_base58();
-    handle_fc_response(again, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&again), again, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
 
@@ -583,9 +735,15 @@ async fn ltc_response_replay_ignored() {
     let bob_user_id = responder_id(&response);
 
     let (cmd_tx, _cmd_rx, event_tx, _event_rx) = channels();
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     let stored_peer_id = response.peer_id.clone();
     let mut contact = Contact::load(&alice, &bob_user_id).unwrap().unwrap();
@@ -593,14 +751,20 @@ async fn ltc_response_replay_ignored() {
     contact.offline.send_counter = 5;
     contact.save(&alice).unwrap();
 
-    handle_fc_response(response.clone(), alice.clone(), &cmd_tx, &event_tx)
-        .await
-        .unwrap();
+    handle_fc_response(
+        sender(&response),
+        response.clone(),
+        alice.clone(),
+        &cmd_tx,
+        &event_tx,
+    )
+    .await
+    .unwrap();
 
     let mut altered = response.clone();
     altered.relay_addresses = vec!["/ip4/6.6.6.6/tcp/4001".to_string()];
     altered.peer_id = PeerId::random().to_base58();
-    handle_fc_response(altered, alice.clone(), &cmd_tx, &event_tx)
+    handle_fc_response(sender(&altered), altered, alice.clone(), &cmd_tx, &event_tx)
         .await
         .unwrap();
 
@@ -646,10 +810,10 @@ async fn signed_pointer(
     pointer
 }
 
-async fn pointer_record(tag: &[u8; 32], pointer: &LtcPointer) -> Vec<u8> {
+async fn pointer_record(tag: &[u8; 32], pointer: &LtcPointer, dilithium_pub: &[u8]) -> Vec<u8> {
     DHTRecord::new(
         tag.to_vec(),
-        pointer.serialize().unwrap(),
+        pointer.seal(dilithium_pub).unwrap(),
         get_timestamp_secs().unwrap(),
         true,
     )
@@ -680,7 +844,8 @@ fn spawn_swarm_responder(
                 SwarmCommand::SendMessage { peer_id, .. } => {
                     seen.lock().unwrap().push(peer_id.to_base58());
                     if let Some(ack) = ack {
-                        resolve_ack_waiter(payload_id, ack);
+                        resolve_ack_waiter(PeerId::random(), payload_id, ack);
+                        resolve_ack_waiter(peer_id, payload_id, ack);
                     }
                 }
                 _ => {}
@@ -760,6 +925,27 @@ async fn ltc_pointer_signature_roundtrip_and_tampering() {
 }
 
 #[tokio::test]
+async fn ltc_pointer_record_hides_its_contents_from_storers() {
+    let env = TestEnv::new();
+    let alice = make_peer(&env, "ltc_ptr_sealed").await;
+
+    let alice_pub = get_dilithium_pub(&alice).unwrap();
+    let payload_id = MessageId::new();
+    let tag = ltc_rendezvous_tag(&payload_id, &alice_pub);
+    let peer = PeerId::random().to_base58();
+
+    let pointer = signed_pointer(&alice, &tag, payload_id, &peer, 100).await;
+    let sealed = pointer.seal(&alice_pub).unwrap();
+
+    assert!(!sealed.windows(16).any(|w| w == payload_id.0.as_slice()));
+    assert!(!sealed.windows(peer.len()).any(|w| w == peer.as_bytes()));
+    assert!(LtcPointer::open(&sealed, &MessageId::new(), &alice_pub).is_err());
+
+    let opened = LtcPointer::open(&sealed, &payload_id, &alice_pub).unwrap();
+    assert_eq!(opened.peer_id, peer);
+}
+
+#[tokio::test]
 async fn ltc_pointer_fetch_keeps_the_highest_seq() {
     let env = TestEnv::new();
     let alice = make_peer(&env, "ltc_ptr_seq").await;
@@ -772,8 +958,8 @@ async fn ltc_pointer_fetch_keeps_the_highest_seq() {
     let fresh = signed_pointer(&alice, &tag, payload_id, "fresh-peer", 20).await;
 
     let records = vec![
-        pointer_record(&tag, &stale).await,
-        pointer_record(&tag, &fresh).await,
+        pointer_record(&tag, &stale, &alice_pub).await,
+        pointer_record(&tag, &fresh, &alice_pub).await,
     ];
 
     let (cmd_tx, cmd_rx) = mpsc::channel(64);
@@ -807,8 +993,8 @@ async fn ltc_pointer_fetch_discards_forged_and_foreign_records() {
     let foreign = signed_pointer(&alice, &tag, MessageId::new(), "other-code-peer", 60).await;
 
     let records = vec![
-        pointer_record(&tag, &forged).await,
-        pointer_record(&tag, &foreign).await,
+        pointer_record(&tag, &forged, &alice_pub).await,
+        pointer_record(&tag, &foreign, &alice_pub).await,
     ];
 
     let (cmd_tx, cmd_rx) = mpsc::channel(64);
@@ -920,7 +1106,7 @@ async fn ltc_import_falls_back_to_the_rendezvous_pointer() {
     let seen = Arc::new(StdMutex::new(vec![]));
     spawn_swarm_responder(
         cmd_rx,
-        vec![pointer_record(&tag, &pointer).await],
+        vec![pointer_record(&tag, &pointer, &payload.dilithium_pub_key).await],
         payload.payload_id,
         Some(Ok(())),
         seen.clone(),
@@ -957,7 +1143,7 @@ async fn ltc_import_does_not_retry_after_a_rejection() {
     let seen = Arc::new(StdMutex::new(vec![]));
     spawn_swarm_responder(
         cmd_rx,
-        vec![pointer_record(&tag, &elsewhere).await],
+        vec![pointer_record(&tag, &elsewhere, &payload.dilithium_pub_key).await],
         payload.payload_id,
         Some(Err(FcRejectReason::AlreadyUsed)),
         seen.clone(),

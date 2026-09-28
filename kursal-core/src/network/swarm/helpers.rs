@@ -124,11 +124,17 @@ pub fn any_public_address<'a>(addrs: impl Iterator<Item = &'a Multiaddr>) -> boo
         .any(|addr| !is_circuit(addr) && is_routable_multiaddr(addr))
 }
 
-pub fn str_to_multiaddr(addresses: &[String]) -> Result<Vec<Multiaddr>> {
-    addresses
-        .iter()
-        .map(|el| el.parse::<Multiaddr>().ok_kursal(KursalError::Storage))
-        .collect()
+pub fn routable_multiaddrs(addresses: &[String]) -> Result<Vec<Multiaddr>> {
+    let mut parsed = Vec::with_capacity(addresses.len());
+    for address in addresses {
+        let addr = address
+            .parse::<Multiaddr>()
+            .ok_kursal(KursalError::Storage)?;
+        if is_routable_multiaddr(&addr) {
+            parsed.push(addr);
+        }
+    }
+    Ok(parsed)
 }
 
 pub async fn open_peer_stream(
@@ -221,23 +227,52 @@ fn innermost_cause(err: &impl std::fmt::Display) -> String {
         .map_or_else(|| rendered.clone(), |cause| (*cause).to_string())
 }
 
-pub fn is_routable_multiaddr(addr: &Multiaddr) -> bool {
+pub fn is_lan_multiaddr(addr: &Multiaddr) -> bool {
     for proto in addr.iter() {
         match proto {
-            Protocol::Ip4(ip)
-                if (ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()) =>
-            {
-                return false;
+            Protocol::Ip4(ip) => {
+                return ip.is_private() || ip.is_link_local() || ip.is_loopback();
             }
             Protocol::Ip6(ip) => {
                 let is_link_local = (ip.segments()[0] & 0xffc0) == 0xfe80;
-                if ip.is_loopback() || ip.is_unspecified() || is_link_local {
-                    return false;
-                }
-                let _ = IpAddr::V6(ip);
+                let is_unique_local = (ip.segments()[0] & 0xfe00) == 0xfc00;
+                return ip.is_loopback() || is_link_local || is_unique_local;
             }
             _ => {}
         }
     }
-    true
+    false
+}
+
+pub fn is_routable_multiaddr(addr: &Multiaddr) -> bool {
+    addr.iter().all(|proto| match proto {
+        Protocol::Ip4(ip) => is_routable_ip(IpAddr::V4(ip)),
+        Protocol::Ip6(ip) => is_routable_ip(IpAddr::V6(ip)),
+        Protocol::Dns(name)
+        | Protocol::Dns4(name)
+        | Protocol::Dns6(name)
+        | Protocol::Dnsaddr(name) => is_routable_host(&name),
+        _ => true,
+    })
+}
+
+fn is_routable_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => !(ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()),
+        IpAddr::V6(ip) => {
+            let is_link_local = (ip.segments()[0] & 0xffc0) == 0xfe80;
+            !(ip.is_loopback() || ip.is_unspecified() || is_link_local)
+                && ip
+                    .to_ipv4()
+                    .is_none_or(|embedded| is_routable_ip(IpAddr::V4(embedded)))
+        }
+    }
+}
+
+fn is_routable_host(name: &str) -> bool {
+    let name = name.trim_end_matches('.').to_ascii_lowercase();
+    if let Ok(ip) = name.parse::<IpAddr>() {
+        return is_routable_ip(ip);
+    }
+    name != "localhost" && !name.ends_with(".localhost")
 }

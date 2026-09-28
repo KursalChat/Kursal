@@ -18,7 +18,7 @@ use crate::{
     network::{
         dht::DHTRecord,
         kademlia::KAD_LONG_MAX_AGE,
-        swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, str_to_multiaddr},
+        swarm::{SwarmCommand, get_listen_addrs, is_peer_connected, routable_multiaddrs},
     },
     storage::{SharedDatabase, TABLE_PENDING_ACK, WriteBatch, get_timestamp_secs},
     sync::LockExt,
@@ -300,7 +300,7 @@ where
         return Ok(None);
     };
     let out = f(&mut contact.offline)?;
-    contact.save_if_exists(db)?;
+    contact.save_offline_if_exists(db)?;
     Ok(Some(out))
 }
 
@@ -314,15 +314,7 @@ where
 {
     let lock = offline_lock_for(user_id);
     let _guard = lock.lock().await;
-    let Some(mut contact) = Contact::load(db, user_id)? else {
-        return Ok(None);
-    };
-    if f(&mut contact) {
-        contact.save_if_exists(db)?;
-        Ok(Some(contact))
-    } else {
-        Ok(None)
-    }
+    Contact::update_if_exists(db, user_id, f)
 }
 
 pub async fn queue_for_offline(
@@ -372,7 +364,7 @@ pub async fn discard_queued(
     }
 
     if dropped {
-        contact.save_if_exists(db)?;
+        contact.save_offline_if_exists(db)?;
     }
 
     Ok(dropped)
@@ -481,7 +473,7 @@ pub async fn deliver_queue_direct(
     }
 
     let contact_dbg = hex::encode(contact.user_id.0);
-    let addresses = str_to_multiaddr(&contact.known_addresses)?;
+    let addresses = routable_multiaddrs(&contact.known_addresses)?;
     let queued = contact.offline.send_queue.len();
 
     let mut sent = 0usize;
@@ -510,7 +502,7 @@ pub async fn deliver_queue_direct(
     if drained {
         contact.offline.queue_first_at = None;
     }
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     log::info!(
         "[offline] direct drain contact={contact_dbg} delivered={sent}/{queued} peer={peer_id}"
@@ -641,6 +633,9 @@ pub async fn move_to_mailbox_if_stuck(
         clear_pending_ack(&db, user_id, message_id).await?;
         return Ok(false);
     };
+    if contact.blocked {
+        return Ok(false);
+    }
 
     let in_offline = contact
         .offline
@@ -794,11 +789,11 @@ async fn queue_for_offline_locked(
         contact.offline.send_queue.len()
     );
 
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     maybe_flush_locked(contact, cmd_tx, db.clone(), event_tx).await?;
 
-    contact.save_if_exists(&db)?;
+    contact.save_offline_if_exists(&db)?;
 
     if was_empty && !contact.offline.send_queue.is_empty() {
         log::info!(
@@ -887,7 +882,7 @@ async fn flush_now_locked(
     if contact.offline.send_queue.is_empty() && contact.offline.pending_bundles.is_empty() {
         log::debug!("[offline] flush contact={contact_dbg} nothing to flush");
         contact.offline.queue_first_at = None;
-        contact.save_if_exists(&db)?;
+        contact.save_offline_if_exists(&db)?;
         return Ok(());
     }
 
@@ -957,7 +952,7 @@ async fn flush_now_locked(
             tag,
             message_ids: new_bundle_message_ids.clone(),
         });
-        contact.save_if_exists(&db)?;
+        contact.save_offline_if_exists(&db)?;
     }
 
     let published = new_bundle.is_some();

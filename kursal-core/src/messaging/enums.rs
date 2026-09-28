@@ -234,6 +234,7 @@ pub struct ReadReceipt {
 pub struct AddressAnnounce {
     pub peer_id: String,
     pub addresses: Vec<String>,
+    pub peer_proof: Vec<u8>,
 }
 
 pub const MAX_PROFILE_AVATAR_LEN: usize = 256 * 1000; // 256 KB

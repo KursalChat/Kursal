@@ -34,6 +34,10 @@
 	<!-- Export compliance: Kursal uses end-to-end encryption -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<true/>
+	<!-- Encryption Exemption Code -->
+	<!-- TODO: have a compliance code -->
+	<!-- <key>ITSEncryptionExportComplianceCode</key>
+	<string></string> -->
 
 	<!-- Nearby peer discovery over Bluetooth (Nearby tab) -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
