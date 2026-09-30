@@ -148,6 +148,7 @@ check-format-rust:
 verify: check-rust (check-frontend "--strict")
 
 check strict="": format check-rust (check-frontend strict)
+check-all strict="": format check-rust check-windows check-mobile (check-frontend strict)
 
 check-frontend strict="":
     cd kursal-tauri && bun run check
@@ -176,3 +177,7 @@ check-ios:
 
 check-translation:
     bun ./bin/checkTranslations.ts
+
+check-windows:
+    cargo xwin clippy --target x86_64-pc-windows-msvc -p kursal-cli -p kursal-core -p kursal-app --all-targets --no-deps -- -D warnings
+    cargo xwin clippy --target x86_64-pc-windows-msvc -p kursal-core --no-default-features --all-targets --no-deps -- -D warnings

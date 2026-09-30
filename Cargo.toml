@@ -109,7 +109,7 @@ objc2-core-media = { version = "0.3.2", default-features = false }
 objc2-core-video = { version = "0.3.2", default-features = false }
 objc2-video-toolbox = { version = "0.3.2", default-features = false }
 objc2-ui-kit = { version = "0.3.2", default-features = false }
-webview2-com = "0.38.2"
+webview2-com = "0.39.1"
 windows = "0.62.2"
 
 # Misc
