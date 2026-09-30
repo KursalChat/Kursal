@@ -4,7 +4,7 @@ Thanks for helping build Kursal. This document explains how we branch, commit, a
 
 ## One-time setup
 
-You need to have [cargo](https://rust-lang.org/tools/install/), [bun](https://bun.sh) as well as [tauri-cli](https://v2.tauri.app/reference/cli/) (you can simply install dependencies in kursal-tauri or install manually system-wide) installed.
+You need to have [cargo](https://rust-lang.org/tools/install/) and [bun](https://bun.sh) installed.
 
 ```bash
 # you can inspect the justfile for more details of what this does
@@ -15,13 +15,13 @@ just install-dev-tools
 
 | Branch          | Purpose                                              | Branch off | Merges into    |
 | --------------- | ---------------------------------------------------- | ---------- | -------------- |
-| `main`          | Production. Tagged releases only. Always shippable.  | -          | -              |
-| `dev`           | Integration. All everyday work lands here.           | -          | -              |
-| `feature/*`     | One feature or fix each.                             | `dev`      | `dev` (squash) |
+| `main`          | Production, must be stable and work                  | -          | -              |
+| `dev`           | All everyday work lands here.                        | -          | -              |
+| `feature/*`     | One feature or fix each                              | `dev`      | `dev` (squash) |
 | `release/X.Y.Z` | Stabilize a release: version bump, changelog, fixes. | `dev`      | `main` + `dev` |
 | `hotfix/X.Y.Z`  | Urgent fix to live code.                             | `main`     | `main` + `dev` |
 
-### Everyday flow (a normal change)
+### Create a feature
 
 ```bash
 git checkout dev && git pull

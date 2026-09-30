@@ -23,14 +23,14 @@
     "@tauri-apps/plugin-barcode-scanner": "~2.5.0",
     "@tauri-apps/plugin-biometric": "~2.4.0",
     "@tauri-apps/plugin-clipboard-manager": "~2.4.0",
-    "@tauri-apps/plugin-deep-link": "~2.5.0",
+    "@tauri-apps/plugin-deep-link": "~2.6.0",
     "@tauri-apps/plugin-dialog": "^2.8.0",
     "@tauri-apps/plugin-fs": "^2.6.0",
     "@tauri-apps/plugin-haptics": "~2.4.0",
     "@tauri-apps/plugin-notification": "~2.5.0",
-    "@tauri-apps/plugin-opener": "~2.6.0",
+    "@tauri-apps/plugin-opener": "~2.7.0",
     "@tauri-apps/plugin-os": "~2.4.0",
-    "@tauri-apps/plugin-updater": "~2.13.0",
+    "@tauri-apps/plugin-updater": "~2.13.1",
     "dompurify": "^3.4.16",
     "highlight.js": "^11.12.0",
     "lucide-svelte": "^1.0.1",
@@ -50,6 +50,6 @@
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",
     "vite": "^8.3.1",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.3"
   }
 }
