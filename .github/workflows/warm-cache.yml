@@ -181,7 +181,9 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865"
+          SDKM="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865"
 
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
