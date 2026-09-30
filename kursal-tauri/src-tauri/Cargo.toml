@@ -32,7 +32,6 @@ tauri-plugin-fs = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-os = { workspace = true }
-tauri-plugin-sharekit = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -72,6 +71,10 @@ tauri-plugin-haptics = { workspace = true }
 reqwest = { workspace = true }
 semver = { workspace = true }
 
+# TODO: wait for sharekit plugin to support windows=0.62
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+tauri-plugin-sharekit = { workspace = true }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { workspace = true, features = [
     "std",
@@ -88,7 +91,7 @@ objc2-foundation = { workspace = true, features = [
 ] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-jni = "0.19"
+jni = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = { workspace = true }

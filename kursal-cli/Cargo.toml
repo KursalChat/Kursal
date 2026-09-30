@@ -34,6 +34,7 @@ log = { workspace = true }
 
 # Network
 libp2p = { workspace = true }
+hickory-resolver = { workspace = true }
 axum = { workspace = true }
 
 # CLI
