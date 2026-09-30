@@ -7,6 +7,8 @@
   
 [Website](https://kursal.chat) • [Whitepaper](https://kursal.chat/kursal.pdf) • [Download](https://app.kursal.chat)
 
+<a href="https://kursal.chat/trailer.mp4" target="_blank">[ ▶ Trailer ]</a> • <a href="https://kursal.chat/demo.mp4" target="_blank">[ ▶ Demo ]</a>
+
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](CONTRIBUTING.md)
 [![Translation status](https://translate.kursal.chat/widget/kursal/svg-badge.svg)](https://translate.kursal.chat/engage/kursal/)
