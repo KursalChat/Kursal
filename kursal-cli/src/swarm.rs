@@ -116,7 +116,7 @@ pub async fn spawn_relay_swarm(
     #[cfg(any(target_os = "android", target_os = "ios"))]
     // TODO: maybe chance cloudflare to another DNS
     let swarm = swarm.with_dns_config(
-        libp2p::dns::ResolverConfig::cloudflare(),
+        libp2p::dns::ResolverConfig::udp_and_tcp(&hickory_resolver::config::CLOUDFLARE),
         libp2p::dns::ResolverOpts::default(),
     );
 

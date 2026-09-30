@@ -24,6 +24,8 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager, Peripheral as PlatformPeripheral};
 use futures::StreamExt;
+#[cfg(target_os = "android")]
+use jni::{jni_sig, jni_str};
 use libp2p::{
     PeerId,
     identity::{Keypair, PublicKey},
@@ -599,12 +601,11 @@ async fn start_scanner(
     #[cfg(target_os = "android")]
     {
         let ctx = ndk_context::android_context();
-        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }
-            .map_err(|e| KursalError::Network(format!("JNI error: {e:?}")))?;
-        let env = vm
-            .attach_current_thread()
-            .map_err(|e| KursalError::Network(format!("JNI attach error: {e:?}")))?;
-        btleplug::platform::init(&env).map_err(|e| jvm_err(&env, "btleplug init", e))?;
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) };
+        vm.attach_current_thread(|env| {
+            btleplug::platform::init(env).map_err(|e| anyhow::anyhow!("btleplug init: {e:?}"))
+        })
+        .map_err(|e| KursalError::Network(format!("JNI attach error: {e:?}")))?;
     }
 
     let err = |s: String| KursalError::Network(s);
@@ -998,12 +999,12 @@ struct AndroidAdvState {
 static ANDROID_STATE: std::sync::Mutex<Option<AndroidAdvState>> = std::sync::Mutex::new(None);
 
 #[cfg(target_os = "android")]
-fn jvm_err<E: std::fmt::Debug>(env: &jni::JNIEnv, prefix: &str, e: E) -> KursalError {
-    if env.exception_check().unwrap_or(false) {
-        let _ = env.exception_describe();
-        let _ = env.exception_clear();
+fn jvm_err<E: std::fmt::Debug>(env: &jni::Env, prefix: &str, e: E) -> anyhow::Error {
+    if env.exception_check() {
+        env.exception_describe();
+        env.exception_clear();
     }
-    KursalError::Network(format!("{prefix}: {e:?}"))
+    anyhow::anyhow!("{prefix}: {e:?}")
 }
 
 #[cfg(target_os = "android")]
@@ -1033,47 +1034,40 @@ fn start_advertiser_android(
     });
 
     let ctx = ndk_context::android_context();
-    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }
-        .map_err(|e| KursalError::Network(format!("JNI vm: {e:?}")))?;
-    let env = vm
-        .attach_current_thread()
-        .map_err(|e| KursalError::Network(format!("JNI attach: {e:?}")))?;
-
-    let cls = load_kursal_class(&env, "chat.kursal.BleAdvertiser")?;
-    let app_ctx: jni::objects::JObject = (ctx.context() as jni::sys::jobject).into();
-
-    let svc_uuid_jstr = env
-        .new_string(SERVICE_UUID.to_string())
-        .map_err(|e| jvm_err(&env, "uuid jstring", e))?;
-    let char_uuid_jstr = env
-        .new_string(CHAR_UUID.to_string())
-        .map_err(|e| jvm_err(&env, "char uuid jstring", e))?;
-    let name_jstr = env
-        .new_string(beacon.session_name.clone())
-        .map_err(|e| jvm_err(&env, "name jstring", e))?;
-
-    let res = env
-        .call_static_method(
-            cls,
-            "start",
-            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
-            &[
-                jni::objects::JValue::Object(app_ctx),
-                jni::objects::JValue::Object(svc_uuid_jstr.into()),
-                jni::objects::JValue::Object(char_uuid_jstr.into()),
-                jni::objects::JValue::Object(name_jstr.into()),
-            ],
-        )
-        .map_err(|e| jvm_err(&env, "BleAdvertiser.start", e))?;
-
-    let ok = res
-        .z()
-        .map_err(|e| KursalError::Network(format!("bool ret: {e:?}")))?;
-    if !ok {
-        return Err(KursalError::Network(
-            "BleAdvertiser.start returned false".into(),
-        ));
-    }
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) };
+    vm.attach_current_thread(|env| -> anyhow::Result<()> {
+        let cls = load_kursal_class(env, "chat.kursal.BleAdvertiser")?;
+        let app_ctx = unsafe {
+            jni::objects::JObject::from_raw(env, ctx.context() as jni::sys::jobject)
+        };
+        let svc_uuid_jstr = env
+            .new_string(SERVICE_UUID.to_string())
+            .map_err(|e| jvm_err(env, "uuid jstring", e))?;
+        let char_uuid_jstr = env
+            .new_string(CHAR_UUID.to_string())
+            .map_err(|e| jvm_err(env, "char uuid jstring", e))?;
+        let name_jstr = env
+            .new_string(beacon.session_name.clone())
+            .map_err(|e| jvm_err(env, "name jstring", e))?;
+        let res = env
+            .call_static_method(
+                cls,
+                jni_str!("start"),
+                jni_sig!("(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"),
+                &[
+                    jni::objects::JValue::Object(&app_ctx),
+                    jni::objects::JValue::Object(&svc_uuid_jstr),
+                    jni::objects::JValue::Object(&char_uuid_jstr),
+                    jni::objects::JValue::Object(&name_jstr),
+                ],
+            )
+            .map_err(|e| jvm_err(env, "BleAdvertiser.start", e))?;
+        if !res.z().map_err(|e| anyhow::anyhow!("bool ret: {e:?}"))? {
+            anyhow::bail!("BleAdvertiser.start returned false");
+        }
+        Ok(())
+    })
+    .map_err(|e| KursalError::Network(format!("JNI attach: {e:?}")))?;
     log::info!("[bt] android advertising as {:?}", beacon.session_name);
     Ok(())
 }
@@ -1081,23 +1075,22 @@ fn start_advertiser_android(
 #[cfg(target_os = "android")]
 fn stop_advertiser_android() -> Result<()> {
     let ctx = ndk_context::android_context();
-    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }
-        .map_err(|e| KursalError::Network(format!("JNI vm: {e:?}")))?;
-    let env = vm
-        .attach_current_thread()
-        .map_err(|e| KursalError::Network(format!("JNI attach: {e:?}")))?;
-
-    let cls = load_kursal_class(&env, "chat.kursal.BleAdvertiser")?;
-    let app_ctx: jni::objects::JObject = (ctx.context() as jni::sys::jobject).into();
-
-    let result = env
-        .call_static_method(
-            cls,
-            "stop",
-            "(Landroid/content/Context;)V",
-            &[jni::objects::JValue::Object(app_ctx)],
-        )
-        .map_err(|e| jvm_err(&env, "BleAdvertiser.stop", e));
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) };
+    let result = vm
+        .attach_current_thread(|env| -> anyhow::Result<()> {
+            let cls = load_kursal_class(env, "chat.kursal.BleAdvertiser")?;
+            let app_ctx =
+                unsafe { jni::objects::JObject::from_raw(env, ctx.context() as jni::sys::jobject) };
+            env.call_static_method(
+                cls,
+                jni_str!("stop"),
+                jni_sig!("(Landroid/content/Context;)V"),
+                &[jni::objects::JValue::Object(&app_ctx)],
+            )
+            .map_err(|e| jvm_err(env, "BleAdvertiser.stop", e))?;
+            Ok(())
+        })
+        .map_err(|e| KursalError::Network(format!("JNI attach: {e:?}")));
 
     android_state_lock(|s| *s = None);
 
@@ -1106,14 +1099,20 @@ fn stop_advertiser_android() -> Result<()> {
 
 #[cfg(target_os = "android")]
 fn load_kursal_class<'a>(
-    env: &jni::JNIEnv<'a>,
+    env: &mut jni::Env<'a>,
     dotted_name: &str,
-) -> Result<jni::objects::JClass<'a>> {
+) -> anyhow::Result<jni::objects::JClass<'a>> {
     let ctx = ndk_context::android_context();
-    let app_ctx: jni::objects::JObject = (ctx.context() as jni::sys::jobject).into();
+    let app_ctx =
+        unsafe { jni::objects::JObject::from_raw(env, ctx.context() as jni::sys::jobject) };
 
     let cl = env
-        .call_method(app_ctx, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
+        .call_method(
+            &app_ctx,
+            jni_str!("getClassLoader"),
+            jni_sig!("()Ljava/lang/ClassLoader;"),
+            &[],
+        )
         .map_err(|e| jvm_err(env, "getClassLoader", e))?
         .l()
         .map_err(|e| KursalError::Network(format!("classloader.l: {e:?}")))?;
@@ -1125,15 +1124,15 @@ fn load_kursal_class<'a>(
     let cls_obj = env
         .call_method(
             cl,
-            "loadClass",
-            "(Ljava/lang/String;)Ljava/lang/Class;",
-            &[jni::objects::JValue::Object(name_jstr.into())],
+            jni_str!("loadClass"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Class;"),
+            &[jni::objects::JValue::Object(&name_jstr)],
         )
         .map_err(|e| jvm_err(env, "loadClass", e))?
         .l()
         .map_err(|e| KursalError::Network(format!("class.l: {e:?}")))?;
 
-    Ok(jni::objects::JClass::from(cls_obj))
+    Ok(unsafe { jni::objects::JClass::from_raw(env, cls_obj.as_raw()) })
 }
 
 #[cfg(target_os = "android")]

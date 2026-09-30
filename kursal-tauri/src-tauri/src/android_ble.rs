@@ -1,48 +1,39 @@
 #![cfg(target_os = "android")]
 
-use jni::JNIEnv;
-use jni::objects::{JClass, JString};
+use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::jbyteArray;
+use jni::{EnvUnowned, errors::LogErrorAndDefault};
 use kursal_core::first_contact::nearby::bluetooth as bt;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_chat_kursal_BleAdvertiser_nativeOnReadRequest(
-    env: JNIEnv,
+    mut env: EnvUnowned,
     _class: JClass,
 ) -> jbyteArray {
     let bytes = bt::android_handle_read();
-    match env.byte_array_from_slice(&bytes) {
-        Ok(arr) => arr,
-        Err(err) => {
-            log::warn!("[bt] nativeOnReadRequest byte_array: {err:?}");
-            let _ = env.exception_clear();
-            std::ptr::null_mut()
-        }
-    }
+    env.with_env(|env| -> jni::errors::Result<jbyteArray> {
+        env.byte_array_from_slice(&bytes)
+            .map(|array| array.into_raw())
+    })
+    .resolve::<LogErrorAndDefault>()
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_chat_kursal_BleAdvertiser_nativeOnWriteRequest(
-    env: JNIEnv,
+/// # Safety
+///
+/// The JVM invokes this callback with a valid byte-array reference for the current JNI frame.
+pub unsafe extern "system" fn Java_chat_kursal_BleAdvertiser_nativeOnWriteRequest(
+    mut env: EnvUnowned,
     _class: JClass,
     client: JString,
     data: jbyteArray,
 ) {
-    let client_str: String = match env.get_string(client) {
-        Ok(s) => s.into(),
-        Err(err) => {
-            log::warn!("[bt] nativeOnWriteRequest get_string: {err:?}");
-            let _ = env.exception_clear();
-            return;
-        }
-    };
-    let data_vec = match env.convert_byte_array(data) {
-        Ok(v) => v,
-        Err(err) => {
-            log::warn!("[bt] nativeOnWriteRequest convert_byte_array: {err:?}");
-            let _ = env.exception_clear();
-            return;
-        }
-    };
-    bt::android_handle_write(&client_str, &data_vec);
+    env.with_env(|env| -> jni::errors::Result<()> {
+        let client_str = client.try_to_string(env)?;
+        let data = unsafe { JByteArray::from_raw(env, data) };
+        let data_vec = env.convert_byte_array(&data)?;
+        bt::android_handle_write(&client_str, &data_vec);
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
 }

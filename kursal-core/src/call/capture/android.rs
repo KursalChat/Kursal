@@ -3,7 +3,8 @@ use crate::Result;
 use crate::dto::CameraInfo;
 use crate::errors::KursalError;
 use crate::sync::LockExt;
-use jni::objects::{JClass, JObject, JValue};
+use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
+use jni::{Env, EnvUnowned, jni_sig, jni_str};
 use std::sync::{Mutex as StdMutex, OnceLock};
 
 const CLASS: &str = "chat.kursal.CameraCapture";
@@ -14,35 +15,46 @@ fn sink_slot() -> &'static StdMutex<Option<FrameSink>> {
     S.get_or_init(|| StdMutex::new(None))
 }
 
-fn jvm_err<E: std::fmt::Debug>(env: &jni::JNIEnv, prefix: &str, e: E) -> KursalError {
-    if env.exception_check().unwrap_or(false) {
-        let _ = env.exception_describe();
-        let _ = env.exception_clear();
+fn jvm_err<E: std::fmt::Debug>(env: &Env, prefix: &str, e: E) -> anyhow::Error {
+    if env.exception_check() {
+        env.exception_describe();
+        env.exception_clear();
     }
-    KursalError::Misc(anyhow::anyhow!("{prefix}: {e:?}"))
+    anyhow::anyhow!("{prefix}: {e:?}")
 }
 
 fn java_vm() -> Result<jni::JavaVM> {
     let ctx = ndk_context::android_context();
-    unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }
-        .map_err(|e| KursalError::Misc(anyhow::anyhow!("JNI vm: {e:?}")))
+    Ok(unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) })
 }
 
-fn app_context<'a>() -> JObject<'a> {
-    (ndk_context::android_context().context() as jni::sys::jobject).into()
+fn with_env<T>(f: impl FnOnce(&mut Env) -> anyhow::Result<T>) -> Result<T> {
+    java_vm()?
+        .attach_current_thread(f)
+        .map_err(KursalError::Misc)
 }
 
-fn load_class<'a>(env: &jni::JNIEnv<'a>) -> Result<JClass<'a>> {
+fn app_context<'a>(env: &Env<'a>) -> JObject<'a> {
+    unsafe {
+        JObject::from_raw(
+            env,
+            ndk_context::android_context().context() as jni::sys::jobject,
+        )
+    }
+}
+
+fn load_class<'a>(env: &mut Env<'a>) -> anyhow::Result<JClass<'a>> {
+    let context = app_context(env);
     let loader = env
         .call_method(
-            app_context(),
-            "getClassLoader",
-            "()Ljava/lang/ClassLoader;",
+            &context,
+            jni_str!("getClassLoader"),
+            jni_sig!("()Ljava/lang/ClassLoader;"),
             &[],
         )
         .map_err(|e| jvm_err(env, "getClassLoader", e))?
         .l()
-        .map_err(|e| KursalError::Misc(anyhow::anyhow!("classloader.l: {e:?}")))?;
+        .map_err(|e| anyhow::anyhow!("classloader.l: {e:?}"))?;
 
     let name = env
         .new_string(CLASS)
@@ -51,143 +63,122 @@ fn load_class<'a>(env: &jni::JNIEnv<'a>) -> Result<JClass<'a>> {
     let class = env
         .call_method(
             loader,
-            "loadClass",
-            "(Ljava/lang/String;)Ljava/lang/Class;",
-            &[JValue::Object(name.into())],
+            jni_str!("loadClass"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Class;"),
+            &[JValue::Object(&name)],
         )
         .map_err(|e| jvm_err(env, "loadClass", e))?
         .l()
-        .map_err(|e| KursalError::Misc(anyhow::anyhow!("class.l: {e:?}")))?;
+        .map_err(|e| anyhow::anyhow!("class.l: {e:?}"))?;
 
-    Ok(JClass::from(class))
+    Ok(unsafe { JClass::from_raw(env, class.as_raw()) })
 }
 
 pub(super) fn list_cameras() -> Vec<CameraInfo> {
-    let Ok(vm) = java_vm() else {
-        return Vec::new();
-    };
-    let Ok(env) = vm.attach_current_thread() else {
-        return Vec::new();
-    };
-    let Ok(class) = load_class(&env) else {
-        return Vec::new();
-    };
-
-    let result = env.call_static_method(
-        class,
-        "listCameras",
-        "(Landroid/content/Context;)[Ljava/lang/String;",
-        &[JValue::Object(app_context())],
-    );
-    let Ok(Ok(array)) = result.map(|value| value.l()) else {
-        return Vec::new();
-    };
-    let raw = array.into_inner();
-    let Ok(len) = env.get_array_length(raw) else {
-        return Vec::new();
-    };
-
-    let mut cameras = Vec::new();
-    for index in 0..len {
-        let Ok(item) = env.get_object_array_element(raw, index) else {
-            continue;
-        };
-        let Ok(text) = env.get_string(item.into()) else {
-            continue;
-        };
-        let text: String = text.into();
-        let mut parts = text.split('\t');
-        let (Some(id), Some(label)) = (parts.next(), parts.next()) else {
-            continue;
-        };
-        let facing = parts.next().filter(|f| !f.is_empty()).map(str::to_string);
-        cameras.push(CameraInfo {
-            id: id.to_string(),
-            label: label.to_string(),
-            facing,
-        });
-    }
-    cameras
+    with_env(|env| {
+        let class = load_class(env)?;
+        let context = app_context(env);
+        let array = env
+            .call_static_method(
+                class,
+                jni_str!("listCameras"),
+                jni_sig!("(Landroid/content/Context;)[Ljava/lang/String;"),
+                &[JValue::Object(&context)],
+            )?
+            .l()?;
+        let array = unsafe { JObjectArray::<JObject>::from_raw(env, array.as_raw()) };
+        let len = array.len(env)?;
+        let mut cameras = Vec::new();
+        for index in 0..len {
+            let item = array.get_element(env, index)?;
+            let item = unsafe { JString::from_raw(env, item.as_raw()) };
+            let text = item.try_to_string(env)?;
+            let mut parts = text.split('\t');
+            let (Some(id), Some(label)) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let facing = parts.next().filter(|f| !f.is_empty()).map(str::to_string);
+            cameras.push(CameraInfo {
+                id: id.to_string(),
+                label: label.to_string(),
+                facing,
+            });
+        }
+        Ok(cameras)
+    })
+    .unwrap_or_default()
 }
 
 pub(super) fn start(config: &CaptureConfig, sink: FrameSink) -> Result<VideoFormat> {
     let (budget_w, budget_h, bitrate) = quality_dims(config.quality);
     *sink_slot().lock_recover() = Some(sink);
 
-    let vm = java_vm()?;
-    let env = vm
-        .attach_current_thread()
-        .map_err(|e| KursalError::Misc(anyhow::anyhow!("JNI attach: {e:?}")))?;
-    let class = load_class(&env)?;
-
-    let requested = match config.camera_id.as_deref() {
-        Some(id) => JObject::from(
-            env.new_string(id)
-                .map_err(|e| jvm_err(&env, "camera id", e))?,
-        ),
-        None => JObject::null(),
-    };
-
-    let value = env
-        .call_static_method(
-            class,
-            "start",
-            "(Landroid/content/Context;Ljava/lang/String;IIII)Ljava/lang/String;",
-            &[
-                JValue::Object(app_context()),
-                JValue::Object(requested),
-                JValue::Int(i32::from(budget_w)),
-                JValue::Int(i32::from(budget_h)),
-                JValue::Int(i32::try_from(bitrate).unwrap_or(i32::MAX)),
-                JValue::Int(KEYFRAME_INTERVAL_SECS),
-            ],
-        )
-        .map_err(|e| jvm_err(&env, "CameraCapture.start", e))?;
-
-    let handle = value
-        .l()
-        .map_err(|e| KursalError::Misc(anyhow::anyhow!("start ret: {e:?}")))?;
-    if handle.is_null() {
-        *sink_slot().lock_recover() = None;
-        return Err(KursalError::Misc(anyhow::anyhow!("camera failed to start")));
-    }
-
-    let descriptor = env
-        .get_string(handle.into())
-        .map_err(|e| jvm_err(&env, "start ret string", e))?;
-    let descriptor: String = descriptor.into();
-    let mut parts = descriptor.split('|');
-    let width = parts
-        .next()
-        .and_then(|v| v.parse::<u16>().ok())
-        .unwrap_or(budget_w);
-    let height = parts
-        .next()
-        .and_then(|v| v.parse::<u16>().ok())
-        .unwrap_or(budget_h);
-    let camera_id = parts.next().map(str::to_string);
-
-    super::set_selected_camera(camera_id.clone());
-    Ok(VideoFormat {
-        codec: "avc1.42E01F".to_string(),
-        width,
-        height,
-        camera_id,
-    })
+    let format = with_env(|env| {
+        let class = load_class(env)?;
+        let context = app_context(env);
+        let requested = match config.camera_id.as_deref() {
+            Some(id) => JObject::from(
+                env.new_string(id)
+                    .map_err(|e| jvm_err(env, "camera id", e))?,
+            ),
+            None => JObject::null(),
+        };
+        let value = env
+            .call_static_method(
+                class,
+                jni_str!("start"),
+                jni_sig!("(Landroid/content/Context;Ljava/lang/String;IIII)Ljava/lang/String;"),
+                &[
+                    JValue::Object(&context),
+                    JValue::Object(&requested),
+                    JValue::Int(i32::from(budget_w)),
+                    JValue::Int(i32::from(budget_h)),
+                    JValue::Int(i32::try_from(bitrate).unwrap_or(i32::MAX)),
+                    JValue::Int(KEYFRAME_INTERVAL_SECS),
+                ],
+            )
+            .map_err(|e| jvm_err(env, "CameraCapture.start", e))?;
+        let handle = value.l().map_err(|e| anyhow::anyhow!("start ret: {e:?}"))?;
+        if handle.is_null() {
+            anyhow::bail!("camera failed to start");
+        }
+        let handle = unsafe { JString::from_raw(env, handle.as_raw()) };
+        let descriptor = handle
+            .try_to_string(env)
+            .map_err(|e| jvm_err(env, "start ret string", e))?;
+        let mut parts = descriptor.split('|');
+        let width = parts
+            .next()
+            .and_then(|v| v.parse::<u16>().ok())
+            .unwrap_or(budget_w);
+        let height = parts
+            .next()
+            .and_then(|v| v.parse::<u16>().ok())
+            .unwrap_or(budget_h);
+        let camera_id = parts.next().map(str::to_string);
+        Ok(VideoFormat {
+            codec: "avc1.42E01F".to_string(),
+            width,
+            height,
+            camera_id,
+        })
+    })?;
+    super::set_selected_camera(format.camera_id.clone());
+    Ok(format)
 }
 
 pub(super) fn stop() {
-    if let Ok(vm) = java_vm()
-        && let Ok(env) = vm.attach_current_thread()
-        && let Ok(class) = load_class(&env)
-    {
-        let _ = env.call_static_method(
+    let _ = with_env(|env| {
+        let class = load_class(env)?;
+        let context = app_context(env);
+        env.call_static_method(
             class,
-            "stop",
-            "(Landroid/content/Context;)V",
-            &[JValue::Object(app_context())],
-        );
-    }
+            jni_str!("stop"),
+            jni_sig!("(Landroid/content/Context;)V"),
+            &[JValue::Object(&context)],
+        )?;
+        Ok(())
+    });
     *sink_slot().lock_recover() = None;
 }
 
@@ -204,40 +195,56 @@ pub(super) fn set_bitrate(bps: u32) {
 }
 
 fn call_void(name: &str, signature: &str, args: &[JValue]) {
-    if let Ok(vm) = java_vm()
-        && let Ok(env) = vm.attach_current_thread()
-        && let Ok(class) = load_class(&env)
-    {
-        let _ = env.call_static_method(class, name, signature, args);
-    }
+    let _ = with_env(|env| {
+        let class = load_class(env)?;
+        match (name, signature) {
+            ("requestKeyframe", "()V") => {
+                env.call_static_method(class, jni_str!("requestKeyframe"), jni_sig!("()V"), args)?;
+            }
+            ("setBitrate", "(I)V") => {
+                env.call_static_method(class, jni_str!("setBitrate"), jni_sig!("(I)V"), args)?;
+            }
+            ("setDeviceAngle", "(I)V") => {
+                env.call_static_method(class, jni_str!("setDeviceAngle"), jni_sig!("(I)V"), args)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    });
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_chat_kursal_CameraCapture_nativeVideoFrame(
-    env: jni::JNIEnv,
+    mut env: EnvUnowned,
     _class: JClass,
     data: jni::sys::jbyteArray,
     keyframe: jni::sys::jboolean,
     timestamp_us: jni::sys::jlong,
     rotation: jni::sys::jint,
 ) {
-    let Ok(bytes) = env.convert_byte_array(data) else {
-        return;
-    };
-    let sink = sink_slot().lock_recover().clone();
-    if let Some(sink) = sink {
-        sink(EncodedFrame {
-            data: bytes,
-            keyframe: keyframe != 0,
-            timestamp_us: u64::try_from(timestamp_us).unwrap_or(0),
-            rotation: u16::try_from(rotation.rem_euclid(360)).unwrap_or(0),
-        });
-    }
+    let _ = env
+        .with_env(|env| -> anyhow::Result<()> {
+            let data = unsafe { JByteArray::from_raw(env, data) };
+            let Ok(bytes) = env.convert_byte_array(&data) else {
+                return Ok(());
+            };
+            let sink = sink_slot().lock_recover().clone();
+            if let Some(sink) = sink {
+                sink(EncodedFrame {
+                    data: bytes,
+                    keyframe,
+                    timestamp_us: u64::try_from(timestamp_us).unwrap_or(0),
+                    rotation: u16::try_from(rotation.rem_euclid(360)).unwrap_or(0),
+                });
+            }
+            Ok(())
+        })
+        .into_outcome();
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_chat_kursal_CameraCapture_nativeCaptureFailed(
-    _env: jni::JNIEnv,
+    _env: EnvUnowned,
     _class: JClass,
 ) {
     super::report_failure();
