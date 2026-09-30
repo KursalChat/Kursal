@@ -162,7 +162,11 @@ pub(super) fn start(config: &CaptureConfig, sink: FrameSink) -> Result<VideoForm
             height,
             camera_id,
         })
+    })
+    .inspect_err(|_| {
+        *sink_slot().lock_recover() = None;
     })?;
+
     super::set_selected_camera(format.camera_id.clone());
     Ok(format)
 }
