@@ -1,5 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AudioDevices, CameraInfo } from '$lib/types';
+import type { AudioDevices, CameraInfo } from '#lib/types.js';
 
 export const startCall = (contactId: string): Promise<string> =>
   invoke('start_call', { contactId });

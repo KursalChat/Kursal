@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { applyTone, getTone, type Emoji } from '$lib/emoji';
-  import { t } from '$lib/i18n';
+  import { applyTone, getTone, type Emoji } from '#lib/emoji/index.js';
+  import { t } from '#lib/i18n/index.js';
 
   let {
     items,

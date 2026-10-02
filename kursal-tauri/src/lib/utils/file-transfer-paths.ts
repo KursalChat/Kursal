@@ -1,7 +1,11 @@
 import { copyFile, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { availableSpace, createOutgoingPendingPath, resolveDownloadPath } from '$lib/api/messages';
-import { isMobile } from '$lib/api/window';
+import {
+  availableSpace,
+  createOutgoingPendingPath,
+  resolveDownloadPath,
+} from '#lib/api/messages.js';
+import { isMobile } from '#lib/api/window.js';
 
 export const LARGE_FILE_PROMPT_BYTES = 5 * 1024 * 1024 * 1024;
 

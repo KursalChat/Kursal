@@ -1,8 +1,8 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { updateDownloadState } from '$lib/state/updateDownload.svelte';
-  import { formatBytePair } from '$lib/utils/bytes';
-  import { t } from '$lib/i18n';
+  import { updateDownloadState } from '#lib/state/updateDownload.svelte.js';
+  import { formatBytePair } from '#lib/utils/bytes.js';
+  import { t } from '#lib/i18n/index.js';
 
   const RADIUS = 8;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;

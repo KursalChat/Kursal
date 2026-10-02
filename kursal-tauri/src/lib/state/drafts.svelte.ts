@@ -1,5 +1,5 @@
-import { browser } from '$app/environment';
-import { getUiState, setUiState } from '$lib/api/settings';
+import { browser } from '$app/env';
+import { getUiState, setUiState } from '#lib/api/settings.js';
 
 const DB_KEY = 'drafts';
 const PERSIST_DEBOUNCE_MS = 400;

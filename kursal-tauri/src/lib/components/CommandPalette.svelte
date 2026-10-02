@@ -19,18 +19,18 @@
     Power,
     type Icon,
   } from 'lucide-svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { uiState } from '$lib/state/ui.svelte';
-  import { searchMessagesGlobal } from '$lib/api/messages';
-  import { checkForUpdates, closeForceQuit } from '$lib/api/settings';
-  import { isMobile, resetWindowSize } from '$lib/api/window';
-  import { notifyError } from '$lib/utils/errors';
-  import type { MessageResponse } from '$lib/types';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { formatTimeShort } from '$lib/utils/dateFormat.svelte';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { uiState } from '#lib/state/ui.svelte.js';
+  import { searchMessagesGlobal } from '#lib/api/messages.js';
+  import { checkForUpdates, closeForceQuit } from '#lib/api/settings.js';
+  import { isMobile, resetWindowSize } from '#lib/api/window.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import type { MessageResponse } from '#lib/types.js';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { formatTimeShort } from '#lib/utils/dateFormat.svelte.js';
   import Avatar from './Avatar.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   let { open = $bindable(false), onClose }: { open?: boolean; onClose: () => void } = $props();
 

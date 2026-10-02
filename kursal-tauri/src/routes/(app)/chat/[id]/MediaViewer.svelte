@@ -2,11 +2,11 @@
   import { onMount } from 'svelte';
   import { X, FolderOpen, Share, ChevronLeft, ChevronRight, Film, Check } from 'lucide-svelte';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
-  import { t } from '$lib/i18n';
-  import { notifyError } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { exportToDevice } from '$lib/utils/file-transfer-paths';
-  import { isMobile } from '$lib/api/window';
+  import { t } from '#lib/i18n/index.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { exportToDevice } from '#lib/utils/file-transfer-paths.js';
+  import { isMobile } from '#lib/api/window.js';
 
   interface MediaItem {
     src: string;

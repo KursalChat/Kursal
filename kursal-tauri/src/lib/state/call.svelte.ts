@@ -1,9 +1,9 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { listen } from '@tauri-apps/api/event';
-import { notifications } from '$lib/state/notifications.svelte';
-import { log } from '$lib/utils/log';
-import { isOnlineStatus } from '$lib/utils/presence';
-import { t } from '$lib/i18n';
+import { notifications } from '#lib/state/notifications.svelte.js';
+import { log } from '#lib/utils/log.js';
+import { isOnlineStatus } from '#lib/utils/presence.js';
+import { t } from '#lib/i18n/index.js';
 import {
   acceptCall as apiAccept,
   declineCall as apiDecline,
@@ -23,13 +23,13 @@ import {
   refreshCameraRotation as apiRefreshCameraRotation,
   requestLocalKeyframe as apiRequestLocalKeyframe,
   setCamera as apiSetCamera,
-} from '$lib/api/call';
-import { ensurePermission } from '$lib/api/permissions';
-import { VideoReceiver, videoSupported } from '$lib/call/video';
-import { playSound, stopSound } from '$lib/audio/sounds';
-import { clearCallNotification, notifyCall } from '$lib/state/systemNotify.svelte';
-import { requestAttention } from '$lib/api/window';
-import { contactsState } from '$lib/state/contacts.svelte';
+} from '#lib/api/call.js';
+import { ensurePermission } from '#lib/api/permissions.js';
+import { VideoReceiver, videoSupported } from '#lib/call/video.js';
+import { playSound, stopSound } from '#lib/audio/sounds.js';
+import { clearCallNotification, notifyCall } from '#lib/state/systemNotify.svelte.js';
+import { requestAttention } from '#lib/api/window.js';
+import { contactsState } from '#lib/state/contacts.svelte.js';
 import type {
   AudioDevices,
   CallEndedPayload,
@@ -42,7 +42,7 @@ import type {
   ConnectionChangedPayload,
   VideoLocalStatePayload,
   VideoStatePayload,
-} from '$lib/types';
+} from '#lib/types.js';
 
 const PEER_DROP_GRACE_MS = 5000;
 

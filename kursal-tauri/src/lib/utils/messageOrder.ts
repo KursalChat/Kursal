@@ -1,4 +1,4 @@
-import type { MessageResponse } from '$lib/types';
+import type { MessageResponse } from '#lib/types.js';
 
 // Inserts msg into list keeping ascending (timestamp, id) order. Returns the
 // index it landed at, so callers can tell whether it appended at the tail.

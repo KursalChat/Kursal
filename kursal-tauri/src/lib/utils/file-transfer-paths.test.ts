@@ -14,12 +14,12 @@ const createOutgoingPendingPath = vi.fn(async (filename: string) => {
 
 vi.mock('@tauri-apps/plugin-fs', () => ({ copyFile, readFile, writeFile }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
-vi.mock('$lib/api/messages', () => ({
+vi.mock('#lib/api/messages.js', () => ({
   createOutgoingPendingPath,
   resolveDownloadPath: vi.fn(),
   availableSpace: vi.fn(),
 }));
-vi.mock('$lib/api/window', () => ({ isMobile: false, OS: 'macos' }));
+vi.mock('#lib/api/window', () => ({ isMobile: false, OS: 'macos' }));
 
 const {
   filenameFromPath,

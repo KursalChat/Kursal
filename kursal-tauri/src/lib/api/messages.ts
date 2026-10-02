@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { MessageResponse } from '$lib/types';
+import type { MessageResponse } from '#lib/types.js';
 
 function hydrateTimestamps(m: MessageResponse): MessageResponse {
   m.timestamp = m.timestamp * 1000;

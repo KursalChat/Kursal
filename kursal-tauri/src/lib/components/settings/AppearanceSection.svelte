@@ -8,16 +8,16 @@
     translationPercentage,
     loadTranslationPercentages,
     type Locale,
-  } from '$lib/i18n';
+  } from '#lib/i18n/index.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
     appearanceState,
     PALETTES,
     type PaletteId,
     type LayoutMode,
-  } from '$lib/state/appearance.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import Button from '$lib/components/Button.svelte';
+  } from '#lib/state/appearance.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import Button from '#lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Segmented from './Segmented.svelte';

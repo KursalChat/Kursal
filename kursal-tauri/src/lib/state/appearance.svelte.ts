@@ -1,7 +1,7 @@
-import { browser } from '$app/environment';
-import { setTimeFormatPref, type TimeFormat } from '$lib/utils/dateFormat.svelte';
-import { readRaw, writeRaw } from '$lib/utils/storage';
-import { setSystemBarsLight } from '$lib/utils/system-bars';
+import { browser } from '$app/env';
+import { setTimeFormatPref, type TimeFormat } from '#lib/utils/dateFormat.svelte.js';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
+import { setSystemBarsLight } from '#lib/utils/system-bars.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ZoomMode = 'smaller' | 'normal' | 'larger';
@@ -36,7 +36,15 @@ export const PALETTES: PalettePreset[] = [
     previewTo: '#0b1120',
     accent: '#818cf8',
   },
-  { id: 'ocean', label: 'Ocean', previewFrom: '#0a1a2e', previewTo: '#050a18', accent: '#38bdf8' },
+
+  {
+    id: 'ocean',
+    label: 'Ocean',
+    previewFrom: '#0a1a2e',
+    previewTo: '#050a18',
+    accent: '#38bdf8',
+  },
+
   {
     id: 'forest',
     label: 'Forest',
@@ -44,7 +52,15 @@ export const PALETTES: PalettePreset[] = [
     previewTo: '#030a06',
     accent: '#34d399',
   },
-  { id: 'mint', label: 'Mint', previewFrom: '#062925', previewTo: '#021412', accent: '#2dd4bf' },
+
+  {
+    id: 'mint',
+    label: 'Mint',
+    previewFrom: '#062925',
+    previewTo: '#021412',
+    accent: '#2dd4bf',
+  },
+
   {
     id: 'sunset',
     label: 'Sunset',
@@ -52,9 +68,31 @@ export const PALETTES: PalettePreset[] = [
     previewTo: '#080302',
     accent: '#fb923c',
   },
-  { id: 'amber', label: 'Amber', previewFrom: '#1a1605', previewTo: '#060501', accent: '#facc15' },
-  { id: 'mocha', label: 'Mocha', previewFrom: '#1a0f08', previewTo: '#0a0604', accent: '#f59e0b' },
-  { id: 'rose', label: 'Rose', previewFrom: '#1a080f', previewTo: '#080305', accent: '#fb7185' },
+
+  {
+    id: 'amber',
+    label: 'Amber',
+    previewFrom: '#1a1605',
+    previewTo: '#060501',
+    accent: '#facc15',
+  },
+
+  {
+    id: 'mocha',
+    label: 'Mocha',
+    previewFrom: '#1a0f08',
+    previewTo: '#0a0604',
+    accent: '#f59e0b',
+  },
+
+  {
+    id: 'rose',
+    label: 'Rose',
+    previewFrom: '#1a080f',
+    previewTo: '#080305',
+    accent: '#fb7185',
+  },
+
   {
     id: 'violet',
     label: 'Violet',

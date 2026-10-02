@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { notifyError } from '$lib/utils/errors';
+  import { notifyError } from '#lib/utils/errors.js';
   import {
     UserPlus,
     Settings as SettingsIcon,
@@ -22,29 +22,29 @@
     HeadphoneOff,
     Mail,
   } from 'lucide-svelte';
-  import { connectionLabel } from '$lib/utils/connectionLabel';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
-  import { archivedConvosState } from '$lib/state/archivedConvos.svelte';
-  import { uiState } from '$lib/state/ui.svelte';
-  import { removeContact, setContactBlocked } from '$lib/api/contacts';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import { OS, isMobile } from '$lib/api/window';
-  import { clamp } from '$lib/utils/geometry';
-  import { createLongPress } from '$lib/utils/timers';
-  import { truncate } from '$lib/utils/text';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import ContactRow from '$lib/components/ContactRow.svelte';
-  import CallDock from '$lib/components/CallDock.svelte';
-  import { callState } from '$lib/state/call.svelte';
-  import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
-  import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
-  import { readInsets } from '$lib/utils/android-insets';
-  import * as haptics from '$lib/utils/haptics';
-  import { t } from '$lib/i18n';
+  import { connectionLabel } from '#lib/utils/connectionLabel.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { pinnedConvosState } from '#lib/state/pinnedConvos.svelte.js';
+  import { archivedConvosState } from '#lib/state/archivedConvos.svelte.js';
+  import { uiState } from '#lib/state/ui.svelte.js';
+  import { removeContact, setContactBlocked } from '#lib/api/contacts.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import { OS, isMobile } from '#lib/api/window.js';
+  import { clamp } from '#lib/utils/geometry.js';
+  import { createLongPress } from '#lib/utils/timers.js';
+  import { truncate } from '#lib/utils/text.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import ContactRow from '#lib/components/ContactRow.svelte';
+  import CallDock from '#lib/components/CallDock.svelte';
+  import { callState } from '#lib/state/call.svelte.js';
+  import OfflineSyncIndicator from '#lib/components/OfflineSyncIndicator.svelte';
+  import type { ContactResponse, ConnectionChangedPayload } from '#lib/types.js';
+  import { readInsets } from '#lib/utils/android-insets.js';
+  import * as haptics from '#lib/utils/haptics.js';
+  import { t } from '#lib/i18n/index.js';
 
   interface Props {
     contacts: ContactResponse[];

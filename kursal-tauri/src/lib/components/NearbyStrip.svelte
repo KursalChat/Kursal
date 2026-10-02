@@ -3,7 +3,7 @@
   import { fade, slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { flip } from 'svelte/animate';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import {
     startNearby,
     stopNearby,
@@ -11,14 +11,14 @@
     connectNearby,
     acceptNearby,
     declineNearby,
-  } from '$lib/api/nearby';
-  import { ensurePermission } from '$lib/api/permissions';
-  import { nearbyState } from '$lib/state/nearby.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { t } from '$lib/i18n';
-  import type { NearbyOrigin } from '$lib/types';
+  } from '#lib/api/nearby.js';
+  import { ensurePermission } from '#lib/api/permissions.js';
+  import { nearbyState } from '#lib/state/nearby.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { t } from '#lib/i18n/index.js';
+  import type { NearbyOrigin } from '#lib/types.js';
   import { Bluetooth, Radar, Wifi } from 'lucide-svelte';
 
   let connecting = $state<Set<string>>(new Set());

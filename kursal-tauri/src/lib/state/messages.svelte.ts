@@ -1,6 +1,6 @@
-import type { MessageResponse } from '$lib/types';
-import { log } from '$lib/utils/log';
-import { flushContact, pendingSyncKey } from '$lib/utils/pendingSync';
+import type { MessageResponse } from '#lib/types.js';
+import { log } from '#lib/utils/log.js';
+import { flushContact, pendingSyncKey } from '#lib/utils/pendingSync.js';
 import {
   getMessages,
   getMessagesAfter,
@@ -8,7 +8,7 @@ import {
   getPinnedMessages,
   retryMessage as retryMessageApi,
   sendReadReceipts,
-} from '$lib/api/messages';
+} from '#lib/api/messages.js';
 import {
   getDelayedUnseen,
   getPendingSync,
@@ -17,10 +17,10 @@ import {
   markContactUnread,
   setContactMarkedUnread,
   setDelayedUnseen,
-} from '$lib/api/conversation';
-import { clearNotificationsFor } from '$lib/state/systemNotify.svelte';
-import { insertInSentOrder } from '$lib/utils/messageOrder';
-import { debounceKeyed, cancelKeyed, type TimerMap } from '$lib/utils/timers';
+} from '#lib/api/conversation.js';
+import { clearNotificationsFor } from '#lib/state/systemNotify.svelte.js';
+import { insertInSentOrder } from '#lib/utils/messageOrder.js';
+import { debounceKeyed, cancelKeyed, type TimerMap } from '#lib/utils/timers.js';
 
 const SEND_TIMEOUT_MS = 15_000;
 const READ_COMMIT_DEBOUNCE_MS = 400;

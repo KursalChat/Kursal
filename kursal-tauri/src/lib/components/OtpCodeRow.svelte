@@ -2,17 +2,17 @@
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { Check, Copy, KeyRound, Link2, Share2 } from 'lucide-svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { renderQrDataUrl } from '$lib/utils/qr';
-  import { formatClockFromSeconds } from '$lib/utils/duration';
-  import { log } from '$lib/utils/log';
-  import { clearOtpSession, loadOtpSession, saveOtpSession } from '$lib/utils/otpSession';
-  import { generateOtp, publishOtp } from '$lib/api/otp';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { canShareText, shareText, shareAnchor } from '$lib/api/share';
-  import Button from '$lib/components/Button.svelte';
-  import ConnectRow from '$lib/components/ConnectRow.svelte';
-  import { t } from '$lib/i18n';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { renderQrDataUrl } from '#lib/utils/qr.js';
+  import { formatClockFromSeconds } from '#lib/utils/duration.js';
+  import { log } from '#lib/utils/log.js';
+  import { clearOtpSession, loadOtpSession, saveOtpSession } from '#lib/utils/otpSession.js';
+  import { generateOtp, publishOtp } from '#lib/api/otp.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { canShareText, shareText, shareAnchor } from '#lib/api/share.js';
+  import Button from '#lib/components/Button.svelte';
+  import ConnectRow from '#lib/components/ConnectRow.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   type CodeStatus = 'idle' | 'creating' | 'ready' | 'expired' | 'used' | 'failed';
 

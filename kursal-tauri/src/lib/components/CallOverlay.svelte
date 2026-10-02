@@ -15,16 +15,16 @@
     ChevronUp,
     Check,
   } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import { callState } from '$lib/state/call.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { prefsState } from '$lib/state/prefs.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { qualityKey, khz } from '$lib/utils/callQuality';
-  import { createCallElapsed } from '$lib/utils/callElapsed.svelte';
-  import { drawFrame } from '$lib/call/video';
-  import type { CameraInfo } from '$lib/types';
+  import { t } from '#lib/i18n/index.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import { callState } from '#lib/state/call.svelte.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { prefsState } from '#lib/state/prefs.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { qualityKey, khz } from '#lib/utils/callQuality.js';
+  import { createCallElapsed } from '#lib/utils/callElapsed.svelte.js';
+  import { drawFrame } from '#lib/call/video.js';
+  import type { CameraInfo } from '#lib/types.js';
 
   // Android has no localised camera name, so it sends the facing and no label.
   function cameraName(cam: CameraInfo): string {

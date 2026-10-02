@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { readRaw, removeRaw, writeRaw } from '$lib/utils/storage';
-  import { ONBOARDED_KEY } from '$lib/utils/storage-keys';
+  import { readRaw, removeRaw, writeRaw } from '#lib/utils/storage.js';
+  import { ONBOARDED_KEY } from '#lib/utils/storage-keys.js';
   import { MOCK_OS_KEY, app, controls, peer } from './backend';
   import type { ConnectionStatus } from './fixtures';
 

@@ -19,7 +19,7 @@ export default defineConfig({
     conditions: ['browser'],
     alias: [
       {
-        find: '$app/environment',
+        find: '$app/env',
         replacement: resolvePath('./src/test/stubs/app-environment.ts'),
       },
       { find: '$lib', replacement: resolvePath('./src/lib') },

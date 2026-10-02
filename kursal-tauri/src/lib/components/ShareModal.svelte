@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Copy } from 'lucide-svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { renderQrDataUrl } from '$lib/utils/qr';
-  import { flash } from '$lib/utils/flash.svelte';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { renderQrDataUrl } from '#lib/utils/qr.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   let { link, title, onClose }: { link: string; title: string; onClose: () => void } = $props();
 

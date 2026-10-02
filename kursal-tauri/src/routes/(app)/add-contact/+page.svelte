@@ -1,26 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { listen } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
   import { ScanLine, ClipboardPaste, FolderOpen } from 'lucide-svelte';
   import { readText } from '@tauri-apps/plugin-clipboard-manager';
 
-  import { log } from '$lib/utils/log';
-  import { checkOtpWords, fetchOtp } from '$lib/api/otp';
-  import { importLtc } from '$lib/api/ltc';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { errorText, parseError, notifyError } from '$lib/utils/errors';
-  import { isMobile } from '$lib/api/window';
-  import Button from '$lib/components/Button.svelte';
-  import NearbyStrip from '$lib/components/NearbyStrip.svelte';
-  import OtpCodeRow from '$lib/components/OtpCodeRow.svelte';
-  import OtpWordCheck from '$lib/components/OtpWordCheck.svelte';
-  import LtcRow from '$lib/components/LtcRow.svelte';
-  import { t } from '$lib/i18n';
+  import { log } from '#lib/utils/log.js';
+  import { checkOtpWords, fetchOtp } from '#lib/api/otp.js';
+  import { importLtc } from '#lib/api/ltc.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { errorText, parseError, notifyError } from '#lib/utils/errors.js';
+  import { isMobile } from '#lib/api/window.js';
+  import Button from '#lib/components/Button.svelte';
+  import NearbyStrip from '#lib/components/NearbyStrip.svelte';
+  import OtpCodeRow from '#lib/components/OtpCodeRow.svelte';
+  import OtpWordCheck from '#lib/components/OtpWordCheck.svelte';
+  import LtcRow from '#lib/components/LtcRow.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   const OTP_LINK_PREFIX = 'kursal://otp/';
   const OTP_WORD_COUNT = 8;
@@ -210,6 +210,7 @@
       const initialPerm = (await checkPermissions()) as string;
       const perm =
         initialPerm === 'granted' ? initialPerm : ((await requestPermissions()) as string);
+
       if (perm !== 'granted') {
         notifications.push(t('addContact.otp.cameraPermissionDenied'), 'error');
         return;
@@ -353,7 +354,7 @@
 
   let lastReceive = '';
   $effect(() => {
-    const receive = $page.url.searchParams.get('receive') ?? '';
+    const receive = page.url.searchParams.get('receive') ?? '';
     if (receive === lastReceive) return;
     lastReceive = receive;
     if (!receive) return;

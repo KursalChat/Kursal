@@ -1,5 +1,5 @@
-import { browser } from '$app/environment';
-import { readRaw, writeRaw } from '$lib/utils/storage';
+import { browser } from '$app/env';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
 
 export type WinstonTipId = 'autostart' | 'fileOffer' | 'offlineMessages' | 'verifyContact';
 

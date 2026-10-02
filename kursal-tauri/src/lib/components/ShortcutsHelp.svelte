@@ -1,8 +1,8 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { t } from '$lib/i18n';
-  import { OS } from '$lib/api/window';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { t } from '#lib/i18n/index.js';
+  import { OS } from '#lib/api/window.js';
 
   let { open = $bindable(false), onClose }: { open?: boolean; onClose: () => void } = $props();
 

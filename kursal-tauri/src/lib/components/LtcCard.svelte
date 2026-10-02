@@ -4,18 +4,18 @@
   import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
   import { appCacheDir, join } from '@tauri-apps/api/path';
   import { Download, FileText, RefreshCw, Share2, SlidersHorizontal, Trash2 } from 'lucide-svelte';
-  import Button from '$lib/components/Button.svelte';
-  import LtcLimitsPicker from '$lib/components/LtcLimitsPicker.svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import Toggle from '$lib/components/settings/Toggle.svelte';
-  import { canShareFiles, shareAnchor, shareFile } from '$lib/api/share';
-  import { ltcState } from '$lib/state/ltc.svelte';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { t } from '$lib/i18n';
-  import { parseError, notifyError } from '$lib/utils/errors';
-  import { formatBytes } from '$lib/utils/bytes';
-  import type { LtcStatus } from '$lib/types';
+  import Button from '#lib/components/Button.svelte';
+  import LtcLimitsPicker from '#lib/components/LtcLimitsPicker.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import Toggle from '#lib/components/settings/Toggle.svelte';
+  import { canShareFiles, shareAnchor, shareFile } from '#lib/api/share.js';
+  import { ltcState } from '#lib/state/ltc.svelte.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { t } from '#lib/i18n/index.js';
+  import { parseError, notifyError } from '#lib/utils/errors.js';
+  import { formatBytes } from '#lib/utils/bytes.js';
+  import type { LtcStatus } from '#lib/types.js';
 
   let { status }: { status: LtcStatus } = $props();
 

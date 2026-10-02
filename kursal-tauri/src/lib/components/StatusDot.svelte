@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ConnectionChangedPayload } from '$lib/types';
+  import type { ConnectionChangedPayload } from '#lib/types.js';
   let { status, label }: { status: ConnectionChangedPayload['status']; label?: string } = $props();
 </script>
 

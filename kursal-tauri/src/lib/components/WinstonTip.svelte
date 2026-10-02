@@ -1,8 +1,8 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import DOMPurify from 'dompurify';
-  import { t } from '$lib/i18n';
-  import { winstonTips } from '$lib/state/winstonTips.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import { winstonTips } from '#lib/state/winstonTips.svelte.js';
   import WinstonCard from './WinstonCard.svelte';
 
   function escapeHtml(s: string) {

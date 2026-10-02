@@ -1,9 +1,9 @@
-import { dialogRespond } from '$lib/api/dialogs';
-import { confirmDialog, type ConfirmOptions } from '$lib/state/confirm.svelte';
-import { updateDownloadState } from '$lib/state/updateDownload.svelte';
-import { groupLabel, parseReleaseNotes } from '$lib/changelog';
-import { t } from '$lib/i18n';
-import type { BackendDialogPayload } from '$lib/types';
+import { dialogRespond } from '#lib/api/dialogs.js';
+import { confirmDialog, type ConfirmOptions } from '#lib/state/confirm.svelte.js';
+import { updateDownloadState } from '#lib/state/updateDownload.svelte.js';
+import { groupLabel, parseReleaseNotes } from '#lib/changelog.js';
+import { t } from '#lib/i18n/index.js';
+import type { BackendDialogPayload } from '#lib/types.js';
 
 function buildOptions(p: BackendDialogPayload): ConfirmOptions {
   const base = { tone: p.tone, hideCancel: !p.dismissible } as const;

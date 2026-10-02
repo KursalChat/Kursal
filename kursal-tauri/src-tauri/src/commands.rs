@@ -227,9 +227,16 @@ core_cmd!(send_typing_indicator(contact_id: String) -> ());
 core_cmd!(send_read_receipts(contact_id: String, message_ids: Vec<String>) -> ());
 core_cmd!(delete_local_message(contact_id: String, message_id: String) -> ());
 core_cmd!(retry_message(contact_id: String, message_id: String) -> ());
-core_cmd!(get_messages(contact_id: String, limit: usize, before: Option<String>) -> Vec<MessageResponse>);
-core_cmd!(get_messages_after(contact_id: String, after: String, limit: usize) -> Vec<MessageResponse>);
-core_cmd!(get_messages_around(contact_id: String, message_id: String, limit: usize) -> Vec<MessageResponse>);
+core_cmd!(
+    get_messages(contact_id: String, limit: usize, before: Option<String>) -> Vec<MessageResponse>
+);
+core_cmd!(
+    get_messages_after(contact_id: String, after: String, limit: usize) -> Vec<MessageResponse>
+);
+#[rustfmt::skip]
+core_cmd!(
+    get_messages_around(contact_id: String, message_id: String, limit: usize) -> Vec<MessageResponse>
+);
 core_cmd!(search_messages(contact_id: String, query: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(search_messages_global(query: String, limit: usize) -> Vec<MessageResponse>);
 core_cmd!(get_unread_summary() -> Vec<UnreadDto>);

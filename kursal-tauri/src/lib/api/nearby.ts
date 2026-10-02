@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { NearbyOrigin, NearbyPeerResponse } from '$lib/types';
+import type { NearbyOrigin, NearbyPeerResponse } from '#lib/types.js';
 
 // Returns the session name string (e.g. "Purple Raccoon")
 export const startNearby = (): Promise<string> => invoke('start_nearby');

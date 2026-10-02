@@ -1,6 +1,6 @@
-import { discardPendingShare, takePendingShares } from '$lib/api/share';
-import { log } from '$lib/utils/log';
-import type { SharePayload } from '$lib/types';
+import { discardPendingShare, takePendingShares } from '#lib/api/share.js';
+import { log } from '#lib/utils/log.js';
+import type { SharePayload } from '#lib/types.js';
 
 declare global {
   interface Window {

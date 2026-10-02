@@ -1,27 +1,27 @@
 <script lang="ts">
-  import { t } from '$lib/i18n';
-  import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
-  import { log } from '$lib/utils/log';
+  import { t } from '#lib/i18n/index.js';
+  import { withAvatarCacheBust } from '#lib/utils/avatarUrl.js';
+  import { log } from '#lib/utils/log.js';
   import Winston from './Winston.svelte';
   import Line from './Line.svelte';
   import NextButton from './NextButton.svelte';
   import OnboardingScreen from './OnboardingScreen.svelte';
   import { createSequence } from './sequence.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import AvatarPicker from '$lib/components/AvatarPicker.svelte';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import AvatarPicker from '#lib/components/AvatarPicker.svelte';
   import { Upload, X } from 'lucide-svelte';
-  import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { isMobile } from '$lib/api/window';
+  import { broadcastProfile, setLocalUserAvatar } from '#lib/api/identity.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { isMobile } from '#lib/api/window.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { acceptTerms, TERMS_URL } from '$lib/utils/terms';
+  import { acceptTerms, TERMS_URL } from '#lib/utils/terms.js';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
     validateDisplayName,
-  } from '$lib/utils/displayName';
+  } from '#lib/utils/displayName.js';
 
   const EXIT_MS = 700;
 

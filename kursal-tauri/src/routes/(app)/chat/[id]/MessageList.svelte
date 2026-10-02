@@ -1,15 +1,15 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
   import { CloudUpload, CircleAlert, Check, CheckCheck } from 'lucide-svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { appearanceState } from '$lib/state/appearance.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { typingState } from '$lib/state/typing.svelte';
-  import type { ContactResponse, MessageResponse } from '$lib/types';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { appearanceState } from '#lib/state/appearance.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { typingState } from '#lib/state/typing.svelte.js';
+  import type { ContactResponse, MessageResponse } from '#lib/types.js';
   import type { MessageGroup, ImageRun } from './chat-grouping';
-  import { formatTime, isSameDay } from '$lib/utils/dateFormat.svelte';
+  import { formatTime, isSameDay } from '#lib/utils/dateFormat.svelte.js';
   import { formatDaySeparator, flatStatusLabel } from './chat-utils';
   import EmptyChat from './EmptyChat.svelte';
   import ChatSeparator from './ChatSeparator.svelte';

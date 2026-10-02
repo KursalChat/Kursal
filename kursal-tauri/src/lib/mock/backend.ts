@@ -1,5 +1,5 @@
 import { emit } from '@tauri-apps/api/event';
-import type { CallStatus, ContactResponse, MessageResponse, UnreadEntry } from '$lib/types';
+import type { CallStatus, ContactResponse, MessageResponse, UnreadEntry } from '#lib/types.js';
 import {
   DAY,
   HOUR,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import {
     Upload,
     Download,
@@ -14,36 +14,40 @@
   } from 'lucide-svelte';
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
   import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-  import { broadcastProfile, setLocalUserAvatar } from '$lib/api/identity';
-  import { exportBackup, importBackup } from '$lib/api/backup';
+  import { broadcastProfile, setLocalUserAvatar } from '#lib/api/identity.js';
+  import { exportBackup, importBackup } from '#lib/api/backup.js';
   import {
     ensurePermission,
     getPermission,
     sendTestNotification,
-  } from '$lib/state/systemNotify.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { prefsState, type NotificationPreview, type DndSchedule } from '$lib/state/prefs.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
+  } from '#lib/state/systemNotify.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import {
+    prefsState,
+    type NotificationPreview,
+    type DndSchedule,
+  } from '#lib/state/prefs.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { withAvatarCacheBust } from '#lib/utils/avatarUrl.js';
   import {
     DISPLAY_NAME_MAX,
     validateAvatarBytes,
     validateDisplayName,
-  } from '$lib/utils/displayName';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import AvatarPicker from '$lib/components/AvatarPicker.svelte';
-  import Button from '$lib/components/Button.svelte';
+  } from '#lib/utils/displayName.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import AvatarPicker from '#lib/components/AvatarPicker.svelte';
+  import Button from '#lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Toggle from './Toggle.svelte';
   import Segmented from './Segmented.svelte';
   import TextInput from './TextInput.svelte';
   import DndDial from './DndDial.svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { t } from '$lib/i18n';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { t } from '#lib/i18n/index.js';
 
   let displayName = $state('You');
   let avatarSrc = $state<string | null>(null);

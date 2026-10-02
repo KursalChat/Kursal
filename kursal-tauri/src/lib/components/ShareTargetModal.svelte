@@ -1,10 +1,10 @@
 <script lang="ts">
   import { Share2 } from 'lucide-svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import PickerDialog from '$lib/components/PickerDialog.svelte';
-  import ContactPickerRow from '$lib/components/ContactPickerRow.svelte';
-  import { t } from '$lib/i18n';
-  import type { SharePayload } from '$lib/types';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import PickerDialog from '#lib/components/PickerDialog.svelte';
+  import ContactPickerRow from '#lib/components/ContactPickerRow.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import type { SharePayload } from '#lib/types.js';
 
   let {
     payload,

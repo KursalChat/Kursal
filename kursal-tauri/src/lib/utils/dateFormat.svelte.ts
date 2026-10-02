@@ -1,4 +1,4 @@
-import { t, dateLocale } from '$lib/i18n';
+import { t, dateLocale } from '#lib/i18n/index.js';
 
 export type TimeFormat = '24h' | '12h';
 

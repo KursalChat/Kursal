@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { NodeStats } from '$lib/api/settings';
+  import type { NodeStats } from '#lib/api/settings.js';
 
   const SPARK_LEN = 30;
 
@@ -61,22 +61,22 @@
   import { goto } from '$app/navigation';
   import { slide } from 'svelte/transition';
   import { PhoneMissed, Pencil, Check, Sparkles, ChevronDown, UserPlus } from 'lucide-svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import StatusDot from '$lib/components/StatusDot.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { networkState } from '$lib/state/network.svelte';
-  import { appFocusState } from '$lib/state/appFocus.svelte';
-  import { draftsState } from '$lib/state/drafts.svelte';
-  import { groupLabel, latestEntry, olderEntries } from '$lib/changelog';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import StatusDot from '#lib/components/StatusDot.svelte';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { networkState } from '#lib/state/network.svelte.js';
+  import { appFocusState } from '#lib/state/appFocus.svelte.js';
+  import { draftsState } from '#lib/state/drafts.svelte.js';
+  import { groupLabel, latestEntry, olderEntries } from '#lib/changelog.js';
   import { listen } from '@tauri-apps/api/event';
-  import { isMobile } from '$lib/api/window';
-  import { getNodeStats, startNodeStats, stopNodeStats } from '$lib/api/settings';
-  import { formatFileSize } from '$lib/utils/bytes';
-  import { readRaw, writeRaw } from '$lib/utils/storage';
-  import type { ContactResponse } from '$lib/types';
-  import { t } from '$lib/i18n';
+  import { isMobile } from '#lib/api/window.js';
+  import { getNodeStats, startNodeStats, stopNodeStats } from '#lib/api/settings.js';
+  import { formatFileSize } from '#lib/utils/bytes.js';
+  import { readRaw, writeRaw } from '#lib/utils/storage.js';
+  import type { ContactResponse } from '#lib/types.js';
+  import { t } from '#lib/i18n/index.js';
 
   const WHATS_NEW_KEY = 'kursal_whatsnew_seen';
 

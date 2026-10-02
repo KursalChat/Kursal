@@ -1,10 +1,10 @@
 <script lang="ts">
   import { Phone, PhoneOff } from 'lucide-svelte';
   import { goto } from '$app/navigation';
-  import { t } from '$lib/i18n';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import { callState } from '$lib/state/call.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import { callState } from '#lib/state/call.svelte.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
 
   const contact = $derived(callState.contactId ? contactsState.getById(callState.contactId) : null);
   const visible = $derived(callState.status === 'ringing_in');

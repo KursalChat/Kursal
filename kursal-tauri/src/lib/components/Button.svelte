@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import { Check } from 'lucide-svelte';
   import Spinner from './Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   let {
     variant = 'primary',

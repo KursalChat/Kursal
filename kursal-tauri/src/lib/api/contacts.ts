@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ContactResponse, ContactMeta } from '$lib/types';
+import type { ContactResponse, ContactMeta } from '#lib/types.js';
 
 export const getContacts = (): Promise<ContactResponse[]> => invoke('get_contacts');
 

@@ -1,15 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
-  import { getSecurityCode, confirmSecurityCode } from '$lib/api/contacts';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { errorText } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { copyText } from '$lib/utils/clipboard';
+  import { log } from '#lib/utils/log.js';
+  import { getSecurityCode, confirmSecurityCode } from '#lib/api/contacts.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { errorText } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { copyText } from '#lib/utils/clipboard.js';
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   const copied = flash();
 

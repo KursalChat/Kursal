@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { X, Search, Icon } from 'lucide-svelte';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { t } from '$lib/i18n';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { t } from '#lib/i18n/index.js';
 
   let {
     title,

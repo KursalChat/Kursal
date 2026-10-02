@@ -1,6 +1,6 @@
-import { t } from '$lib/i18n';
-import { log } from '$lib/utils/log';
-import { notifications } from '$lib/state/notifications.svelte';
+import { t } from '#lib/i18n/index.js';
+import { log } from '#lib/utils/log.js';
+import { notifications } from '#lib/state/notifications.svelte.js';
 
 export interface AppError {
   code: string;

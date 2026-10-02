@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import { listen } from '@tauri-apps/api/event';
   import {
     runBenchmark,
@@ -8,13 +8,13 @@
     isBenchmarkRunning,
     type BenchmarkProgress,
     type BenchmarkResult,
-  } from '$lib/api/benchmark';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import Button from '$lib/components/Button.svelte';
+  } from '#lib/api/benchmark.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import Button from '#lib/components/Button.svelte';
   import { Copy, CircleCheck, Check } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   const copied = flash();
 

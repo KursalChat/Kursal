@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import type { ContactResponse } from '$lib/types';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import type { ContactResponse } from '#lib/types.js';
 
   let {
     contact,

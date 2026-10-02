@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ContactResponse, LtcStatus } from '$lib/types';
+import type { ContactResponse, LtcStatus } from '#lib/types.js';
 
 export const getLtcStatus = (): Promise<LtcStatus | null> => invoke('get_ltc_status');
 

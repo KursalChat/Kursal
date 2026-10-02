@@ -2,24 +2,24 @@
   import { onMount } from 'svelte';
   import { Save, Plus, RefreshCw, Copy, Check } from 'lucide-svelte';
   import { listen } from '@tauri-apps/api/event';
-  import { isMobile } from '$lib/api/window';
-  import { copyText } from '$lib/utils/clipboard';
-  import ShareModal from '$lib/components/ShareModal.svelte';
+  import { isMobile } from '#lib/api/window.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import ShareModal from '#lib/components/ShareModal.svelte';
   import {
     dialAddress,
     getNetworkStatus,
     type Reachability,
     type RelayConfig,
     type NetworkStatus,
-  } from '$lib/api/settings';
-  import { t } from '$lib/i18n';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { settingsDirty } from '$lib/state/settingsDirty.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError, parseError } from '$lib/utils/errors';
-  import { flash, flashSet } from '$lib/utils/flash.svelte';
-  import Button from '$lib/components/Button.svelte';
-  import AddressChip from '$lib/components/AddressChip.svelte';
+  } from '#lib/api/settings.js';
+  import { t } from '#lib/i18n/index.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { settingsDirty } from '#lib/state/settingsDirty.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError, parseError } from '#lib/utils/errors.js';
+  import { flash, flashSet } from '#lib/utils/flash.svelte.js';
+  import Button from '#lib/components/Button.svelte';
+  import AddressChip from '#lib/components/AddressChip.svelte';
   import NodeRow from './NodeRow.svelte';
   import SettingCard from './SettingCard.svelte';
   import CollapsibleCard from './CollapsibleCard.svelte';

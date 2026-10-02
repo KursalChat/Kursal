@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { Home } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 </script>
 
 <div class="error-container">
   <div class="error-content">
-    <span class="status">{$page.status}</span>
+    <span class="status">{page.status}</span>
     <h1>{t('error.title')}</h1>
     <p class="message">{t('error.message')}</p>
-    {#if $page.error?.message}
-      <p class="detail">{$page.error.message}</p>
+    {#if page.error?.message}
+      <p class="detail">{page.error.message}</p>
     {/if}
     <button class="back-btn" onclick={() => goto('/')}>
       <Home size={15} />

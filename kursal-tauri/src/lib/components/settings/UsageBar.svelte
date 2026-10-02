@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatBytes } from '$lib/utils/bytes';
+  import { formatBytes } from '#lib/utils/bytes.js';
 
   export interface UsageSegment {
     id: string;

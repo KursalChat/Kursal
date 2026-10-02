@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import {
     Copy,
     ExternalLink,
@@ -15,7 +15,7 @@
   } from 'lucide-svelte';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { copyText } from '$lib/utils/clipboard';
+  import { copyText } from '#lib/utils/clipboard.js';
   import {
     checkForUpdates,
     generateLocalApiToken,
@@ -27,24 +27,24 @@
     setBackgroundMode,
     type UpdateChannel,
     type LocalApiConfig,
-  } from '$lib/api/settings';
-  import { isMobile } from '$lib/api/window';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { optimistic } from '$lib/utils/optimistic';
-  import { clamp } from '$lib/utils/geometry';
-  import { flash } from '$lib/utils/flash.svelte';
-  import Button from '$lib/components/Button.svelte';
-  import Benchmark from '$lib/components/Benchmark.svelte';
-  import { listBenchmarks, type BenchmarkMeta } from '$lib/api/benchmark';
+  } from '#lib/api/settings.js';
+  import { isMobile } from '#lib/api/window.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { optimistic } from '#lib/utils/optimistic.js';
+  import { clamp } from '#lib/utils/geometry.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import Button from '#lib/components/Button.svelte';
+  import Benchmark from '#lib/components/Benchmark.svelte';
+  import { listBenchmarks, type BenchmarkMeta } from '#lib/api/benchmark.js';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Toggle from './Toggle.svelte';
   import Segmented from './Segmented.svelte';
   import TextInput from './TextInput.svelte';
-  import { t, dateLocale } from '$lib/i18n';
-  import { TERMS_URL, termsDateLabel } from '$lib/utils/terms';
+  import { t, dateLocale } from '#lib/i18n/index.js';
+  import { TERMS_URL, termsDateLabel } from '#lib/utils/terms.js';
 
   let appVersion = $state('...');
   let checkingForUpdates = $state(false);

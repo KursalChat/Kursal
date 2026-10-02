@@ -1,15 +1,15 @@
 <script lang="ts">
   import { Pin, BellOff, MoreHorizontal } from 'lucide-svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
-  import { typingState } from '$lib/state/typing.svelte';
-  import { draftsState } from '$lib/state/drafts.svelte';
-  import { formatTimeShort } from '$lib/utils/dateFormat.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import StatusDot from '$lib/components/StatusDot.svelte';
-  import { t } from '$lib/i18n';
-  import type { ContactResponse } from '$lib/types';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { pinnedConvosState } from '#lib/state/pinnedConvos.svelte.js';
+  import { typingState } from '#lib/state/typing.svelte.js';
+  import { draftsState } from '#lib/state/drafts.svelte.js';
+  import { formatTimeShort } from '#lib/utils/dateFormat.svelte.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import StatusDot from '#lib/components/StatusDot.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import type { ContactResponse } from '#lib/types.js';
 
   let {
     contact,

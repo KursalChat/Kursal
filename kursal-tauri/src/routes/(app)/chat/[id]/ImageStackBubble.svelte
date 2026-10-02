@@ -1,12 +1,12 @@
 <script lang="ts">
   import { Check, CheckCheck, CloudUpload, Download, ImageOff } from 'lucide-svelte';
-  import { pathExists } from '$lib/api/fs';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import type { MessageResponse } from '$lib/types';
-  import { t } from '$lib/i18n';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { formatFileSize } from '$lib/utils/bytes';
-  import { formatTime, formatFullTimestamp } from '$lib/utils/dateFormat.svelte';
+  import { pathExists } from '#lib/api/fs.js';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import type { MessageResponse } from '#lib/types.js';
+  import { t } from '#lib/i18n/index.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { formatFileSize } from '#lib/utils/bytes.js';
+  import { formatTime, formatFullTimestamp } from '#lib/utils/dateFormat.svelte.js';
   import { isTransferDone, mediaUrl } from './chat-utils';
 
   interface Props {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { convertFileSrc } from '@tauri-apps/api/core';
-  import type { ConnectionChangedPayload } from '$lib/types';
+  import type { ConnectionChangedPayload } from '#lib/types.js';
 
   let {
     name,

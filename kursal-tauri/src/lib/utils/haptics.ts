@@ -4,7 +4,7 @@ import {
   notificationFeedback as tauriNotification,
   selectionFeedback as tauriSelection,
 } from '@tauri-apps/plugin-haptics';
-import { isMobile } from '$lib/api/window';
+import { isMobile } from '#lib/api/window.js';
 
 type Impact = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
 type Notify = 'success' | 'warning' | 'error';

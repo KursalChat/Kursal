@@ -1,4 +1,4 @@
-import { readRaw, writeRaw } from '$lib/utils/storage';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
 
 export const TERMS_URL = 'https://kursal.chat/terms';
 export const TERMS_UPDATED = __TERMS_UPDATED__;

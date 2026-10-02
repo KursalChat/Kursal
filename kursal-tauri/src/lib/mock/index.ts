@@ -1,7 +1,7 @@
 import { mount } from 'svelte';
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import { readRaw, writeRaw } from '$lib/utils/storage';
-import { ONBOARDED_KEY } from '$lib/utils/storage-keys';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
+import { ONBOARDED_KEY } from '#lib/utils/storage-keys.js';
 import { MOCK_OS_KEY, app, controls, handleCommand, peer } from './backend';
 import MockPanel from './MockPanel.svelte';
 

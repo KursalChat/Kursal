@@ -2,7 +2,7 @@
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { CircleAlert } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   interface Props {
     words: string[];

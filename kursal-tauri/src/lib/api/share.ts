@@ -4,9 +4,9 @@ import {
   shareText as sharekitShareText,
   type SharePosition,
 } from '@choochmeque/tauri-plugin-sharekit-api';
-import { OS, isMobile } from '$lib/api/window';
-import { parseError } from '$lib/utils/errors';
-import type { SharePayload } from '$lib/types';
+import { OS, isMobile } from '#lib/api/window.js';
+import { parseError } from '#lib/utils/errors.js';
+import type { SharePayload } from '#lib/types.js';
 
 export const takePendingShares = (): Promise<SharePayload[]> => invoke('take_pending_shares');
 

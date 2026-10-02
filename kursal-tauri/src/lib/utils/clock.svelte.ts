@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 let now = $state(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;

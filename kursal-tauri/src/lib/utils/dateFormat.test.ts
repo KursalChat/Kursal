@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$lib/i18n', () => ({
+vi.mock('#lib/i18n/index.js', () => ({
   t: (k: string) => k,
   dateLocale: () => 'en-GB',
 }));

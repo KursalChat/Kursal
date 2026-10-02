@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Copy, Check, RotateCw, ScrollText } from 'lucide-svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { listLogFiles, readLogTail, type LogFile } from '$lib/api/logs';
-  import { notifyError } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import Modal from '$lib/components/Modal.svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import Button from '$lib/components/Button.svelte';
-  import { t } from '$lib/i18n';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { listLogFiles, readLogTail, type LogFile } from '#lib/api/logs.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import Modal from '#lib/components/Modal.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import Button from '#lib/components/Button.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   let { onClose }: { onClose: () => void } = $props();
 

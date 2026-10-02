@@ -1,4 +1,4 @@
-import { log } from '$lib/utils/log';
+import { log } from '#lib/utils/log.js';
 
 export type SoundName = 'ringtone';
 

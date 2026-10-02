@@ -8,23 +8,23 @@
 
 <script lang="ts">
   import { page } from '$app/state';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import { flushSync, onMount, tick, untrack } from 'svelte';
-  import { browser } from '$app/environment';
-  import { goto, replaceState } from '$app/navigation';
+  import { browser } from '$app/env';
+  import { goto } from '$app/navigation';
   import { stat } from '@tauri-apps/plugin-fs';
-  import { t } from '$lib/i18n';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { isOnlineStatus } from '$lib/utils/presence';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { uiState } from '$lib/state/ui.svelte';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { draftsState } from '$lib/state/drafts.svelte';
-  import { appearanceState } from '$lib/state/appearance.svelte';
-  import { winstonTips } from '$lib/state/winstonTips.svelte';
-  import { shareIntentState } from '$lib/state/shareIntent.svelte';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { isOnlineStatus } from '#lib/utils/presence.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { uiState } from '#lib/state/ui.svelte.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { draftsState } from '#lib/state/drafts.svelte.js';
+  import { appearanceState } from '#lib/state/appearance.svelte.js';
+  import { winstonTips } from '#lib/state/winstonTips.svelte.js';
+  import { shareIntentState } from '#lib/state/shareIntent.svelte.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
   import {
     sendText,
     sendFileOffer,
@@ -40,9 +40,9 @@
     sendTypingIndicator,
     flushOffline,
     resolveDownloadPath,
-  } from '$lib/api/messages';
-  import { shareProfile } from '$lib/api/identity';
-  import { isMobile } from '$lib/api/window';
+  } from '#lib/api/messages.js';
+  import { shareProfile } from '#lib/api/identity.js';
+  import { isMobile } from '#lib/api/window.js';
   import {
     pickFilesForSend,
     prepareOfferSourcePath,
@@ -50,20 +50,20 @@
     prepareOfferFromBytes,
     exportToDevice,
     resolveAcceptDestination,
-  } from '$lib/utils/file-transfer-paths';
-  import type { PickerMode } from '$lib/utils/file-transfer-paths';
-  import type { MessageResponse, SharePayload } from '$lib/types';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { flashSet } from '$lib/utils/flash.svelte';
-  import * as haptics from '$lib/utils/haptics';
+  } from '#lib/utils/file-transfer-paths.js';
+  import type { PickerMode } from '#lib/utils/file-transfer-paths.js';
+  import type { MessageResponse, SharePayload } from '#lib/types.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { flashSet } from '#lib/utils/flash.svelte.js';
+  import * as haptics from '#lib/utils/haptics.js';
   import { Paperclip } from 'lucide-svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { busy } from '$lib/utils/busy.svelte';
-  import { notifyError, parseError } from '$lib/utils/errors';
-  import { copyText } from '$lib/utils/clipboard';
-  import SecurityCodeModal from '$lib/components/SecurityCodeModal.svelte';
-  import ConnectionInfoModal from '$lib/components/ConnectionInfoModal.svelte';
-  import ProfileModal from '$lib/components/ProfileModal.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { busy } from '#lib/utils/busy.svelte.js';
+  import { notifyError, parseError } from '#lib/utils/errors.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import SecurityCodeModal from '#lib/components/SecurityCodeModal.svelte';
+  import ConnectionInfoModal from '#lib/components/ConnectionInfoModal.svelte';
+  import ProfileModal from '#lib/components/ProfileModal.svelte';
   import ChatHeader from './ChatHeader.svelte';
   import PinBar from './PinBar.svelte';
   import UnreadBar from './UnreadBar.svelte';
@@ -81,7 +81,7 @@
   import SelectTextModal from './SelectTextModal.svelte';
   import FileConfirmModal from './FileConfirmModal.svelte';
   import MediaViewer from './MediaViewer.svelte';
-  import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+  import EmojiPicker from '#lib/components/EmojiPicker.svelte';
   import {
     getMessagePreview,
     handleMarkdownClick,
@@ -111,6 +111,7 @@
   const lastReceivedTs = $derived(
     messages.reduce((ts, m) => (m.direction === 'received' ? Math.max(ts, m.timestamp) : ts), 0)
   );
+
   // Counted off the separator, not the unread tally: arriving at the bottom
   // clears the tally, but the run it marked is still what you scrolled past.
   const unreadRunCount = $derived.by(() => {
@@ -121,6 +122,7 @@
     for (let i = idx; i < messages.length; i++) if (messages[i].direction === 'received') n++;
     return n;
   });
+
   const unreadFromTs = $derived(
     pendingUnread > 0 && firstUnreadId
       ? (messages.find((m) => m.id === firstUnreadId)?.timestamp ?? null)
@@ -149,7 +151,7 @@
     verifyPromptedFor = contactId;
     verifyJustPaired = true;
     openSecurityCodeModal();
-    replaceState('/chat/' + contactId, {});
+    goto('/chat/' + contactId, { shallow: true, replace: true });
   });
 
   // Only messages created after the chat was opened get the entrance animation;
@@ -744,6 +746,7 @@
       ? getMessagePreview(messageIndex.get(replyingToMessageId)?.content ?? '')
       : ''
   );
+
   const editingPreview = $derived(
     editingMessageId ? getMessagePreview(messageIndex.get(editingMessageId)?.content ?? '') : ''
   );
@@ -985,6 +988,7 @@
           act instanceof HTMLInputElement ||
           act instanceof HTMLTextAreaElement ||
           (act instanceof HTMLElement && act.isContentEditable);
+
         if (!typing && listEl) {
           if (e.key === 'End' || ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown')) {
             e.preventDefault();
@@ -1769,9 +1773,11 @@
   // this prompts for nothing: each file lands in the app's download folder.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
+
     const items = msgs
       .filter((m) => m.fileDetails && fileOfferActionState[m.id] !== 'accepting')
       .map((m) => ({ msg: m, filename: m.fileDetails!.filename }));
+
     if (items.length === 0) return;
 
     for (const { msg } of items) fileOfferActionState[msg.id] = 'accepting';

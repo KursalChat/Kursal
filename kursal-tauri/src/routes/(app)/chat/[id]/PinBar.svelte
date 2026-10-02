@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Pin, List, X, ChevronUp, ChevronDown } from 'lucide-svelte';
-  import type { MessageResponse } from '$lib/types';
-  import { t } from '$lib/i18n';
+  import type { MessageResponse } from '#lib/types.js';
+  import { t } from '#lib/i18n/index.js';
   import { getMessagePreview, formatGroupTime } from './chat-utils';
 
   interface Props {

@@ -1,16 +1,16 @@
 <script lang="ts">
   import { Copy, RotateCw, Radio, Check } from 'lucide-svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { flashSet } from '$lib/utils/flash.svelte';
-  import { dialAddress } from '$lib/api/settings';
-  import { sortAddresses } from '$lib/utils/multiaddr';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { flashSet } from '#lib/utils/flash.svelte.js';
+  import { dialAddress } from '#lib/api/settings.js';
+  import { sortAddresses } from '#lib/utils/multiaddr.js';
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
   import AddressChip from './AddressChip.svelte';
-  import { t } from '$lib/i18n';
-  import type { ContactResponse } from '$lib/types';
+  import { t } from '#lib/i18n/index.js';
+  import type { ContactResponse } from '#lib/types.js';
 
   let { contact, onClose }: { contact: ContactResponse; onClose: () => void } = $props();
 

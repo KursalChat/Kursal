@@ -1,4 +1,4 @@
-import { log } from '$lib/utils/log';
+import { log } from '#lib/utils/log.js';
 
 interface QrOptions {
   errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';

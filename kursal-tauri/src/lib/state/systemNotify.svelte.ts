@@ -4,8 +4,8 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
-import { prefsState } from '$lib/state/prefs.svelte';
-import { t } from '$lib/i18n';
+import { prefsState } from '#lib/state/prefs.svelte.js';
+import { t } from '#lib/i18n/index.js';
 
 let cached: boolean | null = null;
 

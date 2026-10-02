@@ -12,15 +12,21 @@
     EyeOff,
     Link,
   } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import EmojiPicker from '#lib/components/EmojiPicker.svelte';
   import ShortcodeAutocomplete from './ShortcodeAutocomplete.svelte';
-  import { loadEmojiIndex, searchEmojis, applyTone, getTone, type EmojiIndex } from '$lib/emoji';
-  import { readInsets } from '$lib/utils/android-insets';
-  import { getCaretCoords } from '$lib/utils/caret';
-  import { highlightFence } from '$lib/utils/highlight';
-  import { clamp } from '$lib/utils/geometry';
+  import {
+    loadEmojiIndex,
+    searchEmojis,
+    applyTone,
+    getTone,
+    type EmojiIndex,
+  } from '#lib/emoji/index.js';
+  import { readInsets } from '#lib/utils/android-insets.js';
+  import { getCaretCoords } from '#lib/utils/caret.js';
+  import { highlightFence } from '#lib/utils/highlight.js';
+  import { clamp } from '#lib/utils/geometry.js';
   import {
     computeWrap,
     computeCode,
@@ -30,8 +36,8 @@
     openFenceAt,
     applyTextEdit,
     type TextEdit,
-  } from '$lib/utils/markdown-edit';
-  import type { ContactResponse } from '$lib/types';
+  } from '#lib/utils/markdown-edit.js';
+  import type { ContactResponse } from '#lib/types.js';
 
   interface Props {
     contact: ContactResponse;
