@@ -12,6 +12,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](CONTRIBUTING.md)
 [![Translation status](https://translate.kursal.chat/widget/kursal/svg-badge.svg)](https://translate.kursal.chat/engage/kursal/)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FKursalChat%2FKursal.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FKursalChat%2FKursal?ref=badge_shield)
 
 </div>
 
@@ -90,3 +91,6 @@ Visual assets (app icon, banner, etc.) are all rights reserved.
   <br />
   Thank you <a href="https://www.youtube.com/@ChoosingBerry">ChoosingBerry</a> for the art.</sub>
 </div>
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FKursalChat%2FKursal.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FKursalChat%2FKursal?ref=badge_large)
