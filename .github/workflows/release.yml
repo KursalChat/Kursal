@@ -233,13 +233,13 @@ jobs:
           sudo rm -rf /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain
           ./bin/build-ios.sh
 
-      - name: Upload to App Store Connect
-        env:
-          KEY_ID: ${{ secrets.APPLE_API_KEY }}
-          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: |
-          xcrun altool --upload-app -f build/Kursal.ipa -t ios \
-            --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
+      # - name: Upload to App Store Connect
+      #   env:
+      #     KEY_ID: ${{ secrets.APPLE_API_KEY }}
+      #     ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      #   run: |
+      #     xcrun altool --upload-app -f build/Kursal.ipa -t ios \
+      #       --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
