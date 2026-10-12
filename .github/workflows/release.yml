@@ -159,7 +159,7 @@ jobs:
 
   ios:
     needs: [verify-tag, deps]
-    runs-on: macos-26
+    runs-on: xcode-27
     permissions:
       contents: read
       id-token: write
