@@ -159,7 +159,7 @@ jobs:
 
   ios:
     needs: [verify-tag, deps]
-    runs-on: xcode-27
+    runs-on: macos-26
     permissions:
       contents: read
       id-token: write
@@ -226,7 +226,12 @@ jobs:
           printf '%s' "$P8" > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
-      - run: ./bin/build-ios.sh
+      - name: Build iOS archive
+        env:
+          TOOLCHAINS: com.apple.dt.toolchain.XcodeDefault
+        run: |
+          sudo rm -rf /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain
+          ./bin/build-ios.sh
 
       - name: Upload to App Store Connect
         env:
