@@ -5,8 +5,8 @@ use libp2p::{
     dcutr,
     multiaddr::Protocol,
     swarm::{
-        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
-        THandlerOutEvent, ToSwarm,
+        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, NotifyHandler, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm,
         dial_opts::{DialOpts, PeerCondition},
         dummy,
     },
@@ -50,6 +50,12 @@ impl DcutrGate {
             self.gated.entry(peer).or_default().insert(connection_id);
         }
         gated
+    }
+
+    fn is_gated(&self, peer: &PeerId, connection_id: ConnectionId) -> bool {
+        self.gated
+            .get(peer)
+            .is_some_and(|connections| connections.contains(&connection_id))
     }
 }
 
@@ -146,9 +152,27 @@ impl NetworkBehaviour for DcutrGate {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Poll::Ready(event) = self.inner.poll(cx) {
+        loop {
+            let Poll::Ready(event) = self.inner.poll(cx) else {
+                break;
+            };
+
+            if let ToSwarm::NotifyHandler {
+                peer_id,
+                handler: NotifyHandler::One(connection_id),
+                ..
+            } = &event
+                && self.is_gated(peer_id, *connection_id)
+            {
+                log::debug!(
+                    "dropping DCUtR handler event for gated connection {connection_id:?} to {peer_id}"
+                );
+                continue;
+            }
+
             return Poll::Ready(event);
         }
+
         match self.redial.pop_front() {
             Some(peer_id) => Poll::Ready(ToSwarm::Dial {
                 opts: DialOpts::peer_id(peer_id)

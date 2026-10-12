@@ -414,17 +414,18 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "cd \"$GITHUB_WORKSPACE\" && makepkg --syncdeps --cleanbuild --noconfirm"
+          mv ./*.pkg.tar.zst Kursal_arch.pkg.tar.zst
 
       - name: Smoke test
         run: |
-          pacman -U --noconfirm ./*.pkg.tar.zst
+          pacman -U --noconfirm Kursal_arch.pkg.tar.zst
           ldd /usr/bin/kursal
           ! ldd /usr/bin/kursal | grep -q "not found"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: artifacts-arch
-          path: "*.pkg.tar.zst"
+          path: Kursal_arch.pkg.tar.zst
 
   android:
     needs: [verify-tag, deps]
