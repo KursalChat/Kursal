@@ -4386,7 +4386,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-app"
-version = "0.1.0-beta.10"
+version = "0.1.0-beta.11"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4430,7 +4430,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-cli"
-version = "0.1.0-beta.10"
+version = "0.1.0-beta.11"
 dependencies = [
  "anyhow",
  "axum",
@@ -4447,7 +4447,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-core"
-version = "0.1.0-beta.10"
+version = "0.1.0-beta.11"
 dependencies = [
  "aes-gcm 0.11.1",
  "android-native-keyring-store",
@@ -5246,7 +5246,7 @@ dependencies = [
 
 [[package]]
 name = "libsignal-debug"
-version = "0.1.0-beta.10"
+version = "0.1.0-beta.11"
 dependencies = [
  "cfg-if",
 ]

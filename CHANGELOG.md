@@ -6,6 +6,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.11] - 2026-10-12
+
+### Features
+
+- Mock website for devs :)
+- Add iOS + build CI
+
+### Bug Fixes
+
+- Android clear sink_slot
+- Remove sharekit from windows
+- JNI bump for android
+- Flag received messages with old send time
+- Check path before recursive delete
+- Video start and stop lock
+- Even more peer id checks
+- First contact lock peer ID checks
+- Cancel pending call media when the call ends
+- Encrypt LTC rendezvous pointer before publishing
+- Sign BLE beacons
+- Bind peer ids, enforce blocking, filter dialed addresses
+- More metadata stripping (& warning when impossible)
+- Prevent contact overriding self-sent messages
+- Show security code if added via nearby
+- Only allow LAN devices to show as LAN
+- Chat code block styling
+
+### CI
+
+- Probable android fix
+
+### Styling
+
+- Trailer & demo in readme
+
+### Miscellaneous
+
+- Package bump & maintenance
+- Package bump (sveltekit) & fmt
+- Package bump
+- Backmerge release/0.1.0 into dev
+- Backmerge release/0.1.0 into dev
+- Backmerge release/0.1.0 into dev (#24)
+- Deps bump
+- Bindgen workaround + codec refactor
+- Package bump & CI
+- Icon slight fixes
+
 ## [0.1.0-beta.10] - 2026-08-29
 
 ### Features
@@ -288,6 +336,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
-- Bump actions/checkout in the actions group
 - Initial commit
 
