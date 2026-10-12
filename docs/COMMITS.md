@@ -25,7 +25,7 @@ type: short summary in imperative mood
 ## Rules
 
 - lowercase `type`, then `: `, then the subject
-- subject ≤ 72 chars, no trailing period, imperative (`add`, not `added`)
+- ≤ 100 chars
 - breaking change: add `!` after the type (`feat!: ...`)
 
 A `commit-msg` git hook checks this locally; CI checks it again on every PR. See [CONTRIBUTING.md](../CONTRIBUTING.md) to activate the hook.

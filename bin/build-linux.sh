@@ -41,8 +41,8 @@ build_linux() {
         bun install --frozen-lockfile &&
         rustup upgrade &&
         rm -rf /root/kursal-target/release/bundle/ &&
-        export TAURI_SIGNING_PRIVATE_KEY=$(cat /workspace/keys/publishing.key) &&
-        export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat /workspace/keys/publishing.key.pwd) &&
+        export TAURI_SIGNING_PRIVATE_KEY=$(cat /workspace/private_keys/publishing.key) &&
+        export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat /workspace/private_keys/publishing.key.pwd) &&
         export CARGO_TARGET_DIR=/root/kursal-target &&
         export APPIMAGE_EXTRACT_AND_RUN=1 &&
         bun run tauri build --bundles deb,rpm,appimage,updater --config '"'"'{"build":{"beforeBuildCommand":""}}'"'"' &&

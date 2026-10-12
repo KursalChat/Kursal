@@ -33,4 +33,4 @@ If you distribute a modified build, give it your own name and your own icon. Use
 
 ## Asking
 
-If you want to do something this file does not cover, or you think your case is reasonable and it says no, write to <hello@kursal.chat>. We are not trying to be difficult, and we would rather say yes to something specific than write a broader rule.
+If you want to do something this file does not cover, or you think your case is reasonable and it says no, write to <hello@kursal.chat>. We're friendly :)

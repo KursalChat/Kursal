@@ -5,9 +5,7 @@ Releases are **built on GitHub Actions**, every platform in parallel, and publis
 1. `just cut <version>` (prepare + tag + push, which starts the build)
 2. then `just ship <version>` (publish what CI produced)
 
-The lower-level recipes (`release`, `build`, `publish`, …) still work standalone if you want to drive a step by hand.
-
-`just build` still builds everything locally. It is the fallback when CI is unavailable.
+The lower-level recipes (`release`, `build`, `publish`, …) still work standalone
 
 ## Prerequisites
 
@@ -17,7 +15,7 @@ The lower-level recipes (`release`, `build`, `publish`, …) still work standalo
 Distribution targets are local sibling repos (see the `justfile`):
 `~/Code/Kursal-Website/static` (api docs) and `~/Code/homebrew-kursal` (cask).
 
-One-time setup: create the permanent beta manifest slot (see [Update channels](#update-channels)):
+One-time setup: create the permanent beta manifest slot:
 
 ```bash
 gh release create beta --prerelease --title "beta channel manifest" \
@@ -26,25 +24,26 @@ gh release create beta --prerelease --title "beta channel manifest" \
 
 Those variables needs to be defined in Github secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD`.
 
+These can also be defined for signing Mac/iOS builds `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_P8`, `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_DIST_CERTIFICATE`, `APPLE_DIST_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID`, `IOS_PROVISIONING_PROFILE`, `IOS_SHARE_PROVISIONING_PROFILE` and `KEYCHAIN_PASSWORD`.
+
 ## Stable release
 
 ```bash
 just cut 0.2.0     # branch release/0.2.0 from dev, verify+bump+tag, push. CI builds.
 
 # → watch it: gh run watch
-# → grab what you want from the draft release and make sure it's good ←
 
 just ship 0.2.0    # PR→main, un-draft + publish, back-merge→dev, clean up
 ```
 
 ## Beta / rc release
 
-Betas live on the `release/<minor>` branch; nothing touches `main` until the stable ships. `cut`/`ship` detect the `-beta.N` suffix and skip the main-merge.
+Betas live on the `release/<minor>` branch. `cut`/`ship` detect the `-beta.N` suffix and skip the main-merge.
 
 ```bash
 just cut 0.3.0-beta.1     # creates release/0.3.0 (reused by later betas)
 # → test ←
-just ship 0.3.0-beta.1    # un-draft the pre-release + beta manifest slot (confirms first)
+just ship 0.3.0-beta.1    # un-draft the pre-release + beta manifest slot
 
 # more betas on the same branch:
 just cut 0.3.0-beta.2 && just ship 0.3.0-beta.2
