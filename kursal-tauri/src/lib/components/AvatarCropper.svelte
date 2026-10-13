@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { log } from '$lib/utils/log';
-  import { t } from '$lib/i18n';
+  import { log } from '#lib/utils/log.js';
+  import { t } from '#lib/i18n/index.js';
   import { scale } from 'svelte/transition';
   import { ZoomIn, ZoomOut, X, Check } from 'lucide-svelte';
   import Button from './Button.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { MAX_PROFILE_AVATAR_LEN } from '$lib/utils/displayName';
-  import { canvasHasAlpha, pickAvatarMimeType } from '$lib/utils/avatarFormat';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { MAX_PROFILE_AVATAR_LEN } from '#lib/utils/displayName.js';
+  import { canvasHasAlpha, pickAvatarMimeType } from '#lib/utils/avatarFormat.js';
 
   let {
     file,

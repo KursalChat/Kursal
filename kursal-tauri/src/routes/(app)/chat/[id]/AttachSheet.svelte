@@ -1,9 +1,9 @@
 <script lang="ts">
   import { Image, Camera, Paperclip } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { OS } from '$lib/api/window';
-  import type { PickerMode } from '$lib/utils/file-transfer-paths';
+  import { t } from '#lib/i18n/index.js';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { OS } from '#lib/api/window.js';
+  import type { PickerMode } from '#lib/utils/file-transfer-paths.js';
 
   interface Props {
     onClose: () => void;

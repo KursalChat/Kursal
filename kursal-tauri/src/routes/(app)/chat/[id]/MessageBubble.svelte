@@ -26,14 +26,14 @@
     Mail,
   } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
-  import { t } from '$lib/i18n';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { readInsets } from '$lib/utils/android-insets';
-  import { portal } from '$lib/utils/portal';
-  import { dismissable } from '$lib/utils/dismiss';
-  import { clamp } from '$lib/utils/geometry';
-  import type { MessageResponse } from '$lib/types';
-  import { formatFullTimestamp, formatTime } from '$lib/utils/dateFormat.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { readInsets } from '#lib/utils/android-insets.js';
+  import { portal } from '#lib/utils/portal.js';
+  import { dismissable } from '#lib/utils/dismiss.js';
+  import { clamp } from '#lib/utils/geometry.js';
+  import type { MessageResponse } from '#lib/types.js';
+  import { formatFullTimestamp, formatTime } from '#lib/utils/dateFormat.svelte.js';
   import MessageAttachment from './MessageAttachment.svelte';
   import {
     receivedLabel,

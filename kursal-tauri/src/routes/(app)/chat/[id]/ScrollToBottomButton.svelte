@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
   import { ChevronDown } from 'lucide-svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
+  import Avatar from '#lib/components/Avatar.svelte';
 
   interface Props {
     unreadCount: number;

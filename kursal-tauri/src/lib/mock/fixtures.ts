@@ -4,7 +4,7 @@ import type {
   ContactResponse,
   LtcStatus,
   MessageResponse,
-} from '$lib/types';
+} from '#lib/types.js';
 
 export type ConnectionStatus = ConnectionChangedPayload['status'];
 

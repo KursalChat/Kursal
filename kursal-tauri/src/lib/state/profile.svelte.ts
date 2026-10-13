@@ -4,9 +4,9 @@ import {
   getLocalUserId,
   setLocalUserAvatar,
   broadcastProfile,
-} from '$lib/api/identity';
-import { withAvatarCacheBust } from '$lib/utils/avatarUrl';
-import { log } from '$lib/utils/log';
+} from '#lib/api/identity.js';
+import { withAvatarCacheBust } from '#lib/utils/avatarUrl.js';
+import { log } from '#lib/utils/log.js';
 
 function createProfileState() {
   let displayName = $state('You');

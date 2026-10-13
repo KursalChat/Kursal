@@ -1,4 +1,4 @@
-import type { MessageResponse } from '$lib/types';
+import type { MessageResponse } from '#lib/types.js';
 
 export interface MessageGroup {
   kind: 'msgs' | 'call' | 'pin';

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import {
     Save,
     Trash2,
@@ -11,9 +11,9 @@
     ScrollText,
   } from 'lucide-svelte';
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
-  import { isMobile } from '$lib/api/window';
-  import { openLogFolder, openFilesFolder } from '$lib/api/fs';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
+  import { isMobile } from '#lib/api/window.js';
+  import { openLogFolder, openFilesFolder } from '#lib/api/fs.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
   import {
     listSharedFiles,
     revokeSharedFile,
@@ -25,17 +25,17 @@
     type AutoDownloadConfig,
     type AutoDownloadScope,
     type StorageUsage,
-  } from '$lib/api/settings';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { settingsDirty } from '$lib/state/settingsDirty.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { formatBytes, bytesToMB, mbToBytes } from '$lib/utils/bytes';
-  import { formatDate } from '$lib/utils/dateFormat.svelte';
-  import { basename, shortenId } from '$lib/utils/text';
-  import { identityColor } from '$lib/utils/identityColor';
-  import Button from '$lib/components/Button.svelte';
+  } from '#lib/api/settings.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { settingsDirty } from '#lib/state/settingsDirty.svelte.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { formatBytes, bytesToMB, mbToBytes } from '#lib/utils/bytes.js';
+  import { formatDate } from '#lib/utils/dateFormat.svelte.js';
+  import { basename, shortenId } from '#lib/utils/text.js';
+  import { identityColor } from '#lib/utils/identityColor.js';
+  import Button from '#lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Segmented from './Segmented.svelte';
@@ -45,8 +45,8 @@
   import UsageBar from './UsageBar.svelte';
   import type { UsageSegment } from './UsageBar.svelte';
   import LogViewerModal from './LogViewerModal.svelte';
-  import { clearLogs } from '$lib/api/logs';
-  import { t, dateLocale } from '$lib/i18n';
+  import { clearLogs } from '#lib/api/logs.js';
+  import { t, dateLocale } from '#lib/i18n/index.js';
 
   let shared = $state<SharedFileEntry[]>([]);
   let sharedLoading = $state(false);

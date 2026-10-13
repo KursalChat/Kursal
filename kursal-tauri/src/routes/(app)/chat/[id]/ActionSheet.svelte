@@ -10,10 +10,10 @@
     Pin,
     Mail,
   } from 'lucide-svelte';
-  import type { MessageResponse } from '$lib/types';
-  import { t } from '$lib/i18n';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { topRecents } from '$lib/emoji';
+  import type { MessageResponse } from '#lib/types.js';
+  import { t } from '#lib/i18n/index.js';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { topRecents } from '#lib/emoji/index.js';
 
   interface Props {
     msg: MessageResponse;

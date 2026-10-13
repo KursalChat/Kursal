@@ -7,14 +7,14 @@
     setVideoQuality,
     listAudioDevices,
     setAudioDevice,
-  } from '$lib/api/call';
-  import type { AudioDevices } from '$lib/types';
-  import { notifyError } from '$lib/utils/errors';
-  import { optimistic } from '$lib/utils/optimistic';
+  } from '#lib/api/call.js';
+  import type { AudioDevices } from '#lib/types.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { optimistic } from '#lib/utils/optimistic.js';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Select from './Select.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   const DEFAULT = '__default__';
 

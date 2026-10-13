@@ -1,8 +1,8 @@
 <script lang="ts">
   import { RefreshCw } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
-  import { offlineSyncState } from '$lib/state/offlineSync.svelte';
-  import { t } from '$lib/i18n';
+  import { offlineSyncState } from '#lib/state/offlineSync.svelte.js';
+  import { t } from '#lib/i18n/index.js';
 
   interface Props {
     // Icon-only, for tight spots like the mobile chat header. The label moves

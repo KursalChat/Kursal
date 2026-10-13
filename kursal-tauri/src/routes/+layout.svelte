@@ -1,56 +1,56 @@
 <script lang="ts">
   import '../app.css';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { listen } from '@tauri-apps/api/event';
   import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
   import { goto } from '$app/navigation';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { draftsState } from '$lib/state/drafts.svelte';
-  import { pinnedConvosState } from '$lib/state/pinnedConvos.svelte';
-  import { archivedConvosState } from '$lib/state/archivedConvos.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { t } from '$lib/i18n';
-  import { appearanceState } from '$lib/state/appearance.svelte';
-  import { prefsState } from '$lib/state/prefs.svelte';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { notifyMessage, getPermission, isInDndWindow } from '$lib/state/systemNotify.svelte';
-  import { getNetworkStatus } from '$lib/api/settings';
-  import { frontendReady } from '$lib/api/identity';
-  import { OS, isMobile } from '$lib/api/window';
-  import { notifyError } from '$lib/utils/errors';
-  import { registerCoreListeners } from '$lib/state/eventBus';
-  import { trackViewport, blockPinchZoom } from '$lib/utils/viewport';
-  import { readRaw, writeRaw, readJson } from '$lib/utils/storage';
-  import { APP_LOCK_KEY } from '$lib/utils/storage-keys';
-  import { runStartupDialogs } from '$lib/api/dialogs';
-  import { handleBackendDialog } from '$lib/state/dialogBridge.svelte';
-  import ToastContainer from '$lib/components/ToastContainer.svelte';
-  import UpdateDownloadRing from '$lib/components/UpdateDownloadRing.svelte';
-  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-  import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
-  import { callState } from '$lib/state/call.svelte';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { draftsState } from '#lib/state/drafts.svelte.js';
+  import { pinnedConvosState } from '#lib/state/pinnedConvos.svelte.js';
+  import { archivedConvosState } from '#lib/state/archivedConvos.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { t } from '#lib/i18n/index.js';
+  import { appearanceState } from '#lib/state/appearance.svelte.js';
+  import { prefsState } from '#lib/state/prefs.svelte.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { notifyMessage, getPermission, isInDndWindow } from '#lib/state/systemNotify.svelte.js';
+  import { getNetworkStatus } from '#lib/api/settings.js';
+  import { frontendReady } from '#lib/api/identity.js';
+  import { OS, isMobile } from '#lib/api/window.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { registerCoreListeners } from '#lib/state/eventBus.js';
+  import { trackViewport, blockPinchZoom } from '#lib/utils/viewport.js';
+  import { readRaw, writeRaw, readJson } from '#lib/utils/storage.js';
+  import { APP_LOCK_KEY } from '#lib/utils/storage-keys.js';
+  import { runStartupDialogs } from '#lib/api/dialogs.js';
+  import { handleBackendDialog } from '#lib/state/dialogBridge.svelte.js';
+  import ToastContainer from '#lib/components/ToastContainer.svelte';
+  import UpdateDownloadRing from '#lib/components/UpdateDownloadRing.svelte';
+  import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+  import { confirmDialog, confirmDialogWithCheckbox } from '#lib/state/confirm.svelte.js';
+  import { callState } from '#lib/state/call.svelte.js';
   import {
     setBusyState,
     closeToBackground,
     closeForceQuit,
     setBackgroundMode,
     setCloseExplainerPending,
-  } from '$lib/api/settings';
-  import BiometricLock from '$lib/components/BiometricLock.svelte';
-  import ShareTargetModal from '$lib/components/ShareTargetModal.svelte';
-  import { shareIntentState } from '$lib/state/shareIntent.svelte';
-  import CloseExplainer from '$lib/components/CloseExplainer.svelte';
+  } from '#lib/api/settings.js';
+  import BiometricLock from '#lib/components/BiometricLock.svelte';
+  import ShareTargetModal from '#lib/components/ShareTargetModal.svelte';
+  import { shareIntentState } from '#lib/state/shareIntent.svelte.js';
+  import CloseExplainer from '#lib/components/CloseExplainer.svelte';
   import type {
     BackendSignalPayload,
     CloseRequestedPayload,
     BackendDialogPayload,
-  } from '$lib/types';
-  import { networkState } from '$lib/state/network.svelte';
-  import { appFocusState } from '$lib/state/appFocus.svelte';
-  import { initAndroidInsets } from '$lib/utils/android-insets';
+  } from '#lib/types.js';
+  import { networkState } from '#lib/state/network.svelte.js';
+  import { appFocusState } from '#lib/state/appFocus.svelte.js';
+  import { initAndroidInsets } from '#lib/utils/android-insets.js';
 
   initAndroidInsets();
 
@@ -122,7 +122,7 @@
       void notifyMessage({ contactId, senderName, body });
       return;
     }
-    if ($page.url.pathname === `/chat/${contactId}`) return;
+    if (page.url.pathname === `/chat/${contactId}`) return;
     if (prefsState.notificationPreview === 'none' || isInDndWindow()) return;
     notifications.push(t('notifications.newMessageFrom', { sender: senderName }), 'info', {
       action: {

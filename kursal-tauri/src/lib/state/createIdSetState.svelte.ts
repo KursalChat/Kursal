@@ -1,5 +1,5 @@
-import { browser } from '$app/environment';
-import { getUiState, setUiState } from '$lib/api/settings';
+import { browser } from '$app/env';
+import { getUiState, setUiState } from '#lib/api/settings.js';
 
 function parseIds(raw: string | null): string[] {
   if (!raw) return [];

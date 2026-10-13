@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n';
+import { t } from '#lib/i18n/index.js';
 import { nowTick } from './clock.svelte';
 
 export function lastSeenLabel(ts: number | null): string {

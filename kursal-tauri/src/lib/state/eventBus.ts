@@ -1,18 +1,18 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { contactsState } from '$lib/state/contacts.svelte';
-import { messagesState } from '$lib/state/messages.svelte';
-import { networkState } from '$lib/state/network.svelte';
-import { nearbyState } from '$lib/state/nearby.svelte';
-import { typingState } from '$lib/state/typing.svelte';
-import { offlineSyncState } from '$lib/state/offlineSync.svelte';
-import { updateDownloadState } from '$lib/state/updateDownload.svelte';
-import { winstonTips } from '$lib/state/winstonTips.svelte';
-import { notifications } from '$lib/state/notifications.svelte';
-import { acceptFileOffer } from '$lib/api/messages';
-import { notifyError, parseError } from '$lib/utils/errors';
-import { clearOtpSession } from '$lib/utils/otpSession';
-import { log } from '$lib/utils/log';
-import { t } from '$lib/i18n';
+import { contactsState } from '#lib/state/contacts.svelte.js';
+import { messagesState } from '#lib/state/messages.svelte.js';
+import { networkState } from '#lib/state/network.svelte.js';
+import { nearbyState } from '#lib/state/nearby.svelte.js';
+import { typingState } from '#lib/state/typing.svelte.js';
+import { offlineSyncState } from '#lib/state/offlineSync.svelte.js';
+import { updateDownloadState } from '#lib/state/updateDownload.svelte.js';
+import { winstonTips } from '#lib/state/winstonTips.svelte.js';
+import { notifications } from '#lib/state/notifications.svelte.js';
+import { acceptFileOffer } from '#lib/api/messages.js';
+import { notifyError, parseError } from '#lib/utils/errors.js';
+import { clearOtpSession } from '#lib/utils/otpSession.js';
+import { log } from '#lib/utils/log.js';
+import { t } from '#lib/i18n/index.js';
 import type {
   MessageReceivedPayload,
   ConnectionChangedPayload,
@@ -36,7 +36,7 @@ import type {
   TypingIndicatorPayload,
   UpdateDownloadProgressPayload,
   ContactAddedPayload,
-} from '$lib/types';
+} from '#lib/types.js';
 
 export interface CoreListenerHooks {
   notifyIncoming: (contactId: string, senderName: string, body: string) => void;

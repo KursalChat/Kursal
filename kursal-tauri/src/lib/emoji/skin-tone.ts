@@ -1,5 +1,5 @@
 import type { Emoji, ToneId } from './types';
-import { readRaw, writeRaw } from '$lib/utils/storage';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
 
 export const LOCAL_KEY = 'kursal_emoji_tone';
 

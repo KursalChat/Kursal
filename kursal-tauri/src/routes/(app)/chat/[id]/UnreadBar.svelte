@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowUp, Mail, CheckCheck } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   interface Props {
     count: number;

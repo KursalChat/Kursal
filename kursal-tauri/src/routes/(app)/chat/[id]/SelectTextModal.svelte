@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { X, Code, Type } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
   import { renderMarkdown } from './chat-utils';
 
   interface Props {

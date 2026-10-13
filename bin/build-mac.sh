@@ -8,6 +8,8 @@ cd "$ROOT/kursal-tauri"
 
 # Must match bin/build-abseil.sh and tauri.conf.json macOS minimumSystemVersion.
 export MACOSX_DEPLOYMENT_TARGET=14.0
+# Tauri skips Finder DMG layout on CI unless this is explicitly overridden.
+export TAURI_BUNDLER_DMG_IGNORE_CI=true
 
 check_no_homebrew() {
   if otool -L "$1" | grep -q /opt/homebrew; then

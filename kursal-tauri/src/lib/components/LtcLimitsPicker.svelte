@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import Segmented from '$lib/components/settings/Segmented.svelte';
-  import { t } from '$lib/i18n';
+  import Segmented from '#lib/components/settings/Segmented.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   let {
     maxUses = $bindable(null),

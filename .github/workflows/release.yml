@@ -125,9 +125,9 @@ jobs:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          mkdir -p keys
-          printf '%s' "$KEY" > keys/publishing.key
-          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+          mkdir -p private_keys
+          printf '%s' "$KEY" > private_keys/publishing.key
+          printf '%s' "$KEY_PWD" > private_keys/publishing.key.pwd
 
       - name: Notarization key
         env:
@@ -190,9 +190,9 @@ jobs:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          mkdir -p keys
-          printf '%s' "$KEY" > keys/publishing.key
-          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+          mkdir -p private_keys
+          printf '%s' "$KEY" > private_keys/publishing.key
+          printf '%s' "$KEY_PWD" > private_keys/publishing.key.pwd
 
       - name: Apple signing
         env:
@@ -226,15 +226,20 @@ jobs:
           printf '%s' "$P8" > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
       - run: cd kursal-tauri && bun install --frozen-lockfile && bun run build
-      - run: ./bin/build-ios.sh
-
-      - name: Upload to App Store Connect
+      - name: Build iOS archive
         env:
-          KEY_ID: ${{ secrets.APPLE_API_KEY }}
-          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          TOOLCHAINS: com.apple.dt.toolchain.XcodeDefault
         run: |
-          xcrun altool --upload-app -f build/Kursal.ipa -t ios \
-            --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
+          sudo rm -rf /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain
+          ./bin/build-ios.sh
+
+      # - name: Upload to App Store Connect
+      #   env:
+      #     KEY_ID: ${{ secrets.APPLE_API_KEY }}
+      #     ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      #   run: |
+      #     xcrun altool --upload-app -f build/Kursal.ipa -t ios \
+      #       --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -387,6 +392,41 @@ jobs:
           name: artifacts-linux-${{ matrix.suffix }}
           path: build/Kursal*
 
+  arch:
+    needs: verify-tag
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install git
+        run: pacman -Syu --noconfirm --needed git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+
+      - name: Build package
+        run: |
+          useradd --create-home builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          su builder -c "cd \"$GITHUB_WORKSPACE\" && makepkg --syncdeps --cleanbuild --noconfirm"
+          mv ./*.pkg.tar.zst Kursal_arch.pkg.tar.zst
+
+      - name: Smoke test
+        run: |
+          pacman -U --noconfirm Kursal_arch.pkg.tar.zst
+          ldd /usr/bin/kursal
+          ! ldd /usr/bin/kursal | grep -q "not found"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: artifacts-arch
+          path: Kursal_arch.pkg.tar.zst
+
   android:
     needs: [verify-tag, deps]
     runs-on: ubuntu-22.04
@@ -432,11 +472,11 @@ jobs:
           JKS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           JKS_PWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          mkdir -p keys
-          printf '%s' "$KEY" > keys/publishing.key
-          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
-          echo "$JKS" | base64 -d > keys/android.jks
-          printf 'storeFile=%s/keys/android.jks\npassword=%s\nkeyAlias=upload\n' \
+          mkdir -p private_keys
+          printf '%s' "$KEY" > private_keys/publishing.key
+          printf '%s' "$KEY_PWD" > private_keys/publishing.key.pwd
+          echo "$JKS" | base64 -d > private_keys/android.jks
+          printf 'storeFile=%s/private_keys/android.jks\npassword=%s\nkeyAlias=upload\n' \
             "$GITHUB_WORKSPACE" "$JKS_PWD" \
             > kursal-tauri/src-tauri/gen/android/keystore.properties
 
@@ -447,10 +487,14 @@ jobs:
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           ./bin/build-android.sh
+          ./bin/build-android-aab.sh
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: build/Kursal.apk
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/Kursal.aab
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: artifacts-android
@@ -516,7 +560,7 @@ jobs:
 
   # Everything is built; now assemble latest.json + SHA256SUMS and publish.
   release:
-    needs: [verify-tag, macos, ios, windows, linux, android, relay, relay-manifest]
+    needs: [verify-tag, macos, ios, windows, linux, arch, android, relay, relay-manifest]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -544,9 +588,9 @@ jobs:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           KEY_PWD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          mkdir -p keys
-          printf '%s' "$KEY" > keys/publishing.key
-          printf '%s' "$KEY_PWD" > keys/publishing.key.pwd
+          mkdir -p private_keys
+          printf '%s' "$KEY" > private_keys/publishing.key
+          printf '%s' "$KEY_PWD" > private_keys/publishing.key.pwd
 
       - run: ./bin/gen-manifest.sh
       - run: ./bin/preflight.sh

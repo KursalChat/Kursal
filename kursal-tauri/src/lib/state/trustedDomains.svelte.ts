@@ -1,4 +1,4 @@
-import { readStringSet, writeStringSet } from '$lib/utils/storage';
+import { readStringSet, writeStringSet } from '#lib/utils/storage.js';
 
 const STORAGE_KEY = 'kursal:trustedDomains';
 

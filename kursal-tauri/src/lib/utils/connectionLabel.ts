@@ -1,6 +1,6 @@
-import { t } from '$lib/i18n';
+import { t } from '#lib/i18n/index.js';
 import { lastSeenLabel } from './lastSeen';
-import type { ConnectionChangedPayload } from '$lib/types';
+import type { ConnectionChangedPayload } from '#lib/types.js';
 
 export function connectionLabel(
   status: ConnectionChangedPayload['status'] | undefined,

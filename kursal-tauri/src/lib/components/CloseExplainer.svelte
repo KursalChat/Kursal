@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
   import WinstonCard from './WinstonCard.svelte';
 
   // Shown once ever, on the first window close that would silently leave Kursal

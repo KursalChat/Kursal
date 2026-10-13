@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SharePayload } from '$lib/types';
+import type { SharePayload } from '#lib/types.js';
 
 const mocks = vi.hoisted(() => ({
   takePendingShares: vi.fn(),
   discardPendingShare: vi.fn(),
 }));
 
-vi.mock('$lib/api/share', () => mocks);
+vi.mock('#lib/api/share.js', () => mocks);
 
-vi.mock('$lib/utils/log', () => ({
+vi.mock('#lib/utils/log.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

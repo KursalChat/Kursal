@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Pin, PinOff } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
-  import { formatTime } from '$lib/utils/dateFormat.svelte';
+  import { t } from '#lib/i18n/index.js';
+  import { formatTime } from '#lib/utils/dateFormat.svelte.js';
 
   interface Props {
     pinned: boolean;

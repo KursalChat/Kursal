@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CloudUpload, CloudOff } from 'lucide-svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   interface Props {
     pendingUpload: number;

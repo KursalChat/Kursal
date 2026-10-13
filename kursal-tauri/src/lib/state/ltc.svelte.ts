@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { listen } from '@tauri-apps/api/event';
 import {
   createLtc as apiCreate,
@@ -8,9 +8,9 @@ import {
   revokeLtc as apiRevoke,
   setLtcFollowRotations as apiSetFollowRotations,
   updateLtcLimits as apiUpdateLimits,
-} from '$lib/api/ltc';
-import { log } from '$lib/utils/log';
-import type { LtcStatus } from '$lib/types';
+} from '#lib/api/ltc.js';
+import { log } from '#lib/utils/log.js';
+import type { LtcStatus } from '#lib/types.js';
 
 const EXPIRY_SLACK_SECS = 10 * 60;
 
@@ -41,7 +41,6 @@ function createLtcState() {
   let reshareRotated = $state(false);
   let pointerBusy = $state(false);
   let initialized = false;
-
   const survivesRotation = $derived(
     status !== null && status.followRotations && status.pointerState === 'published'
   );

@@ -1,6 +1,6 @@
 <script lang="ts" generics="T extends string">
   import { ChevronDown, Check } from 'lucide-svelte';
-  import { readInsets } from '$lib/utils/android-insets';
+  import { readInsets } from '#lib/utils/android-insets.js';
 
   let {
     value,

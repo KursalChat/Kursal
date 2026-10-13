@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { ltcState } from '$lib/state/ltc.svelte';
-  import Button from '$lib/components/Button.svelte';
-  import ConnectRow from '$lib/components/ConnectRow.svelte';
-  import LtcCard from '$lib/components/LtcCard.svelte';
-  import LtcLimitsPicker from '$lib/components/LtcLimitsPicker.svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { ltcState } from '#lib/state/ltc.svelte.js';
+  import Button from '#lib/components/Button.svelte';
+  import ConnectRow from '#lib/components/ConnectRow.svelte';
+  import LtcCard from '#lib/components/LtcCard.svelte';
+  import LtcLimitsPicker from '#lib/components/LtcLimitsPicker.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { t } from '#lib/i18n/index.js';
   import { FileArchive, Plus, ShieldAlert } from 'lucide-svelte';
 
   let open = $state(false);

@@ -5,11 +5,8 @@ website := "~/Code/Kursal-Website/static"
 homebrew := "~/Code/homebrew-kursal/Casks/kursal.rb"
 install_frontend_deps := if path_exists("kursal-tauri/node_modules") == "true" { "true" } else { "cd kursal-tauri && bun install --frozen-lockfile" }
 
-# @tauri-apps/cli is pinned by the lockfile; cargo-tauri is the fallback.
-
 tauri := if path_exists("kursal-tauri/node_modules/.bin/tauri") == "true" { "bun run --cwd kursal-tauri tauri" } else if path_exists("kursal-tauri/node_modules") == "false" { "cd kursal-tauri && bun install --frozen-lockfile && bun run tauri" } else { "cargo tauri" }
 
-# list recipes
 default:
     @just --list
 
@@ -90,6 +87,7 @@ build-linux: build-frontend
 
 build-android: build-opus build-frontend
     ./bin/build-android.sh
+    ./bin/build-android-aab.sh
 
 build-ios: build-opus build-frontend
     ./bin/build-ios.sh

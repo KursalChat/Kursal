@@ -1,4 +1,4 @@
-import { readJson, writeJson } from '$lib/utils/storage';
+import { readJson, writeJson } from '#lib/utils/storage.js';
 
 export const COUNTS_KEY = 'kursal_recent_emoji_counts';
 

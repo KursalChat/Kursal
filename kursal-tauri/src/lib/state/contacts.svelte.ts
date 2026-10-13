@@ -1,8 +1,13 @@
-import type { ContactResponse, ConnectionChangedPayload } from '$lib/types';
-import { log } from '$lib/utils/log';
-import { getContacts, getContactMeta, setContactMuted, setContactAlias } from '$lib/api/contacts';
-import { shouldStampLastSeen } from '$lib/utils/presence';
-import { optimistic } from '$lib/utils/optimistic';
+import type { ContactResponse, ConnectionChangedPayload } from '#lib/types.js';
+import { log } from '#lib/utils/log.js';
+import {
+  getContacts,
+  getContactMeta,
+  setContactMuted,
+  setContactAlias,
+} from '#lib/api/contacts.js';
+import { shouldStampLastSeen } from '#lib/utils/presence.js';
+import { optimistic } from '#lib/utils/optimistic.js';
 import { messagesState } from './messages.svelte';
 
 function createContactsState() {

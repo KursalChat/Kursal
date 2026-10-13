@@ -1,16 +1,16 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { t } from '$lib/i18n';
-  import { ensurePermission } from '$lib/state/systemNotify.svelte';
-  import { writeRaw } from '$lib/utils/storage';
-  import { ONBOARDED_KEY } from '$lib/utils/storage-keys';
+  import { t } from '#lib/i18n/index.js';
+  import { ensurePermission } from '#lib/state/systemNotify.svelte.js';
+  import { writeRaw } from '#lib/utils/storage.js';
+  import { ONBOARDED_KEY } from '#lib/utils/storage-keys.js';
   import { ChevronLeft } from 'lucide-svelte';
-  import InkDefs from '$lib/components/onboarding/InkDefs.svelte';
-  import ScreenHello from '$lib/components/onboarding/ScreenHello.svelte';
-  import ScreenMiddleman from '$lib/components/onboarding/ScreenMiddleman.svelte';
-  import ScreenDirect from '$lib/components/onboarding/ScreenDirect.svelte';
-  import ScreenNoAccounts from '$lib/components/onboarding/ScreenNoAccounts.svelte';
-  import ScreenProfile from '$lib/components/onboarding/ScreenProfile.svelte';
+  import InkDefs from '#lib/components/onboarding/InkDefs.svelte';
+  import ScreenHello from '#lib/components/onboarding/ScreenHello.svelte';
+  import ScreenMiddleman from '#lib/components/onboarding/ScreenMiddleman.svelte';
+  import ScreenDirect from '#lib/components/onboarding/ScreenDirect.svelte';
+  import ScreenNoAccounts from '#lib/components/onboarding/ScreenNoAccounts.svelte';
+  import ScreenProfile from '#lib/components/onboarding/ScreenProfile.svelte';
 
   const TOTAL = 5;
 

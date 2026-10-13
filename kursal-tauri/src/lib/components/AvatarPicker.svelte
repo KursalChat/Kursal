@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import { open } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
   import AvatarCropper from './AvatarCropper.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { t } from '$lib/i18n';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { t } from '#lib/i18n/index.js';
 
   let {
     onChange,

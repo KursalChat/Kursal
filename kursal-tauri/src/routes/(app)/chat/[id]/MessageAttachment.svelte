@@ -11,15 +11,15 @@
     ChevronDown,
     ChevronUp,
   } from 'lucide-svelte';
-  import { pathExists } from '$lib/api/fs';
-  import { isMobile } from '$lib/api/window';
-  import { notifyError } from '$lib/utils/errors';
-  import { formatFileSize } from '$lib/utils/bytes';
-  import { midTruncate } from '$lib/utils/text';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import { pathExists } from '#lib/api/fs.js';
+  import { isMobile } from '#lib/api/window.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { formatFileSize } from '#lib/utils/bytes.js';
+  import { midTruncate } from '#lib/utils/text.js';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { t } from '#lib/i18n/index.js';
   import { mediaKindFromFilename, isTextFilename, mediaUrl } from './chat-utils';
-  import type { MessageResponse } from '$lib/types';
+  import type { MessageResponse } from '#lib/types.js';
 
   let {
     msg,

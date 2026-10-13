@@ -30,7 +30,7 @@ Or run it directly:
 docker run -d --name kursal-relay \
   --restart unless-stopped \
   -v "$PWD":/data \
-  -p 4891:4891/tcp -p 4891:4891/udp \
+  -p 4891:4891/tcp -p 4891:4891/udp -p 4892:4892/tcp \
   ghcr.io/kursalchat/relay:latest
 ```
 
@@ -142,7 +142,4 @@ bin/build-relay.sh --push   # additionally push ghcr images
 
 ## Getting listed as a bootstrap relay
 
-Stable, long-lived relays can be added to the default bootstrap list that
-ships with the app. Open an issue with your relay's multiaddr
-(`/dns4/relay.example.org/udp/4891/quic-v1/p2p/<peer-id>`) and how long you
-intend to run it. We then may add it to [bootstrap.json](../kursal-core/src/network/bootstrap.json) and on our [status page](https://status.kursal.chat).
+Stable, long-lived relays can be added to the default bootstrap list that ships with the app. Open an issue with your relay's multiaddr (`/dns4/relay.example.org/udp/4891/quic-v1/p2p/<peer-id>`) and how long you intend to run it. We then may add it to [bootstrap.json](../kursal-core/src/network/bootstrap.json) and on our [status page](https://status.kursal.chat).

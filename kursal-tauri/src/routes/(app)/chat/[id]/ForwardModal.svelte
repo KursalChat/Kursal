@@ -1,14 +1,14 @@
 <script lang="ts">
   import { Forward } from 'lucide-svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import { sendText } from '$lib/api/messages';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { log } from '$lib/utils/log';
-  import PickerDialog from '$lib/components/PickerDialog.svelte';
-  import ContactPickerRow from '$lib/components/ContactPickerRow.svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import { sendText } from '#lib/api/messages.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { log } from '#lib/utils/log.js';
+  import PickerDialog from '#lib/components/PickerDialog.svelte';
+  import ContactPickerRow from '#lib/components/ContactPickerRow.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   let { content, onClose }: { content: string; onClose: () => void } = $props();
 

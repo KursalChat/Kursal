@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ContactResponse, OtpResponse } from '$lib/types';
+import type { ContactResponse, OtpResponse } from '#lib/types.js';
 
 export const generateOtp = (): Promise<OtpResponse> => invoke('generate_otp');
 

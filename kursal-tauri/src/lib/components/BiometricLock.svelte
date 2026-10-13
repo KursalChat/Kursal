@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import { Lock, Fingerprint } from 'lucide-svelte';
   import { authenticate } from '@tauri-apps/plugin-biometric';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   let { onUnlock }: { onUnlock: () => void } = $props();
 

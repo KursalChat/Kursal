@@ -1,4 +1,4 @@
-import { getImeInset, onInsetsChange } from '$lib/utils/android-insets';
+import { getImeInset, onInsetsChange } from '#lib/utils/android-insets.js';
 
 function syncViewport() {
   const vv = window.visualViewport;

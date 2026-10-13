@@ -1,20 +1,20 @@
 <script lang="ts">
   import { scale } from 'svelte/transition';
-  import { notifyError } from '$lib/utils/errors';
+  import { notifyError } from '#lib/utils/errors.js';
   import { X, Trash2, Ban, Shield, Copy, Pencil, Check } from 'lucide-svelte';
   import Avatar from './Avatar.svelte';
   import SecurityCodeModal from './SecurityCodeModal.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import type { ContactResponse } from '$lib/types';
-  import { removeContact, setContactBlocked } from '$lib/api/contacts';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import { busy } from '$lib/utils/busy.svelte';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { trapFocus } from '$lib/utils/focusTrap';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import type { ContactResponse } from '#lib/types.js';
+  import { removeContact, setContactBlocked } from '#lib/api/contacts.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import { busy } from '#lib/utils/busy.svelte.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
   import Spinner from './Spinner.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
 
   const blockBusy = busy();
   const removeBusy = busy();

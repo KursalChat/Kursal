@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n';
+import { t } from '#lib/i18n/index.js';
 
 export type ToneId = 0 | 1 | 2 | 3 | 4 | 5;
 

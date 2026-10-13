@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { PendingSyncSnapshot, UnreadEntry } from '$lib/types';
+import type { PendingSyncSnapshot, UnreadEntry } from '#lib/types.js';
 
 /** Unread state for every contact, derived from each one's stored read cursor. */
 export const getUnreadSummary = (): Promise<UnreadEntry[]> => invoke('get_unread_summary');

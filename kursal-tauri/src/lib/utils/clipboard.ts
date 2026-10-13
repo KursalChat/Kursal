@@ -1,5 +1,5 @@
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { notifyError } from '$lib/utils/errors';
+import { notifyError } from '#lib/utils/errors.js';
 
 interface CopyTarget {
   trigger: () => void;

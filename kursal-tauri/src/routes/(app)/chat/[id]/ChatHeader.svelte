@@ -1,13 +1,13 @@
 <script lang="ts">
   import { Menu, ShieldAlert, Search, Radio, Phone } from 'lucide-svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import OfflineSyncIndicator from '$lib/components/OfflineSyncIndicator.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { callState } from '$lib/state/call.svelte';
-  import { uiState } from '$lib/state/ui.svelte';
-  import type { ContactResponse } from '$lib/types';
-  import { t } from '$lib/i18n';
-  import { connectionLabel } from '$lib/utils/connectionLabel';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import OfflineSyncIndicator from '#lib/components/OfflineSyncIndicator.svelte';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { callState } from '#lib/state/call.svelte.js';
+  import { uiState } from '#lib/state/ui.svelte.js';
+  import type { ContactResponse } from '#lib/types.js';
+  import { t } from '#lib/i18n/index.js';
+  import { connectionLabel } from '#lib/utils/connectionLabel.js';
 
   interface Props {
     contact: ContactResponse;

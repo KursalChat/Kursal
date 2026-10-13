@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { decodeUtf8Base64 } from '$lib/utils/base64';
+import { decodeUtf8Base64 } from '#lib/utils/base64.js';
 
 // chat-utils pulls Tauri/state/i18n deps for its click handler; stub them so
 // the pure rendering/formatting helpers can be tested in isolation. marked and
@@ -8,17 +8,17 @@ vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (p: string) => `asset://localhost/${encodeURIComponent(p)}`,
 }));
-vi.mock('$lib/state/notifications.svelte', () => ({
+vi.mock('#lib/state/notifications.svelte.js', () => ({
   notifications: { push: vi.fn() },
 }));
-vi.mock('$lib/state/confirm.svelte', () => ({
+vi.mock('#lib/state/confirm.svelte.js', () => ({
   confirmDialog: vi.fn(),
   confirmDialogWithCheckbox: vi.fn(),
 }));
-vi.mock('$lib/state/trustedDomains.svelte', () => ({
+vi.mock('#lib/state/trustedDomains.svelte.js', () => ({
   trustedDomainsState: { isTrusted: () => true, trust: vi.fn() },
 }));
-vi.mock('$lib/i18n', () => ({ t: (k: string) => k, dateLocale: () => 'en' }));
+vi.mock('#lib/i18n', () => ({ t: (k: string) => k, dateLocale: () => 'en' }));
 
 const {
   renderMarkdown,
@@ -33,9 +33,9 @@ const {
   isMessageActionable,
 } = await import('./chat-utils');
 
-const { formatFileSize } = await import('$lib/utils/bytes');
-const { midTruncate } = await import('$lib/utils/text');
-const { formatFullTimestamp } = await import('$lib/utils/dateFormat.svelte');
+const { formatFileSize } = await import('#lib/utils/bytes.js');
+const { midTruncate } = await import('#lib/utils/text.js');
+const { formatFullTimestamp } = await import('#lib/utils/dateFormat.svelte.js');
 
 describe('isMessageActionable', () => {
   it('blocks messages that have not reached the peer', () => {

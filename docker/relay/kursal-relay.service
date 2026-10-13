@@ -1,5 +1,5 @@
 [Unit]
-Description=Kursal relay
+Description=Kursal relay node
 After=network-online.target
 Wants=network-online.target
 

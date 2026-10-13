@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { t } from '$lib/i18n';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { t } from '#lib/i18n/index.js';
 </script>
 
 <div class="container">

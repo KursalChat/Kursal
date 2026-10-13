@@ -1,5 +1,5 @@
-import { log } from '$lib/utils/log';
-import { optimistic } from '$lib/utils/optimistic';
+import { log } from '#lib/utils/log.js';
+import { optimistic } from '#lib/utils/optimistic.js';
 import {
   getPeerRotationInterval,
   setPeerRotationInterval,
@@ -28,7 +28,7 @@ import {
   type AutoDownloadConfig,
   type LocalApiConfig,
   type NodesResponse,
-} from '$lib/api/settings';
+} from '#lib/api/settings.js';
 
 const DEFAULT_RELAY: RelayConfig = {
   maxConnections: 100,

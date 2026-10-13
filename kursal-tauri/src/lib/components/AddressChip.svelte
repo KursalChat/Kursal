@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { parseMultiaddr, shortPeerId } from '$lib/utils/multiaddr';
-  import { t } from '$lib/i18n';
+  import { parseMultiaddr, shortPeerId } from '#lib/utils/multiaddr.js';
+  import { t } from '#lib/i18n/index.js';
 
   let { addr }: { addr: string } = $props();
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { log } from '$lib/utils/log';
+  import { log } from '#lib/utils/log.js';
   import {
     RefreshCw,
     ShieldOff,
@@ -11,34 +11,34 @@
     Fingerprint,
   } from 'lucide-svelte';
   import { checkStatus } from '@tauri-apps/plugin-biometric';
-  import { isMobile } from '$lib/api/window';
-  import { prefsState } from '$lib/state/prefs.svelte';
-  import { copyText } from '$lib/utils/clipboard';
-  import { rotatePeerId } from '$lib/api/identity';
+  import { isMobile } from '#lib/api/window.js';
+  import { prefsState } from '#lib/state/prefs.svelte.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { rotatePeerId } from '#lib/api/identity.js';
   import {
     clearMessageHistory,
     deleteAllLocalData,
     type PeerRotationInterval,
-  } from '$lib/api/settings';
-  import { settingsState } from '$lib/state/settings.svelte';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import { truncate } from '$lib/utils/text';
-  import { profileState } from '$lib/state/profile.svelte';
-  import { ltcState } from '$lib/state/ltc.svelte';
-  import { contactsState } from '$lib/state/contacts.svelte';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { flash } from '$lib/utils/flash.svelte';
-  import { messagesState } from '$lib/state/messages.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import Button from '$lib/components/Button.svelte';
+  } from '#lib/api/settings.js';
+  import { settingsState } from '#lib/state/settings.svelte.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import { truncate } from '#lib/utils/text.js';
+  import { profileState } from '#lib/state/profile.svelte.js';
+  import { ltcState } from '#lib/state/ltc.svelte.js';
+  import { contactsState } from '#lib/state/contacts.svelte.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
+  import { messagesState } from '#lib/state/messages.svelte.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import Button from '#lib/components/Button.svelte';
   import SettingCard from './SettingCard.svelte';
   import SettingRow from './SettingRow.svelte';
   import Toggle from './Toggle.svelte';
   import Segmented from './Segmented.svelte';
   import Select from './Select.svelte';
-  import { setContactBlocked } from '$lib/api/contacts';
-  import { t } from '$lib/i18n';
+  import { setContactBlocked } from '#lib/api/contacts.js';
+  import { t } from '#lib/i18n/index.js';
 
   let rotating = $state(false);
   const copiedPeerId = flash();

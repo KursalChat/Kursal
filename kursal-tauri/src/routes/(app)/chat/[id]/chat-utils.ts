@@ -2,18 +2,18 @@ import { marked, type Tokens } from 'marked';
 import DOMPurify from 'dompurify';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { notifications } from '$lib/state/notifications.svelte';
-import { notifyError } from '$lib/utils/errors';
-import { confirmDialog, confirmDialogWithCheckbox } from '$lib/state/confirm.svelte';
-import { trustedDomainsState } from '$lib/state/trustedDomains.svelte';
-import { formatCalendarDay, formatTime, isSameDay } from '$lib/utils/dateFormat.svelte';
-import { encodeUtf8Base64, decodeUtf8Base64 } from '$lib/utils/base64';
-import { copyText } from '$lib/utils/clipboard';
-import { truncate, extensionOf } from '$lib/utils/text';
-import { highlightCode } from '$lib/utils/highlight';
-import { clamp, percent } from '$lib/utils/geometry';
-import { formatClock } from '$lib/utils/duration';
-import { t } from '$lib/i18n';
+import { notifications } from '#lib/state/notifications.svelte.js';
+import { notifyError } from '#lib/utils/errors.js';
+import { confirmDialog, confirmDialogWithCheckbox } from '#lib/state/confirm.svelte.js';
+import { trustedDomainsState } from '#lib/state/trustedDomains.svelte.js';
+import { formatCalendarDay, formatTime, isSameDay } from '#lib/utils/dateFormat.svelte.js';
+import { encodeUtf8Base64, decodeUtf8Base64 } from '#lib/utils/base64.js';
+import { copyText } from '#lib/utils/clipboard.js';
+import { truncate, extensionOf } from '#lib/utils/text.js';
+import { highlightCode } from '#lib/utils/highlight.js';
+import { clamp, percent } from '#lib/utils/geometry.js';
+import { formatClock } from '#lib/utils/duration.js';
+import { t } from '#lib/i18n/index.js';
 
 marked.use({
   extensions: [

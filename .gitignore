@@ -13,8 +13,8 @@ bin/deps
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-/keys/*
-!/keys/make.sh
+/private_keys/*
+!/private_keys/make.sh
 
 # kursal-cli
 kursal-cli/relay.toml

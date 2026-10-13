@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ChevronUp, ChevronDown, X } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n/index.js';
   import { tick } from 'svelte';
 
   interface Props {

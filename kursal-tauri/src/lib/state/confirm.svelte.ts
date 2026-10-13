@@ -1,4 +1,4 @@
-import type { ConfirmTone } from '$lib/types';
+import type { ConfirmTone } from '#lib/types.js';
 
 export type { ConfirmTone };
 

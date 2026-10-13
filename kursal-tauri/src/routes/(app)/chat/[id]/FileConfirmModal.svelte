@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { FileText, X } from 'lucide-svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { formatFileSize } from '$lib/utils/bytes';
-  import { t } from '$lib/i18n';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { formatFileSize } from '#lib/utils/bytes.js';
+  import { t } from '#lib/i18n/index.js';
 
   interface PendingFile {
     backendPath: string;

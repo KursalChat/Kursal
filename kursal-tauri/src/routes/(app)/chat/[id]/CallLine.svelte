@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Phone } from 'lucide-svelte';
-  import { formatTime } from '$lib/utils/dateFormat.svelte';
+  import { formatTime } from '#lib/utils/dateFormat.svelte.js';
   import { callRecordLabel, isMissedCall, type CallRecord } from './chat-utils';
 
   interface Props {

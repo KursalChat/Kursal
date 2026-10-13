@@ -1,7 +1,7 @@
-import { browser } from '$app/environment';
-import { setNotificationPreviewCore, setNotificationDndCore } from '$lib/api/settings';
-import { readJson, writeJson } from '$lib/utils/storage';
-import { APP_LOCK_KEY } from '$lib/utils/storage-keys';
+import { browser } from '$app/env';
+import { setNotificationPreviewCore, setNotificationDndCore } from '#lib/api/settings.js';
+import { readJson, writeJson } from '#lib/utils/storage.js';
+import { APP_LOCK_KEY } from '#lib/utils/storage-keys.js';
 
 export type NotificationPreview = 'content' | 'sender' | 'generic' | 'none';
 

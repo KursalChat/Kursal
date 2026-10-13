@@ -1,6 +1,6 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import en from '../../../../locales/en.json';
-import { readRaw, writeRaw } from '$lib/utils/storage';
+import { readRaw, writeRaw } from '#lib/utils/storage.js';
 import { LOCALES, type Locale } from './locales';
 
 const LOCALE_KEY = 'kursal_locale';
@@ -21,11 +21,9 @@ function flatten(obj: unknown, prefix = '', out: Dict = new Map()): Dict {
 const enDict = flatten(en);
 
 const files = import.meta.glob<{ default: unknown }>('../../../../locales/*.json');
-
 const loaders: Partial<Record<Locale, () => Promise<{ default: unknown }>>> = Object.fromEntries(
   Object.entries(files).map(([path, load]) => [path.split('/').pop()!.replace('.json', ''), load])
 );
-
 const dicts = $state<Partial<Record<Locale, Dict>>>({ en: enDict });
 
 async function loadDict(id: Locale): Promise<void> {

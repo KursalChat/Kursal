@@ -1,4 +1,4 @@
-import type { NearbyPeerResponse } from '$lib/types';
+import type { NearbyPeerResponse } from '#lib/types.js';
 
 function createNearbyState() {
   let peers = $state<NearbyPeerResponse[]>([]);

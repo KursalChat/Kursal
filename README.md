@@ -79,7 +79,7 @@ Every kind of help counts.
 
 ## License
 
-© KursalChat 2026. Code distributed under [AGPL-3.0-only](LICENSE).
+© KursalChat 2025 - Present. Code distributed under [AGPL-3.0-only](LICENSE).
 
 Visual assets (app icon, banner, etc.) are all rights reserved.
 

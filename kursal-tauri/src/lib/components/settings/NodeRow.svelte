@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Share2, Trash2 } from 'lucide-svelte';
-  import AddressChip from '$lib/components/AddressChip.svelte';
-  import { t } from '$lib/i18n';
+  import AddressChip from '#lib/components/AddressChip.svelte';
+  import { t } from '#lib/i18n/index.js';
 
   export type NodeState = 'up' | 'down' | 'unknown';
 

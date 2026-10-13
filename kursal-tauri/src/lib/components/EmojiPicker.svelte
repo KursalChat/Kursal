@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { X, Search } from 'lucide-svelte';
-  import Spinner from '$lib/components/Spinner.svelte';
-  import { trapFocus } from '$lib/utils/focusTrap';
-  import { readInsets } from '$lib/utils/android-insets';
-  import { t } from '$lib/i18n';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { readInsets } from '#lib/utils/android-insets.js';
+  import { t } from '#lib/i18n/index.js';
   import {
     loadEmojiIndex,
     searchEmojis,
@@ -16,7 +16,7 @@
     type EmojiIndex,
     type Emoji,
     type ToneId,
-  } from '$lib/emoji';
+  } from '#lib/emoji/index.js';
 
   let {
     onSelect,

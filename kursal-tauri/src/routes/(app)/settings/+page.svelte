@@ -15,17 +15,17 @@
     ChevronLeft,
     ChevronRight,
   } from 'lucide-svelte';
-  import * as haptics from '$lib/utils/haptics';
-  import { t, tEn } from '$lib/i18n';
-  import { confirmDialog } from '$lib/state/confirm.svelte';
-  import { settingsDirty } from '$lib/state/settingsDirty.svelte';
-  import AccountSection from '$lib/components/settings/AccountSection.svelte';
-  import AppearanceSection from '$lib/components/settings/AppearanceSection.svelte';
-  import PrivacySection from '$lib/components/settings/PrivacySection.svelte';
-  import CallsSection from '$lib/components/settings/CallsSection.svelte';
-  import NetworkSection from '$lib/components/settings/NetworkSection.svelte';
-  import StorageSection from '$lib/components/settings/StorageSection.svelte';
-  import AdvancedSection from '$lib/components/settings/AdvancedSection.svelte';
+  import * as haptics from '#lib/utils/haptics.js';
+  import { t, tEn } from '#lib/i18n/index.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
+  import { settingsDirty } from '#lib/state/settingsDirty.svelte.js';
+  import AccountSection from '#lib/components/settings/AccountSection.svelte';
+  import AppearanceSection from '#lib/components/settings/AppearanceSection.svelte';
+  import PrivacySection from '#lib/components/settings/PrivacySection.svelte';
+  import CallsSection from '#lib/components/settings/CallsSection.svelte';
+  import NetworkSection from '#lib/components/settings/NetworkSection.svelte';
+  import StorageSection from '#lib/components/settings/StorageSection.svelte';
+  import AdvancedSection from '#lib/components/settings/AdvancedSection.svelte';
 
   type Category =
     | 'account'
@@ -157,6 +157,8 @@
   // category switches; this covers actual navigations.
   let bypassGuard = false;
   beforeNavigate((nav) => {
+    if (nav.shallow) return;
+
     if (bypassGuard) {
       bypassGuard = false;
       return;
@@ -243,7 +245,13 @@
       titleKey: 'settings.advanced.autoStartRow',
       keywords: ['startup', 'launch', 'boot', 'autostart'],
     },
-    { category: 'privacy', titleKey: 'settings.privacy.typingIndicatorsRow', keywords: ['typing'] },
+
+    {
+      category: 'privacy',
+      titleKey: 'settings.privacy.typingIndicatorsRow',
+      keywords: ['typing'],
+    },
+
     {
       category: 'calls',
       titleKey: 'settings.calls.qualityRow',
@@ -294,7 +302,13 @@
       titleKey: 'settings.network.maxConnectionsRow',
       keywords: ['connections', 'peers'],
     },
-    { category: 'storage', titleKey: 'settings.storage.autoAcceptCard', keywords: ['files'] },
+
+    {
+      category: 'storage',
+      titleKey: 'settings.storage.autoAcceptCard',
+      keywords: ['files'],
+    },
+
     {
       category: 'storage',
       titleKey: 'settings.storage.autoDownloadCard',
@@ -352,6 +366,7 @@
       const haystack = [t(e.titleKey), tEn(e.titleKey), ...(e.keywords ?? [])]
         .join(' ')
         .toLowerCase();
+
       return haystack.includes(q);
     });
   });

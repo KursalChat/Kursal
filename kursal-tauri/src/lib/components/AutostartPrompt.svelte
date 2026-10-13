@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n';
-  import { log } from '$lib/utils/log';
-  import { notifications } from '$lib/state/notifications.svelte';
-  import { notifyError } from '$lib/utils/errors';
-  import { winstonTips } from '$lib/state/winstonTips.svelte';
-  import { readRaw } from '$lib/utils/storage';
-  import { OS } from '$lib/api/window';
+  import { t } from '#lib/i18n/index.js';
+  import { log } from '#lib/utils/log.js';
+  import { notifications } from '#lib/state/notifications.svelte.js';
+  import { notifyError } from '#lib/utils/errors.js';
+  import { winstonTips } from '#lib/state/winstonTips.svelte.js';
+  import { readRaw } from '#lib/utils/storage.js';
+  import { OS } from '#lib/api/window.js';
 
   const TOUR_KEY = 'kursal_addcontact_onboarded';
 

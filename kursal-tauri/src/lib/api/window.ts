@@ -1,8 +1,8 @@
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
-import { log } from '$lib/utils/log';
-import { renderBadgeIcon } from '$lib/utils/badge';
+import { log } from '#lib/utils/log.js';
+import { renderBadgeIcon } from '#lib/utils/badge.js';
 import { platform } from '@tauri-apps/plugin-os';
 
 export const OS = platform();

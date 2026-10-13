@@ -1,15 +1,15 @@
-if [ ! -f ./keys/publishing.key ]; then
+if [ ! -f ./private_keys/publishing.key ]; then
     echo "\n\n=> Publishing key not found!"
     echo "You will have to enter the same password thrice\n"
 
     read -s -p "Enter Publishing Password: " password
-    printf '%s' "$password" > ./keys/publishing.key.pwd
+    printf '%s' "$password" > ./private_keys/publishing.key.pwd
     echo
 
     cd kursal-tauri
-    bunx tauri signer generate -w ../keys/publishing.key
+    bunx tauri signer generate -w ../private_keys/publishing.key
 
-    pubkey=$(cat ../keys/publishing.key.pub)
+    pubkey=$(cat ../private_keys/publishing.key.pub)
 
     jq --arg pubkey "$pubkey" '.plugins.updater.pubkey = $pubkey' ./src-tauri/tauri.conf.json > tmp.json
     mv tmp.json ./src-tauri/tauri.conf.json
@@ -18,16 +18,16 @@ if [ ! -f ./keys/publishing.key ]; then
 fi
 
 
-if [ ! -f ./keys/android.jks ]; then
+if [ ! -f ./private_keys/android.jks ]; then
     echo "\n\n=> Android signing key not found!"
     echo "You will have to enter the same password thrice\n"
 
     read -s -p "Enter Signing Password: " password
     echo
 
-    keytool -genkey -v -keystore ./keys/android.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+    keytool -genkey -v -keystore ./private_keys/android.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 
-    echo "storeFile=$PWD/keys/android.jks\npassword=$password\nkeyAlias=upload" > ./kursal-tauri/src-tauri/gen/android/keystore.properties
+    echo "storeFile=$PWD/private_keys/android.jks\npassword=$password\nkeyAlias=upload" > ./kursal-tauri/src-tauri/gen/android/keystore.properties
 fi
 
 echo "\n\n=> All good!"
