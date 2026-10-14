@@ -28,6 +28,7 @@
       "yourCodeTitle": "Votre code"
     },
     "ltc": {
+      "alreadyContactError": "Cette personne est déjà dans vos contacts.",
       "alreadyUsedError": "Ce code longue durée n'a plus d'utilisations disponibles. Demandez-en un nouveau à votre contact.",
       "card": {
         "daysLeft": "{n} j restants",
@@ -60,6 +61,7 @@
       "exportSuccess": "Code longue durée prêt",
       "fileFilter": "Fichier de données Kursal",
       "importSuccess": "Code longue durée importé",
+      "inProgressError": "Vous êtes déjà en train de vous connecter avec cette personne. Réessayez dans un instant.",
       "invalidFileError": "Fichier invalide. Sélectionnez un fichier .kursal valide.",
       "invalidFileType": "Type de fichier invalide. Sélectionnez un fichier .kursal.",
       "limits": {
@@ -79,6 +81,7 @@
       },
       "limitsError": "Impossible de mettre à jour les limites",
       "limitsSaved": "Limites mises à jour",
+      "peerConflictError": "Ce code pointe vers un appareil qui appartient déjà à l'un de vos contacts.",
       "pickerUnavailable": "Sélecteur de fichiers indisponible",
       "regenerateConfirmButton": "Remplacer",
       "regenerateConfirmMessage": "Toutes les copies du fichier actuel cessent immédiatement de fonctionner. Les personnes qui en détiennent une ne pourront plus vous joindre.",
@@ -121,16 +124,19 @@
       "yourName": "Vous apparaissez comme {name}"
     },
     "otp": {
+      "alreadyContactError": "Cette personne est déjà dans vos contacts.",
       "alreadyUsedError": "Ce code a déjà été utilisé pour ajouter un contact. Demandez-en un nouveau.",
       "cameraPermissionDenied": "Accès caméra refusé",
       "enteredWordsAriaLabel": "Les mots saisis, avec les fautes signalées",
       "expiredError": "Ce code a expiré. Demandez-en un nouveau.",
       "fetchError": "Code introuvable. Il peut être erroné ou expiré.",
+      "inProgressError": "Vous êtes déjà en train de vous connecter avec cette personne. Réessayez dans un instant.",
       "invalidError": "Code invalide. Vérifiez que vous l'avez copié correctement.",
       "noAnswerError": "L'autre appareil n'a jamais confirmé. Assurez-vous qu'il soit en ligne et réessayez.",
       "noSuggestion": "Aucune correspondance proche",
       "passphraseAriaLabel": "Mots de la phrase secrète",
       "pasteLabel": "Coller",
+      "peerConflictError": "Ce code pointe vers un appareil qui appartient déjà à l'un de vos contacts.",
       "qrCodeAlt": "QR code du contact à usage unique",
       "qrScanError": "Échec du scan QR",
       "replaceWith": "Remplacer par {word}",
@@ -388,6 +394,11 @@
       "unreadBarMarkRead": "Marquer lu",
       "unreadBarMarkReadHint": "Marquer cette conversation comme lue (Maj+Échap)",
       "unreadBarOne": "1 message non lu",
+      "unstrippedCancel": "Ne pas envoyer",
+      "unstrippedConfirm": "Envoyer quand même",
+      "unstrippedDetail": "Cette image peut contenir le lieu où elle a été prise, l'appareil qui l'a capturée et la date. L'envoyer telle quelle partage toutes ces informations.",
+      "unstrippedMessage": "Kursal n'a pas pu supprimer les métadonnées de {filename}.",
+      "unstrippedTitle": "Les données cachées ne peuvent pas être supprimées",
       "verifyButton": "Vérifier l'identité",
       "you": "Vous"
     },
@@ -551,7 +562,8 @@
     "io": "Impossible de lire ou d'écrire un fichier. Veuillez réessayer.",
     "network": "Problème de connexion. Vérifiez votre connexion puis réessayez.",
     "storage": "Le stockage local est inaccessible. Veuillez réessayer.",
-    "unknown": "Une erreur s'est produite. Veuillez réessayer."
+    "unknown": "Une erreur s'est produite. Veuillez réessayer.",
+    "unstrippable_image": "Les données cachées de cette image (comme la localisation) n'ont pas pu être supprimées, elle n'a donc pas été envoyée."
   },
   "fileTransfer": {
     "errorAutoDownload": "Échec du téléchargement automatique.",
@@ -735,6 +747,7 @@
     "copyButton": "Copier le code",
     "doLaterButton": "Faire ceci plus tard",
     "explanation": "Lisez ce code à voix haute avec votre contact via un canal séparé. Si les codes correspondent, appuyez sur Confirmer.",
+    "explanationJustPaired": "Comparez ce code pendant que vous êtes à proximité. Si les codes correspondent, appuyez sur Confirmer.",
     "heading": "Vérification du code de sécurité",
     "loading": "Chargement du code de sécurité…",
     "successVerified": "Contact vérifié !"
@@ -1233,7 +1246,7 @@
       "title": "Ami hors ligne ? Pas de souci"
     },
     "verifyContact": {
-      "body": "Vous échangez beaucoup ! Pour vérifier que personne n'a intercepté votre conversation lors du premier contact, comparez vos **codes de sécurité**. Faites-le pendant un appel ou en personne. Si les codes correspondent, votre chiffrement de bout en bout est confirmé.",
+      "body": "Pour être sûr que personne n'écoute, comparez votre **code de sécurité**. Faites-le pendant un appel ou en personne. Si les codes correspondent, votre chiffrement de bout en bout est confirmé.",
       "cta": "Afficher les codes de sécurité",
       "title": "Un petit contrôle de sécurité ?"
     }
