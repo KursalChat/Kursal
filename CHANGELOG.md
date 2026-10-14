@@ -81,14 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Miscellaneous
 
 - Fix all french translation + add dutch
-- Backmerge release/0.1.0 into dev
 - Dockerfile includes version and title
 - Finalize android building code
 - Fix camera native issue
 - Update deps and docs
 - Front-end rewrite to group util fn (+ QR-code upgrade)
 - Package bump + translation fix
-- Backmerge release/0.1.0 into dev
 - Remove migration code
 
 ## [0.1.0-beta.9] - 2026-08-19
@@ -174,10 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Miscellaneous
 
 - Changelog
-- Changelog
-- Backmerge release/0.1.0 into dev
 - Updated lockfile
-- Backmerge release/0.1.0 into dev
 
 ## [0.1.0-beta.6] - 2026-08-09
 
@@ -217,7 +212,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Small translation fixes (2)
 - Small translation fixes
 - Translated French (100%)
-- Backmerge release/0.1.0 into dev
 
 ## [0.1.0-beta.5] - 2026-08-05
 
@@ -336,5 +330,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
+- Bump actions/checkout in the actions group
 - Initial commit
 

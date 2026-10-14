@@ -60,8 +60,8 @@ btleplug = { version = "0.13.5", features = ["serde"] }
 ble-peripheral-rust = "0.2.0"
 
 # Storage
-redb = "4.3.0"
-keyring-core = "1.0.0"
+redb = "4.4.0"
+keyring-core = "1.0.1"
 dirs = "7.0.0"
 android-native-keyring-store = "1.0.0"
 apple-native-keyring-store = "1.0.2"
