@@ -43,8 +43,16 @@ pub struct KursalBackup {
     pub database: Vec<u8>,
     pub avatars: Vec<(String, Vec<u8>)>,
 }
+
+impl Drop for KursalBackup {
+    fn drop(&mut self) {
+        self.master_key.zeroize();
+    }
+}
+
 impl KursalBackup {
     pub fn serialize(&self, password: Vec<u8>) -> Result<Vec<u8>> {
+        let password = Zeroizing::new(password);
         let plaintext = Zeroizing::new(bincode::serialize(self)?);
 
         let mut salt = [0u8; 16];
@@ -78,6 +86,7 @@ impl KursalBackup {
         .serialize()
     }
     pub fn deserialize(bytes: Vec<u8>, password: Vec<u8>) -> Result<Self> {
+        let password = Zeroizing::new(password);
         let file = KursalBackupFile::deserialize(&bytes)?;
 
         let mut key = [0u8; 32];
@@ -129,16 +138,13 @@ pub async fn generate_backup(
 
     let database = read(database_path).await.map_err(KursalError::Io)?;
 
-    let mut backup = KursalBackup {
+    let backup = KursalBackup {
         master_key,
         database,
         avatars: super::avatars::read_all(),
     };
 
-    let serialized = KursalFile::Backup(backup.serialize(password.into_bytes())?).serialize();
-    backup.master_key.zeroize();
-
-    serialized
+    KursalFile::Backup(backup.serialize(password.into_bytes())?).serialize()
 }
 
 pub async fn load_backup(
@@ -169,8 +175,6 @@ pub async fn load_backup(
     super::avatars::restore(std::mem::take(&mut backup.avatars))?;
 
     let hex_secret = Zeroizing::new(hex::encode(&backup.master_key));
-    backup.master_key.zeroize();
-
     if keychain_config.unsafe_write_key_to_file {
         let path = app_data_dir.join(format!("{}.key", keychain_config.storage_id));
         std::fs::write(path, hex_secret.as_bytes()).ok_kursal(KursalError::Storage)?;

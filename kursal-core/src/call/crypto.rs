@@ -1,9 +1,17 @@
 use crate::Result;
 use crate::crypto::derive_key;
+use zeroize::Zeroize;
 
 pub struct CallKeys {
     pub tx: [u8; 32],
     pub rx: [u8; 32],
+}
+
+impl Drop for CallKeys {
+    fn drop(&mut self) {
+        self.tx.zeroize();
+        self.rx.zeroize();
+    }
 }
 
 fn derive_directional_keys(
@@ -18,9 +26,10 @@ fn derive_directional_keys(
     } else {
         (their_random, my_random)
     };
-    let combined = [caller_r, callee_r].concat();
+    let mut combined = [caller_r, callee_r].concat();
     let caller_to_callee = derive_key(&combined, c2a)?;
     let callee_to_caller = derive_key(&combined, a2c)?;
+    combined.zeroize();
     if is_caller {
         Ok(CallKeys {
             tx: caller_to_callee,

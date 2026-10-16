@@ -603,8 +603,8 @@ impl LtcPointer {
         bincode::deserialize(bytes).map_err(Into::into)
     }
 
-    pub fn sign(&mut self, tag: &[u8; 32], secret: Vec<u8>) -> Result<()> {
-        self.signature = dilithium_sign(secret, &signing_bytes(tag, self))?;
+    pub fn sign(&mut self, tag: &[u8; 32], secret: Zeroizing<Vec<u8>>) -> Result<()> {
+        self.signature = dilithium_sign(secret.to_vec(), &signing_bytes(tag, self))?;
 
         Ok(())
     }

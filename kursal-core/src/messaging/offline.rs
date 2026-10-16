@@ -81,6 +81,13 @@ pub struct SkippedKey {
     pub wrapper: [u8; 32],
 }
 
+impl Drop for SkippedKey {
+    fn drop(&mut self) {
+        self.tag.zeroize();
+        self.wrapper.zeroize();
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct BundleEnvelope {
     pub version: u8,
@@ -123,11 +130,13 @@ pub fn derive_offline_roots(
     } else {
         (peer_identity_pub, my_identity_pub)
     };
-    let salt = [low, high].concat();
-    let ikm = [shared_secret, pq_secret].concat();
+    let mut salt = [low, high].concat();
+    let mut ikm = [shared_secret, pq_secret].concat();
 
     let low_to_high = derive_key_salt(&ikm, &salt, b"kursal-offline-v1-low-to-high")?;
     let high_to_low = derive_key_salt(&ikm, &salt, b"kursal-offline-v1-high-to-low")?;
+    salt.zeroize();
+    ikm.zeroize();
 
     if i_am_low {
         Ok((low_to_high, high_to_low))
