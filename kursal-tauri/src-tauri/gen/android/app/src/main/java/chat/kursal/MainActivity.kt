@@ -42,7 +42,8 @@ class MainActivity : TauriActivity() {
     }
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
+    // removed because this is a second init call
+    // io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
     super.onCreate(savedInstanceState)
     goEdgeToEdge()
     startConnectionService()
