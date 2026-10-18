@@ -396,7 +396,15 @@ jobs:
     needs: verify-tag
     permissions:
       contents: read
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
     container:
       image: archlinux:base-devel
     steps:
@@ -414,18 +422,18 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "cd \"$GITHUB_WORKSPACE\" && makepkg --syncdeps --cleanbuild --noconfirm"
-          mv ./*.pkg.tar.zst Kursal_arch.pkg.tar.zst
+          mv ./*.pkg.tar.zst "Kursal_arch_${{ matrix.arch }}.pkg.tar.zst"
 
       - name: Smoke test
         run: |
-          pacman -U --noconfirm Kursal_arch.pkg.tar.zst
+          pacman -U --noconfirm "Kursal_arch_${{ matrix.arch }}.pkg.tar.zst"
           ldd /usr/bin/kursal
           ! ldd /usr/bin/kursal | grep -q "not found"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: artifacts-arch
-          path: Kursal_arch.pkg.tar.zst
+          name: artifacts-arch-${{ matrix.arch }}
+          path: Kursal_arch_${{ matrix.arch }}.pkg.tar.zst
 
   android:
     needs: [verify-tag, deps]
