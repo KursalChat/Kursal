@@ -6,7 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0-beta.11] - 2026-10-12
+## [0.1.0-beta.12] - 2026-10-20
+
+### Bug Fixes
+
+- Svelte type fix
+- Arch build for aarch64 and permission fix
+- Android crash on start
+- More keys zeroizing after use
+
+## [0.1.0-beta.11] - 2026-10-14
 
 ### Features
 
@@ -35,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### CI
 
+- More incremental fixes...
+- Do not upload to app store yet
+- Workaround for ios builds
+- Use latest xcode-27 for ios builds
 - Probable android fix
 
 ### Styling
@@ -43,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
+- Translated (French)
 - Package bump & maintenance
 - Package bump (sveltekit) & fmt
 - Package bump
@@ -81,12 +95,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Miscellaneous
 
 - Fix all french translation + add dutch
+- Backmerge release/0.1.0 into dev
 - Dockerfile includes version and title
 - Finalize android building code
 - Fix camera native issue
 - Update deps and docs
 - Front-end rewrite to group util fn (+ QR-code upgrade)
 - Package bump + translation fix
+- Backmerge release/0.1.0 into dev
 - Remove migration code
 
 ## [0.1.0-beta.9] - 2026-08-19
@@ -172,7 +188,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Miscellaneous
 
 - Changelog
+- Changelog
+- Backmerge release/0.1.0 into dev
 - Updated lockfile
+- Backmerge release/0.1.0 into dev
 
 ## [0.1.0-beta.6] - 2026-08-09
 
@@ -212,6 +231,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Small translation fixes (2)
 - Small translation fixes
 - Translated French (100%)
+- Backmerge release/0.1.0 into dev
 
 ## [0.1.0-beta.5] - 2026-08-05
 
@@ -330,6 +350,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
-- Bump actions/checkout in the actions group
 - Initial commit
 
