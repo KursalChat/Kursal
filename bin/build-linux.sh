@@ -45,7 +45,8 @@ build_linux() {
         export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat /workspace/private_keys/publishing.key.pwd) &&
         export CARGO_TARGET_DIR=/root/kursal-target &&
         export APPIMAGE_EXTRACT_AND_RUN=1 &&
-        bun run tauri build --bundles deb,rpm,appimage,updater --config '"'"'{"build":{"beforeBuildCommand":""}}'"'"' &&
+        BUNDLE_VERSION=$( /workspace/bin/version.sh | tr '-' '_' ) &&
+        bun run tauri build --bundles deb,rpm,appimage,updater --config "{\"version\":\"$BUNDLE_VERSION\",\"build\":{\"beforeBuildCommand\":\"\"}}" &&
         cp /root/kursal-target/release/bundle/deb/*.deb                /workspace/build/Kursal_$1.deb &&
         cp /root/kursal-target/release/bundle/deb/*.deb.sig            /workspace/build/Kursal_$1.deb.sig &&
         cp /root/kursal-target/release/bundle/rpm/*.rpm                /workspace/build/Kursal_$1.rpm &&
