@@ -82,6 +82,9 @@ objc2-foundation = { workspace = true, features = [
     "NSUserDefaults",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rust-ini = { workspace = true }
+
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-foundation = { workspace = true, features = [
     "std",
