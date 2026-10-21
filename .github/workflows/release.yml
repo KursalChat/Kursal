@@ -396,20 +396,12 @@ jobs:
     needs: verify-tag
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-22.04
-            arch: x86_64
-          - runner: ubuntu-22.04-arm
-            arch: aarch64
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-22.04
     container:
       image: archlinux:base-devel
     steps:
       - name: Install git
-        run: pacman -Syu --noconfirm --needed git
+        run: pacman -Syu --noconfirm --needed base-devel git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -422,21 +414,30 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "cd \"$GITHUB_WORKSPACE\" && makepkg --syncdeps --cleanbuild --noconfirm"
-          mv ./*.pkg.tar.zst "Kursal_arch_${{ matrix.arch }}.pkg.tar.zst"
+          mv ./*.pkg.tar.zst Kursal_arch_x86_64.pkg.tar.zst
 
       - name: Smoke test
         run: |
-          pacman -U --noconfirm "Kursal_arch_${{ matrix.arch }}.pkg.tar.zst"
+          pacman -U --noconfirm Kursal_arch_x86_64.pkg.tar.zst
           ldd /usr/bin/kursal
           ! ldd /usr/bin/kursal | grep -q "not found"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: artifacts-arch-${{ matrix.arch }}
-          path: Kursal_arch_${{ matrix.arch }}.pkg.tar.zst
+          name: artifacts-arch-x86_64
+          path: Kursal_arch_x86_64.pkg.tar.zst
 
   android:
     needs: [verify-tag, deps]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: apk
+            build-script: build-android.sh
+          - format: aab
+            build-script: build-android-aab.sh
+    name: android (${{ matrix.format }})
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -494,19 +495,20 @@ jobs:
         run: |
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          ./bin/build-android.sh
-          ./bin/build-android-aab.sh
+          ./bin/${{ matrix.build-script }}
 
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - if: matrix.format == 'apk'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: build/Kursal.apk
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - if: matrix.format == 'aab'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: build/Kursal.aab
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: artifacts-android
-          path: build/Kursal*
+          name: artifacts-android-${{ matrix.format }}
+          path: build/Kursal.${{ matrix.format }}
 
   relay:
     needs: verify-tag
