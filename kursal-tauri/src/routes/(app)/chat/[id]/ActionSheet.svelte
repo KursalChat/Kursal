@@ -28,7 +28,7 @@
     onTogglePin: () => void;
     onMarkUnread: () => void;
     onForward: () => void;
-    onDelete: () => void;
+    onDelete: (skipConfirmation?: boolean) => void;
   }
 
   let {
@@ -162,7 +162,7 @@
         </button>
       {/if}
       {#if msg.direction === 'sent'}
-        <button class="sheet-row danger" onclick={onDelete}>
+        <button class="sheet-row danger" onclick={(e) => onDelete(e.shiftKey)}>
           <Trash2 size={18} /><span>{t('chat.actionSheet.delete')}</span>
         </button>
       {/if}

@@ -90,8 +90,8 @@
     onTogglePin: () => void;
     onMarkUnread: () => void;
     onForward: () => void;
-    onDelete: () => void;
-    onDeleteLocal: () => void;
+    onDelete: (skipConfirmation?: boolean) => void;
+    onDeleteLocal: (skipConfirmation?: boolean) => void;
     onRetry: () => void;
     onToggleEmojiPicker: (rect: DOMRect | null) => void;
     onOpenMedia: (path: string, kind: 'image' | 'video', filename: string) => void;
@@ -218,23 +218,23 @@
     if (e.button === 2 || (e.button === 0 && e.ctrlKey)) e.preventDefault();
   }
 
-  function runAction(fn: () => void) {
-    fn();
+  function runAction(fn: (skipConfirmation?: boolean) => void, e: MouseEvent | PointerEvent) {
+    fn(e.shiftKey);
     menuOpen = false;
   }
 
   // Menu items act on press
-  function activate(fn: () => void) {
+  function activate(fn: (skipConfirmation?: boolean) => void) {
     return {
       onpointerdown: (e: PointerEvent) => {
         if (e.pointerType !== 'mouse' || e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
-        runAction(fn);
+        runAction(fn, e);
       },
       onclick: (e: MouseEvent) => {
         e.stopPropagation();
-        runAction(fn);
+        runAction(fn, e);
       },
     };
   }
@@ -653,7 +653,7 @@
           class:queued={msg.status === 'queued'}
           onclick={(e) => {
             e.stopPropagation();
-            onDeleteLocal();
+            onDeleteLocal(e.shiftKey);
           }}
           title={t('chat.bubble.actionDelete')}
           aria-label={t('chat.bubble.actionDelete')}
@@ -1328,6 +1328,7 @@
   }
   .inline-action.discard {
     background: var(--danger-dim);
+    color: var(--danger);
   }
   .inline-action.discard.queued {
     background: var(--accent-dim);
@@ -1339,6 +1340,9 @@
     .inline-action:hover {
       background: var(--bg-hover);
       color: var(--text-primary);
+    }
+    .inline-action.discard:hover {
+      color: var(--danger);
     }
   }
   @keyframes inline-discard-in {
@@ -1466,6 +1470,9 @@
     transition:
       background var(--transition),
       color var(--transition);
+  }
+  .menu-item.danger {
+    color: var(--danger);
   }
   @media (hover: hover) {
     .menu-item:hover {
