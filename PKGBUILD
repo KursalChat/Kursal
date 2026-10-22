@@ -9,7 +9,7 @@ depends=(
   'alsa-lib'
   'gtk3'
   'hicolor-icon-theme'
-  'libayatana-appindicator'
+  'libayatana-appindicator-glib'
   'librsvg'
   'openssl'
   'opus'
