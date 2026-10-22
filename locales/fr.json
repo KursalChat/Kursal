@@ -162,6 +162,7 @@
     "crashReportDetail": "Voici exactement ce qui va être envoyé. Rien d'autre ne quitte votre appareil.",
     "crashReportMessage": "Kursal a planté la dernière fois. Voulez-vous envoyer un rapport d'erreur anonyme pour aider à corriger le problème ?",
     "crashReportTitle": "Plantage détecté",
+    "crashReportGithub": "GitHub (recommandé)",
     "fileBlockedConfirm": "Fermer",
     "fileOpenCancel": "Annuler",
     "fileOpenConfirm": "Ouvrir",

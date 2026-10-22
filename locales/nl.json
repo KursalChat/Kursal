@@ -155,6 +155,7 @@
     "crashReportDetail": "Dit is exact wat zal worden verzonden. Niks anders verlaat uw apparaat.",
     "crashReportMessage": "Kursal is de laatste keer gecrasht. Wil je een anonieme crashrapportage sturen om het te helpen oplossen?",
     "crashReportTitle": "Crash gedetecteerd",
+    "crashReportGithub": "GitHub (aanbevolen)",
     "fileBlockedConfirm": "Sluit",
     "fileOpenCancel": "Annuleer",
     "fileOpenConfirm": "Open",

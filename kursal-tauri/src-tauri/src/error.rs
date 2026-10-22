@@ -67,6 +67,22 @@ fn crash_file_path() -> Result<PathBuf> {
     Ok(logs_dir()?.join("crash_report.txt"))
 }
 
+fn archive_crash_report(crash_path: &PathBuf) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let archive_path = crash_path.with_file_name(format!("crash_report.archived-{timestamp}.txt"));
+
+    if let Err(error) = fs::rename(crash_path, &archive_path) {
+        log::error!(
+            "Could not archive crash report {} as {}: {error}",
+            crash_path.display(),
+            archive_path.display()
+        );
+    }
+}
+
 fn panic_message(info: &panic::PanicHookInfo<'_>) -> String {
     let payload = info.payload();
     if let Some(s) = payload.downcast_ref::<&str>() {
@@ -131,7 +147,7 @@ pub async fn check_pending_crash(app: &AppHandle) {
     let report = fs::read_to_string(&crash_path).unwrap_or_default();
 
     if report.trim().is_empty() {
-        let _ = fs::remove_file(&crash_path);
+        archive_crash_report(&crash_path);
         return;
     }
 
@@ -157,5 +173,5 @@ pub async fn check_pending_crash(app: &AppHandle) {
         }
     }
 
-    let _ = fs::remove_file(&crash_path);
+    archive_crash_report(&crash_path);
 }

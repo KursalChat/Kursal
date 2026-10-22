@@ -35,6 +35,7 @@ export interface ConfirmOptions {
   // Link rendered in the body. Runs its action without resolving the dialog, so
   // the user can go read something and come back to answer.
   link?: { label: string; onClick: () => void };
+  preferredAction?: { label: string; onClick: () => void };
 }
 
 export interface ConfirmResult {

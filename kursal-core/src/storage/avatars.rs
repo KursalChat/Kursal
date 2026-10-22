@@ -1,9 +1,4 @@
-use crate::{
-    KursalError, Result,
-    contacts::Contact,
-    identity::UserId,
-    storage::{Database, TABLE_SETTINGS},
-};
+use crate::{KursalError, Result, identity::UserId};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -127,23 +122,24 @@ pub fn restore(avatars: Vec<(String, Vec<u8>)>) -> Result<()> {
     Ok(())
 }
 
-pub fn prune_unreferenced(db: &Database) -> Result<()> {
-    let mut live: HashSet<String> = Contact::load_all(db)?
-        .into_iter()
-        .filter_map(|contact| contact.avatar)
-        .collect();
+// TODO: maybe find a better way of pruning, when running dev instance, it clears main instance's avatars
+// pub fn prune_unreferenced(db: &Database) -> Result<()> {
+//     let mut live: HashSet<String> = Contact::load_all(db)?
+//         .into_iter()
+//         .filter_map(|contact| contact.avatar)
+//         .collect();
 
-    if let Ok(Some(bytes)) = db.raw_read(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY)
-        && let Ok(name) = std::str::from_utf8(&bytes)
-        && is_file_name(name)
-    {
-        live.insert(name.to_string());
-    }
+//     if let Ok(Some(bytes)) = db.raw_read(TABLE_SETTINGS, LOCAL_PROFILE_AVATAR_KEY)
+//         && let Ok(name) = std::str::from_utf8(&bytes)
+//         && is_file_name(name)
+//     {
+//         live.insert(name.to_string());
+//     }
 
-    prune(&live);
+//     prune(&live);
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub fn prune(live: &HashSet<String>) {
     let Some(entries) = dir().and_then(|d| std::fs::read_dir(d).ok()) else {
