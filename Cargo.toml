@@ -111,6 +111,7 @@ objc2-video-toolbox = { version = "0.3.2", default-features = false }
 objc2-ui-kit = { version = "0.3.2", default-features = false }
 webview2-com = "0.39.1"
 windows = "0.62.2"
+ndk-context = "0.1.1"
 
 # Misc
 emojis = "0.9.1"

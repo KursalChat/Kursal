@@ -82,6 +82,18 @@ fn disable_automatic_text_substitutions() {
     }
 }
 
+#[cfg(target_os = "android")]
+fn init_rustls_platform_verifier() -> Result<(), jni::errors::Error> {
+    let context = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(context.vm().cast()) };
+
+    vm.attach_current_thread(|env| -> Result<(), jni::errors::Error> {
+        let context =
+            unsafe { jni::objects::JObject::from_raw(env, context.context() as jni::sys::jobject) };
+        rustls_platform_verifier::android::init_with_env(env, context)
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // arch seems to... not render the app window lets say
@@ -215,6 +227,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            #[cfg(target_os = "android")]
+            init_rustls_platform_verifier()
+                .map_err(|err| format!("Could not initialize Android TLS verifier: {err}"))?;
+
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             window_menu::setup(app)?;
 
