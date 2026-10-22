@@ -1675,7 +1675,9 @@
       notifications.push(
         err.code === 'insufficient_space'
           ? t('chat.conversation.errorNoSpace')
-          : t('chat.conversation.errorAcceptFile', { error: err.message }),
+          : err.message === 'Could not find file offer'
+            ? t('fileTransfer.transferRevoked')
+            : t('chat.conversation.errorAcceptFile', { error: err.message }),
         'error'
       );
       log.error('Accept file offer failed', e);

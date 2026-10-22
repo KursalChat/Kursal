@@ -574,7 +574,9 @@
   "fileTransfer": {
     "errorAutoDownload": "Échec du téléchargement automatique.",
     "errorNoSpace": "Échec du téléchargement automatique : espace libre insuffisant.",
-    "transferFailed": "Le transfert de fichier a échoué au contrôle d'intégrité et a été rejeté"
+    "transferFailed": "Le transfert de fichier a échoué au contrôle d'intégrité et a été rejeté",
+    "transferCancelled": "Le transfert de fichier a été annulé.",
+    "transferRevoked": "Le transfert de fichier n'est plus disponible. Il a peut-être été annulé ou révoqué."
   },
   "home": {
     "allCaughtUp": "À jour",

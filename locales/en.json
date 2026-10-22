@@ -129,7 +129,9 @@
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
     "errorNoSpace": "Auto-download failed: not enough free space.",
-    "transferFailed": "File transfer failed integrity check and was discarded"
+    "transferFailed": "File transfer failed integrity check and was discarded",
+    "transferCancelled": "File transfer was cancelled.",
+    "transferRevoked": "File transfer is no longer available. It may have been cancelled or revoked."
   },
   "backendDialog": {
     "crashReportTitle": "Crash detected",

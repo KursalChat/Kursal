@@ -238,10 +238,13 @@ export function registerCoreListeners(hooks: CoreListenerHooks): () => void {
 
   on<FileTransferFailedPayload>('file_transfer_failed', (p) => {
     messagesState.clearTransferProgress(p.transferId);
-    // A cancel is user-initiated and the bubble reverts on its own.
-    if (p.reason !== 'cancelled') {
-      notifications.push(t('fileTransfer.transferFailed'), 'error');
-    }
+    const message =
+      p.reason === 'cancelled'
+        ? t('fileTransfer.transferCancelled')
+        : p.reason === 'revoked'
+          ? t('fileTransfer.transferRevoked')
+          : t('fileTransfer.transferFailed');
+    notifications.push(message, 'error');
     log.error('File transfer failed', p);
   });
 
