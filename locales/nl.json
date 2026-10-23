@@ -28,6 +28,7 @@
       "yourCodeTitle": "Uw code"
     },
     "ltc": {
+      "alreadyContactError": "Deze persoon zit al in uw contacten.",
       "alreadyUsedError": "Deze langetermijncode is opgebruikt. Vraag uw contact om een nieuwe.",
       "card": {
         "daysLeft": "{n}d over",
@@ -60,6 +61,7 @@
       "exportSuccess": "Langetermijncode gereed",
       "fileFilter": "Kursal-databestand",
       "importSuccess": "Langetermijncode geïmporteerd",
+      "inProgressError": "U bent al aan het koppelen met deze persoon. Probeer het straks opnieuw.",
       "invalidFileError": "Ongeldig bestand. Selecteer alstublieft een geldige .kursal langetermijncode.",
       "invalidFileType": "Ongeldig bestandstype. Selecteer alstublieft een .kursal bestand.",
       "limits": {
@@ -79,6 +81,7 @@
       },
       "limitsError": "Kon de limieten niet wijzigen",
       "limitsSaved": "Limieten gewijzigd",
+      "peerConflictError": "Deze code wijst naar een apparaat die al van een van uw contacten is.",
       "pickerUnavailable": "Bestandskiezer niet beschikbaar",
       "regenerateConfirmButton": "Vervangen",
       "regenerateConfirmMessage": "Elke kopie van het huidige bestand stopt direct met werken. Iedereen die er nog steeds een behoudt zal u niet meer kunnen bereiken.",
@@ -104,6 +107,7 @@
     "nearby": {
       "acceptButton": "Accepteren",
       "acceptFailed": "Het mislukte om de verbinding te accepteren",
+      "bluetoothDeniedDescription": "De Bluetooth-machtiging was geweigerd, dus alleen Wi-Fi-detectie is actief. Controleer de systeemmachtigingen om peers via Bluetooth te vinden.",
       "connectButton": "Verbinden",
       "connectionAccepted": "Verbinding geaccepteerd",
       "connectionDeclined": "Verbinding geweigerd",
@@ -120,16 +124,19 @@
       "yourName": "U bent zichtbaar als {name}"
     },
     "otp": {
+      "alreadyContactError": "Deze persoon zit al in uw contacten.",
       "alreadyUsedError": "Deze code is al gebruikt om een contact toe te voegen. Vraag om een nieuwe.",
       "cameraPermissionDenied": "Cameratoestemming geweigerd",
       "enteredWordsAriaLabel": "Ingevoerde woorden met spellingsfouten gemarkeerd",
       "expiredError": "Deze contactcode is vervallen. Vraag om een nieuwe.",
       "fetchError": "Kon die code niet vinden. Hij zou misschien fout of vervallen kunnen zijn.",
+      "inProgressError": "U bent al aan het koppelen met deze persoon. Probeer het straks opnieuw.",
       "invalidError": "Ongeldige code. Zorg dat u hem good heeft gekopieerd.",
       "noAnswerError": "Het andere apparaat heeft nooit bevestigd. Zorg dat het online is en probeer het nog eens.",
       "noSuggestion": "Geen nauwe overeenkomst",
       "passphraseAriaLabel": "Eenmalige wachtzinwoorden",
       "pasteLabel": "Plakken",
+      "peerConflictError": "Deze code wijst naar een apparaat die al van een van uw contacten is.",
       "qrCodeAlt": "QR-code met de eenmalige wachtzin",
       "qrScanError": "QR-scan mislukte",
       "replaceWith": "Vervang voor {word}",
@@ -167,7 +174,15 @@
     "updateInstalledCancel": "Later",
     "updateInstalledConfirm": "Nu herstarten",
     "updateInstalledMessage": "Kursal herstarten om de update toe te passen? U kunt ook later herstarten.",
-    "updateInstalledTitle": "Update geïnstalleerd"
+    "updateInstalledTitle": "Update geïnstalleerd",
+    "updateStoreConfirm": "Ik snap het",
+    "updateStoreFromApple": "Update Kursal via de App Store.",
+    "updateStoreFromPlay": "Update Kursal via de Play Store.",
+    "updateStoreLater": "Later",
+    "updateStoreMessage": "Versie {version} is beschikbaar. U heeft momenteel versie {currentVersion}.",
+    "updateStoreOpenApple": "Open de App Store",
+    "updateStoreOpenPlay": "Open de Play Store",
+    "updateStoreTitle": "Update beschikbaar"
   },
   "biometricLock": {
     "androidSubtitle": "Authenticeer om toegang tot uw berichten te krijgen",
@@ -234,6 +249,7 @@
       "fileSizeReceived": "Ontvangen",
       "fileSizeSent": "Verstuurd",
       "linkConfirm": {
+        "appMessage": "Deze link opent buiten Kursal in een andere app op uw apparaat.",
         "cancel": "Annuleren",
         "error": "Het mislukte om de link te openen.",
         "message": "De link zal in uw browser openen.",
@@ -265,8 +281,11 @@
     "call": {
       "accept": "Accepteren",
       "busyToast": "Contact heeft het druk",
+      "cameraBack": "Achterste camera",
       "cameraDenied": "Camera geblokkeerd",
       "cameraDeniedToast": "Cameratoegang was afgewezen. Controleer uw systeemrechten.",
+      "cameraFront": "Voorste camera",
+      "cameraNumbered": "Camera {id}",
       "cameraOff": "Camera stoppen",
       "cameraOn": "Camera",
       "connecting": "Verbinden…",
@@ -276,8 +295,10 @@
       "expand": "Ga terug naar de oproep",
       "hangup": "Ophangen",
       "incoming": "Inkomende oproep",
+      "micDeniedToast": "Microfoontoegang is benodigd voor oproepen. Controleer de systeemmachtigingen.",
       "microphone": "Microfoon",
       "minimize": "Minimaliseren",
+      "mirrorSelfView": "Zelfbeeld spiegelen",
       "missed": "Gemiste oproep",
       "mute": "Dempen",
       "noAnswer": "Geen antwoord",
@@ -297,6 +318,7 @@
       "recordEnded": "Oproep beëindigd",
       "recordStarted": "Oproep gestart",
       "ringing": "Bellen…",
+      "selectCamera": "Camera selecteren",
       "startCall": "Spraakoproep starten",
       "startFailed": "Kon de oproep niet starten",
       "systemDefault": "Systeemstandaard",
@@ -345,6 +367,7 @@
       "errorEditMessage": "Het mislukte om het bericht te bewerken",
       "errorExportFile": "Kon het bestand niet op die locatie opslaan.",
       "errorMessageTooLong": "Bericht is te lang ({length}/{max})",
+      "errorNoSpace": "Er is niet genoeg vrije ruimte om dit bestand te downloaden.",
       "errorOpenFile": "Het mislukte om het bestand te openen.",
       "errorPasteImage": "Het mislukte om de afbeelding te plakken.",
       "errorPasteText": "Het mislukte om de tekst bij te voegen als bestand.",
@@ -371,6 +394,11 @@
       "unreadBarMarkRead": "Markeer als gelezen",
       "unreadBarMarkReadHint": "Markeer deze conversatie als gelezen (Shift+Esc)",
       "unreadBarOne": "1 ongelezen bericht",
+      "unstrippedCancel": "Niet verzenden",
+      "unstrippedConfirm": "Alsnog verzenden",
+      "unstrippedDetail": "Het kan wellicht de locatie waar hij is genomen bevatten, het apparaat waarmee en de datum waarop. Hem zoals het is versturen deelt dit alles.",
+      "unstrippedMessage": "Kursal kon de metadata van {filename} niet wegfilteren.",
+      "unstrippedTitle": "Verborgen data kan niet worden verwijderd",
       "verifyButton": "Identiteit verifiëren",
       "you": "U"
     },
@@ -534,10 +562,12 @@
     "io": "Kon een bestand niet lezen of schrijven. Probeer opnieuw.",
     "network": "Netwerkproblemen. Controleer uw verbinding en probeer opnieuw.",
     "storage": "Kon lokale opslag niet bereiken. Probeer opnieuw.",
-    "unknown": "Er ging iets fout. Probeer opnieuw."
+    "unknown": "Er ging iets fout. Probeer opnieuw.",
+    "unstrippable_image": "De verborgen data in deze afbeelding (zoals locatie) kon niet worden verwijderd, dus hij is niet verstuurd."
   },
   "fileTransfer": {
     "errorAutoDownload": "Auto-download mislukte.",
+    "errorNoSpace": "Auto-download mislukte: er is niet genoeg vrije ruimte.",
     "transferFailed": "Bestandsoverdracht mislukte de integriteitscontrole en was verworpen"
   },
   "home": {
@@ -645,6 +675,44 @@
     "justNow": "Zojuist offline gecontroleerd"
   },
   "onboarding": {
+    "back": "Terug",
+    "direct": {
+      "cta": "En mijn account?",
+      "lead": "Kursals geeft het rechtstreeks aan.",
+      "note": "Gesloten voordat het vertrekt. Niks in het midden om bij in te breken."
+    },
+    "hello": {
+      "cta": "Laat het me zien",
+      "heading": "Hoi. Ik ben Winston.",
+      "skip": "Ik weet wat ik doe",
+      "skipTooltip": "waarschijnlijk niet! volg de gids :p",
+      "subtitle": "En ik geloof dat privacy fundamenteel is."
+    },
+    "middleman": {
+      "cta": "Dus, wat is er anders?",
+      "lead": "Uw berichten gaan eerst via een bedrijf.",
+      "note": "Zij houden ze vast en vragen u om hen te vertrouwen."
+    },
+    "noAccounts": {
+      "cta": "Zet het klaar",
+      "lead": "Er is geen account.",
+      "note": "Geen e-mail, geen wachtwoord. Je voegt iemand toe door acht woorden uit te wisselen."
+    },
+    "profile": {
+      "consentLink": "de Gebruikersvoorwaarden",
+      "consentPrefix": "Door verder te gaan, gaat u akkoord met",
+      "cta": "Kom op!",
+      "errorPickName": "Kies eerst een naam",
+      "errorSave": "Kon uw profiel niet opslaan. U kunt het later instellen in de Instellingen.",
+      "greeting": "Hoi, {name}!",
+      "lead": "Dus, wie bent u?",
+      "nameHint": "U kunt dit later in de Instellingen veranderen.",
+      "namePlaceholder": "Uw naam",
+      "note": "Alleen mensen die u toevoegt zullen dit zien.",
+      "removePhoto": "Verwijder foto",
+      "saving": "Opslaan…",
+      "uploadPhoto": "Upload een foto"
+    },
     "skip": "Overslaan"
   },
   "profile": {
@@ -929,7 +997,7 @@
       "importPartial": "{count} van de {total} knooppunten geïmporteerd",
       "importPlaceholder": "Knooppuntadressen plakken, één per regel",
       "listenAddresses": "Luisteradressen",
-      "listeningPortDescription": "De poort waarop Kursal luistert. Maak het veld leeg om een willekeurige poort te kiezen.",
+      "listeningPortDescription": "De poort waarop Kursal luistert (standaard 4891). Maak het veld leeg om een willekeurige poort te kiezen.",
       "listeningPortRow": "Luisterpoort",
       "maxConnectionsDescription": "Totaal aantal gelijktijdige doorgezende peers.",
       "maxConnectionsRow": "Max. verbindingen",
@@ -945,9 +1013,15 @@
       "nodesCard": "Knooppunten",
       "nodesDescription": "Bootstrap- en relais-knooppunten waarmee Kursal bij het opstarten verbinding maakt.",
       "portPlaceholder": "willekeurig",
+      "reachTitle_checking": "Bereikbaarheid aan het controleren",
+      "reachTitle_private": "Niet bereikbaar via het internet",
+      "reachTitle_public": "Bijdragen aan het netwerk",
+      "reachability_checking": "Controleren",
+      "reachability_private": "Niet bereikbaar",
+      "reachability_public": "Bijdragen",
       "refresh": "Ververs",
       "relayCard": "Relais",
-      "relayDescription": "Operatorinstellingen voor het doorgeven van versleuteld verkeer.",
+      "relayDescription": "Hoe dit apparaat het netwerk helpt het netwerk te dragen. Alleen voor desktop.",
       "removeNodeAriaLabel": "Knooppunt verwijderen",
       "savePortButton": "Opslaan",
       "saveRelayButton": "Relais opslaan",
@@ -1168,7 +1242,8 @@
   },
   "updateDownload": {
     "installing": "Installeren…",
-    "titleVersion": "{version} aan het downloaden"
+    "titleVersion": "{version} aan het downloaden",
+    "upToDate": "Bijgewerkt"
   },
   "winston": {
     "poke0": "hoi",
