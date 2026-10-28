@@ -6,7 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0-beta.12] - 2026-10-20
+## [0.1.0-beta.13] - 2026-10-28
+
+### Bug Fixes
+
+- File revoked specific error
+- Delete confirmation
+- Android init rustls
+- Better crash reports
+
+### CI
+
+- Deprecated dep
+
+### Miscellaneous
+
+- Translated (Dutch)
+
+## [0.1.0-beta.12] - 2026-10-21
 
 ### Bug Fixes
 
@@ -14,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Arch build for aarch64 and permission fix
 - Android crash on start
 - More keys zeroizing after use
+
+### CI
+
+- Upload .sig for android
+- Maybe linux version fix
+- Linux version
+- Linux build fix
+- Split android build
 
 ## [0.1.0-beta.11] - 2026-10-14
 
