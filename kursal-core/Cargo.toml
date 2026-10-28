@@ -117,7 +117,9 @@ ble-peripheral-rust = { workspace = true, optional = true }
 # C++/meson build does NOT cross-compile, so we only enable it where the
 # build is native
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
-webrtc-audio-processing = { workspace = true, features = ["bundled"], optional = true }
+webrtc-audio-processing = { workspace = true, features = [
+    "bundled",
+], optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
@@ -193,7 +195,7 @@ objc2-video-toolbox = { workspace = true, optional = true, features = [
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
-ndk-context = "0.1.1"
+ndk-context = { workspace = true }
 jni = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]

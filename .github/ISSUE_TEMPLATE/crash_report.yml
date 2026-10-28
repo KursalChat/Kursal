@@ -1,0 +1,43 @@
+name: Crash report
+description: Report a Kursal crash
+title: "Crash report: "
+labels: ["crash"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Kursal. Please remove any private information before submitting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What were you doing when Kursal crashed?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kursal version
+      placeholder: "e.g. 0.1.0-beta.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Android
+        - iOS
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Crash report
+      description: Paste the technical details copied by Kursal when you opened this form.
+      render: text
+    validations:
+      required: true

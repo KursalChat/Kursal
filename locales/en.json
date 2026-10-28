@@ -129,7 +129,9 @@
   "fileTransfer": {
     "errorAutoDownload": "Auto-download failed.",
     "errorNoSpace": "Auto-download failed: not enough free space.",
-    "transferFailed": "File transfer failed integrity check and was discarded"
+    "transferFailed": "File transfer failed integrity check and was discarded",
+    "transferCancelled": "File transfer was cancelled.",
+    "transferRevoked": "File transfer is no longer available. It may have been cancelled or revoked."
   },
   "backendDialog": {
     "crashReportTitle": "Crash detected",
@@ -137,6 +139,7 @@
     "crashReportDetail": "This is exactly what will be sent. Nothing else leaves your device.",
     "crashReportConfirm": "Send report",
     "crashReportCancel": "Not now",
+    "crashReportGithub": "GitHub (preferred)",
     "updateAvailableTitle": "Update available",
     "updateAvailableMessage": "Version {version} is available. You're currently on {currentVersion}.",
     "updateAvailableNotes": "Here's what changed:",
@@ -498,6 +501,11 @@
       "successProfileQueued": "Profile will share when {name} is online",
       "errorProfileShare": "Failed to share profile",
       "errorDeleteMessage": "Failed to delete message",
+      "deleteForEveryoneTitle": "Delete message for everyone?",
+      "deleteForEveryoneMessage": "This message will be deleted for you and the recipient. This can't be undone.",
+      "deleteLocalTitle": "Delete message?",
+      "deleteLocalMessage": "This message will be deleted from this device. This can't be undone.",
+      "deleteConfirm": "Delete",
       "errorReact": "Couldn't add reaction",
       "errorContactNotFound": "Contact not found",
       "errorEditMessage": "Failed to edit message",
@@ -816,8 +824,8 @@
       "decryptAndRestore": "Decrypt & restore",
       "notificationsCard": "Notifications",
       "systemPermissionRow": "System permission",
-      "permissionGranted": "Kursal can show desktop notifications.",
-      "permissionDenied": "Kursal is not allowed to show desktop notifications.",
+      "permissionGranted": "Kursal can show notifications.",
+      "permissionDenied": "Kursal is not allowed to show notifications.",
       "sendTestButton": "Send test",
       "enableButton": "Enable",
       "messagePreviewRow": "Message preview",

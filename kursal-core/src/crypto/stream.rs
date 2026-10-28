@@ -5,14 +5,17 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use rand::{TryRngCore, rngs::OsRng};
+use zeroize::Zeroize;
 
 const NONCE_LEN: usize = 24;
 const MIN_CIPHERTEXT_LEN: usize = NONCE_LEN + 16;
 
 pub fn derive_stream_key(my_random: [u8; 32], their_random: [u8; 32]) -> Result<[u8; 32]> {
-    let combined = [my_random, their_random].concat();
+    let mut combined = [my_random, their_random].concat();
 
-    derive_key(&combined, b"kursal-stream-key")
+    let key = derive_key(&combined, b"kursal-stream-key");
+    combined.zeroize();
+    key
 }
 
 pub fn stream_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {

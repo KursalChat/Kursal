@@ -18,19 +18,21 @@
 
   const copied = flash();
 
+  interface Props {
+    id: string;
+    name?: string;
+    description?: string;
+    defaultIterations?: number;
+    onRunningChange?: (running: boolean) => void;
+  }
+
   let {
     id,
     name = '',
     description = '',
     defaultIterations = 100,
     onRunningChange = () => {},
-  } = $props<{
-    id: string;
-    name?: string;
-    description?: string;
-    defaultIterations?: number;
-    onRunningChange?: (running: boolean) => void;
-  }>();
+  }: Props = $props();
 
   let iterations = $state(100);
   let isRunning = $state(false);

@@ -784,9 +784,18 @@
     replyingToMessageId = null;
   }
 
-  async function handleDelete(msg: MessageResponse) {
+  async function handleDelete(msg: MessageResponse, skipConfirmation = false) {
     actionSheetMsgId = null;
     const cid = contactId;
+    if (!skipConfirmation) {
+      const confirmed = await confirmDialog({
+        title: t('chat.conversation.deleteForEveryoneTitle'),
+        message: t('chat.conversation.deleteForEveryoneMessage'),
+        confirmLabel: t('chat.conversation.deleteConfirm'),
+        tone: 'danger',
+      });
+      if (!confirmed) return;
+    }
     const mid = msg.id;
     messagesState.setPendingDelete(mid, true);
     try {
@@ -912,7 +921,16 @@
     matchPos = 0;
   }
 
-  async function handleDeleteLocal(msg: MessageResponse, silent = false) {
+  async function handleDeleteLocal(msg: MessageResponse, silent = false, skipConfirmation = false) {
+    if (!silent && !skipConfirmation) {
+      const confirmed = await confirmDialog({
+        title: t('chat.conversation.deleteLocalTitle'),
+        message: t('chat.conversation.deleteLocalMessage'),
+        confirmLabel: t('chat.conversation.deleteConfirm'),
+        tone: 'danger',
+      });
+      if (!confirmed) return;
+    }
     messagesState.removeLocally(msg.id, msg.contactId);
     void haptics.impact('light');
     try {
@@ -1657,7 +1675,10 @@
       notifications.push(
         err.code === 'insufficient_space'
           ? t('chat.conversation.errorNoSpace')
-          : t('chat.conversation.errorAcceptFile', { error: err.message }),
+          : err.message === 'Could not find file offer' ||
+              err.message === 'storage error: Could not find file offer'
+            ? t('fileTransfer.transferRevoked')
+            : t('chat.conversation.errorAcceptFile', { error: err.message }),
         'error'
       );
       log.error('Accept file offer failed', e);
@@ -1991,8 +2012,8 @@
           onTogglePin={() => togglePin(msg)}
           onMarkUnread={() => markUnreadFrom(msg)}
           onForward={() => (forwardContent = msg.content)}
-          onDelete={() => handleDelete(msg)}
-          onDeleteLocal={() => handleDeleteLocal(msg)}
+          onDelete={(skipConfirmation) => handleDelete(msg, skipConfirmation)}
+          onDeleteLocal={(skipConfirmation) => handleDeleteLocal(msg, false, skipConfirmation)}
           onRetry={() => handleRetry(msg)}
           onToggleEmojiPicker={(rect) => {
             if (showEmojiPicker === msg.id) {
@@ -2108,7 +2129,8 @@
           actionSheetMsgId = null;
         }
       }}
-      onDelete={() => actionSheetMsg && handleDelete(actionSheetMsg)}
+      onDelete={(skipConfirmation) =>
+        actionSheetMsg && handleDelete(actionSheetMsg, skipConfirmation)}
     />
   {/if}
 

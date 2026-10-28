@@ -11,6 +11,7 @@ use redb::ReadableDatabase;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{path::PathBuf, time::SystemTime};
+use zeroize::Zeroizing;
 
 pub mod avatars;
 pub mod backup;
@@ -41,9 +42,10 @@ pub fn delete_message_history_all(db: &Database) -> Result<()> {
 }
 
 pub fn get_local_identity_pub(db: &Database) -> Result<Vec<u8>> {
-    let identity_bytes = db
-        .raw_read(TABLE_IDENTITY_KEYS, "local_identity")?
-        .ok_or(KursalError::Storage("No local identity".to_string()))?;
+    let identity_bytes = Zeroizing::new(
+        db.raw_read(TABLE_IDENTITY_KEYS, "local_identity")?
+            .ok_or(KursalError::Storage("No local identity".to_string()))?,
+    );
 
     let identity_keypair =
         IdentityKeyPair::try_from(identity_bytes.as_slice()).ok_kursal(KursalError::Identity)?;
@@ -69,8 +71,9 @@ pub fn get_dilithium_pub(db: &Database) -> Result<Vec<u8>> {
         .ok_or(KursalError::Storage("No dilithium public key".to_string()))
 }
 
-pub fn get_dilithium_secret(db: &Database) -> Result<Vec<u8>> {
+pub fn get_dilithium_secret(db: &Database) -> Result<Zeroizing<Vec<u8>>> {
     db.raw_read(TABLE_SETTINGS, "dilithium_secret")?
+        .map(Zeroizing::new)
         .ok_or(KursalError::Storage("No dilithium secret key".to_string()))
 }
 

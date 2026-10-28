@@ -6,7 +6,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0-beta.11] - 2026-10-12
+## [0.1.0-beta.13] - 2026-10-28
+
+### Bug Fixes
+
+- File revoked specific error
+- Delete confirmation
+- Android init rustls
+- Better crash reports
+
+### CI
+
+- Deprecated dep
+
+### Miscellaneous
+
+- Translated (Dutch)
+
+## [0.1.0-beta.12] - 2026-10-21
+
+### Bug Fixes
+
+- Svelte type fix
+- Arch build for aarch64 and permission fix
+- Android crash on start
+- More keys zeroizing after use
+
+### CI
+
+- Upload .sig for android
+- Maybe linux version fix
+- Linux version
+- Linux build fix
+- Split android build
+
+## [0.1.0-beta.11] - 2026-10-14
 
 ### Features
 
@@ -35,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### CI
 
+- More incremental fixes...
+- Do not upload to app store yet
+- Workaround for ios builds
+- Use latest xcode-27 for ios builds
 - Probable android fix
 
 ### Styling
@@ -43,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
+- Translated (French)
 - Package bump & maintenance
 - Package bump (sveltekit) & fmt
 - Package bump

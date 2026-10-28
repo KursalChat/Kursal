@@ -5,6 +5,7 @@ use crate::{KursalError, Result, dto::LocalApiConfig};
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
 use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 macro_rules! bool_setting {
     ($get:ident, $set:ident, $key:literal, default: $default:expr) => {
@@ -473,9 +474,9 @@ pub fn api_server_password(db: &Database) -> Result<String> {
     }
 }
 pub fn set_new_api_server_password(db: &Database) -> Result<String> {
-    let mut bytes = [0u8; 32];
+    let mut bytes = Zeroizing::new([0u8; 32]);
     OsRng
-        .try_fill_bytes(&mut bytes)
+        .try_fill_bytes(&mut *bytes)
         .ok_kursal(KursalError::Crypto)?;
 
     let token = hex::encode(bytes);

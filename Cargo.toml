@@ -3,7 +3,7 @@ members = ["kursal-cli", "kursal-core", "kursal-tauri/src-tauri"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0-beta.11"
+version = "0.1.0-beta.13"
 authors = ["Kodeur_Kubik <kubik@kursal.chat>", "Arlo <arlo@kursal.chat>"]
 edition = "2024"
 license = "AGPL-3.0-only"
@@ -27,7 +27,7 @@ pqcrypto-dilithium = "0.5.0"
 pqcrypto-traits = "0.3.5"
 
 # Network
-libp2p = { version = "0.57.0", features = [
+libp2p = { version = "0.57.1", features = [
     "tcp",
     "dns",
     "quic",
@@ -53,15 +53,15 @@ reqwest = { version = "0.13.5", default-features = false, features = [
 ] }
 
 v4l = "0.14.0"
-openh264 = "0.9.8"
-openh264-sys2 = { version = "0.9.8", default-features = false }
+openh264 = "0.9.9"
+openh264-sys2 = { version = "0.9.9", default-features = false }
 zune-jpeg = "0.5.15"
 btleplug = { version = "0.13.5", features = ["serde"] }
 ble-peripheral-rust = "0.2.0"
 
 # Storage
-redb = "4.3.0"
-keyring-core = "1.0.0"
+redb = "4.4.0"
+keyring-core = "1.0.1"
 dirs = "7.0.0"
 android-native-keyring-store = "1.0.0"
 apple-native-keyring-store = "1.0.2"
@@ -83,7 +83,7 @@ objc2-avf-audio = "0.3.2"
 
 # Stats
 sysinfo = { version = "0.39.6", default-features = false }
-prometheus-client = "0.25"                               # MUST match the version libp2p-metrics uses
+prometheus-client = "0.25"                                 # MUST match the version libp2p-metrics uses
 
 # CLI
 toml = "1.1.4"
@@ -111,31 +111,34 @@ objc2-video-toolbox = { version = "0.3.2", default-features = false }
 objc2-ui-kit = { version = "0.3.2", default-features = false }
 webview2-com = "0.39.1"
 windows = "0.62.2"
+ndk-context = "0.1.1"
 
 # Misc
-emojis = "0.9.0"
+emojis = "0.9.1"
 semver = "1.0.28"
 
 # Tauri
-tauri = "2.12.3"
-tauri-build = "2.7.2"
+tauri = "2.12.5"
+tauri-build = "2.7.4"
 
 tauri-plugin-autostart = "2.7.0"
-tauri-plugin-barcode-scanner = "2.5.2"
-tauri-plugin-biometric = "2.4.2"
-tauri-plugin-clipboard-manager = "2.4.2"
-tauri-plugin-deep-link = "2.6.1"
-tauri-plugin-dialog = "2.8.2"
-tauri-plugin-fs = "2.7.0"
+tauri-plugin-barcode-scanner = "2.5.3"
+tauri-plugin-biometric = "2.5.0"
+tauri-plugin-clipboard-manager = "2.5.0"
+tauri-plugin-deep-link = "2.6.3"
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-fs = "2.7.1"
 tauri-plugin-haptics = "2.4.2"
-tauri-plugin-notification = "2.6.0"
-tauri-plugin-opener = "2.7.1"
+tauri-plugin-notification = "2.8.0"
+tauri-plugin-opener = "2.7.2"
 tauri-plugin-os = "2.4.0"
-tauri-plugin-single-instance = "2.5.3"
-tauri-plugin-updater = "2.13.3"
+tauri-plugin-single-instance = "2.5.5"
+tauri-plugin-updater = "2.14.1"
 tauri-plugin-window-state = "2.5.0"
 
 tauri-plugin-sharekit = "=0.4.0-rc.7"
+
+rust-ini = "=0.21.0"
 
 # libsignal deps - from https://github.com/signalapp/libsignal/blob/main/Cargo.toml
 libsignal-protocol = { path = "externals/libsignal/rust/protocol" }
@@ -207,7 +210,7 @@ indexmap = "2.7.0"
 intmap = "3.1.2"
 itertools = "0.15.0"
 jni = "0.22.4"
-libc = "=0.2.186" # temporary "=" for iOS and sysinfo
+libc = "0.2.186"
 libcrux-ml-kem = { version = "0.0.10", default-features = false }
 linkme = "0.3.33"
 log = "0.4.21"
@@ -245,9 +248,9 @@ rand_core = "0.9"
 rand_distr = "0.5.1"
 rangemap = "1.5.1"
 rayon = "1.8.0"
-rcgen = "0.14.0"
+rcgen = "0.14.8"
 ref-cast = "1.0.25"
-rustls = { version = "0.23.45", default-features = false }
+rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = "0.7.1"
 scopeguard = "1.0"
 serde = "1.0.203"
@@ -269,7 +272,7 @@ test-log = "0.2.16"
 testing_logger = "0.1.1"
 thiserror = "2.0.18"
 tls-parser = "0.12.2"
-tokio = "1.52.2"
+tokio = "1.54"
 tokio-socks = "0.5.2"
 tokio-stream = "0.1.16"
 tokio-tungstenite = "0.29.0"

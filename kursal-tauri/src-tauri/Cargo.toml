@@ -57,7 +57,9 @@ rayon = { workspace = true }
 tauri-build = { workspace = true, features = [] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-kursal-cli = { path = "../../kursal-cli", default-features = false, features = ["tui"] }
+kursal-cli = { path = "../../kursal-cli", default-features = false, features = [
+    "tui",
+] }
 tauri-plugin-autostart = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 tauri-plugin-updater = { workspace = true }
@@ -82,6 +84,9 @@ objc2-foundation = { workspace = true, features = [
     "NSUserDefaults",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rust-ini = { workspace = true }
+
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-foundation = { workspace = true, features = [
     "std",
@@ -92,6 +97,8 @@ objc2-foundation = { workspace = true, features = [
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }
+ndk-context = { workspace = true }
+rustls-platform-verifier = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = { workspace = true }

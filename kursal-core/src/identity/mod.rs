@@ -53,7 +53,8 @@ pub async fn init(
     ensure_identity(&mut db)?;
 
     crate::storage::avatars::init(app_data_dir)?;
-    crate::storage::avatars::prune_unreferenced(&db)?;
+    // see note above the function
+    // crate::storage::avatars::prune_unreferenced(&db)?;
 
     Ok(SharedDatabase::from_db(db))
 }
@@ -143,10 +144,11 @@ impl TransportIdentity {
     }
 
     fn save_under(&self, db: &Database, key: &str) -> Result<()> {
-        let serialized = self
-            .keypair
-            .to_protobuf_encoding()
-            .ok_kursal(KursalError::Crypto)?;
+        let serialized = zeroize::Zeroizing::new(
+            self.keypair
+                .to_protobuf_encoding()
+                .ok_kursal(KursalError::Crypto)?,
+        );
 
         db.raw_write(TABLE_SETTINGS, key, &serialized)?;
 
@@ -166,6 +168,7 @@ impl TransportIdentity {
 
         match fetched {
             Some(b) => {
+                let b = zeroize::Zeroizing::new(b);
                 let keypair = libp2p::identity::Keypair::from_protobuf_encoding(&b)
                     .ok_kursal(KursalError::Crypto)?;
                 let peer_id = PeerId::from_public_key(&keypair.public());

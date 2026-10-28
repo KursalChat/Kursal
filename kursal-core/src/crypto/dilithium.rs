@@ -2,15 +2,14 @@ use crate::MapKursalResult;
 use crate::{KursalError, Result};
 use pqcrypto_dilithium::dilithium5;
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey, SecretKey, VerificationError};
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 pub fn dilithium_sign(mut secret_key_bytes: Vec<u8>, message: &[u8]) -> Result<Vec<u8>> {
+    let secret_key_bytes = Zeroizing::new(std::mem::take(&mut secret_key_bytes));
     let sig = dilithium5::detached_sign(
         message,
         &dilithium5::SecretKey::from_bytes(&secret_key_bytes).ok_kursal(KursalError::Crypto)?,
     );
-
-    secret_key_bytes.zeroize();
 
     Ok(sig.as_bytes().to_vec())
 }

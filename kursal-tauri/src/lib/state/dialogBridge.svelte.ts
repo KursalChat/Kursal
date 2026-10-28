@@ -4,21 +4,50 @@ import { updateDownloadState } from '#lib/state/updateDownload.svelte.js';
 import { groupLabel, parseReleaseNotes } from '#lib/changelog.js';
 import { t } from '#lib/i18n/index.js';
 import type { BackendDialogPayload } from '#lib/types.js';
+import { getVersion } from '@tauri-apps/api/app';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { OS } from '#lib/api/window.js';
+import { log } from '#lib/utils/log.js';
 
 function buildOptions(p: BackendDialogPayload): ConfirmOptions {
   const base = { tone: p.tone, hideCancel: !p.dismissible } as const;
 
   switch (p.kind) {
-    case 'crash_report':
+    case 'crash_report': {
+      const report = p.params.report ? String(p.params.report) : '';
+
       return {
         ...base,
         title: t('backendDialog.crashReportTitle'),
         message: t('backendDialog.crashReportMessage'),
         detail: t('backendDialog.crashReportDetail'),
-        code: p.params.report ? String(p.params.report) : undefined,
+        code: report || undefined,
         confirmLabel: t('backendDialog.crashReportConfirm'),
         cancelLabel: t('backendDialog.crashReportCancel'),
+        preferredAction: {
+          label: t('backendDialog.crashReportGithub'),
+          onClick: async () => {
+            const githubIssueUrl = new URL('https://github.com/KursalChat/Kursal/issues/new');
+            githubIssueUrl.searchParams.set('template', 'crash_report.yml');
+            githubIssueUrl.searchParams.set('version', await getVersion());
+            githubIssueUrl.searchParams.set(
+              'os',
+              (
+                {
+                  macos: 'macOS',
+                  windows: 'Windows',
+                  android: 'Android',
+                  ios: 'iOS',
+                } as Record<string, string>
+              )[OS] ?? 'Linux'
+            );
+            await openUrl(githubIssueUrl.toString()).catch((error) => {
+              log.error('Failed to open GitHub crash report form', error);
+            });
+          },
+        },
       };
+    }
     case 'update_available': {
       const notes = p.params.notes ? String(p.params.notes) : '';
       const groups = notes ? parseReleaseNotes(notes) : [];

@@ -145,26 +145,34 @@
           {o.cancelLabel ?? 'Cancel'}
         </Button>
       {/if}
-      {#if holdMs > 0}
-        <button
-          class="hold-btn"
-          data-tone={tone}
-          disabled={locked}
-          onclick={() => confirmState.confirm()}
-          aria-busy={locked}
-        >
-          <span class="hold-fill" style="transform: scaleX({holdProgress});" aria-hidden="true"
-          ></span>
-          <span class="hold-label">{o.confirmLabel ?? 'Confirm'}</span>
-        </button>
-      {:else}
-        <Button
-          variant={tone === 'danger' ? 'danger' : 'primary'}
-          onclick={() => confirmState.confirm()}
-        >
-          {o.confirmLabel ?? 'Confirm'}
-        </Button>
-      {/if}
+      <div class:has-preferred={!!o.preferredAction} class="foot-actions">
+        {#if o.preferredAction}
+          <Button variant="primary" onclick={o.preferredAction.onClick}>
+            {o.preferredAction.label}
+            <ExternalLink size={13} />
+          </Button>
+        {/if}
+        {#if holdMs > 0}
+          <button
+            class="hold-btn"
+            data-tone={tone}
+            disabled={locked}
+            onclick={() => confirmState.confirm()}
+            aria-busy={locked}
+          >
+            <span class="hold-fill" style="transform: scaleX({holdProgress});" aria-hidden="true"
+            ></span>
+            <span class="hold-label">{o.confirmLabel ?? 'Confirm'}</span>
+          </button>
+        {:else}
+          <Button
+            variant={o.preferredAction ? 'secondary' : tone === 'danger' ? 'danger' : 'primary'}
+            onclick={() => confirmState.confirm()}
+          >
+            {o.confirmLabel ?? 'Confirm'}
+          </Button>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
@@ -197,10 +205,13 @@
   }
   .head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     padding: 18px 20px 14px;
     flex-shrink: 0;
+  }
+  .foot > :first-child {
+    align-self: flex-start;
   }
   .head h3 {
     margin: 0;
@@ -372,12 +383,21 @@
   }
   .foot {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
     padding: 14px 20px 18px;
     border-top: 1px solid var(--border-light);
     background: var(--surface-soft);
     flex-shrink: 0;
+  }
+  .foot-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .foot-actions.has-preferred {
+    flex-direction: column;
+    align-items: stretch;
   }
   @keyframes fadein {
     from {
