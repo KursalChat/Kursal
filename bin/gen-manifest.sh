@@ -32,7 +32,7 @@ jq -n \
   --arg lxr_url "$BASE_URL/Kursal_x64.rpm"          --arg lxr_sig "$(sig Kursal_x64.rpm)"          --arg lxr_sha "$(sha Kursal_x64.rpm)" \
   --arg lxd_url "$BASE_URL/Kursal_x64.deb"          --arg lxd_sig "$(sig Kursal_x64.deb)"          --arg lxd_sha "$(sha Kursal_x64.deb)" \
   --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sig "$(sig Kursal.apk)"              --arg and_sha "$(sha Kursal.apk)" \
-  --arg aab_url "$BASE_URL/Kursal.aab"              --arg aab_sig "$(sig Kursal.aab)"              --arg and_sha "$(sha Kursal.aab)" \
+  --arg aab_url "$BASE_URL/Kursal.aab"              --arg aab_sig "$(sig Kursal.aab)"              --arg aab_sha "$(sha Kursal.aab)" \
   --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sig "$(sig Kursal.ipa)"              --arg ios_sha "$(sha Kursal.ipa)" \
   '{
     version: $version,
