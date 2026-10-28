@@ -96,7 +96,8 @@ pub async fn message_receive(
             &mut rng,
         )
         .await
-        .ok_kursal(KursalError::Crypto)?;
+        .ok_kursal(KursalError::Crypto)?
+        .plaintext; // TODO: it also contains the identity of the sender which could be checked in theory?
 
         Ok(decrypted)
     } else {

@@ -1033,6 +1033,9 @@
       width: 300px;
       max-width: 86vw;
       z-index: 60;
+      background: var(--bg-secondary);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       transform: translateX(-100%);
       transition:
         transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
