@@ -32,7 +32,6 @@ jq -n \
   --arg lxr_url "$BASE_URL/Kursal_x64.rpm"          --arg lxr_sig "$(sig Kursal_x64.rpm)"          --arg lxr_sha "$(sha Kursal_x64.rpm)" \
   --arg lxd_url "$BASE_URL/Kursal_x64.deb"          --arg lxd_sig "$(sig Kursal_x64.deb)"          --arg lxd_sha "$(sha Kursal_x64.deb)" \
   --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sig "$(sig Kursal.apk)"              --arg and_sha "$(sha Kursal.apk)" \
-  --arg aab_url "$BASE_URL/Kursal.aab"              --arg aab_sig "$(sig Kursal.aab)"              --arg and_sha "$(sha Kursal.aab)" \
   --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sig "$(sig Kursal.ipa)"              --arg ios_sha "$(sha Kursal.ipa)" \
   '{
     version: $version,
@@ -50,7 +49,6 @@ jq -n \
       "linux-x86_64-rpm":  { url: $lxr_url,   signature: $lxr_sig,   sha256: $lxr_sha },
       "linux-x86_64-deb":  { url: $lxd_url,   signature: $lxd_sig,   sha256: $lxd_sha },
       "android":           { url: $and_url,   signature: $and_sig,   sha256: $and_sha },
-      "android-aab":       { url: $aab_url,   signature: $aab_sig,   sha256: $aab_sha },
       "ios":               { url: $ios_url,   signature: $ios_sig,   sha256: $ios_sha }
     }
   }' > "$BUILD/latest.json"
