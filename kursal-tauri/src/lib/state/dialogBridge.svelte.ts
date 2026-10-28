@@ -41,7 +41,6 @@ function buildOptions(p: BackendDialogPayload): ConfirmOptions {
                 } as Record<string, string>
               )[OS] ?? 'Linux'
             );
-            githubIssueUrl.searchParams.set('report', report);
             await openUrl(githubIssueUrl.toString()).catch((error) => {
               log.error('Failed to open GitHub crash report form', error);
             });

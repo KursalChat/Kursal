@@ -786,6 +786,7 @@
 
   async function handleDelete(msg: MessageResponse, skipConfirmation = false) {
     actionSheetMsgId = null;
+    const cid = contactId;
     if (!skipConfirmation) {
       const confirmed = await confirmDialog({
         title: t('chat.conversation.deleteForEveryoneTitle'),
@@ -795,7 +796,6 @@
       });
       if (!confirmed) return;
     }
-    const cid = contactId;
     const mid = msg.id;
     messagesState.setPendingDelete(mid, true);
     try {
@@ -1675,7 +1675,8 @@
       notifications.push(
         err.code === 'insufficient_space'
           ? t('chat.conversation.errorNoSpace')
-          : err.message === 'Could not find file offer'
+          : err.message === 'Could not find file offer' ||
+              err.message === 'storage error: Could not find file offer'
             ? t('fileTransfer.transferRevoked')
             : t('chat.conversation.errorAcceptFile', { error: err.message }),
         'error'

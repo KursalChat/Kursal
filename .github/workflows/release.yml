@@ -366,14 +366,20 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          VERSION="$(../bin/version.sh)"
-          RPM_VERSION="$(echo "$VERSION" | sed 's/-/+/')"
+          VERSION="$(../bin/version.sh)"            # e.g. 1.0.0-beta.1
+          BASE="${VERSION%%-*}"                     # 1.0.0
+          if [[ "$VERSION" == *-* ]]; then
+            RPM_RELEASE="0.${VERSION#*-}"           # 0.beta.1
+            RPM_RELEASE="${RPM_RELEASE//-/.}"
+          else
+            RPM_RELEASE="1"
+          fi
 
           bun run tauri build --bundles deb,appimage,updater \
             --config "{\"version\":\"$VERSION\",\"build\":{\"beforeBuildCommand\":\"\"}}"
 
           bun run tauri build --bundles rpm \
-            --config "{\"version\":\"$RPM_VERSION\",\"build\":{\"beforeBuildCommand\":\"\"}}"
+            --config "{\"version\":\"$BASE\",\"bundle\":{\"linux\":{\"rpm\":{\"release\":\"$RPM_RELEASE\"}}},\"build\":{\"beforeBuildCommand\":\"\"}}"
 
       - name: Collect
         env:

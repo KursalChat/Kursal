@@ -46,9 +46,10 @@ build_linux() {
         export CARGO_TARGET_DIR=/root/kursal-target &&
         export APPIMAGE_EXTRACT_AND_RUN=1 &&
         VERSION=$( /workspace/bin/version.sh ) &&
-        RPM_VERSION=$( echo "$VERSION" | sed 's/-/+/' ) &&
+        BASE="${VERSION%%-*}" &&
+        if [[ "$VERSION" == *-* ]]; then RPM_RELEASE="0.${VERSION#*-}"; RPM_RELEASE="${RPM_RELEASE//-/.}"; else RPM_RELEASE="1"; fi &&
         bun run tauri build --bundles deb,appimage,updater --config "{\"version\":\"$VERSION\",\"build\":{\"beforeBuildCommand\":\"\"}}" &&
-        bun run tauri build --bundles rpm --config "{\"version\":\"$RPM_VERSION\",\"build\":{\"beforeBuildCommand\":\"\"}}" &&
+        bun run tauri build --bundles rpm --config "{\"version\":\"$BASE\",\"bundle\":{\"linux\":{\"rpm\":{\"release\":\"$RPM_RELEASE\"}}},\"build\":{\"beforeBuildCommand\":\"\"}}" &&
         cp /root/kursal-target/release/bundle/deb/*.deb                /workspace/build/Kursal_$1.deb &&
         cp /root/kursal-target/release/bundle/deb/*.deb.sig            /workspace/build/Kursal_$1.deb.sig &&
         cp /root/kursal-target/release/bundle/rpm/*.rpm                /workspace/build/Kursal_$1.rpm &&

@@ -158,3 +158,20 @@ pub fn prune(live: &HashSet<String>) {
         }
     }
 }
+
+pub fn delete_for_user(user_id: &UserId) -> Result<()> {
+    let id = hex::encode(user_id.0);
+
+    for ext in EXTENSIONS {
+        let name = format!("{id}.{ext}");
+        if let Some(path) = path_for(&name) {
+            match std::fs::remove_file(path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(err) => return Err(KursalError::Io(err)),
+            }
+        }
+    }
+
+    Ok(())
+}

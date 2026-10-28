@@ -64,7 +64,7 @@ const SENTRY_DSN: &str = "https://f1839caacbd34e0f9969696a3c6f561f@crashes.kursa
 const MAX_BACKTRACE_CHARS: usize = 16_000;
 
 fn crash_file_path() -> Result<PathBuf> {
-    Ok(logs_dir()?.join("crash_report.txt"))
+    Ok(logs_dir()?.join("crash_report.log"))
 }
 
 fn archive_crash_report(crash_path: &PathBuf) {
@@ -72,7 +72,7 @@ fn archive_crash_report(crash_path: &PathBuf) {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let archive_path = crash_path.with_file_name(format!("crash_report.archived-{timestamp}.txt"));
+    let archive_path = crash_path.with_file_name(format!("crash_report.archived-{timestamp}.log"));
 
     if let Err(error) = fs::rename(crash_path, &archive_path) {
         log::error!(

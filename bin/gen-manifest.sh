@@ -22,17 +22,18 @@ jq -n \
   --arg notes   "$NOTES" \
   --arg date    "$PUB_DATE" \
   --arg pubkey  "$PUBKEY" \
-  --arg win_url "$BASE_URL/Kursal_x64-setup.exe"    --arg win_sig "$(sig Kursal_x64-setup.exe)"   --arg win_sha "$(sha Kursal_x64-setup.exe)" \
+  --arg win_url "$BASE_URL/Kursal_x64-setup.exe"    --arg win_sig "$(sig Kursal_x64-setup.exe)"    --arg win_sha "$(sha Kursal_x64-setup.exe)" \
   --arg mac_a_url "$BASE_URL/Kursal.app.tar.gz"     --arg mac_a_sig "$(sig Kursal.app.tar.gz)"     --arg mac_a_sha "$(sha Kursal.app.tar.gz)" \
   --arg mac_x_url "$BASE_URL/Kursal_x64.app.tar.gz" --arg mac_x_sig "$(sig Kursal_x64.app.tar.gz)" --arg mac_x_sha "$(sha Kursal_x64.app.tar.gz)" \
-  --arg la_url  "$BASE_URL/Kursal_arm.AppImage"     --arg la_sig  "$(sig Kursal_arm.AppImage)"    --arg la_sha  "$(sha Kursal_arm.AppImage)" \
-  --arg lar_url "$BASE_URL/Kursal_arm.rpm"          --arg lar_sig "$(sig Kursal_arm.rpm)"         --arg lar_sha "$(sha Kursal_arm.rpm)" \
-  --arg lad_url "$BASE_URL/Kursal_arm.deb"          --arg lad_sig "$(sig Kursal_arm.deb)"         --arg lad_sha "$(sha Kursal_arm.deb)" \
-  --arg lx_url  "$BASE_URL/Kursal_x64.AppImage"     --arg lx_sig  "$(sig Kursal_x64.AppImage)"    --arg lx_sha  "$(sha Kursal_x64.AppImage)" \
-  --arg lxr_url "$BASE_URL/Kursal_x64.rpm"          --arg lxr_sig "$(sig Kursal_x64.rpm)"         --arg lxr_sha "$(sha Kursal_x64.rpm)" \
-  --arg lxd_url "$BASE_URL/Kursal_x64.deb"          --arg lxd_sig "$(sig Kursal_x64.deb)"         --arg lxd_sha "$(sha Kursal_x64.deb)" \
-  --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sig "$(sig Kursal.apk)"             --arg and_sha "$(sha Kursal.apk)" \
-  --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sig "$(sig Kursal.ipa)"             --arg ios_sha "$(sha Kursal.ipa)" \
+  --arg la_url  "$BASE_URL/Kursal_arm.AppImage"     --arg la_sig  "$(sig Kursal_arm.AppImage)"     --arg la_sha  "$(sha Kursal_arm.AppImage)" \
+  --arg lar_url "$BASE_URL/Kursal_arm.rpm"          --arg lar_sig "$(sig Kursal_arm.rpm)"          --arg lar_sha "$(sha Kursal_arm.rpm)" \
+  --arg lad_url "$BASE_URL/Kursal_arm.deb"          --arg lad_sig "$(sig Kursal_arm.deb)"          --arg lad_sha "$(sha Kursal_arm.deb)" \
+  --arg lx_url  "$BASE_URL/Kursal_x64.AppImage"     --arg lx_sig  "$(sig Kursal_x64.AppImage)"     --arg lx_sha  "$(sha Kursal_x64.AppImage)" \
+  --arg lxr_url "$BASE_URL/Kursal_x64.rpm"          --arg lxr_sig "$(sig Kursal_x64.rpm)"          --arg lxr_sha "$(sha Kursal_x64.rpm)" \
+  --arg lxd_url "$BASE_URL/Kursal_x64.deb"          --arg lxd_sig "$(sig Kursal_x64.deb)"          --arg lxd_sha "$(sha Kursal_x64.deb)" \
+  --arg and_url "$BASE_URL/Kursal.apk"              --arg and_sig "$(sig Kursal.apk)"              --arg and_sha "$(sha Kursal.apk)" \
+  --arg aab_url "$BASE_URL/Kursal.aab"              --arg aab_sig "$(sig Kursal.aab)"              --arg and_sha "$(sha Kursal.aab)" \
+  --arg ios_url "$BASE_URL/Kursal.ipa"              --arg ios_sig "$(sig Kursal.ipa)"              --arg ios_sha "$(sha Kursal.ipa)" \
   '{
     version: $version,
     notes: $notes,
@@ -49,12 +50,12 @@ jq -n \
       "linux-x86_64-rpm":  { url: $lxr_url,   signature: $lxr_sig,   sha256: $lxr_sha },
       "linux-x86_64-deb":  { url: $lxd_url,   signature: $lxd_sig,   sha256: $lxd_sha },
       "android":           { url: $and_url,   signature: $and_sig,   sha256: $and_sha },
+      "android-aab":       { url: $aab_url,   signature: $aab_sig,   sha256: $aab_sha },
       "ios":               { url: $ios_url,   signature: $ios_sig,   sha256: $ios_sha }
     }
   }' > "$BUILD/latest.json"
 
-# Published-artifact checksums, one file for the whole release (mirrors what the
-# relay build already ships as .sha256 sidecars).
+# Published-artifact checksums
 : > "$BUILD/SHA256SUMS.txt"
 for f in \
   Kursal_x64-setup.exe Kursal_x64.exe \
@@ -62,7 +63,7 @@ for f in \
   Kursal.app.tar.gz Kursal_x64.app.tar.gz \
   Kursal_x64.AppImage Kursal_x64.rpm Kursal_x64.deb \
   Kursal_arm.AppImage Kursal_arm.rpm Kursal_arm.deb \
-  Kursal.apk Kursal.ipa; do
+  Kursal.apk Kursal.aab Kursal.ipa; do
   [ -f "$BUILD/$f" ] && ( cd "$BUILD" && shasum -a 256 "$f" >> SHA256SUMS.txt )
 done
 
