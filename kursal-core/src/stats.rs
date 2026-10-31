@@ -183,7 +183,7 @@ mod app_mem {
 
     pub struct AppMem {
         pid: Pid,
-        system: System,
+        system: Option<System>,
         tracked: Vec<Pid>,
         last_scan: Option<Instant>,
     }
@@ -193,19 +193,22 @@ mod app_mem {
             let pid = Pid::from_u32(pid);
             Self {
                 pid,
-                system: System::new(),
+                system: System::new().ok(),
                 tracked: vec![pid],
                 last_scan: None,
             }
         }
 
         fn rescan(&mut self) {
-            self.system.refresh_processes(ProcessesToUpdate::All, true);
+            let Some(system) = self.system.as_mut() else {
+                return;
+            };
+            system.refresh_processes(ProcessesToUpdate::All, true);
 
             let mut tree = HashSet::from([self.pid]);
             loop {
                 let before = tree.len();
-                for (pid, process) in self.system.processes() {
+                for (pid, process) in system.processes() {
                     if process
                         .parent()
                         .is_some_and(|parent| tree.contains(&parent))
@@ -223,18 +226,25 @@ mod app_mem {
         }
 
         pub fn sample(&mut self) -> (u64, u64) {
+            if self.system.is_none() {
+                return (0, 0);
+            }
+
             if self.last_scan.is_none_or(|at| at.elapsed() >= RESCAN_EVERY) {
                 self.rescan();
-            } else {
-                self.system
-                    .refresh_processes(ProcessesToUpdate::Some(&self.tracked), true);
+            } else if let Some(system) = self.system.as_mut() {
+                system.refresh_processes(ProcessesToUpdate::Some(&self.tracked), true);
             }
+
+            let Some(system) = self.system.as_ref() else {
+                return (0, 0);
+            };
 
             let mut own = 0u64;
             let mut helpers = 0u64;
             let mut lost = false;
             for &pid in &self.tracked {
-                match self.system.process(pid) {
+                match system.process(pid) {
                     Some(process) if pid == self.pid => own = process.memory(),
                     Some(process) => helpers = helpers.saturating_add(process.memory()),
                     None => lost = true,
@@ -251,7 +261,7 @@ mod app_mem {
 
 pub struct StatsCollector {
     registry: SharedRegistry,
-    system: System,
+    system: Option<System>,
     pid: Pid,
     mem: app_mem::AppMem,
     start: Instant,
@@ -264,7 +274,7 @@ impl StatsCollector {
         let pid = sysinfo::get_current_pid().unwrap_or(Pid::from_u32(0));
         Self {
             registry,
-            system: System::new(),
+            system: System::new().ok(),
             pid,
             mem: app_mem::AppMem::new(pid.as_u32()),
             start: Instant::now(),
@@ -277,12 +287,13 @@ impl StatsCollector {
         let (cpu_percent, mem_bytes) = if cfg!(any(target_os = "android", target_os = "ios")) {
             (0.0, 0)
         } else {
-            self.system
-                .refresh_processes(ProcessesToUpdate::Some(&[self.pid]), true);
             let cpu = self
                 .system
-                .process(self.pid)
-                .map(|p| p.cpu_usage())
+                .as_mut()
+                .and_then(|sys| {
+                    sys.refresh_processes(ProcessesToUpdate::Some(&[self.pid]), true);
+                    sys.process(self.pid).map(|p| p.cpu_usage())
+                })
                 .unwrap_or(0.0);
             let (own_bytes, webview_bytes) = self.mem.sample();
             (cpu, own_bytes.saturating_add(webview_bytes))

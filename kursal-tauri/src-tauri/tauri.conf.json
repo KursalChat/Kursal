@@ -100,7 +100,7 @@
       }
     ],
     "iOS": {
-      "minimumSystemVersion": "15.6",
+      "minimumSystemVersion": "16",
       "developmentTeam": "Q4L6S4627U"
     }
   },

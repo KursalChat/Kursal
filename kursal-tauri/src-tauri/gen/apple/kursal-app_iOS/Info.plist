@@ -38,12 +38,12 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key>CFBundleURLName</key>
-			<string>kursal</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>kursal</string>
 			</array>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).kursal</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
