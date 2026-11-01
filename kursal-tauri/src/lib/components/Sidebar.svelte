@@ -590,7 +590,6 @@
   .sidebar {
     width: var(--sidebar-width);
     padding-left: var(--safe-left);
-    padding-bottom: var(--safe-bottom);
     background: var(--panel);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);
