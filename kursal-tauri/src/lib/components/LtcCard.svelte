@@ -3,7 +3,16 @@
   import { save } from '@tauri-apps/plugin-dialog';
   import { mkdir, writeFile } from '@tauri-apps/plugin-fs';
   import { appCacheDir, join } from '@tauri-apps/api/path';
-  import { Download, FileText, RefreshCw, Share2, SlidersHorizontal, Trash2 } from 'lucide-svelte';
+  import {
+    Check,
+    Copy,
+    Download,
+    FileText,
+    RefreshCw,
+    Share2,
+    SlidersHorizontal,
+    Trash2,
+  } from 'lucide-svelte';
   import Button from '#lib/components/Button.svelte';
   import LtcLimitsPicker from '#lib/components/LtcLimitsPicker.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
@@ -15,6 +24,9 @@
   import { t } from '#lib/i18n/index.js';
   import { parseError, notifyError } from '#lib/utils/errors.js';
   import { formatBytes } from '#lib/utils/bytes.js';
+  import { copyText } from '#lib/utils/clipboard.js';
+  import { bytesToBase64Url } from '#lib/utils/base64.js';
+  import { flash } from '#lib/utils/flash.svelte.js';
   import type { LtcStatus } from '#lib/types.js';
 
   let { status }: { status: LtcStatus } = $props();
@@ -30,6 +42,7 @@
   let draftMaxUses = $state<number | null>(null);
   let draftTtl = $state<number | null>(null);
   let now = $state(Math.floor(Date.now() / 1000));
+  const copiedUrl = flash();
 
   onMount(() => {
     const timer = setInterval(() => (now = Math.floor(Date.now() / 1000)), 30000);
@@ -149,6 +162,16 @@
     }
   }
 
+  async function handleCopyUrl() {
+    try {
+      const bytes = await ltcState.exportBytes();
+      const encoded = bytesToBase64Url(bytes);
+      await copyText(`kursal://ltc/${encoded}`, { flash: copiedUrl });
+    } catch (e) {
+      notifyError(e, 'addContact.ltc.exportError');
+    }
+  }
+
   function startEditing() {
     draftMaxUses = status.maxUses;
     draftTtl = status.expiresAt === null ? null : status.expiresAt - status.createdAt;
@@ -251,6 +274,14 @@
           {#if sharing}<Spinner size={14} color="currentColor" />{:else}<Share2 size={15} />{/if}
         </button>
       {/if}
+      <button
+        class="icon-btn"
+        title={t('addContact.ltc.card.copyUrl')}
+        aria-label={t('addContact.ltc.card.copyUrl')}
+        onclick={handleCopyUrl}
+      >
+        {#if copiedUrl.active}<Check size={15} />{:else}<Copy size={15} />{/if}
+      </button>
     {/if}
   </div>
 

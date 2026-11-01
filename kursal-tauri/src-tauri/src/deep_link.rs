@@ -10,6 +10,7 @@ pub async fn dispatch_deep_links(state: &AppState, urls: Vec<DeepLink>) {
         let (signal, payload) = match url.category.as_deref() {
             Some("settings") => ("open_settings", String::with_capacity(0)),
             Some("otp") => ("open_otp", url.path),
+            Some("ltc") => ("open_ltc", url.path),
             Some("node") => ("add_node", url.path),
             _ => continue,
         };

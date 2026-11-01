@@ -21,6 +21,8 @@
   import { frontendReady } from '#lib/api/identity.js';
   import { OS, isMobile } from '#lib/api/window.js';
   import { notifyError } from '#lib/utils/errors.js';
+  import { base64ToBytes } from '#lib/utils/base64.js';
+  import { importLtc } from '#lib/api/ltc.js';
   import { registerCoreListeners } from '#lib/state/eventBus.js';
   import { trackViewport, blockPinchZoom } from '#lib/utils/viewport.js';
   import { readRaw, writeRaw, readJson } from '#lib/utils/storage.js';
@@ -65,6 +67,7 @@
     } catch {
       addr = payload;
     }
+
     addr = addr.trim();
     if (!addr) return;
     const ok = await confirmDialog({
@@ -78,6 +81,26 @@
       notifications.push(t('settings.network.successNodeAdded'), 'success');
     } catch (e) {
       notifyError(e);
+    }
+  }
+
+  async function handleLtcLink(payload: string) {
+    const confirmed = await confirmDialog({
+      title: t('addContact.methodSelection.deepLinkConfirmTitle'),
+      message: t('addContact.methodSelection.deepLinkConfirmMessage'),
+      confirmLabel: t('addContact.methodSelection.deepLinkConfirmButton'),
+    });
+    if (!confirmed) return;
+
+    try {
+      const encoded = decodeURIComponent(payload).replace(/-/g, '+').replace(/_/g, '/');
+      const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+      const contact = await importLtc(Array.from(base64ToBytes(padded)));
+      contactsState.upsert(contact);
+      notifications.push(t('addContact.ltc.importSuccess'), 'success');
+      await goto(`/chat/${contact.userId}`);
+    } catch (e) {
+      notifyError(e, 'addContact.ltc.invalidFileError');
     }
   }
 
@@ -278,6 +301,8 @@
         goto('/add-contact');
       } else if (signal == 'open_otp') {
         goto(`/add-contact?receive=${encodeURIComponent(payload)}`);
+      } else if (signal == 'open_ltc') {
+        void handleLtcLink(payload);
       } else if (signal == 'add_node') {
         void handleAddNodeLink(payload);
       } else if (signal == 'handle_incoming_error') {

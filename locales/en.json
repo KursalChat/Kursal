@@ -331,7 +331,10 @@
   },
   "addContact": {
     "methodSelection": {
-      "heading": "Add Contact"
+      "heading": "Add Contact",
+      "deepLinkConfirmTitle": "Add this contact?",
+      "deepLinkConfirmMessage": "This will add the contact from the long-term code to your contacts.",
+      "deepLinkConfirmButton": "Add contact"
     },
     "connect": {
       "theirCodeTitle": "Their code",
@@ -425,6 +428,7 @@
         "minutesLeft": "{n}m left",
         "download": "Download",
         "share": "Share",
+        "copyUrl": "Copy URL",
         "editLimits": "Edit limits",
         "saveLimits": "Save",
         "regenerate": "Replace",
