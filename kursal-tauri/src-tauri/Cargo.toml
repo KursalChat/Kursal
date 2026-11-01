@@ -15,7 +15,7 @@ name = "kursal_tauri_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-kursal-core = { path = "../../kursal-core", features = ["apiserver"] }
+kursal-core = { path = "../../kursal-core", features = ["api-docs"] }
 kursal-cli = { path = "../../kursal-cli", default-features = false }
 
 # Tauri

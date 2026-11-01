@@ -30,6 +30,7 @@
   } from '#lib/api/settings.js';
   import { isMobile } from '#lib/api/window.js';
   import { settingsState } from '#lib/state/settings.svelte.js';
+  import { confirmDialog } from '#lib/state/confirm.svelte.js';
   import { notifications } from '#lib/state/notifications.svelte.js';
   import { notifyError } from '#lib/utils/errors.js';
   import { optimistic } from '#lib/utils/optimistic.js';
@@ -225,9 +226,18 @@
         ...api,
         port: clamp(Math.floor(api.port || 4892), 1, 65535),
       };
+      const enablingApi = !settingsState.localApi.enabled && clean.enabled;
       await settingsState.setLocalApi(clean);
       api = { ...clean };
       notifications.push(t('settings.advanced.successApiSaved'), 'info');
+      if (enablingApi) {
+        await confirmDialog({
+          title: t('settings.advanced.restartRequiredTitle'),
+          message: t('settings.advanced.restartRequiredMessage'),
+          confirmLabel: t('common.confirm'),
+          cancelLabel: t('common.cancel'),
+        });
+      }
     } catch (e) {
       notifyError(e);
     } finally {
@@ -246,11 +256,6 @@
     } finally {
       generatingToken = false;
     }
-  }
-
-  function hideToken() {
-    newToken = null;
-    tokenVisible = false;
   }
 
   async function copyToken() {
@@ -445,9 +450,6 @@
             <Copy size={13} />
             {t('settings.advanced.copyTokenButton')}
           </Button>
-          <Button variant="secondary" onclick={hideToken}
-            >{t('settings.advanced.dismissTokenButton')}</Button
-          >
         </div>
       </div>
     {/if}

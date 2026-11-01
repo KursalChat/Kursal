@@ -300,13 +300,16 @@ pub async fn run_server(
             auth_middleware,
         ));
 
-    let app = Router::new().merge(protected);
+    #[cfg(feature = "api-docs")]
+    let public = Router::new().merge(Scalar::with_url("/", openapi));
 
     #[cfg(feature = "api-docs")]
-    let app = app.merge(Scalar::with_url("/", openapi));
+    let app = public.merge(protected);
+    #[cfg(not(feature = "api-docs"))]
+    let app = Router::new().merge(protected);
 
     let app = app
-        .layer(CorsLayer::new())
+        .layer(CorsLayer::permissive())
         .with_state(state)
         .into_make_service_with_connect_info::<SocketAddr>();
 
