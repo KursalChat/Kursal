@@ -263,7 +263,10 @@ pub async fn send_message_tracked(
         id: msg_id,
         status: MessageStatus::Sending,
         direction: Direction::Sent,
-        timestamp: now,
+        timestamp: match &content {
+            KursalMessage::Text(text) => text.timestamp,
+            _ => now,
+        },
         contact_id: contact.user_id.clone(),
         payload: content,
         raw_ciphertext: Some(ciphertext.clone()),
