@@ -1,4 +1,5 @@
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window';
+import { show as showApp } from '@tauri-apps/api/app';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { invoke } from '@tauri-apps/api/core';
 import { log } from '#lib/utils/log.js';
@@ -17,6 +18,21 @@ export async function resetWindowSize() {
   if (await win.isMaximized()) await win.unmaximize();
   await win.setSize(new LogicalSize(DEFAULT_WIDTH, DEFAULT_HEIGHT));
   await win.center();
+}
+
+export async function focusMainWindow() {
+  if (isMobile) return;
+  const win = getCurrentWindow();
+  if (OS === 'macos') {
+    try {
+      await showApp();
+    } catch (err) {
+      log.error('Could not show the macOS app:', err);
+    }
+  }
+  await win.show();
+  await win.unminimize();
+  await win.setFocus();
 }
 
 export async function setTrayUnread(count: number) {

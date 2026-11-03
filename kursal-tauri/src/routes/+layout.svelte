@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { listen } from '@tauri-apps/api/event';
+  import { onAction } from '@tauri-apps/plugin-notification';
   import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
   import { goto } from '$app/navigation';
   import { contactsState } from '#lib/state/contacts.svelte.js';
@@ -16,10 +17,15 @@
   import { appearanceState } from '#lib/state/appearance.svelte.js';
   import { prefsState } from '#lib/state/prefs.svelte.js';
   import { settingsState } from '#lib/state/settings.svelte.js';
-  import { notifyMessage, getPermission, isInDndWindow } from '#lib/state/systemNotify.svelte.js';
+  import {
+    notifyMessage,
+    getPermission,
+    isInDndWindow,
+    getNotificationContact,
+  } from '#lib/state/systemNotify.svelte.js';
   import { getNetworkStatus } from '#lib/api/settings.js';
   import { frontendReady } from '#lib/api/identity.js';
-  import { OS, isMobile } from '#lib/api/window.js';
+  import { OS, isMobile, focusMainWindow } from '#lib/api/window.js';
   import { notifyError } from '#lib/utils/errors.js';
   import { base64ToBytes } from '#lib/utils/base64.js';
   import { importLtc } from '#lib/api/ltc.js';
@@ -194,6 +200,12 @@
     closeExplainerOpen = false;
   }
 
+  async function handleNotificationAction(id: number | undefined) {
+    await focusMainWindow();
+    const contactId = id === undefined ? undefined : getNotificationContact(id);
+    if (contactId) await goto(`/chat/${contactId}`);
+  }
+
   async function handleCloseRequest(payload: CloseRequestedPayload) {
     if (payload.callActive) {
       const ok = await confirmDialog({
@@ -240,6 +252,19 @@
     if (!isMobile) void setCloseExplainerPending(!closeExplainerSeen()).catch(() => {});
     const unlistenPromises: Array<Promise<() => void>> = [];
     baseTitle = document.title || 'Kursal';
+
+    const notificationActionReady = onAction((event) => {
+      void handleNotificationAction(event.notification?.id).catch((err) => {
+        log.error('Failed to handle notification action:', err);
+      });
+    });
+    unlistenPromises.push(
+      notificationActionReady.then((listener) => () => {
+        void listener.unregister().catch((err) => {
+          log.error('Failed to unregister notification action listener:', err);
+        });
+      })
+    );
 
     const backendDialogReady = listen<BackendDialogPayload>('backend_dialog', (event) => {
       void handleBackendDialog(event.payload);

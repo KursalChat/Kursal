@@ -51,6 +51,7 @@ const ICON = { icon: 'ic_notification', iconColor: '#4d8dff' };
 
 // Ids of the banners still sitting in the tray, per contact
 const activeIds = new Map<string, number[]>();
+const notificationContacts = new Map<number, string>();
 let nextId = Date.now() % 1_000_000;
 
 // Android/iOS only
@@ -58,6 +59,7 @@ export async function clearNotificationsFor(contactId: string) {
   const ids = activeIds.get(contactId);
   if (!ids?.length) return;
   activeIds.delete(contactId);
+  ids.forEach((id) => notificationContacts.delete(id));
   try {
     await removeActive(ids.map((id) => ({ id })));
   } catch {
@@ -91,7 +93,12 @@ export async function notifyMessage({ contactId, senderName, body }: MessageNoti
   const id = ++nextId;
   const base = { ...ICON, id, title };
   sendNotification(text ? { ...base, body: text } : base);
+  notificationContacts.set(id, contactId);
   activeIds.set(contactId, [...(activeIds.get(contactId) ?? []), id]);
+}
+
+export function getNotificationContact(id: number): string | undefined {
+  return notificationContacts.get(id);
 }
 
 let activeCallId: number | null = null;
