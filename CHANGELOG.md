@@ -6,10 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0-beta.13] - 2026-10-28
+## [0.1.0-beta.14] - 2026-11-07
+
+### Features
+
+- LTC URLs + deep linking
 
 ### Bug Fixes
 
+- Notification focus window
+- Ui profile setting padding
+- Offline message keep original time
+- Api docs + apply to restart
+- Various fixes
 - File revoked specific error
 - Delete confirmation
 - Android init rustls
@@ -17,11 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### CI
 
+- Remove aab from manifest
 - Deprecated dep
 
 ### Miscellaneous
 
 - Translated (Dutch)
+
+### Revert
+
+- Back to appindicator without "-glib"
 
 ## [0.1.0-beta.12] - 2026-10-21
 

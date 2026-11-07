@@ -4384,7 +4384,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-app"
-version = "0.1.0-beta.13"
+version = "0.1.0-beta.14"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4431,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-cli"
-version = "0.1.0-beta.13"
+version = "0.1.0-beta.14"
 dependencies = [
  "anyhow",
  "axum",
@@ -4448,7 +4448,7 @@ dependencies = [
 
 [[package]]
 name = "kursal-core"
-version = "0.1.0-beta.13"
+version = "0.1.0-beta.14"
 dependencies = [
  "aes-gcm 0.11.1",
  "android-native-keyring-store",
