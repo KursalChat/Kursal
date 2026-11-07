@@ -15,6 +15,7 @@ name = "kursal_tauri_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
+# Core
 kursal-core = { path = "../../kursal-core", features = ["api-docs"] }
 kursal-cli = { path = "../../kursal-cli", default-features = false }
 
@@ -32,6 +33,7 @@ tauri-plugin-fs = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-os = { workspace = true }
+tauri-plugin-sharekit = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -56,7 +58,9 @@ rayon = { workspace = true }
 [build-dependencies]
 tauri-build = { workspace = true, features = [] }
 
+# Desktop-only
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+chrono = { workspace = true }
 kursal-cli = { path = "../../kursal-cli", default-features = false, features = [
     "tui",
 ] }
@@ -64,19 +68,16 @@ tauri-plugin-autostart = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-window-state = { workspace = true }
-chrono = { workspace = true }
 
+# Mobile-only
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+reqwest = { workspace = true }
+semver = { workspace = true }
 tauri-plugin-barcode-scanner = { workspace = true }
 tauri-plugin-biometric = { workspace = true }
 tauri-plugin-haptics = { workspace = true }
-reqwest = { workspace = true }
-semver = { workspace = true }
 
-# TODO: wait for sharekit plugin to support windows=0.62
-[target.'cfg(not(target_os = "windows"))'.dependencies]
-tauri-plugin-sharekit = { workspace = true }
-
+# macOS
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { workspace = true, features = [
     "std",
@@ -84,9 +85,11 @@ objc2-foundation = { workspace = true, features = [
     "NSUserDefaults",
 ] }
 
+# Linux
 [target.'cfg(target_os = "linux")'.dependencies]
 rust-ini = { workspace = true }
 
+# iOS
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-foundation = { workspace = true, features = [
     "std",
@@ -95,11 +98,13 @@ objc2-foundation = { workspace = true, features = [
     "NSURL",
 ] }
 
+# Android
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }
 ndk-context = { workspace = true }
 rustls-platform-verifier = { workspace = true }
 
+# Windows
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = { workspace = true }
 windows = { workspace = true, features = ["Win32_Foundation"] }

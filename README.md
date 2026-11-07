@@ -19,7 +19,7 @@
 > Kursal is currently in **public beta**. Expect bugs, missing features, and some instability! \
 > [Subscribe to the mailing list](https://kursal.chat/#notify) to be notified when we release a stable version.
 
-Kursal is a peer-to-peer, end-to-end encrypted messenger. Messages are encrypted on your device and routed through a decentralized relay network. There is no central server: no one can read your messages or learn who you are talking to.
+Kursal is a peer-to-peer, end-to-end encrypted messenger. Messages are encrypted on your device and routed through a decentralized relay network.
 
 For a full technical description, read the [Whitepaper](https://kursal.chat/kursal.pdf).
 

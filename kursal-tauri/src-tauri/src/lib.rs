@@ -213,7 +213,12 @@ pub fn run() {
             .plugin(tauri_plugin_biometric::init());
     }
 
-    #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
+    #[cfg(any(
+        target_os = "android",
+        target_os = "ios",
+        target_os = "macos",
+        target_os = "windows"
+    ))]
     {
         builder = builder.plugin(tauri_plugin_sharekit::init())
     }

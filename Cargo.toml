@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0-beta.13"
-authors = ["Kodeur_Kubik <kubik@kursal.chat>", "Arlo <arlo@kursal.chat>"]
+authors = ["Kodeur_Kubik <kubik@kursal.chat>"]
 edition = "2024"
 license = "AGPL-3.0-only"
 rust-version = "1.93.1"                                                   # lets keep it the same as libsignal
@@ -22,7 +22,6 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 [workspace.dependencies]
 # Crypto
-aes-gcm = "0.11.1"
 pqcrypto-dilithium = "0.5.0"
 pqcrypto-traits = "0.3.5"
 
@@ -60,7 +59,7 @@ btleplug = { version = "0.13.5", features = ["serde"] }
 ble-peripheral-rust = "0.2.0"
 
 # Storage
-redb = "4.4.0"
+redb = "4.5.0"
 keyring-core = "1.0.1"
 dirs = "7.0.0"
 android-native-keyring-store = "1.0.0"
@@ -136,7 +135,7 @@ tauri-plugin-single-instance = "2.5.5"
 tauri-plugin-updater = "2.14.1"
 tauri-plugin-window-state = "2.5.0"
 
-tauri-plugin-sharekit = "=0.4.0-rc.7"
+tauri-plugin-sharekit = "=0.4.0-rc.8"
 
 rust-ini = "=0.21.0"
 
@@ -146,11 +145,12 @@ libsignal-core = { path = "externals/libsignal/rust/core" }
 libsignal-debug = { path = "externals/libsignal/rust/debug" }
 signal-crypto = { path = "externals/libsignal/rust/crypto" }
 
-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.2.0", package = "boring", default-features = false }
+boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.3.0", package = "boring", default-features = false }
 spqr = { git = "https://github.com/signalapp/SparsePostQuantumRatchet.git", tag = "v1.6.0" }
-tokio-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.2.0", package = "tokio-boring" }
+tokio-boring-signal = { git = "https://github.com/signalapp/boring", tag = "signal-v5.3.0", package = "tokio-boring" }
 
 aes = "0.9.1"
+aes-gcm = "0.11.1"
 aes-gcm-siv = "0.12.0"
 anyhow = "1.0.97"
 arbitrary = "1.4.2"
@@ -212,6 +212,7 @@ itertools = "0.15.0"
 jni = "0.22.4"
 libc = "0.2.186"
 libcrux-ml-kem = { version = "0.0.10", default-features = false }
+libcrux-sha3 = "0.0.10"
 linkme = "0.3.33"
 log = "0.4.21"
 macro_rules_attribute = "0.2.0"
@@ -293,8 +294,8 @@ zerocopy = "0.8.33"
 zeroize = "1.8.2"
 
 [patch.crates-io]
-boring = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
-boring-sys = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.2.0" }
+boring = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.3.0" }
+boring-sys = { git = 'https://github.com/signalapp/boring', tag = "signal-v5.3.0" }
 
 # TODO: temporary fix while webrtc-audio-processing-sys uses a broken bindgen version on macOS 27
 bindgen = { git = "https://github.com/rust-lang/rust-bindgen", rev = "0acdfdd74054caec85a75ba20c7ac236f6ebd893" }
@@ -308,21 +309,14 @@ opt-level = 3
 opt-level = 3
 
 [profile.release]
-overflow-checks = false
+overflow-checks = true
 panic = "unwind"
 codegen-units = 1       # LLVM better optimization
 lto = true              # Enable link time optimizations
 opt-level = 3           # Optimize for binary speed
-strip = true            # Remove debug symbols
-
-[profile.release.package.curve25519-dalek]
-overflow-checks = false
-
-[profile.release.package.sha2]
-overflow-checks = false
-
-[profile.release.package.hmac]
-overflow-checks = false
+debug = "line-tables-only"
+strip = "none"
+split-debuginfo = "packed"
 
 [profile.dev]
 debug = "line-tables-only"
