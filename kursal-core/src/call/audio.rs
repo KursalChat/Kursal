@@ -52,22 +52,40 @@ pub struct AudioDevices {
     pub selected_output: Option<String>,
 }
 
+fn device_name(device: &cpal::Device) -> Option<String> {
+    device
+        .description()
+        .ok()
+        .map(|description| description.name().to_string())
+        .filter(|name| !name.trim().is_empty())
+}
+
+fn device_names<I>(devices: std::result::Result<I, cpal::Error>) -> Vec<String>
+where
+    I: Iterator<Item = cpal::Device>,
+{
+    let mut names: Vec<_> = match devices {
+        Ok(devices) => devices.filter_map(|device| device_name(&device)).collect(),
+        Err(error) => {
+            log::warn!("[call] audio device enumeration failed: {error}");
+            Vec::new()
+        }
+    };
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 pub fn list_devices() -> AudioDevices {
     let host = cpal::default_host();
-    let inputs = host
-        .input_devices()
-        .map(|it| it.map(|d| d.to_string()).collect())
-        .unwrap_or_default();
-    let outputs = host
-        .output_devices()
-        .map(|it| it.map(|d| d.to_string()).collect())
-        .unwrap_or_default();
+    let inputs = device_names(host.input_devices());
+    let outputs = device_names(host.output_devices());
     let sel = current_sel();
     AudioDevices {
+        selected_input: sel.input.filter(|name| inputs.contains(name)),
+        selected_output: sel.output.filter(|name| outputs.contains(name)),
         inputs,
         outputs,
-        selected_input: sel.input,
-        selected_output: sel.output,
     }
 }
 
@@ -326,7 +344,7 @@ fn build_streams(
         .and_then(|n| {
             host.input_devices()
                 .ok()
-                .and_then(|mut it| it.find(|d| d.to_string() == n))
+                .and_then(|mut it| it.find(|d| device_name(d).as_deref() == Some(n)))
         })
         .or_else(|| host.default_input_device())
         .ok_or_else(|| KursalError::Network("no input audio device".into()))?;
@@ -336,7 +354,7 @@ fn build_streams(
         .and_then(|n| {
             host.output_devices()
                 .ok()
-                .and_then(|mut it| it.find(|d| d.to_string() == n))
+                .and_then(|mut it| it.find(|d| device_name(d).as_deref() == Some(n)))
         })
         .or_else(|| host.default_output_device())
         .ok_or_else(|| KursalError::Network("no output audio device".into()))?;
