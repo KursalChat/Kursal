@@ -401,6 +401,7 @@ function createCallState() {
     status = 'ringing_out';
     expanded = true;
     wasCaller = true;
+    playSound('ringtone', { loop: true });
     qualityOverridden = false;
     try {
       callId = await apiStartCall(targetContactId);
