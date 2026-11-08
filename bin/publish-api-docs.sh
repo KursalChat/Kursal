@@ -22,6 +22,12 @@ if [ -z "$(git -C "$REPO" status --porcelain -- "$SPEC_ABS")" ]; then
 fi
 
 echo "→ Pushing website..."
+read -r -p "Push API spec v${VERSION}? [y/N] " CONFIRM
+if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+  echo "Push cancelled"
+  exit 0
+fi
+
 git -C "$REPO" add -- "$SPEC_ABS"
 
 git -C "$REPO" commit --only -m "chore: openapi spec v${VERSION}" -- "$SPEC_ABS"

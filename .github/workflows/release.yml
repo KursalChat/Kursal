@@ -662,5 +662,5 @@ jobs:
           serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
           packageName: chat.kursal
           releaseFiles: build/Kursal.aab
-          track: production
+          tracks: production
           status: draft
