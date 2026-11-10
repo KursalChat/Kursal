@@ -6,5 +6,13 @@
   {
     "addr": "/dns4/diffie.kursal.chat/tcp/4891/p2p/12D3KooW9sfuTYevisKu5JV9LWrMmaSYu8SnZnG8vEPPW7UFrXJX",
     "note": "[TCP] primary relay hosted by @Kubik"
+  },
+  {
+    "addr": "/dns4/hellman.kursal.chat/udp/4891/quic-v1/p2p/12D3KooWQx7YtBWgAAgxNFQdmcahGdRt3HxzhyU9XnUEc33LpGos",
+    "note": "[UDP] secondary relay hosted by @Kubik"
+  },
+  {
+    "addr": "/dns4/hellman.kursal.chat/tcp/4891/p2p/12D3KooWQx7YtBWgAAgxNFQdmcahGdRt3HxzhyU9XnUEc33LpGos",
+    "note": "[TCP] secondary relay hosted by @Kubik"
   }
 ]

@@ -101,7 +101,7 @@ pub async fn spawn_relay_swarm(
 ) -> Result<()> {
     let keypair = load_or_generate(&keypair_path)?;
     let peer_id = keypair.public().to_peer_id();
-    log::info!("[relay] peer id: {peer_id}");
+    log::info!("[relay] booted with peer id: {}", peer_id.to_base58());
 
     let swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
