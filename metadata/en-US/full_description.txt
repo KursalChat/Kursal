@@ -1,0 +1,31 @@
+Peer-to-peer, end-to-end encrypted chat. No central server, no account, no ads.
+
+Kursal is a messenger with nothing in the middle. Messages are encrypted on your device and travel straight to your contact across a decentralized network. No company server holds your conversations, your contact list, or a record of who you talk to.
+
+NO ACCOUNT
+No phone number. No email. No username to register. You open Kursal and you are ready. To add someone, scan a code, share a link, or find them on your local network. Everything is stored encrypted on-device.
+
+NO CENTRAL SERVER
+Kursal builds its own peer-to-peer network. Your device finds your contacts and connects to them directly whenever it can. When a direct connection is not possible, traffic passes through volunteer relays that only ever see encrypted data they cannot read.
+
+ENCRYPTED END TO END
+Every message is protected with post-quantum encryption (PQXDH with ML-KEM) and the Double Ratchet, so a key stolen today cannot unlock what you sent yesterday. Identities are signed with Dilithium-5. Compare a security code with your contact to confirm nobody is in the middle.
+
+SEND ANYTHING
+Photos, documents, archives, whatever you need. There is no file size limit, and transfers are encrypted like everything else.
+
+DELIVERS OFFLINE
+If your contact is away, your message waits in an encrypted mailbox and arrives when they come back. The mailbox cannot read what it holds.
+
+VOICE AND VIDEO CALLS
+Encrypted calls, peer to peer, with the same protections as your messages.
+
+FREE AND OPEN SOURCE
+Kursal is AGPL-3.0. The full source is public and can be read by anyone. No ads, no trackers, no analytics, nothing to sell. There is no business model that depends on you.
+
+PUBLIC BETA
+Kursal is still in beta. Expect bugs and missing features. The code has not been independently audited yet, so please do not rely on it where your safety depends on it. Please report any issues!
+
+Source code: https://github.com/KursalChat/Kursal
+Whitepaper: https://kursal.chat/kursal.pdf
+Website: https://kursal.chat

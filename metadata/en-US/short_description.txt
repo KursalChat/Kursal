@@ -1,0 +1,1 @@
+Peer-to-peer, end-to-end encrypted chat. No central server, no account, no ads.
