@@ -91,7 +91,7 @@ export async function notifyMessage({ contactId, senderName, body }: MessageNoti
   }
 
   const id = ++nextId;
-  const base = { ...ICON, id, title };
+  const base = { ...ICON, id, title, autoCancel: true };
   sendNotification(text ? { ...base, body: text } : base);
   notificationContacts.set(id, contactId);
   activeIds.set(contactId, [...(activeIds.get(contactId) ?? []), id]);

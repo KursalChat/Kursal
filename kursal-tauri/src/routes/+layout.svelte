@@ -22,6 +22,7 @@
     getPermission,
     isInDndWindow,
     getNotificationContact,
+    clearNotificationsFor,
   } from '#lib/state/systemNotify.svelte.js';
   import { getNetworkStatus } from '#lib/api/settings.js';
   import { frontendReady } from '#lib/api/identity.js';
@@ -203,7 +204,9 @@
   async function handleNotificationAction(id: number | undefined) {
     await focusMainWindow();
     const contactId = id === undefined ? undefined : getNotificationContact(id);
-    if (contactId) await goto(`/chat/${contactId}`);
+    if (!contactId) return;
+    await clearNotificationsFor(contactId);
+    await goto(`/chat/${contactId}`);
   }
 
   async function handleCloseRequest(payload: CloseRequestedPayload) {
