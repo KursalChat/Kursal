@@ -113,6 +113,17 @@ pub async fn poll_contact_offline(
     event_tx: Sender<AppEvent>,
     trigger: PollTrigger,
 ) -> Result<()> {
+    let trigger_name = match trigger {
+        PollTrigger::Periodic => "periodic",
+        PollTrigger::Event => "connection",
+    };
+    let started = Instant::now();
+    log::info!(
+        "[offline] poll trigger={} contact={}",
+        trigger_name,
+        hex::encode(contact_id.0)
+    );
+
     if trigger == PollTrigger::Event
         && LAST_POLL
             .lock_recover()
@@ -135,6 +146,13 @@ pub async fn poll_contact_offline(
         .lock_recover()
         .insert(contact_id.0, Instant::now());
     POLLS_ACTIVE.lock_recover().remove(&contact_id.0);
+    log::info!(
+        "[offline] poll finished trigger={} contact={} elapsed_ms={} result={}",
+        trigger_name,
+        hex::encode(contact_id.0),
+        started.elapsed().as_millis(),
+        if result.is_ok() { "ok" } else { "error" }
+    );
     result
 }
 

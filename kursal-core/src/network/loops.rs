@@ -274,11 +274,12 @@ pub(super) async fn periodic_offline_poll(
 ) {
     let mut interval = tokio::time::interval(Duration::from_secs(OFFLINE_PERIODIC_POLL_SECS));
     interval.tick().await;
-    tokio::time::sleep(Duration::from_secs(15)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
     let mut last_republish: Option<tokio::time::Instant> = None;
 
     loop {
+        log::info!("[offline] periodic poll trigger");
         let cmd_tx = network.lock().await.primary.cmd_tx.clone();
         if let Err(err) = cleanup_stale_transfers(db.clone(), STALE_TRANSFER_MAX_AGE_SECS).await {
             log::warn!("[file] stale transfer cleanup failed: {err}");

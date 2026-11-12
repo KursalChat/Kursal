@@ -1,4 +1,4 @@
-// Tracks the core's periodic offline-mailbox poll (every 15 min, skipped while
+// Tracks the core's periodic offline-mailbox poll (every 30 min, skipped while
 // no peers are connected). Fed by the `offline_sync` Tauri event.
 function createOfflineSyncState() {
   let active = $state(false);
