@@ -11,7 +11,6 @@ use crate::{
     },
     storage::RelayConfig,
 };
-use libp2p::mdns;
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     futures::StreamExt,
@@ -19,6 +18,10 @@ use libp2p::{
     multiaddr::Protocol,
     request_response::{self, ProtocolSupport},
     swarm::{ConnectionId, behaviour::toggle::Toggle},
+};
+use libp2p::{
+    dns::{ResolverConfig, ResolverOpts},
+    mdns,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -321,17 +324,10 @@ impl SwarmHandle {
             .map_err(|err| KursalError::Network(format!("swarm tcp error: {err}")))?
             .with_quic();
 
-        #[cfg(any(target_os = "android", target_os = "ios"))]
-        // TODO: maybe chance cloudflare to another DNS
         let swarm = swarm.with_dns_config(
-            libp2p::dns::ResolverConfig::udp_and_tcp(&hickory_resolver::config::CLOUDFLARE),
-            libp2p::dns::ResolverOpts::default(),
+            ResolverConfig::udp_and_tcp(&hickory_resolver::config::CLOUDFLARE),
+            ResolverOpts::default(),
         );
-
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        let swarm = swarm
-            .with_dns()
-            .map_err(|err| KursalError::Network(format!("swarm dns error: {err}")))?;
 
         let swarm = swarm
             .with_relay_client(libp2p::noise::Config::new, libp2p::yamux::Config::default)

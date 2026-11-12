@@ -16,6 +16,7 @@ use kursal_core::{
 };
 use libp2p::{
     Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder,
+    dns::{ResolverConfig, ResolverOpts},
     futures::StreamExt,
     kad::store::RecordStore,
     multiaddr::Protocol,
@@ -113,17 +114,10 @@ pub async fn spawn_relay_swarm(
         .ok_kursal(KursalError::Network)?
         .with_quic();
 
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    // TODO: maybe chance cloudflare to another DNS
     let swarm = swarm.with_dns_config(
-        libp2p::dns::ResolverConfig::udp_and_tcp(&hickory_resolver::config::CLOUDFLARE),
-        libp2p::dns::ResolverOpts::default(),
+        ResolverConfig::udp_and_tcp(&hickory_resolver::config::CLOUDFLARE),
+        ResolverOpts::default(),
     );
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let swarm = swarm
-        .with_dns()
-        .map_err(|err| KursalError::Network(format!("swarm dns error: {err}")))?;
 
     let swarm = {
         let mut registry = registry
