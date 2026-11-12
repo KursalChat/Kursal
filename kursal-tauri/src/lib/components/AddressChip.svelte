@@ -2,25 +2,36 @@
   import { parseMultiaddr, shortPeerId } from '#lib/utils/multiaddr.js';
   import { t } from '#lib/i18n/index.js';
 
-  let { addr }: { addr: string } = $props();
+  let { addr, addresses }: { addr: string; addresses?: string[] } = $props();
 
-  const info = $derived(parseMultiaddr(addr));
+  const allAddresses = $derived(addresses ?? [addr]);
+  const infos = $derived(allAddresses.map(parseMultiaddr));
+  const info = $derived(infos[0] ?? parseMultiaddr(addr));
   const peer = $derived(shortPeerId(info.peerId));
   const primary = $derived(
     info.host ? (info.port ? `${info.host}:${info.port}` : info.host) : (peer ?? addr)
   );
   const showPeerSecondary = $derived(Boolean(info.host && peer));
-  const badge = $derived.by(() => {
-    if (!info.relay) return info.transport;
-    if (!info.transport) return t('common.relayBadge');
-    return t('common.relayBadgeVia', { transport: info.transport });
+  const badges = $derived.by(() => {
+    const transports = [
+      ...new Set(
+        infos.map((item) => item.transport).filter((transport): transport is string => !!transport)
+      ),
+    ];
+    const relay = infos.some((item) => item.relay);
+    const label = relay
+      ? transports.length > 0
+        ? t('common.relayBadgeVia', { transport: transports.join(' / ') })
+        : t('common.relayBadge')
+      : transports.join(' / ');
+    return label ? [{ label, relay }] : [];
   });
 </script>
 
-<div class="addr" title={addr}>
-  {#if badge}
-    <span class="badge" class:relay={info.relay}>{badge}</span>
-  {/if}
+<div class="addr" title={allAddresses.join('\n')}>
+  {#each badges as badge (badge.label)}
+    <span class="badge" class:relay={badge.relay}>{badge.label}</span>
+  {/each}
   <span class="primary">{primary}</span>
   {#if showPeerSecondary}
     <span class="secondary">{peer}</span>

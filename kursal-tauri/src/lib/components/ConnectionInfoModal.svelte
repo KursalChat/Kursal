@@ -5,7 +5,7 @@
   import { notifications } from '#lib/state/notifications.svelte.js';
   import { flashSet } from '#lib/utils/flash.svelte.js';
   import { dialAddress } from '#lib/api/settings.js';
-  import { sortAddresses } from '#lib/utils/multiaddr.js';
+  import { parseMultiaddr, sortAddresses } from '#lib/utils/multiaddr.js';
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
   import AddressChip from './AddressChip.svelte';
@@ -18,6 +18,17 @@
   const copied = flashSet();
 
   const addresses = $derived(sortAddresses(contact.knownAddresses));
+  const addressGroups = $derived.by(() => {
+    const groups = new Map<string, string[]>();
+    for (const addr of addresses) {
+      const info = parseMultiaddr(addr);
+      const key = [info.relay, info.host, info.port, info.peerId].join('|');
+      const group = groups.get(key);
+      if (group) group.push(addr);
+      else groups.set(key, [addr]);
+    }
+    return [...groups.values()];
+  });
   const status = $derived(contactsState.connectionStatus[contact.userId] ?? 'disconnected');
   const statusLabel = $derived.by(() => {
     if (status === 'direct') return t('connectionInfo.transportDirect');
@@ -27,8 +38,9 @@
     return t('connectionInfo.transportOffline');
   });
 
-  async function copyAddr(addr: string) {
-    if (await copyText(addr)) copied.trigger(addr);
+  async function copyAddr(addressGroup: string[]) {
+    const value = addressGroup.join('\n');
+    if (await copyText(value)) copied.trigger(value);
   }
 
   async function reconnect() {
@@ -47,7 +59,7 @@
   }
 </script>
 
-<Modal title={t('connectionInfo.heading')} {onClose} width={440} scroll>
+<Modal title={t('connectionInfo.heading')} {onClose} width={560} scroll>
   <h2><Radio size={18} /> {t('connectionInfo.heading')}</h2>
 
   <div class="status-line" data-status={status}>
@@ -61,16 +73,18 @@
       <p class="addr-empty">{t('connectionInfo.noAddresses')}</p>
     {:else}
       <ul class="addr-list">
-        {#each addresses as addr (addr)}
+        {#each addressGroups as addressGroup (addressGroup[0])}
           <li class="addr-row">
-            <AddressChip {addr} />
+            <AddressChip addr={addressGroup[0]} addresses={addressGroup} />
             <button
               class="addr-copy"
-              class:confirmed={copied.has(addr)}
-              aria-label={copied.has(addr) ? t('common.copied') : t('connectionInfo.copyAriaLabel')}
-              onclick={() => copyAddr(addr)}
+              class:confirmed={copied.has(addressGroup.join('\n'))}
+              aria-label={copied.has(addressGroup.join('\n'))
+                ? t('common.copied')
+                : t('connectionInfo.copyAriaLabel')}
+              onclick={() => copyAddr(addressGroup)}
             >
-              {#if copied.has(addr)}
+              {#if copied.has(addressGroup.join('\n'))}
                 <Check size={13} />
               {:else}
                 <Copy size={13} />

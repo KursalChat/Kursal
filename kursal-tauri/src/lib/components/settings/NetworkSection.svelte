@@ -17,6 +17,7 @@
   import { settingsDirty } from '#lib/state/settingsDirty.svelte.js';
   import { notifications } from '#lib/state/notifications.svelte.js';
   import { notifyError, parseError } from '#lib/utils/errors.js';
+  import { parseMultiaddr } from '#lib/utils/multiaddr.js';
   import { flash, flashSet } from '#lib/utils/flash.svelte.js';
   import Button from '#lib/components/Button.svelte';
   import AddressChip from '#lib/components/AddressChip.svelte';
@@ -123,6 +124,21 @@
   let dialing = $state(false);
   const nodes = $derived(settingsState.nodes);
 
+  function groupNodeAddresses(addresses: string[]): string[][] {
+    const groups = new Map<string, string[]>();
+    for (const addr of addresses) {
+      const info = parseMultiaddr(addr);
+      const key = [info.relay, info.host, info.port, info.peerId].join('|');
+      const group = groups.get(key);
+      if (group) group.push(addr);
+      else groups.set(key, [addr]);
+    }
+    return [...groups.values()];
+  }
+
+  const defaultNodeGroups = $derived(groupNodeAddresses(nodes.defaults));
+  const customNodeGroups = $derived(groupNodeAddresses(nodes.custom));
+
   function nodeErrorMessage(e: unknown, fallback: string): string {
     const msg = parseError(e).message;
     if (msg.includes('invalid_address')) return t('settings.network.errorInvalidAddress');
@@ -177,6 +193,7 @@
 
   let status = $state<NetworkStatus | null>(null);
   let statusLoading = $state(false);
+  const listenAddressGroups = $derived(groupNodeAddresses(status?.listenAddresses ?? []));
   let importText = $state('');
   let importing = $state(false);
   let showImport = $state(false);
@@ -196,6 +213,13 @@
     return connectedSet.has(id) ? 'up' : 'down';
   }
 
+  function nodeGroupState(addresses: string[]): 'up' | 'down' | 'unknown' {
+    const states = addresses.map(nodeState);
+    if (states.includes('up')) return 'up';
+    if (states.includes('unknown')) return 'unknown';
+    return 'down';
+  }
+
   async function refreshStatus() {
     statusLoading = true;
     try {
@@ -207,8 +231,9 @@
     }
   }
 
-  async function copyAddr(addr: string) {
-    if (await copyText(addr)) copiedAddr.trigger(addr);
+  async function copyAddr(addresses: string | string[]) {
+    const value = Array.isArray(addresses) ? addresses.join('\n') : addresses;
+    if (await copyText(value)) copiedAddr.trigger(value);
   }
 
   async function exportNodes() {
@@ -238,10 +263,13 @@
     }
   }
 
-  const upCount = (list: string[]) => list.filter((a) => nodeState(a) === 'up').length;
-  const defaultsUp = $derived(upCount(nodes.defaults));
-  const customUp = $derived(upCount(nodes.custom));
-  const totalNodes = $derived(nodes.defaults.length + nodes.custom.length);
+  const defaultsUp = $derived(
+    defaultNodeGroups.filter((group) => nodeGroupState(group) === 'up').length
+  );
+  const customUp = $derived(
+    customNodeGroups.filter((group) => nodeGroupState(group) === 'up').length
+  );
+  const totalNodes = $derived(defaultNodeGroups.length + customNodeGroups.length);
   const reachableNodes = $derived(defaultsUp + customUp);
   const overallState = $derived(
     !status ? 'connecting' : status.peerCount > 0 ? 'online' : 'offline'
@@ -257,6 +285,10 @@
         ? t('settings.network.stateOffline')
         : t('settings.network.stateConnecting')
   );
+
+  async function removeNodeGroup(addresses: string[]) {
+    await Promise.all(addresses.map(removeNode));
+  }
 
   let nodesOpen = $state(true);
   let advancedOpen = $state(false);
@@ -311,12 +343,17 @@
         <span class="summary-muted">
           {t('settings.network.groupUpSummary', {
             up: String(defaultsUp),
-            total: String(nodes.defaults.length),
+            total: String(defaultNodeGroups.length),
           })}
         </span>
       </div>
-      {#each nodes.defaults as addr (addr)}
-        <NodeRow {addr} state={nodeState(addr)} onShare={() => shareNode(addr)} />
+      {#each defaultNodeGroups as addressGroup (addressGroup[0])}
+        <NodeRow
+          addr={addressGroup[0]}
+          addresses={addressGroup}
+          state={nodeGroupState(addressGroup)}
+          onShare={() => shareNode(addressGroup[0])}
+        />
       {/each}
     </div>
 
@@ -328,7 +365,7 @@
             <span class="summary-muted">
               {t('settings.network.groupUpSummary', {
                 up: String(customUp),
-                total: String(nodes.custom.length),
+                total: String(customNodeGroups.length),
               })}
             </span>
           {/if}
@@ -365,12 +402,13 @@
       {#if nodes.custom.length === 0}
         <span class="node-empty">{t('settings.network.emptyCustomNodes')}</span>
       {:else}
-        {#each nodes.custom as addr (addr)}
+        {#each customNodeGroups as addressGroup (addressGroup[0])}
           <NodeRow
-            {addr}
-            state={nodeState(addr)}
-            onShare={() => shareNode(addr)}
-            onRemove={() => removeNode(addr)}
+            addr={addressGroup[0]}
+            addresses={addressGroup}
+            state={nodeGroupState(addressGroup)}
+            onShare={() => shareNode(addressGroup[0])}
+            onRemove={() => removeNodeGroup(addressGroup)}
           />
         {/each}
       {/if}
@@ -433,23 +471,23 @@
       {#if !status || status.listenAddresses.length === 0}
         <span class="node-empty">{t('settings.network.noListenAddresses')}</span>
       {:else}
-        {#each status.listenAddresses as addr (addr)}
-          <div class="node-row">
-            <AddressChip {addr} />
+        {#each listenAddressGroups as addressGroup (addressGroup[0])}
+          <div class="listen-row">
             <button
               class="node-remove"
-              class:confirmed={copiedAddr.has(addr)}
-              aria-label={copiedAddr.has(addr)
+              class:confirmed={copiedAddr.has(addressGroup.join('\n'))}
+              aria-label={copiedAddr.has(addressGroup.join('\n'))
                 ? t('common.copied')
                 : t('settings.network.copyAriaLabel')}
-              onclick={() => copyAddr(addr)}
+              onclick={() => copyAddr(addressGroup)}
             >
-              {#if copiedAddr.has(addr)}
+              {#if copiedAddr.has(addressGroup.join('\n'))}
                 <Check size={14} />
               {:else}
                 <Copy size={14} />
               {/if}
             </button>
+            <AddressChip addr={addressGroup[0]} addresses={addressGroup} />
           </div>
         {/each}
       {/if}
@@ -582,6 +620,33 @@
   .node-empty {
     font-size: var(--text-sm);
     color: var(--text-secondary);
+  }
+  .listen-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .listen-row :global(.addr) {
+    min-width: 0;
+  }
+  .node-remove {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition);
+  }
+  .node-remove.confirmed {
+    color: var(--success);
+  }
+  @media (hover: hover) {
+    .node-remove:hover {
+      color: var(--accent);
+    }
   }
   .node-add {
     display: flex;

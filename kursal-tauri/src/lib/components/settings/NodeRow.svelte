@@ -7,11 +7,13 @@
 
   let {
     addr,
+    addresses,
     state,
     onShare,
     onRemove,
   }: {
     addr: string;
+    addresses?: string[];
     state: NodeState;
     onShare: () => void;
     onRemove?: () => void;
@@ -20,7 +22,7 @@
 
 <div class="node-row">
   <span class="node-dot {state}" title={t(`settings.network.nodeState_${state}`)}></span>
-  <AddressChip {addr} />
+  <AddressChip {addr} {addresses} />
   <button class="node-btn" aria-label={t('settings.network.shareNodeAriaLabel')} onclick={onShare}>
     <Share2 size={14} />
   </button>
