@@ -1,13 +1,11 @@
 use crate::{KursalError, Result};
-use blake2::{Blake2s256, Digest};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-const HASH_READ_BUF: usize = 64 * 1024;
+const HASH_READ_BUF: usize = 4 * 1024 * 1024;
 
 pub fn hash_file(path: &str) -> Result<[u8; 32]> {
     let mut file = std::fs::File::open(path).map_err(KursalError::Io)?;
-    let mut hasher = Blake2s256::new();
+    let mut hasher = blake3::Hasher::new();
     let mut buf = vec![0u8; HASH_READ_BUF];
 
     loop {
@@ -15,13 +13,10 @@ pub fn hash_file(path: &str) -> Result<[u8; 32]> {
         if read == 0 {
             break;
         }
-        hasher.update(&buf[..read]);
+        hasher.update_rayon(&buf[..read]);
     }
 
-    let out = hasher.finalize();
-    out.as_slice()
-        .try_into()
-        .map_err(|_| KursalError::Crypto("Unexpected hash length".to_string()))
+    Ok(*hasher.finalize().as_bytes())
 }
 
 pub fn get_folder_size(path: PathBuf, recursion: usize) -> Result<u64> {
