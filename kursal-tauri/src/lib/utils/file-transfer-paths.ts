@@ -7,7 +7,7 @@ import {
 } from '#lib/api/messages.js';
 import { isMobile } from '#lib/api/window.js';
 
-export const LARGE_FILE_PROMPT_BYTES = 5 * 1024 * 1024 * 1024;
+export const LARGE_FILE_PROMPT_BYTES = 100 * 1024 * 1024;
 
 function isUriPath(path: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(path);

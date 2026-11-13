@@ -39,7 +39,6 @@
     searchMessages,
     sendTypingIndicator,
     flushOffline,
-    resolveDownloadPath,
   } from '#lib/api/messages.js';
   import { shareProfile } from '#lib/api/identity.js';
   import { isMobile } from '#lib/api/window.js';
@@ -1790,8 +1789,7 @@
 
   const groupImageRuns = (msgs: MessageResponse[]) => imageRuns(msgs, stackable);
 
-  // Accepts every not-yet-downloaded image in a stack. Like a single download
-  // this prompts for nothing: each file lands in the app's download folder.
+  // Accepts every not-yet-downloaded image in a stack.
   async function downloadStack(msgs: MessageResponse[]) {
     if (!contactId) return;
 
@@ -1806,7 +1804,16 @@
     let failed = 0;
     for (const { msg, filename } of items) {
       try {
-        const savePath = await resolveDownloadPath(msg.contactId, msg.id, filename);
+        const savePath = await resolveAcceptDestination(
+          msg.contactId,
+          msg.id,
+          filename,
+          msg.fileDetails!.sizeBytes
+        );
+        if (!savePath) {
+          fileOfferActionState[msg.id] = 'idle';
+          continue;
+        }
         await acceptFileOffer(msg.contactId, msg.id, savePath);
         messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
         fileOfferActionState[msg.id] = 'accepted';

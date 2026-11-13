@@ -101,10 +101,11 @@ describe('pending staging', () => {
 });
 
 describe('needsDestinationPrompt', () => {
+  const MB = 1024 * 1024;
   const GB = 1024 * 1024 * 1024;
 
   it('sends an ordinary file to the download folder', () => {
-    expect(needsDestinationPrompt(4 * GB, 500 * GB)).toBe(false);
+    expect(needsDestinationPrompt(100 * MB, 500 * GB)).toBe(false);
   });
 
   it('asks where to put a file past the threshold even with room for it', () => {
