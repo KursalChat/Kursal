@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { scale } from 'svelte/transition';
+  import { fade, scale } from 'svelte/transition';
   import { trapFocus } from '#lib/utils/focusTrap.js';
+  import { dragBackdrop } from '#lib/utils/dragBackdrop.js';
 
   let {
     title,
@@ -25,16 +26,18 @@
     children: Snippet;
   } = $props();
 
-  function onBackdropClick(e: MouseEvent) {
-    if (dismissible && e.target === e.currentTarget) onClose();
-  }
-
   function onKeydown(e: KeyboardEvent) {
     if (dismissible && e.key === 'Escape') onClose();
   }
 </script>
 
-<div class="backdrop" role="presentation" onclick={onBackdropClick} onkeydown={onKeydown}>
+<div
+  class="backdrop"
+  role="presentation"
+  onkeydown={onKeydown}
+  out:fade={{ duration: 150 }}
+  use:dragBackdrop={() => dismissible && onClose()}
+>
   <div
     class="modal"
     class:scroll

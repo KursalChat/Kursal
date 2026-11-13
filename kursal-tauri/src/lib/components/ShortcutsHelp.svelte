@@ -1,8 +1,10 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
   import { trapFocus } from '#lib/utils/focusTrap.js';
   import { t } from '#lib/i18n/index.js';
   import { OS } from '#lib/api/window.js';
+  import { dragBackdrop } from '#lib/utils/dragBackdrop.js';
 
   let { open = $bindable(false), onClose }: { open?: boolean; onClose: () => void } = $props();
 
@@ -59,13 +61,19 @@
 </script>
 
 {#if open}
-  <div class="sh-backdrop" onclick={onClose} role="presentation"></div>
+  <div
+    class="sh-backdrop"
+    role="presentation"
+    out:fade={{ duration: 120 }}
+    use:dragBackdrop={onClose}
+  ></div>
   <div
     class="sh-panel"
     role="dialog"
     aria-modal="true"
     aria-label={t('shortcuts.title')}
     tabindex="-1"
+    out:fade={{ duration: 120 }}
     onkeydown={onKeydown}
     use:trapFocus
   >

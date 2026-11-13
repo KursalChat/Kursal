@@ -1,10 +1,12 @@
 <script lang="ts">
   import { AlertTriangle, Check, Copy, ExternalLink, Info, ShieldAlert } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
   import { confirmState } from '#lib/state/confirm.svelte.js';
   import { trapFocus } from '#lib/utils/focusTrap.js';
   import { copyText } from '#lib/utils/clipboard.js';
   import { flash } from '#lib/utils/flash.svelte.js';
   import { t } from '#lib/i18n/index.js';
+  import { dragBackdrop } from '#lib/utils/dragBackdrop.js';
   import Button from './Button.svelte';
 
   let holdProgress = $state(1); // 0..1, starts at 0 if holdMs set, else 1 (unlocked)
@@ -63,8 +65,9 @@
   {@const tone = o.tone ?? 'default'}
   <div
     class="backdrop"
-    onclick={() => dismissible && confirmState.cancel()}
     role="presentation"
+    out:fade={{ duration: 150 }}
+    use:dragBackdrop={() => dismissible && confirmState.cancel()}
   ></div>
   <div
     class="dialog"
@@ -73,6 +76,7 @@
     aria-modal="true"
     aria-labelledby="confirm-title"
     tabindex="-1"
+    out:fade={{ duration: 140 }}
     use:trapFocus
   >
     <div class="head" data-tone={tone}>

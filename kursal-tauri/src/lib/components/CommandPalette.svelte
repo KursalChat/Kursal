@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { fade } from 'svelte/transition';
   import {
     Search,
     Settings as SettingsIcon,
@@ -31,6 +32,7 @@
   import { formatTimeShort } from '#lib/utils/dateFormat.svelte.js';
   import Avatar from './Avatar.svelte';
   import { t } from '#lib/i18n/index.js';
+  import { dragBackdrop } from '#lib/utils/dragBackdrop.js';
 
   let { open = $bindable(false), onClose }: { open?: boolean; onClose: () => void } = $props();
 
@@ -313,8 +315,20 @@
 </script>
 
 {#if open}
-  <div class="cp-backdrop" onclick={onClose} role="presentation"></div>
-  <div class="cp-wrap" onkeydown={onKeydown} use:trapFocus role="dialog" tabindex="0">
+  <div
+    class="cp-backdrop"
+    role="presentation"
+    out:fade={{ duration: 120 }}
+    use:dragBackdrop={onClose}
+  ></div>
+  <div
+    class="cp-wrap"
+    onkeydown={onKeydown}
+    use:trapFocus
+    role="dialog"
+    tabindex="0"
+    out:fade={{ duration: 120 }}
+  >
     <div class="cp">
       <div class="cp-input-row">
         {#if mode === 'messages'}

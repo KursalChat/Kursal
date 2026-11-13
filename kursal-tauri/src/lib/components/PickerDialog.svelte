@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { X, Search, Icon } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
   import { trapFocus } from '#lib/utils/focusTrap.js';
   import { t } from '#lib/i18n/index.js';
+  import { dragBackdrop } from '#lib/utils/dragBackdrop.js';
 
   let {
     title,
@@ -34,7 +36,12 @@
   }
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation"></div>
+<div
+  class="backdrop"
+  role="presentation"
+  out:fade={{ duration: 150 }}
+  use:dragBackdrop={onClose}
+></div>
 <div
   class="panel"
   style="--panel-max-height: {maxHeight}"
@@ -42,6 +49,7 @@
   aria-modal="true"
   aria-label={title}
   tabindex="-1"
+  out:fade={{ duration: 140 }}
   onkeydown={onKeydown}
   use:trapFocus
 >
