@@ -17,7 +17,7 @@
     maxLength: number;
     initialCaption?: string;
     onConfirm: (caption: string) => void;
-    onCancel: () => void;
+    onCancel: (caption: string) => void;
     onRemove: (backendPath: string) => void;
   }
 
@@ -66,7 +66,7 @@
         e.preventDefault();
         onConfirm(caption);
       } else if (e.key === 'Escape') {
-        onCancel();
+        onCancel(caption);
       }
     }
     window.addEventListener('keydown', onKey, true);
@@ -78,10 +78,10 @@
   class="file-confirm-backdrop"
   role="presentation"
   onclick={() => {
-    if (!sending) onCancel();
+    if (!sending) onCancel(caption);
   }}
   onkeydown={(e) => {
-    if (e.key === 'Escape' && !sending) onCancel();
+    if (e.key === 'Escape' && !sending) onCancel(caption);
   }}
 >
   <div
@@ -136,7 +136,7 @@
       placeholder={t('chat.fileConfirm.captionPlaceholder')}
       aria-label={t('chat.fileConfirm.captionAriaLabel')}></textarea>
     <div class="file-confirm-actions">
-      <button class="fc-btn ghost" onclick={onCancel} disabled={sending}>
+      <button class="fc-btn ghost" onclick={() => onCancel(caption)} disabled={sending}>
         {t('chat.fileConfirm.cancel')}
       </button>
       <button class="fc-btn primary" onclick={() => onConfirm(caption)} disabled={sending}>

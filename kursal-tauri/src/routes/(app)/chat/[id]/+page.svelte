@@ -1628,6 +1628,8 @@
         pendingFiles = pendingFiles.filter((f) => f.backendPath !== file.backendPath);
       }
       if (text) sendCaption(cid, text);
+      inputText = '';
+      draftsState.clear(cid);
       releaseSharedFiles();
       winstonTips.show('fileOffer');
     } catch (e) {
@@ -1637,8 +1639,10 @@
     }
   }
 
-  function cancelSendFile() {
+  function cancelSendFile(caption = '') {
     if (sendingFile) return;
+    inputText = caption;
+    if (contactId) draftsState.set(contactId, caption);
     pendingFiles = [];
     releaseSharedFiles();
   }
@@ -2210,7 +2214,7 @@
       files={pendingFiles}
       sending={sendingFile}
       maxLength={MAX_MESSAGE_LENGTH}
-      initialCaption={shareCaption}
+      initialCaption={[shareCaption.trim(), inputText.trim()].filter(Boolean).join('\n')}
       onConfirm={confirmSendFile}
       onCancel={cancelSendFile}
       onRemove={removePendingFile}
