@@ -25,7 +25,7 @@ use libp2p::{
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot};
 
 mod behaviour;
@@ -115,6 +115,13 @@ pub struct StreamWrite {
 
 pub type PeerStreams = Arc<Mutex<HashMap<PeerId, mpsc::Sender<StreamWrite>>>>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileStreamRoute {
+    Local,
+    Direct,
+    Relay,
+}
+
 pub fn lock_peer_streams(
     peer_streams: &PeerStreams,
 ) -> std::sync::MutexGuard<'_, HashMap<PeerId, mpsc::Sender<StreamWrite>>> {
@@ -151,6 +158,7 @@ pub enum SwarmCommand {
     OpenStream {
         peer_id: PeerId,
         addresses: Vec<Multiaddr>,
+        route: FileStreamRoute,
         reply: oneshot::Sender<Option<mpsc::Sender<StreamWrite>>>,
     },
     OpenCallStream {
@@ -518,6 +526,8 @@ impl SwarmHandle {
             let mut nearby_enabled = false;
             let mut mdns_peers: HashMap<PeerId, Multiaddr> = HashMap::new();
             let mut peer_conns: HashMap<ConnectionId, ConnInfo> = HashMap::new();
+            let mut file_dial_attempts: HashMap<(PeerId, FileStreamRoute), Instant> =
+                HashMap::new();
             let mut discovered_relays: HashMap<PeerId, RelayCandidate> = HashMap::new();
             let mut circuit_listeners: HashMap<libp2p::core::transport::ListenerId, PeerId> =
                 HashMap::new();
@@ -570,7 +580,7 @@ impl SwarmHandle {
 
                                 log::info!("Nearby enabled ({} known mdns peers)", mdns_peers.len());
                             },
-                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns, &mut node_addrs, &mut discovered_relays, &contribution).await,
+                            Some(cmd) => handle_swarm_command(cmd, &mut swarm, &mut pending_queries, &mut pending_puts, &mut pending_dials, &mut intentional_dials, &mut listen_addresses, &mut nearby_enabled, &mut stream_control, &peer_streams, &peer_conns, &mdns_peers, &mut file_dial_attempts, &mut node_addrs, &mut discovered_relays, &contribution).await,
                             None => break
                         }
                     }

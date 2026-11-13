@@ -2,8 +2,8 @@ use crate::MapKursalResult;
 use crate::{
     KursalError, Result,
     api::{
-        AppEvent, ConnectionStatus, PollTrigger, file_transfers::resume_incoming_transfers,
-        handle_incoming, poll_contact_offline, resend_stale_profile,
+        AppEvent, ConnectionStatus, PollTrigger, handle_incoming, poll_contact_offline,
+        resend_stale_profile,
     },
     contacts::Contact,
     crypto::{DEVICE_ID, messages::message_send},
@@ -24,12 +24,7 @@ use crate::{
 };
 use libp2p::PeerId;
 use libsignal_protocol::ProtocolAddress;
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-    sync::{Arc, LazyLock, Mutex as StdMutex},
-    time::Duration,
-};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::{Mutex, mpsc, oneshot};
 
 pub(super) async fn handle_bt_event(
@@ -101,42 +96,6 @@ pub(super) async fn handle_bt_event(
             }
         }
     }
-}
-
-const RESUME_DEBOUNCE: Duration = Duration::from_secs(1);
-
-static RESUME_PENDING: LazyLock<StdMutex<HashSet<UserId>>> =
-    LazyLock::new(|| StdMutex::new(HashSet::new()));
-
-fn spawn_transfer_resume(
-    contact_id: UserId,
-    db: SharedDatabase,
-    cmd_tx: mpsc::Sender<SwarmCommand>,
-    event_tx: mpsc::Sender<AppEvent>,
-) {
-    let claimed = RESUME_PENDING
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert(contact_id.clone());
-
-    if !claimed {
-        return;
-    }
-
-    tokio::task::spawn_local(async move {
-        tokio::time::sleep(RESUME_DEBOUNCE).await;
-        RESUME_PENDING
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .remove(&contact_id);
-
-        let loaded = Contact::load(&db, &contact_id);
-        if let Ok(Some(contact)) = loaded
-            && let Err(err) = resume_incoming_transfers(contact, db.clone(), cmd_tx, event_tx).await
-        {
-            log::warn!("[file] connection-resume failed: {err}");
-        }
-    });
 }
 
 pub(super) async fn handle_internal_network_event(
@@ -447,10 +406,6 @@ pub(super) async fn handle_internal_network_event(
                 let cmd_tx_for_flush = cmd_tx.clone();
                 let db_for_flush = db_clone.clone();
                 let event_tx_for_flush = app_event_tx.clone();
-                let contact_id_for_resume = contact_id.clone();
-                let cmd_tx_for_resume = cmd_tx.clone();
-                let db_for_resume = db_clone.clone();
-                let event_tx_for_resume = app_event_tx.clone();
                 tokio::task::spawn_local(async move {
                     match deliver_queue_direct(
                         &contact_id_for_flush,
@@ -476,12 +431,6 @@ pub(super) async fn handle_internal_network_event(
                         log::warn!("[offline] connection-flush failed: {err}");
                     }
                 });
-                spawn_transfer_resume(
-                    contact_id_for_resume,
-                    db_for_resume,
-                    cmd_tx_for_resume,
-                    event_tx_for_resume,
-                );
                 if !was_connected {
                     let contact_id_for_profile = contact_id.clone();
                     let cmd_tx_for_profile = cmd_tx.clone();
@@ -533,9 +482,6 @@ pub(super) async fn handle_internal_network_event(
                     })
                     .await
                     .ok();
-
-                let cmd_tx = network.lock().await.primary.cmd_tx.clone();
-                spawn_transfer_resume(contact.user_id, db.clone(), cmd_tx, app_event_tx.clone());
             }
         }
         NetworkEvent::ConnectionPending { peer_id } => {

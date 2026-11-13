@@ -55,6 +55,7 @@ function createMessagesState() {
   let transferProgress = $state<Record<string, { bytesTransferred: number; totalBytes: number }>>(
     {}
   );
+  const cancelledTransfers = new Set<string>();
   // Bumped when a received file finishes writing. The <img>/<video> mounts against
   // the still-empty preallocated file, so the first fetch fails; folding this into
   // the media URL forces a refetch once the bytes are actually on disk.
@@ -828,6 +829,7 @@ function createMessagesState() {
   }
 
   function setTransferProgress(transferId: string, bytesTransferred: number, totalBytes: number) {
+    if (cancelledTransfers.has(transferId)) return;
     transferProgress[transferId] = { bytesTransferred, totalBytes };
   }
 
@@ -842,6 +844,15 @@ function createMessagesState() {
     const copy = { ...transferProgress };
     delete copy[transferId];
     transferProgress = copy;
+  }
+
+  function markTransferCancelled(transferId: string) {
+    cancelledTransfers.add(transferId);
+    clearTransferProgress(transferId);
+  }
+
+  function clearTransferCancelled(transferId: string) {
+    cancelledTransfers.delete(transferId);
   }
 
   function hasActiveTransfers(): boolean {
@@ -1011,6 +1022,8 @@ function createMessagesState() {
     setTransferProgress,
     transferProgressFor,
     clearTransferProgress,
+    markTransferCancelled,
+    clearTransferCancelled,
     get hasActiveTransfers() {
       return hasActiveTransfers();
     },

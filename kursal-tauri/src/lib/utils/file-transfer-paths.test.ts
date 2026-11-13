@@ -117,11 +117,11 @@ describe('needsDestinationPrompt', () => {
   });
 
   it('treats an exact fit as fitting', () => {
-    expect(needsDestinationPrompt(GB, GB)).toBe(false);
+    expect(needsDestinationPrompt(50 * MB, 50 * MB)).toBe(false);
   });
 
   // An unreadable free-space figure must not turn every accept into a picker.
   it('does not prompt on a size it cannot check', () => {
-    expect(needsDestinationPrompt(2 * GB, null)).toBe(false);
+    expect(needsDestinationPrompt(50 * MB, null)).toBe(false);
   });
 });

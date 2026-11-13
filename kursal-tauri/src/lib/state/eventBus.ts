@@ -222,6 +222,7 @@ export function registerCoreListeners(hooks: CoreListenerHooks): () => void {
   });
 
   on<FileTransferProgressPayload>('file_transfer_progress', (p) => {
+    if (p.bytesTransferred === 0) messagesState.clearTransferCancelled(p.transferId);
     messagesState.setTransferProgress(p.transferId, p.bytesTransferred, p.totalBytes);
   });
 
@@ -237,7 +238,8 @@ export function registerCoreListeners(hooks: CoreListenerHooks): () => void {
   });
 
   on<FileTransferFailedPayload>('file_transfer_failed', (p) => {
-    messagesState.clearTransferProgress(p.transferId);
+    if (p.reason === 'cancelled') messagesState.markTransferCancelled(p.transferId);
+    else messagesState.clearTransferProgress(p.transferId);
     const message =
       p.reason === 'cancelled'
         ? t('fileTransfer.transferCancelled')

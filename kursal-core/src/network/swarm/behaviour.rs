@@ -1,3 +1,4 @@
+#![allow(unreachable_code)]
 use crate::network::{dcutr_gate::DcutrGate, kademlia::KursalKadStore, limiter::ConnectionLimiter};
 use libp2p::{
     request_response,

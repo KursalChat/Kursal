@@ -16,7 +16,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "gen_api_docs"
 path = "src/bin/gen_api_docs.rs"
-required-features = ["apiserver"]
+required-features = ["api-docs"]
 
 [features]
 default = ["calls", "ble"]
@@ -35,16 +35,16 @@ calls = [
     "dep:objc2-core-video",
     "dep:objc2-video-toolbox",
     "dep:objc2-ui-kit",
+    "dep:tokio-util",
 ]
 ble = ["dep:btleplug", "dep:ble-peripheral-rust"]
 apiserver = ["dep:axum", "dep:tower-http"]
-api-docs = ["apiserver", "dep:utoipa-scalar"]
+api-docs = ["apiserver", "dep:clap", "dep:utoipa-scalar"]
 
 [dependencies]
 # Async
 tokio = { workspace = true, features = ["fs"] }
-tokio-util = { workspace = true }
-tokio-stream = { workspace = true }
+tokio-util = { workspace = true, optional = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
 
@@ -63,7 +63,6 @@ log4rs = { workspace = true }
 
 # Crypto
 argon2 = { workspace = true }
-aes-gcm = { workspace = true }
 chacha20poly1305 = { workspace = true }
 hkdf = { workspace = true }
 sha2 = { workspace = true }
@@ -102,7 +101,7 @@ sysinfo = { workspace = true, features = ["system"] }
 prometheus-client = { workspace = true }
 
 # Misc
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive"], optional = true }
 uuid = { workspace = true, features = ["v7"] }
 emojis = { workspace = true }
 rayon = { workspace = true }

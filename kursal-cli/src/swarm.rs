@@ -1,3 +1,4 @@
+#![allow(unreachable_code)]
 use crate::{
     config::RelayConfig,
     health::{HealthState, start_health_server},

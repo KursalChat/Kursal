@@ -81,7 +81,10 @@ fn prune_duplicate_connections(
         return;
     }
 
-    conns.sort_by_key(|(cid, kind)| (std::cmp::Reverse(kind.rank()), *cid));
+    conns.sort_by_key(|(cid, kind)| {
+        let lan = peer_conns.get(cid).is_some_and(|info| info.lan);
+        (std::cmp::Reverse(kind.rank()), std::cmp::Reverse(lan), *cid)
+    });
     let (keep, _) = conns.remove(0);
 
     for (cid, kind) in conns {

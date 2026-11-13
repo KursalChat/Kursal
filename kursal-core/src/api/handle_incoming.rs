@@ -4,7 +4,8 @@ use crate::{
     api::{
         AppEvent, apply_address_announce,
         file_transfers::{
-            FileIncomingEntry, FileTransferEntry, apply_cancel, spawn_send_file_chunks,
+            FileIncomingEntry, FileTransferEntry, apply_cancel, clear_transfer_cancelled,
+            spawn_send_file_chunks,
         },
         message_apply::{
             apply_delete, apply_edit, apply_pin, apply_reaction_add, apply_reaction_remove,
@@ -372,6 +373,7 @@ pub async fn handle_incoming(
             file_entry.last_accessed_at = Some(now);
             db.raw_write(TABLE_FILE_TRANSFERS, &send_key, &file_entry.serialize()?)?;
 
+            clear_transfer_cancelled(&file.offer_id.0);
             spawn_send_file_chunks(
                 contact,
                 file.offer_id,

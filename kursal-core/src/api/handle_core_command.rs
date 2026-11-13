@@ -5,8 +5,9 @@ use crate::{
     api::{
         AppEvent, CoreCommand,
         file_transfers::{
-            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, apply_cancel,
-            remove_contact_transfers, stage_outgoing,
+            FileIncomingEntry, FileReceiveEntry, FileTransferEntry, all_chunks_received,
+            apply_cancel, clear_transfer_cancelled, finalize_transfer, remove_contact_transfers,
+            stage_outgoing,
         },
         send_message, send_message_tracked, share_profile_with,
     },
@@ -891,10 +892,37 @@ pub async fn handle_core_command(
                     .try_into()
                     .map_err(|_| KursalError::Crypto("Invalid offer id length".into()))?;
 
-                let existing_prog = db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)?;
+                clear_transfer_cancelled(&offer_id_bytes);
+                db.raw_delete(
+                    TABLE_FILE_TRANSFERS,
+                    &format!("recvpath:{contact_id}:{offer_id}"),
+                )?;
+                let existing_prog = match db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)? {
+                    Some(bytes) => match FileReceiveEntry::deserialize(&bytes) {
+                        Ok(prog) if Path::new(&prog.save_path).is_file() => Some(prog),
+                        _ => {
+                            db.raw_delete(TABLE_FILE_TRANSFERS, &prog_key)?;
+                            None
+                        }
+                    },
+                    None => None,
+                };
 
-                let (my_random, received_chunks) = if let Some(bytes) = existing_prog {
-                    let prog = FileReceiveEntry::deserialize(&bytes)?;
+                if let Some(prog) = existing_prog.as_ref()
+                    && all_chunks_received(&prog.received_chunks, prog.file_size)
+                {
+                    finalize_transfer(
+                        db.clone(),
+                        &contact_uid,
+                        offer_id_bytes,
+                        prog,
+                        &app_event_tx,
+                    )
+                    .await?;
+                    return Ok(());
+                }
+
+                let (my_random, received_chunks) = if let Some(prog) = existing_prog {
                     (prog.my_random, prog.received_chunks)
                 } else {
                     let chunk_count =
@@ -919,8 +947,12 @@ pub async fn handle_core_command(
                         let actual = tokio::task::spawn_blocking(move || hash_file(&hash_path))
                             .await
                             .ok_kursal(KursalError::Storage)??;
-                        db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
                         if actual == entry.hash {
+                            db.raw_write(
+                                TABLE_FILE_TRANSFERS,
+                                &format!("recvpath:{contact_id}:{offer_id}"),
+                                save_path.as_bytes(),
+                            )?;
                             app_event_tx
                                 .send(AppEvent::FileReceived {
                                     contact_id: contact_uid.clone(),

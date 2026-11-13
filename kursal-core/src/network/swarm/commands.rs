@@ -1,5 +1,5 @@
 use super::{
-    CALL_PROTOCOL, ConnInfo, ConnectionKind, ContributionStatus, KursalBehaviour,
+    CALL_PROTOCOL, ConnInfo, ConnectionKind, ContributionStatus, FileStreamRoute, KursalBehaviour,
     MAX_RELAY_RESERVATIONS, PeerStreams, RelayCandidate, SwarmCommand, VIDEO_PROTOCOL,
     best_relay_candidates,
     helpers::{is_routable_multiaddr, open_peer_stream, peer_of, reserved_relay_count},
@@ -30,6 +30,8 @@ pub(super) async fn handle_swarm_command(
     stream_control: &mut libp2p_stream::Control,
     peer_streams: &PeerStreams,
     peer_conns: &HashMap<ConnectionId, ConnInfo>,
+    mdns_peers: &HashMap<PeerId, Multiaddr>,
+    file_dial_attempts: &mut HashMap<(PeerId, FileStreamRoute), Instant>,
     node_addrs: &mut Vec<Multiaddr>,
     discovered_relays: &mut HashMap<PeerId, RelayCandidate>,
     contribution: &ContributionStatus,
@@ -336,41 +338,52 @@ pub(super) async fn handle_swarm_command(
         SwarmCommand::OpenStream {
             peer_id,
             addresses,
+            route,
             reply,
         } => {
-            let connected = swarm.is_connected(&peer_id);
-            if !connected && !addresses.is_empty() {
-                let opts = DialOpts::peer_id(peer_id)
-                    .addresses(addresses)
-                    .condition(PeerCondition::DisconnectedAndNotDialing)
-                    .build();
-                if let Err(err) = swarm.dial(opts) {
-                    log::debug!("[stream] pre-dial to {peer_id} skipped: {err:?}");
-                }
-            }
-
-            let cached = {
-                let mut map = lock_peer_streams(peer_streams);
-                match map.get(&peer_id) {
-                    Some(tx) if connected && !tx.is_closed() => Some(tx.clone()),
-                    Some(_) => {
-                        map.remove(&peer_id);
-                        None
-                    }
-                    None => None,
-                }
-            };
-
-            if let Some(tx) = cached {
-                let _ = reply.send(Some(tx));
-            } else {
-                let control = stream_control.clone();
-                let peer_streams = peer_streams.clone();
-                tokio::spawn(async move {
-                    let sender = open_peer_stream(control, peer_id, &peer_streams).await;
-                    let _ = reply.send(sender);
+            let connection = peer_conns
+                .values()
+                .filter(|info| info.peer == peer_id)
+                .find(|info| match route {
+                    FileStreamRoute::Local => info.lan && info.kind != ConnectionKind::Relay,
+                    FileStreamRoute::Direct => info.kind != ConnectionKind::Relay,
+                    FileStreamRoute::Relay => info.kind == ConnectionKind::Relay,
                 });
+
+            if connection.is_none() {
+                let dial_addresses = match route {
+                    FileStreamRoute::Local => {
+                        mdns_peers.get(&peer_id).cloned().into_iter().collect()
+                    }
+                    FileStreamRoute::Direct | FileStreamRoute::Relay => addresses,
+                };
+                let dial_key = (peer_id, route);
+                let now = Instant::now();
+                let can_retry = file_dial_attempts
+                    .get(&dial_key)
+                    .is_none_or(|last| now.duration_since(*last) >= Duration::from_secs(1));
+                if !dial_addresses.is_empty() && can_retry {
+                    file_dial_attempts.insert(dial_key, now);
+                    let opts = DialOpts::peer_id(peer_id)
+                        .addresses(dial_addresses)
+                        .condition(PeerCondition::NotDialing)
+                        .build();
+                    if let Err(err) = swarm.dial(opts) {
+                        log::debug!("[stream] {route:?} pre-dial to {peer_id} skipped: {err:?}");
+                    }
+                }
+                let _ = reply.send(None);
+                return;
             }
+
+            lock_peer_streams(peer_streams).remove(&peer_id);
+
+            let control = stream_control.clone();
+            let peer_streams = peer_streams.clone();
+            tokio::spawn(async move {
+                let sender = open_peer_stream(control, peer_id, &peer_streams).await;
+                let _ = reply.send(sender);
+            });
         }
         SwarmCommand::OpenCallStream { peer_id, reply } => {
             let mut control = stream_control.clone();

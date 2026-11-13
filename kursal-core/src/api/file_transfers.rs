@@ -12,8 +12,10 @@ use crate::{
     crypto::stream::{derive_stream_key, stream_decrypt_aad, stream_encrypt_aad},
     first_contact::{FileTransferMessage, WireMessage},
     identity::UserId,
-    messaging::enums::{FileAccept, KursalMessage, MessageId},
-    network::swarm::{FILE_CHUNK_SIZE, StreamWrite, SwarmCommand, routable_multiaddrs},
+    messaging::enums::MessageId,
+    network::swarm::{
+        FILE_CHUNK_SIZE, FileStreamRoute, StreamWrite, SwarmCommand, routable_multiaddrs,
+    },
     storage::{
         SharedDatabase, TABLE_FILE_TRANSFERS,
         filetransfer::{hash_file, outgoing_offer_dir, outgoing_pending_dir, sanitize_filename},
@@ -30,6 +32,9 @@ use tokio::{
 };
 
 pub const STALE_TRANSFER_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
+const LOCAL_ROUTE_GRACE: Duration = Duration::from_millis(750);
+const DIRECT_ROUTE_GRACE: Duration = Duration::from_secs(1);
+const RELAY_ROUTE_TIMEOUT: Duration = Duration::from_secs(5);
 const PROGRESS_LOG_EVERY: u64 = 1000;
 const PROGRESS_EVENTS_PER_TRANSFER: u64 = 2000;
 const MAX_CANCELLED_TRACKED: usize = 512;
@@ -160,15 +165,6 @@ pub fn remove_outgoing_offer(app_data_dir: &Path, contact_hex: &str, offer_hex: 
 
 pub async fn cleanup_stale_transfers(db: SharedDatabase, max_age_secs: u64) -> Result<()> {
     let now = get_timestamp_secs()?;
-
-    let incoming = db.raw_range(TABLE_FILE_TRANSFERS, "recv:", "recv;", None)?;
-    for (key, bytes) in incoming {
-        if let Ok(entry) = FileIncomingEntry::deserialize(&bytes)
-            && now.saturating_sub(entry.created_at) > max_age_secs
-        {
-            db.raw_delete(TABLE_FILE_TRANSFERS, &key)?;
-        }
-    }
 
     let partial = db.raw_range(TABLE_FILE_TRANSFERS, "recvprog:", "recvprog;", None)?;
     for (key, bytes) in partial {
@@ -377,6 +373,10 @@ pub fn take_transfer_cancelled(offer_id: &[u8; 16]) -> bool {
     lock_or_recover(&CANCELLED_TRANSFERS).remove(offer_id)
 }
 
+pub fn clear_transfer_cancelled(offer_id: &[u8; 16]) {
+    lock_or_recover(&CANCELLED_TRANSFERS).remove(offer_id);
+}
+
 fn is_transfer_cancelled(offer_id: &[u8; 16]) -> bool {
     lock_or_recover(&CANCELLED_TRANSFERS).contains(offer_id)
 }
@@ -392,7 +392,6 @@ pub async fn apply_cancel(
     let contact_hex = hex::encode(contact_id.0);
     let offer_hex = hex::encode(offer_id);
     let prog_key = format!("recvprog:{contact_hex}:{offer_hex}");
-    let recv_key = format!("recv:{contact_hex}:{offer_hex}");
 
     {
         if let Ok(Some(bytes)) = db.raw_read(TABLE_FILE_TRANSFERS, &prog_key)
@@ -401,7 +400,6 @@ pub async fn apply_cancel(
             let _ = std::fs::remove_file(&entry.save_path);
         }
         let _ = db.raw_delete(TABLE_FILE_TRANSFERS, &prog_key);
-        let _ = db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key);
         let _ = db.raw_delete(
             TABLE_FILE_TRANSFERS,
             &received_path_key(&contact_hex, &offer_hex),
@@ -457,7 +455,6 @@ pub async fn finalize_transfer(
     let contact_hex = hex::encode(contact_id.0);
     let offer_hex = hex::encode(offer_id);
     let prog_key = format!("recvprog:{contact_hex}:{offer_hex}");
-    let recv_key = format!("recv:{contact_hex}:{offer_hex}");
 
     let Some(_guard) = FinalizeGuard::acquire(offer_id) else {
         return Ok(());
@@ -473,8 +470,6 @@ pub async fn finalize_transfer(
         .ok_kursal(KursalError::Storage)??;
 
     db.raw_delete(TABLE_FILE_TRANSFERS, &prog_key)?;
-    db.raw_delete(TABLE_FILE_TRANSFERS, &recv_key)?;
-
     if actual_hash == entry.expected_hash {
         log::info!("[file] transfer {offer_hex} complete, hash ok");
         db.raw_write(
@@ -648,12 +643,25 @@ async fn handle_file_chunk(
     let state = match active.entry(chunk.transfer_id) {
         HashMapEntry::Occupied(existing) => existing.into_mut(),
         HashMapEntry::Vacant(slot) => {
-            let Some(loaded) = load_active(from, chunk.transfer_id, db).await? else {
-                return Ok(());
+            let loaded = match load_active(from, chunk.transfer_id, db).await {
+                Ok(Some(loaded)) => loaded,
+                Ok(None) => return Ok(()),
+                Err(KursalError::Io(err))
+                    if err.kind() == std::io::ErrorKind::NotFound
+                        && is_transfer_cancelled(&chunk.transfer_id) =>
+                {
+                    return Ok(());
+                }
+                Err(err) => return Err(err),
             };
             slot.insert(loaded)
         }
     };
+
+    if is_transfer_cancelled(&chunk.transfer_id) {
+        active.remove(&chunk.transfer_id);
+        return Ok(());
+    }
 
     let offer_hex = hex::encode(chunk.transfer_id);
     let idx = chunk.index as usize;
@@ -682,6 +690,10 @@ async fn handle_file_chunk(
         .seek(std::io::SeekFrom::Start(offset))
         .await
         .map_err(KursalError::Io)?;
+    if is_transfer_cancelled(&chunk.transfer_id) {
+        active.remove(&chunk.transfer_id);
+        return Ok(());
+    }
     state
         .file
         .write_all(&decrypted)
@@ -744,20 +756,55 @@ pub async fn send_file_chunks(
     cmd_tx: mpsc::Sender<SwarmCommand>,
     event_tx: mpsc::Sender<AppEvent>,
 ) -> Result<()> {
-    let (reply_tx, reply_rx) = oneshot::channel();
-    cmd_tx
-        .send(SwarmCommand::OpenStream {
-            peer_id: PeerId::from_str(&contact.peer_id).ok_kursal(KursalError::Network)?,
-            addresses: routable_multiaddrs(&contact.known_addresses)?,
-            reply: reply_tx,
-        })
-        .await
-        .ok_kursal(KursalError::Network)?;
+    let peer_id = PeerId::from_str(&contact.peer_id).ok_kursal(KursalError::Network)?;
+    let addresses = routable_multiaddrs(&contact.known_addresses)?;
+    let stream_tx = {
+        let stages = [
+            (FileStreamRoute::Local, LOCAL_ROUTE_GRACE),
+            (FileStreamRoute::Direct, DIRECT_ROUTE_GRACE),
+            (FileStreamRoute::Relay, RELAY_ROUTE_TIMEOUT),
+        ];
+        let mut stream_tx = None;
+        let mut selected_route = None;
 
-    let stream_tx = reply_rx
-        .await
-        .ok_kursal(KursalError::Network)?
-        .ok_or_else(|| KursalError::Network("Could not open stream to peer".to_string()))?;
+        for (route, timeout) in stages {
+            let deadline = tokio::time::Instant::now() + timeout;
+            while tokio::time::Instant::now() < deadline {
+                let (reply_tx, reply_rx) = oneshot::channel();
+                cmd_tx
+                    .send(SwarmCommand::OpenStream {
+                        peer_id,
+                        addresses: addresses.clone(),
+                        route,
+                        reply: reply_tx,
+                    })
+                    .await
+                    .ok_kursal(KursalError::Network)?;
+
+                match tokio::time::timeout_at(deadline, reply_rx).await {
+                    Ok(Ok(Some(stream))) => {
+                        stream_tx = Some(stream);
+                        selected_route = Some(route);
+                        break;
+                    }
+                    Ok(Ok(None)) => {}
+                    Ok(Err(_)) => {
+                        return Err(KursalError::Network("swarm dropped reply".into()));
+                    }
+                    Err(_) => break,
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            if stream_tx.is_some() {
+                break;
+            }
+        }
+        let stream = stream_tx
+            .ok_or_else(|| KursalError::Network("Could not open stream to peer".to_string()))?;
+        log::info!("[file] selected {selected_route:?} route for transfer");
+        stream
+    };
 
     let mut file: File = File::open(&file_path).await.map_err(KursalError::Io)?;
     let file_size = file.metadata().await.map_err(KursalError::Io)?.len();
@@ -876,6 +923,11 @@ pub async fn send_file_chunks(
         return Ok(());
     }
 
+    if is_transfer_cancelled(&offer_id.0) {
+        take_transfer_cancelled(&offer_id.0);
+        return Ok(());
+    }
+
     log::info!(
         "[file] send done transfer={} {done}/{chunk_count} chunks",
         hex::encode(offer_id.0)
@@ -888,59 +940,6 @@ pub async fn send_file_chunks(
             total_bytes: file_size,
         })
         .await;
-
-    Ok(())
-}
-
-pub async fn resume_incoming_transfers(
-    contact: Contact,
-    db: crate::storage::SharedDatabase,
-    cmd_tx: mpsc::Sender<SwarmCommand>,
-    event_tx: mpsc::Sender<crate::api::AppEvent>,
-) -> Result<()> {
-    if contact.blocked {
-        return Ok(());
-    }
-
-    let contact_hex = hex::encode(contact.user_id.0);
-    let prefix = format!("recvprog:{contact_hex}:");
-    let end = format!("recvprog:{contact_hex};");
-
-    let entries = db.raw_range(crate::storage::TABLE_FILE_TRANSFERS, &prefix, &end, None)?;
-
-    for (key, bytes) in entries {
-        let Ok(entry) = FileReceiveEntry::deserialize(&bytes) else {
-            continue;
-        };
-
-        let offer_hex = key.rsplit(':').next().unwrap_or_default();
-        let Ok(offer_bytes) = hex::decode(offer_hex) else {
-            continue;
-        };
-        let Ok(offer_arr): std::result::Result<[u8; 16], _> = offer_bytes.try_into() else {
-            continue;
-        };
-
-        if all_chunks_received(&entry.received_chunks, entry.file_size) {
-            finalize_transfer(db.clone(), &contact.user_id, offer_arr, &entry, &event_tx).await?;
-            continue;
-        }
-
-        log::info!("[file] resuming incoming transfer {offer_hex} for contact {contact_hex}");
-
-        crate::api::send_message(
-            KursalMessage::FileAccept(FileAccept {
-                offer_id: MessageId(offer_arr),
-                random: entry.my_random,
-                received_chunks: entry.received_chunks,
-            }),
-            &contact,
-            db.clone(),
-            &cmd_tx,
-            Some(&event_tx),
-        )
-        .await?;
-    }
 
     Ok(())
 }

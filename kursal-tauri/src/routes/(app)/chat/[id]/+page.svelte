@@ -1654,6 +1654,7 @@
     if (fileOfferActionState[msg.id] === 'accepting' || fileOfferActionState[msg.id] === 'accepted')
       return;
     fileOfferActionState[msg.id] = 'accepting';
+    messagesState.clearTransferCancelled(msg.id);
     try {
       const savePath = await resolveAcceptDestination(
         msg.contactId,
@@ -1666,7 +1667,6 @@
         return;
       }
       await acceptFileOffer(msg.contactId, msg.id, savePath);
-      messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
       fileOfferActionState[msg.id] = 'accepted';
     } catch (e) {
       fileOfferActionState[msg.id] = 'idle';
@@ -1705,7 +1705,7 @@
       log.error('Cancel file transfer failed', e);
     }
     fileOfferActionState[msg.id] = 'idle';
-    messagesState.clearTransferProgress(msg.id);
+    messagesState.markTransferCancelled(msg.id);
     messagesState.setAutodownloadPath(msg.id, msg.contactId, null);
   }
 
@@ -1814,8 +1814,8 @@
           fileOfferActionState[msg.id] = 'idle';
           continue;
         }
+        messagesState.clearTransferCancelled(msg.id);
         await acceptFileOffer(msg.contactId, msg.id, savePath);
-        messagesState.setAutodownloadPath(msg.id, msg.contactId, savePath);
         fileOfferActionState[msg.id] = 'accepted';
       } catch (e) {
         failed += 1;
