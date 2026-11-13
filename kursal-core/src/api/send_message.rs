@@ -276,6 +276,11 @@ pub async fn send_message_tracked(
     };
 
     stored.save(&db)?;
+    if let Some(tx) = app_event_tx {
+        tx.send(AppEvent::MessageSent { message: stored })
+            .await
+            .ok();
+    }
 
     crate::messaging::offline::schedule_direct_ack_deadline(
         contact.user_id.clone(),

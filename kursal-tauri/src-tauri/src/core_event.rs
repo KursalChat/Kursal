@@ -77,6 +77,11 @@ pub async fn handle_core_event(
             emitter(handle, api_handle, "message_received", resp);
         }
 
+        AppEvent::MessageSent { message } => {
+            let resp = MessageResponse::from(message);
+            emitter(handle, api_handle, "message_sent", resp);
+        }
+
         AppEvent::TypingIndicator { contact_id } => {
             emitter(
                 handle,

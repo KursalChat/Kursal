@@ -69,6 +69,13 @@ export function registerCoreListeners(hooks: CoreListenerHooks): () => void {
     hooks.notifyIncoming(payload.contactId, senderName(payload.contactId), payload.content);
   });
 
+  on<MessageReceivedPayload>('message_sent', (payload) => {
+    payload.timestamp = payload.timestamp * 1000;
+    payload.receivedTimestamp = payload.receivedTimestamp * 1000;
+    messagesState.appendSent(payload);
+    contactsState.touchLastMessage(payload.contactId, payload.timestamp);
+  });
+
   on<ConnectionChangedPayload>('connection_changed', (p) => {
     contactsState.setConnectionStatus(p.contactId, p.status);
   });

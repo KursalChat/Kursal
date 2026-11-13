@@ -42,6 +42,9 @@ pub enum AppEvent {
         message: StoredMessage,
         via_offline: bool,
     },
+    MessageSent {
+        message: StoredMessage,
+    },
     TypingIndicator {
         contact_id: UserId,
     },

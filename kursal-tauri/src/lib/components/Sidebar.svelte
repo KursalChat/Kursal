@@ -94,7 +94,7 @@
   // Drawer swipe: grab from the screen edge to open, drag anywhere on the panel
   // to close. Only in drawer mode, which the CSS switches on at the same width.
   const DRAWER_MAX_WIDTH = 768;
-  const EDGE_ZONE = 20;
+  const EDGE_ZONE = 32;
   const AXIS_LOCK = 10;
   const COMMIT = 72;
 

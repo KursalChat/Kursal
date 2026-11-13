@@ -4486,7 +4486,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bincode",
- "blake2",
  "blake3",
  "ble-peripheral-rust",
  "btleplug",

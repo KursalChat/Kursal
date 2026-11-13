@@ -381,6 +381,26 @@ function createMessagesState() {
     consumePendingQueued(cid, msg.id);
   }
 
+  function appendSent(msg: MessageResponse) {
+    const list = map[msg.contactId];
+    const existing = list?.find((m) => m.id === msg.id);
+    if (existing) return;
+
+    const optimistic = list?.find(
+      (m) =>
+        m.direction === 'sent' &&
+        m.status === 'sending' &&
+        m.content === msg.content &&
+        m.replyTo === msg.replyTo &&
+        Math.abs(m.timestamp - msg.timestamp) <= 5000
+    );
+    if (optimistic) {
+      Object.assign(optimistic, msg);
+      return;
+    }
+    append(msg);
+  }
+
   // Appends a "sending" text message under a temporary id, which `replaceId`
   // swaps for the backend's once the send resolves. Returns that temp id.
   function appendPendingText(
@@ -971,6 +991,7 @@ function createMessagesState() {
     isOldestReached,
     isNewestReached,
     append,
+    appendSent,
     appendOptimistic,
     appendPendingText,
     queuedFor,
