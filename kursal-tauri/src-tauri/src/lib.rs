@@ -24,9 +24,9 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::sync::{Mutex, broadcast, mpsc};
 
 // avoiding "unused deps" in dev mode
-#[cfg(dev)]
+#[cfg(all(dev, not(any(target_os = "android", target_os = "ios"))))]
 use tauri_plugin_single_instance as _;
-#[cfg(dev)]
+#[cfg(all(dev, not(any(target_os = "android", target_os = "ios"))))]
 use tauri_plugin_window_state as _;
 
 #[cfg(target_os = "android")]

@@ -34,8 +34,9 @@ calls = [
     "dep:objc2-core-media",
     "dep:objc2-core-video",
     "dep:objc2-video-toolbox",
-    "dep:objc2-ui-kit",
     "dep:tokio-util",
+    "dep:openh264",
+    "dep:openh264-sys2",
 ]
 ble = ["dep:btleplug", "dep:ble-peripheral-rust"]
 apiserver = ["dep:axum", "dep:tower-http"]
@@ -131,12 +132,6 @@ apple-native-keyring-store = { workspace = true, features = [
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
-objc2-ui-kit = { workspace = true, optional = true, features = [
-    "UIDevice",
-    "UIOrientation",
-] }
-# Configure the audio session for VoIP: hardware echo-cancel/noise-suppression
-# and (with UIBackgroundModes=audio) keeping an active call alive in background.
 objc2-avf-audio = { workspace = true, optional = true, features = [
     "AVAudioSession",
     "AVAudioSessionTypes",
@@ -204,13 +199,13 @@ windows = { workspace = true, features = [
     "Win32_Media_MediaFoundation",
     "Win32_System_Com",
 ] }
-openh264 = { workspace = true }
-openh264-sys2 = { workspace = true }
+openh264 = { workspace = true, optional = true }
+openh264-sys2 = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = { workspace = true }
-openh264 = { workspace = true }
-openh264-sys2 = { workspace = true }
+openh264 = { workspace = true, optional = true }
+openh264-sys2 = { workspace = true, optional = true }
 zune-jpeg = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]

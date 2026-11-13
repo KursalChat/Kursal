@@ -155,9 +155,9 @@ check-frontend strict="":
 
 check-rust:
     cargo fmt -p kursal-cli -p kursal-core -p kursal-app -- --check
-    cargo clippy -p kursal-cli -p kursal-core -p kursal-app --all-targets --no-deps -- -D warnings
+    cargo clippy -p kursal-cli -p kursal-core -p kursal-app --all-features --all-targets --no-deps -- -D warnings
     cargo clippy -p kursal-core --no-default-features --all-targets --no-deps -- -D warnings
-    cargo test -p kursal-cli -p kursal-core -p kursal-app
+    cargo test -p kursal-cli -p kursal-core -p kursal-app --all-features
 
 check-mobile: check-android check-ios
 

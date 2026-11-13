@@ -4517,7 +4517,6 @@ dependencies = [
  "objc2-core-media",
  "objc2-core-video",
  "objc2-foundation 0.3.2",
- "objc2-ui-kit",
  "objc2-video-toolbox",
  "openh264",
  "openh264-sys2",
