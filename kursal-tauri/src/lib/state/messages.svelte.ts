@@ -425,7 +425,14 @@ function createMessagesState() {
 
   function appendOptimistic(msg: MessageResponse) {
     if (!map[msg.contactId]) map[msg.contactId] = [];
-    map[msg.contactId].push(msg);
+    const list = map[msg.contactId];
+    const existing = list.find((m) => m.id === msg.id);
+    if (existing) {
+      Object.assign(existing, msg);
+      consumePendingQueued(msg.contactId, msg.id);
+      return;
+    }
+    list.push(msg);
     // Replying is proof of presence: drop the hand-set unread so the normal
     // at-bottom auto-read can take over again.
     if (msg.direction === 'sent') {
