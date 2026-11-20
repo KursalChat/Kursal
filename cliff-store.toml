@@ -1,0 +1,24 @@
+[changelog]
+header = ""
+footer = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}\
+{% for commit in commits %}\
+• {{ commit.message | upper_first }}
+{% endfor %}\
+{% endfor %}\
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+filter_commits = true
+tag_pattern = "v[0-9]*"
+sort_commits = "newest"
+commit_parsers = [
+  { message = "^(feat|fix|perf)\\((ci|build|deps)\\)", skip = true },
+  { message = "^feat", group = "<!-- 00 -->New" },
+  { message = "^fix", group = "<!-- 01 -->Fixed" },
+  { message = "^perf", group = "<!-- 02 -->Faster" },
+]
