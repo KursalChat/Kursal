@@ -7,7 +7,7 @@ use crate::{
     storage::filetransfer::{get_auto_download_storage_for, get_folder_size},
 };
 use libsignal_protocol::{IdentityKeyPair, ProtocolAddress};
-use redb::ReadableDatabase;
+use redb::{ReadableDatabase, ReadableTable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{path::PathBuf, time::SystemTime};

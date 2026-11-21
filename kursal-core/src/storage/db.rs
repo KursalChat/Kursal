@@ -401,7 +401,7 @@ impl Database {
             Err(err) => return Err(err.into()),
         };
 
-        let mut range = table.range::<&str>((Bound::Excluded(after), Bound::Excluded(before)))?;
+        let mut range = table.range((Bound::Excluded(after), Bound::Excluded(before)))?;
 
         match range.next_back() {
             Some(entry) => Ok(Some(entry?.0.value().to_string())),
@@ -445,7 +445,7 @@ impl Database {
             Err(err) => return Err(err.into()),
         };
 
-        let range = table.range::<&str>((Bound::Excluded(after), Bound::Excluded(before)))?;
+        let range = table.range((Bound::Excluded(after), Bound::Excluded(before)))?;
         let range: Box<dyn Iterator<Item = _>> = if reverse {
             Box::new(range.rev())
         } else {
