@@ -6,6 +6,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.0-beta.15] - 2026-11-21
+
+### Features
+
+- New relay!
+
+### Bug Fixes
+
+- A weird UI crash
+- Draggable window while pop up
+- SendMessage event
+- Faster file hashing (x7 on large files)
+- Keep text on file upload
+- Prefer local streams + improvements
+- Ask where to download for > 100MB
+- Merge QUIC and TCP lines into one
+- Use cloudflare DNS
+- Some offline delay tweaks
+- Notification removal
+- Audio device names
+- Call sound when starting one
+
+### Documentation
+
+- Metadata for stores
+
+### CI
+
+- Changelog for play store
+- Deprecated option + confirmation
+
+### Miscellaneous
+
+- Rust deps cleanup
+
 ## [0.1.0-beta.14] - 2026-11-07
 
 ### Features
