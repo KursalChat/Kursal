@@ -31,6 +31,7 @@
       "alreadyContactError": "Deze persoon zit al in uw contacten.",
       "alreadyUsedError": "Deze langetermijncode is opgebruikt. Vraag uw contact om een nieuwe.",
       "card": {
+        "copyUrl": "",
         "daysLeft": "{n}d over",
         "download": "Downloaden",
         "editLimits": "Wijzig limieten",
@@ -102,6 +103,9 @@
       "warningDescription": "Iedereen die er een heeft kan een beveiligde sessie aanvragen totdat hij vervalt, opgebruikt is of u hem intrekt."
     },
     "methodSelection": {
+      "deepLinkConfirmButton": "",
+      "deepLinkConfirmMessage": "",
+      "deepLinkConfirmTitle": "",
       "heading": "Contact Toevoegen"
     },
     "nearby": {
@@ -356,6 +360,11 @@
       "typingIndicator": "{name} is aan het typen…"
     },
     "conversation": {
+      "deleteConfirm": "Verwijderen",
+      "deleteForEveryoneMessage": "Dit bericht wordt verwijderd voor u en de ontvanger. Dit kan niet ongedaan worden gemaakt.",
+      "deleteForEveryoneTitle": "Bericht voor iedereen verwijderen?",
+      "deleteLocalMessage": "Dit bericht wordt van dit apparaat verwijderd. Dit kan niet ongedaan worden gemaakt.",
+      "deleteLocalTitle": "Bericht verwijderen?",
       "dismissBannerAriaLabel": "Afwijzen",
       "dropFileOverlay": "Zet bestand neer om te verzenden",
       "emptyEncrypted": "End-to-end versleuteld",
@@ -364,11 +373,6 @@
       "errorContactNotFound": "Contact niet gevonden",
       "errorCopy": "Kon niet kopiëren",
       "errorDeleteMessage": "Het mislukte om het bericht te verwijderen",
-      "deleteForEveryoneTitle": "Bericht voor iedereen verwijderen?",
-      "deleteForEveryoneMessage": "Dit bericht wordt verwijderd voor u en de ontvanger. Dit kan niet ongedaan worden gemaakt.",
-      "deleteLocalTitle": "Bericht verwijderen?",
-      "deleteLocalMessage": "Dit bericht wordt van dit apparaat verwijderd. Dit kan niet ongedaan worden gemaakt.",
-      "deleteConfirm": "Verwijderen",
       "errorDownloadAll": "Kon {count} afbeelding(en) niet downloaden.",
       "errorEditMessage": "Het mislukte om het bericht te bewerken",
       "errorExportFile": "Kon het bestand niet op die locatie opslaan.",
@@ -574,8 +578,8 @@
   "fileTransfer": {
     "errorAutoDownload": "Auto-download mislukte.",
     "errorNoSpace": "Auto-download mislukte: er is niet genoeg vrije ruimte.",
-    "transferFailed": "Bestandsoverdracht mislukte de integriteitscontrole en was verworpen",
     "transferCancelled": "Bestandsoverdracht geannuleerd.",
+    "transferFailed": "Bestandsoverdracht mislukte de integriteitscontrole en was verworpen",
     "transferRevoked": "Bestandsoverdracht is niet langer beschikbaar. Deze is mogelijk geannuleerd of ingetrokken."
   },
   "home": {
@@ -876,8 +880,6 @@
       "creditPaper": "Artikel",
       "creditsCard": "Credits",
       "description": "Updates, developerintegraties en diagnostiek.",
-      "restartRequiredTitle": "Kursal herstarten",
-      "restartRequiredMessage": "De lokale API-server start nadat u Kursal opnieuw hebt gestart.",
       "enableAriaLabel": "Lokale API inschakelen",
       "enableDescription": "Een HTTP API starten op deze machine.",
       "enableRow": "Inschakelen",
@@ -898,6 +900,8 @@
       "openDocsDescription": "Open de lokale server documentatie in uw brower.",
       "openDocsRow": "API docs",
       "portRow": "Poort",
+      "restartRequiredMessage": "De lokale API-server start nadat u Kursal opnieuw hebt gestart.",
+      "restartRequiredTitle": "Kursal herstarten",
       "saveButton": "Opslaan",
       "sourceCodeButton": "Repository bekijken",
       "sourceCodeRow": "Broncode",
