@@ -31,7 +31,6 @@
       "alreadyContactError": "Deze persoon zit al in uw contacten.",
       "alreadyUsedError": "Deze langetermijncode is opgebruikt. Vraag uw contact om een nieuwe.",
       "card": {
-        "copyUrl": "",
         "daysLeft": "{n}d over",
         "download": "Downloaden",
         "editLimits": "Wijzig limieten",
@@ -103,9 +102,6 @@
       "warningDescription": "Iedereen die er een heeft kan een beveiligde sessie aanvragen totdat hij vervalt, opgebruikt is of u hem intrekt."
     },
     "methodSelection": {
-      "deepLinkConfirmButton": "",
-      "deepLinkConfirmMessage": "",
-      "deepLinkConfirmTitle": "",
       "heading": "Contact Toevoegen"
     },
     "nearby": {
