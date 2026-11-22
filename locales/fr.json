@@ -31,6 +31,7 @@
       "alreadyContactError": "Cette personne est déjà dans vos contacts.",
       "alreadyUsedError": "Ce code longue durée n'a plus d'utilisations disponibles. Demandez-en un nouveau à votre contact.",
       "card": {
+        "copyUrl": "Copier l'URL",
         "daysLeft": "{n} j restants",
         "download": "Télécharger",
         "editLimits": "Modifier les limites",
@@ -102,6 +103,8 @@
       "warningDescription": "Toute personne qui le détient peut demander une session sécurisée jusqu'à son expiration, l'épuisement des utilisations ou sa révocation."
     },
     "methodSelection": {
+      "deepLinkConfirmButton": "Ajouter le contact",
+      "deepLinkConfirmTitle": "Ajouter ce contact ?",
       "heading": "Ajouter un contact"
     },
     "nearby": {
@@ -160,9 +163,9 @@
     "crashReportCancel": "Pas maintenant",
     "crashReportConfirm": "Envoyer le rapport",
     "crashReportDetail": "Voici exactement ce qui va être envoyé. Rien d'autre ne quitte votre appareil.",
+    "crashReportGithub": "GitHub (recommandé)",
     "crashReportMessage": "Kursal a planté la dernière fois. Voulez-vous envoyer un rapport d'erreur anonyme pour aider à corriger le problème ?",
     "crashReportTitle": "Plantage détecté",
-    "crashReportGithub": "GitHub (recommandé)",
     "fileBlockedConfirm": "Fermer",
     "fileOpenCancel": "Annuler",
     "fileOpenConfirm": "Ouvrir",
@@ -356,6 +359,11 @@
       "typingIndicator": "{name} est en train d'écrire…"
     },
     "conversation": {
+      "deleteConfirm": "Supprimer",
+      "deleteForEveryoneMessage": "Ce message sera supprimé pour vous et votre destinataire. Cette action est irréversible.",
+      "deleteForEveryoneTitle": "Supprimer le message pour tout le monde ?",
+      "deleteLocalMessage": "Ce message sera supprimé de cet appareil. Cette action est irréversible.",
+      "deleteLocalTitle": "Supprimer le message ?",
       "dismissBannerAriaLabel": "Ignorer",
       "dropFileOverlay": "Déposer le fichier pour l'envoyer",
       "emptyEncrypted": "Chiffré de bout en bout",
@@ -364,11 +372,6 @@
       "errorContactNotFound": "Contact introuvable",
       "errorCopy": "Impossible de copier",
       "errorDeleteMessage": "Échec de la suppression",
-      "deleteForEveryoneTitle": "Supprimer le message pour tout le monde ?",
-      "deleteForEveryoneMessage": "Ce message sera supprimé pour vous et votre destinataire. Cette action est irréversible.",
-      "deleteLocalTitle": "Supprimer le message ?",
-      "deleteLocalMessage": "Ce message sera supprimé de cet appareil. Cette action est irréversible.",
-      "deleteConfirm": "Supprimer",
       "errorDownloadAll": "Impossible de télécharger {count} image(s).",
       "errorEditMessage": "Échec de la modification",
       "errorExportFile": "Le fichier n'a pas pu être sauvegardé à cet endroit.",
@@ -574,8 +577,8 @@
   "fileTransfer": {
     "errorAutoDownload": "Échec du téléchargement automatique.",
     "errorNoSpace": "Échec du téléchargement automatique : espace libre insuffisant.",
-    "transferFailed": "Le transfert de fichier a échoué au contrôle d'intégrité et a été rejeté",
     "transferCancelled": "Le transfert de fichier a été annulé.",
+    "transferFailed": "Le transfert de fichier a échoué au contrôle d'intégrité et a été rejeté",
     "transferRevoked": "Le transfert de fichier n'est plus disponible. Il a peut-être été annulé ou révoqué."
   },
   "home": {
@@ -876,8 +879,6 @@
       "creditPaper": "Papier",
       "creditsCard": "Crédits",
       "description": "Mises à jour, intégrations et diagnostics.",
-      "restartRequiredTitle": "Redémarrer Kursal",
-      "restartRequiredMessage": "Le serveur API local démarrera après le redémarrage de Kursal.",
       "enableAriaLabel": "Activer l'API locale",
       "enableDescription": "Démarrer une API HTTP sur cette machine.",
       "enableRow": "Activer",
@@ -898,6 +899,8 @@
       "openDocsDescription": "Ouvrir la documentation du serveur local dans le navigateur.",
       "openDocsRow": "Documentation de l'API",
       "portRow": "Port",
+      "restartRequiredMessage": "Le serveur API local démarrera après le redémarrage de Kursal.",
+      "restartRequiredTitle": "Redémarrer Kursal",
       "saveButton": "Enregistrer",
       "sourceCodeButton": "Voir le dépôt",
       "sourceCodeRow": "Code source",
