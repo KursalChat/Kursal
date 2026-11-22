@@ -104,6 +104,7 @@
     },
     "methodSelection": {
       "deepLinkConfirmButton": "Ajouter le contact",
+      "deepLinkConfirmMessage": "",
       "deepLinkConfirmTitle": "Ajouter ce contact ?",
       "heading": "Ajouter un contact"
     },
